@@ -46,9 +46,13 @@ class LeaderboardView extends StatelessWidget {
               ),
               subtitle: submission?.delta == null
                   ? null
-                  : Text(_formatDelta(submission!.delta!)),
+                  : Text(formatDelta(submission!.delta!)),
             ),
           ),
+        if (state.question != null) ...[
+          const SizedBox(height: 12),
+          _RevealedSubmissions(state: state),
+        ],
         const SizedBox(height: 12),
         Standings(
           players: state.players,
@@ -59,4 +63,100 @@ class LeaderboardView extends StatelessWidget {
   }
 }
 
-String _formatDelta(int delta) => delta >= 0 ? '+$delta' : '−${-delta}';
+String formatDelta(int delta) => delta >= 0 ? '+$delta' : '−${-delta}';
+
+/// Everyone's answers for the question that just ended, read-only, in the
+/// order received (PROTOCOL.md §7: revealed to all in scoring/leaderboard).
+class _RevealedSubmissions extends StatelessWidget {
+  const _RevealedSubmissions({required this.state});
+
+  final RoomState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final submissions = state.submissions ?? const <SubmissionView>[];
+    final playersById = {for (final p in state.players) p.id: p};
+    return Card(
+      key: const Key('revealedSubmissions'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Text(
+              'Everyone\'s answers',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          if (submissions.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Nobody answered'),
+            ),
+          for (final submission in submissions)
+            _SubmissionResultTile(
+              submission: submission,
+              player: playersById[submission.playerId],
+              isYou: submission.playerId == state.you.playerId,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubmissionResultTile extends StatelessWidget {
+  const _SubmissionResultTile({
+    required this.submission,
+    required this.player,
+    required this.isYou,
+  });
+
+  final SubmissionView submission;
+  final PlayerSummary? player;
+  final bool isYou;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final correct = submission.correct ?? submission.autoCorrect ?? false;
+    final delta = submission.delta;
+    final name = player?.name ?? submission.playerId;
+    return ListTile(
+      key: ValueKey('result-${submission.playerId}'),
+      dense: true,
+      selected: isYou,
+      leading: Icon(
+        correct ? Icons.check_circle : Icons.cancel,
+        color: correct ? Colors.green : theme.colorScheme.error,
+        semanticLabel: correct ? 'Correct' : 'Incorrect',
+      ),
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(
+              isYou ? '$name (you)' : name,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (player?.isHost ?? false) ...[
+            const SizedBox(width: 6),
+            HostBadge(
+              key: ValueKey('result-host-badge-${submission.playerId}'),
+            ),
+          ],
+        ],
+      ),
+      subtitle: Text(
+        [
+          submission.answer,
+          'wager ${submission.wager}',
+          if (submission.overrideVerdict != null) 'corrected by host',
+        ].join(' · '),
+      ),
+      trailing: delta == null
+          ? null
+          : Text(formatDelta(delta), style: theme.textTheme.titleMedium),
+    );
+  }
+}
