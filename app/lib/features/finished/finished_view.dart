@@ -199,6 +199,8 @@ class _PodiumColumn extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Container(
+          key: ValueKey('podium-bar-$rank'),
+          width: double.infinity,
           height: switch (rank) {
             1 => 124,
             2 => 92,

@@ -87,6 +87,25 @@ void main() {
     expect(find.text('-3'), findsOneWidget);
   });
 
+  testWidgets('podium bars fill their columns', (tester) async {
+    await pumpView(
+      tester,
+      finishedWith([player('p1', 'Hana', 8), player('p2', 'Sam', 5)]),
+    );
+
+    for (final rank in [1, 2]) {
+      final column = tester.getSize(find.byKey(ValueKey('podium-$rank')));
+      final bar = tester.getSize(find.byKey(ValueKey('podium-bar-$rank')));
+      expect(bar.width, column.width);
+    }
+    expect(
+      tester.getSize(find.byKey(const ValueKey('podium-bar-1'))).height,
+      greaterThan(
+        tester.getSize(find.byKey(const ValueKey('podium-bar-2'))).height,
+      ),
+    );
+  });
+
   testWidgets('equal top scores are a tie', (tester) async {
     await pumpView(
       tester,
