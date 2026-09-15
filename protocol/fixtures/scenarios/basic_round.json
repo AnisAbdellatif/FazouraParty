@@ -1,5 +1,5 @@
 {
-  "name": "two players, one question, host override, finish",
+  "name": "non-playing host, two players, one question, host override, finish",
   "pack": {
     "title": "Fixture Pack",
     "questions": [
@@ -7,14 +7,14 @@
     ]
   },
   "steps": [
-    {"actor": "host", "join": {"protocol_version": 1, "host_token": "$host_token"},
+    {"actor": "host", "join": {"protocol_version": 2, "host_token": "$host_token"},
      "expect": {"status": "ok", "response": {"role": "host", "player_id": null}}},
 
-    {"actor": "sam", "join": {"protocol_version": 1, "display_name": "Sam"},
+    {"actor": "sam", "join": {"protocol_version": 2, "display_name": "Sam"},
      "expect": {"status": "ok", "response": {"role": "player"}}},
-    {"actor": "alex", "join": {"protocol_version": 1, "display_name": "alex"},
+    {"actor": "alex", "join": {"protocol_version": 2, "display_name": "alex"},
      "expect": {"status": "ok", "response": {"role": "player"}}},
-    {"actor": "dup", "join": {"protocol_version": 1, "display_name": "SAM"},
+    {"actor": "dup", "join": {"protocol_version": 2, "display_name": "SAM"},
      "expect": {"status": "error", "response": {"code": "name_taken"}}},
 
     {"actor": "sam", "push": "submit", "payload": {"answer": "x", "wager": 5},
@@ -23,9 +23,10 @@
      "expect": {"status": "error", "response": {"code": "not_host"}}},
 
     {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+
     {"actor": "host", "expect_state": {"players": [
-      {"name": "alex", "connected": true, "has_submitted": false},
-      {"name": "Sam", "connected": true, "has_submitted": false}
+      {"name": "alex", "connected": true, "has_submitted": false, "is_host": false},
+      {"name": "Sam", "connected": true, "has_submitted": false, "is_host": false}
     ]}},
 
     {"actor": "sam", "expect_state": {
@@ -33,7 +34,13 @@
       "question": {"id": "q1", "prompt": "Capital of Australia?"},
       "accepted_answers": null, "submissions": null
     }},
-    {"actor": "host", "expect_state": {"phase": "question", "accepted_answers": ["Canberra"], "submissions": []}},
+    {"actor": "host", "expect_state": {
+      "phase": "question", "accepted_answers": null, "submissions": null,
+      "you": {"role": "host", "player_id": null, "submission": null}
+    }},
+
+    {"actor": "host", "push": "submit", "payload": {"answer": "Canberra", "wager": 10},
+     "expect": {"status": "error", "response": {"code": "not_player"}}},
 
     {"actor": "sam", "push": "submit", "payload": {"answer": "Canberra", "wager": 11},
      "expect": {"status": "error", "response": {"code": "invalid_wager"}}},
@@ -59,6 +66,7 @@
         {"name": "alex", "score": -4, "has_submitted": true}
       ]
     }},
+    {"actor": "host", "expect_state": {"phase": "scoring", "accepted_answers": ["Canberra"]}},
 
     {"actor": "host", "push": "host_override", "payload": {"player_id": "$player_id:alex", "correct": true},
      "expect": {"status": "ok"}},

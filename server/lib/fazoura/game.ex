@@ -9,7 +9,7 @@ defmodule Fazoura.Game do
 
   alias Fazoura.Game.{Answer, Pack}
 
-  @protocol_version 1
+  @protocol_version 2
   @max_players 100
   @max_name_length 20
   @max_answer_length 100
@@ -38,6 +38,7 @@ defmodule Fazoura.Game do
           question_index: non_neg_integer() | nil,
           deadline: integer() | nil,
           paused_remaining_ms: non_neg_integer() | nil,
+          host_player_id: String.t() | nil,
           players: %{String.t() => player()},
           submissions: %{String.t() => submission()}
         }
@@ -51,6 +52,7 @@ defmodule Fazoura.Game do
     question_index: nil,
     deadline: nil,
     paused_remaining_ms: nil,
+    host_player_id: nil,
     players: %{},
     submissions: %{}
   ]
@@ -79,7 +81,19 @@ defmodule Fazoura.Game do
 
   def add_player(_game, _id, _name), do: {:error, :invalid_name}
 
-  @spec player?(t(), String.t()) :: boolean()
+  @doc """
+  Makes the host a player too. A no-op if the host already plays (the name is ignored).
+  """
+  @spec add_host_player(t(), String.t(), term()) :: {:ok, t()} | error()
+  def add_host_player(%__MODULE__{host_player_id: nil} = game, id, name) do
+    with {:ok, game} <- add_player(game, id, name) do
+      {:ok, %{game | host_player_id: id}}
+    end
+  end
+
+  def add_host_player(game, _id, _name), do: {:ok, game}
+
+  @spec player?(t(), String.t() | nil) :: boolean()
   def player?(game, id), do: Map.has_key?(game.players, id)
 
   @spec set_connected(t(), String.t(), boolean()) :: t()
@@ -115,7 +129,10 @@ defmodule Fazoura.Game do
   end
 
   def handle(_game, {:player, _id}, _host_intent, _now), do: {:error, :not_host}
-  def handle(_game, :host, {:submit, _payload}, _now), do: {:error, :not_player}
+  def handle(%{host_player_id: nil}, :host, {:submit, _payload}, _now), do: {:error, :not_player}
+
+  def handle(game, :host, {:submit, _payload} = intent, now),
+    do: handle(game, {:player, game.host_player_id}, intent, now)
 
   def handle(game, :host, :next, now) do
     case game.phase do
@@ -265,7 +282,8 @@ defmodule Fazoura.Game do
   @spec view(t(), actor(), integer()) :: map()
   def view(game, recipient, now) do
     question = if game.phase in [:lobby, :finished], do: nil, else: current_question(game)
-    revealed? = recipient == :host or game.phase in [:scoring, :leaderboard]
+    # Same for every role: the host may be playing, so nobody gets an early look (§7).
+    revealed? = game.phase in [:scoring, :leaderboard]
 
     %{
       protocol_version: @protocol_version,
@@ -298,7 +316,10 @@ defmodule Fazoura.Game do
     game
     |> sorted_players()
     |> Enum.map(fn p ->
-      Map.put(p, :has_submitted, tracks_submissions? and Map.has_key?(game.submissions, p.id))
+      Map.merge(p, %{
+        has_submitted: tracks_submissions? and Map.has_key?(game.submissions, p.id),
+        is_host: p.id == game.host_player_id
+      })
     end)
   end
 
@@ -323,7 +344,8 @@ defmodule Fazoura.Game do
     end
   end
 
-  defp you_view(_game, :host, _question), do: %{role: "host", player_id: nil, submission: nil}
+  defp you_view(game, :host, question),
+    do: %{you_view(game, {:player, game.host_player_id}, question) | role: "host"}
 
   defp you_view(game, {:player, id}, question) do
     submission = question && game.submissions[id]

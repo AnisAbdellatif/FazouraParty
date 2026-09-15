@@ -1,0 +1,77 @@
+{
+  "name": "host plays: no early reveal, host ends the question, corrects own answer, rejoins",
+  "pack": {
+    "title": "Fixture Pack",
+    "questions": [
+      {"id": "q1", "type": "text", "prompt": "Capital of Australia?", "accepted_answers": ["Canberra"], "time_limit_ms": 30000}
+    ]
+  },
+  "steps": [
+    {"actor": "host", "join": {"protocol_version": 2, "host_token": "$host_token", "display_name": "Hana"},
+     "expect": {"status": "ok", "response": {"role": "host", "player_token": null}}},
+
+    {"actor": "sam", "join": {"protocol_version": 2, "display_name": "Sam"}, "expect": {"status": "ok"}},
+    {"actor": "copycat", "join": {"protocol_version": 2, "display_name": "hana"},
+     "expect": {"status": "error", "response": {"code": "name_taken"}}},
+
+    {"actor": "sam", "expect_state": {"phase": "lobby", "players": [
+      {"id": "$player_id:host", "name": "Hana", "is_host": true, "connected": true, "score": 0},
+      {"name": "Sam", "is_host": false, "connected": true, "score": 0}
+    ]}},
+
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "host", "expect_state": {
+      "phase": "question",
+      "accepted_answers": null,
+      "submissions": null,
+      "you": {"role": "host", "player_id": "$player_id:host", "submission": null}
+    }},
+
+    {"actor": "host", "push": "submit", "payload": {"answer": "Canbera", "wager": 6}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "submit", "payload": {"answer": "Canberra", "wager": 6},
+     "expect": {"status": "error", "response": {"code": "already_submitted"}}},
+    {"actor": "sam", "push": "submit", "payload": {"answer": "canberra", "wager": 5}, "expect": {"status": "ok"}},
+
+    {"actor": "host", "expect_state": {
+      "phase": "question",
+      "accepted_answers": null,
+      "submissions": null,
+      "players": [{"name": "Hana", "has_submitted": true}, {"name": "Sam", "has_submitted": true}],
+      "you": {"submission": {"answer": "Canbera", "wager": 6, "correct": null, "delta": null}}
+    }},
+
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+
+    {"actor": "host", "expect_state": {
+      "phase": "scoring",
+      "accepted_answers": ["Canberra"],
+      "players": [{"name": "Sam", "score": 5}, {"name": "Hana", "score": -6}],
+      "submissions": [
+        {"player_id": "$player_id:sam", "answer": "canberra", "auto_correct": true, "override": null, "correct": true, "delta": 5},
+        {"player_id": "$player_id:host", "answer": "Canbera", "auto_correct": false, "override": null, "correct": false, "delta": -6}
+      ],
+      "you": {"submission": {"correct": false, "delta": -6}}
+    }},
+
+    {"actor": "host", "push": "host_override", "payload": {"player_id": "$player_id:host", "correct": true},
+     "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {
+      "players": [{"name": "Hana", "score": 6}, {"name": "Sam", "score": 5}],
+      "submissions": [
+        {"player_id": "$player_id:host", "override": true, "correct": true, "delta": 6},
+        {"player_id": "$player_id:sam", "correct": true}
+      ]
+    }},
+
+    {"actor": "host", "disconnect": true},
+    {"actor": "sam", "expect_state": {"players": [{"name": "Hana", "connected": false}, {"name": "Sam"}]}},
+
+    {"actor": "host", "join": {"protocol_version": 2, "host_token": "$host_token", "display_name": "Other"},
+     "expect": {"status": "ok", "response": {"role": "host", "player_id": "$player_id:host"}}},
+    {"actor": "host", "expect_state": {
+      "phase": "scoring",
+      "players": [{"name": "Hana", "score": 6, "connected": true, "is_host": true}, {"name": "Sam"}],
+      "you": {"role": "host", "player_id": "$player_id:host", "submission": {"correct": true, "delta": 6}}
+    }}
+  ]
+}

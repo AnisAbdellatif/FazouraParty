@@ -85,7 +85,7 @@ Payload:
 
 ```json
 {
-  "protocol_version": 1,
+  "protocol_version": 2,
   "display_name": "Sam",
   "player_token": null,
   "host_token": null
@@ -94,9 +94,16 @@ Payload:
 
 | Case | Required fields |
 |---|---|
-| Host joins | `host_token` |
+| Host joins (not playing) | `host_token` |
+| Host joins and plays | `host_token` + `display_name` |
+| Host rejoins | `host_token` (`display_name` ignored once the host is playing) |
 | New player | `display_name` |
 | Rejoining player | `player_token` (`display_name` ignored) |
+
+**Playing host.** If a host join carries a `display_name` and the host is not yet playing, the
+host also becomes a player: same name rules, same scoring, listed in `players` with
+`is_host: true`. The host's `player_id` is bound to the `host_token`, so host reconnects need
+only the `host_token`. A host cannot stop playing once they have started.
 
 `display_name`: trimmed, 1–20 characters after trimming (Unicode grapheme clusters), unique
 (case-insensitive) within the room. The same length unit applies to `answer` (§4.2).
@@ -112,7 +119,8 @@ Join reply `ok` response:
 {"role": "player", "player_id": "p_3f9a", "player_token": "<signed token>"}
 ```
 
-For the host: `{"role": "host", "player_id": null, "player_token": null}`.
+For the host: `{"role": "host", "player_id": "<id>" | null, "player_token": null}`, where
+`player_id` is non-null when the host is playing.
 
 Immediately after a successful join the host pushes a `state` event (§5.1) to that client.
 
@@ -125,11 +133,11 @@ Join error codes: `unsupported_protocol_version`, `room_not_found`, `invalid_tok
 
 | Event | Sender | Payload | Allowed phase | Effect |
 |---|---|---|---|---|
-| `submit` | player | `{"answer": string, "wager": int}` | `question` (not paused) | Records the player's one submission for the current question |
+| `submit` | player, or playing host | `{"answer": string, "wager": int}` | `question` (not paused) | Records the player's one submission for the current question |
 | `host_next` | host | `{}` | any except `finished` | Advances the phase (§6) |
 | `host_pause` | host | `{}` | `question` (not paused) | Freezes the timer |
 | `host_resume` | host | `{}` | `question` (paused) | Restarts the timer |
-| `host_override` | host | `{"player_id": string, "correct": bool}` | `scoring`, `leaderboard` | Sets the verdict on that player's submission for the **current** question |
+| `host_override` | host | `{"player_id": string, "correct": bool}` | `scoring`, `leaderboard` | Sets the verdict on that player's submission for the **current** question, including the host's own |
 
 Successful intents reply `{"status": "ok", "response": {}}` and — if state changed — trigger a
 `state` push to every connected client.
@@ -166,7 +174,7 @@ it per socket rather than broadcasting one identical payload.
 
 ```json
 {
-  "protocol_version": 1,
+  "protocol_version": 2,
   "room_code": "K7QX2M",
   "mode": "cloud",
   "phase": "question",
@@ -188,7 +196,7 @@ it per socket rather than broadcasting one identical payload.
   "accepted_answers": null,
 
   "players": [
-    {"id": "p_3f9a", "name": "Sam", "score": 12, "connected": true, "has_submitted": true}
+    {"id": "p_3f9a", "name": "Sam", "score": 12, "connected": true, "has_submitted": true, "is_host": false}
   ],
 
   "you": {
@@ -203,7 +211,7 @@ it per socket rather than broadcasting one identical payload.
 
 | Field | Type | Notes |
 |---|---|---|
-| `protocol_version` | int | Always `1` |
+| `protocol_version` | int | Always `2` |
 | `mode` | `"cloud"` \| `"lan"` | |
 | `phase` | `"lobby"` \| `"question"` \| `"scoring"` \| `"leaderboard"` \| `"finished"` | §6 |
 | `server_time` | timestamp | Host clock when the snapshot was built. Clients compute `offset = server_time - local_now` and render timers from `deadline - (local_now + offset)` |
@@ -215,21 +223,22 @@ it per socket rather than broadcasting one identical payload.
 | `deadline` | timestamp \| null | Set only in `question` while not paused |
 | `paused_remaining_ms` | int \| null | Set only in `question` while paused |
 | `accepted_answers` | string[] \| null | §7 |
-| `players` | array | Sorted by `score` desc, then `name` asc (case-insensitive). Never includes the host |
-| `you` | object | The recipient's own view |
+| `players` | array | Sorted by `score` desc, then `name` asc (case-insensitive). Includes the host only if playing |
+| `players[].is_host` | bool | `true` for the playing host |
+| `you` | object | The recipient's own view: `role` (`"host"` \| `"player"`), `player_id`, `submission` |
+| `you.player_id` | string \| null | `null` only for a host who is not playing |
 | `you.submission` | object \| null | Recipient's own submission for the current question; `correct`/`delta` are `null` until `scoring` |
 | `submissions` | array \| null | §7 |
 
-`submissions` entries (host view, and everyone in `scoring`/`leaderboard`):
+`submissions` entries (everyone, in `scoring`/`leaderboard` only):
 
 ```json
 {"player_id": "p_3f9a", "answer": "canbera", "wager": 7,
  "auto_correct": false, "override": true, "correct": true, "delta": 7}
 ```
 
-All seven fields are always present and non-null except `override`. During `question`
-(host view only) `auto_correct`, `correct` and `delta` are computed on the fly from the
-submission as it stands; they are what would be applied if the question ended now.
+All seven fields are always present and non-null except `override`. Entries are ordered like
+`players`.
 
 - `auto_correct` — result of automatic matching (§8).
 - `override` — `null` if the host has not overridden, else the host's verdict.
@@ -272,16 +281,19 @@ recomputed as: `score -= old_delta; score += new_delta`. Setting an override equ
 
 ## 7. Visibility rules
 
-Nothing that could be used to cheat reaches a player before scoring.
+Nothing that could be used to cheat reaches anyone before the question ends — **the host
+included**, since the host may be playing. Visibility depends only on phase, not role:
 
-| Field | Host | Player during `lobby`/`question` | Player during `scoring`/`leaderboard`/`finished` |
+| Field | `lobby` / `question` | `scoring` / `leaderboard` | `finished` |
 |---|---|---|---|
-| `accepted_answers` | always (when `question` non-null) | `null` | revealed |
-| `submissions` | always (current question) | `null` | revealed |
-| `players[].has_submitted` | yes | yes | yes |
-| `you.submission` | `null` | own only | own, with `correct`/`delta` |
+| `accepted_answers` | `null` | revealed | `null` |
+| `submissions` | `null` | revealed (all players, host's included) | `null` |
+| `players[].has_submitted` | yes | yes | `false` |
+| `you.submission` | own only | own, with `correct`/`delta` | `null` |
 
-In `finished`, `question`, `accepted_answers`, and `submissions` are `null` for everyone.
+The question ends when its deadline passes or the host sends `host_next`; from `scoring` on,
+the host sees the accepted answers and every submission and may correct any of them,
+including their own (§6.1).
 
 ## 8. Answer matching
 
@@ -347,5 +359,6 @@ Confirmed by the project owner on 2026-09-15.
 | 2. Negative scores | Allowed |
 | 5. Room code format / expiry | §3.2 |
 | 8. Guest accounts | None; signed per-room `player_token` |
+| Host participation (added in v2) | Host may play; no early access to answers; may override own submission |
 
 Changing any of these is a protocol version bump.

@@ -95,10 +95,12 @@ defmodule Fazoura.Rooms.RoomServer do
 
   ## Connections
 
-  defp authenticate(game, %{"host_token" => token}) when is_binary(token) do
+  defp authenticate(game, %{"host_token" => token} = params) when is_binary(token) do
     case Phoenix.Token.verify(FazouraWeb.Endpoint, "host", token, max_age: @token_max_age_s) do
       {:ok, code} when code == game.room_code ->
-        {:ok, :host, %{role: "host", player_id: nil, player_token: nil}, game}
+        with {:ok, game} <- maybe_add_host_player(game, params["display_name"]) do
+          {:ok, :host, %{role: "host", player_id: game.host_player_id, player_token: nil}, game}
+        end
 
       _ ->
         {:error, :invalid_token}
@@ -118,13 +120,19 @@ defmodule Fazoura.Rooms.RoomServer do
   end
 
   defp authenticate(game, params) do
-    id = "p_" <> Base.url_encode64(:crypto.strong_rand_bytes(6), padding: false)
+    id = new_player_id()
 
     with {:ok, game} <- Game.add_player(game, id, params["display_name"]) do
       token = Phoenix.Token.sign(FazouraWeb.Endpoint, "player", {game.room_code, id})
       {:ok, {:player, id}, player_reply(id, token), game}
     end
   end
+
+  # A host join with a display name makes the host play too (PROTOCOL.md §4.1).
+  defp maybe_add_host_player(game, nil), do: {:ok, game}
+  defp maybe_add_host_player(game, name), do: Game.add_host_player(game, new_player_id(), name)
+
+  defp new_player_id, do: "p_" <> Base.url_encode64(:crypto.strong_rand_bytes(6), padding: false)
 
   defp player_reply(id, token), do: %{role: "player", player_id: id, player_token: token}
 
@@ -133,18 +141,29 @@ defmodule Fazoura.Rooms.RoomServer do
     state = %{state | conns: Map.put(state.conns, pid, actor)}
 
     case actor do
-      :host -> %{state | host_absent_since: nil}
-      {:player, id} -> %{state | game: Game.set_connected(state.game, id, true)}
+      :host ->
+        %{state | host_absent_since: nil, game: set_host_connected(state.game, true)}
+
+      {:player, id} ->
+        %{state | game: Game.set_connected(state.game, id, true)}
     end
   end
+
+  defp set_host_connected(game, connected?),
+    do: Game.set_connected(game, game.host_player_id, connected?)
 
   defp remove_conn(state, actor) do
     if actor in Map.values(state.conns) do
       state
     else
       case actor do
-        :host -> schedule(%{state | host_absent_since: state.now.()})
-        {:player, id} -> update_game(state, Game.set_connected(state.game, id, false))
+        :host ->
+          %{state | host_absent_since: state.now.()}
+          |> update_game(set_host_connected(state.game, false))
+          |> schedule()
+
+        {:player, id} ->
+          update_game(state, Game.set_connected(state.game, id, false))
       end
     end
   end

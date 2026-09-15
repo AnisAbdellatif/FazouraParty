@@ -12,7 +12,7 @@ defmodule FazouraWeb.RoomChannelTest do
 
   defp join_room(code, payload) do
     socket(FazouraWeb.UserSocket, nil, %{})
-    |> join(FazouraWeb.RoomChannel, "room:" <> code, Map.put(payload, "protocol_version", 1))
+    |> join(FazouraWeb.RoomChannel, "room:" <> code, Map.put(payload, "protocol_version", 2))
   end
 
   test "joining pushes a full state snapshot", %{code: code} do

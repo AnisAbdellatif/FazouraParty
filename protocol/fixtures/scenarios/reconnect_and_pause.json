@@ -8,10 +8,10 @@
     ]
   },
   "steps": [
-    {"actor": "host", "join": {"protocol_version": 1, "host_token": "$host_token"}, "expect": {"status": "ok"}},
-    {"actor": "sam", "join": {"protocol_version": 1, "display_name": "Sam"}, "expect": {"status": "ok"}},
+    {"actor": "host", "join": {"protocol_version": 2, "host_token": "$host_token"}, "expect": {"status": "ok"}},
+    {"actor": "sam", "join": {"protocol_version": 2, "display_name": "Sam"}, "expect": {"status": "ok"}},
 
-    {"actor": "old", "join": {"protocol_version": 0, "display_name": "Old"},
+    {"actor": "old", "join": {"protocol_version": 1, "display_name": "Old"},
      "expect": {"status": "error", "response": {"code": "unsupported_protocol_version"}}},
 
     {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
@@ -28,7 +28,7 @@
     {"advance_clock_ms": 60000},
     {"actor": "host", "expect_state": {"phase": "question"}},
 
-    {"actor": "sam", "join": {"protocol_version": 1, "player_token": "$player_token:sam"},
+    {"actor": "sam", "join": {"protocol_version": 2, "player_token": "$player_token:sam"},
      "expect": {"status": "ok", "response": {"role": "player", "player_id": "$player_id:sam"}}},
     {"actor": "sam", "expect_state": {
       "phase": "question",
@@ -47,7 +47,7 @@
     {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
     {"actor": "sam", "expect_state": {"phase": "question", "question_index": 1, "you": {"submission": null}}},
 
-    {"actor": "late", "join": {"protocol_version": 1, "display_name": "Late"}, "expect": {"status": "ok"}},
+    {"actor": "late", "join": {"protocol_version": 2, "display_name": "Late"}, "expect": {"status": "ok"}},
     {"actor": "late", "expect_state": {
       "phase": "question",
       "players": [{"name": "Sam", "score": 10}, {"name": "Late", "score": 0}]

@@ -199,13 +199,45 @@ defmodule Fazoura.GameTest do
       assert own.you.submission == %{answer: "Right", wager: 4, correct: nil, delta: nil}
 
       host_view = Game.view(game, :host, @t0)
-      assert host_view.accepted_answers == ["Right"]
-      assert [%{player_id: "sam", auto_correct: true}] = host_view.submissions
+      assert host_view.accepted_answers == nil
+      assert host_view.submissions == nil
       assert host_view.you == %{role: "host", player_id: nil, submission: nil}
 
       scored = game |> host(:next) |> ok!() |> Game.view({:player, "alex"}, @t0)
       assert scored.accepted_answers == ["Right"]
       assert [%{player_id: "sam", correct: true, delta: 4}] = scored.submissions
+    end
+
+    test "a playing host submits, sees nothing early, and can override their own answer" do
+      {:ok, game} = Game.add_host_player(game_with_players(["sam"]), "hana", "Hana")
+      assert {:ok, ^game} = Game.add_host_player(game, "other", "Other")
+      assert Game.add_player(game, "x", "HANA") == {:error, :name_taken}
+
+      game = game |> host(:next) |> ok!()
+      game = game |> host({:submit, %{"answer" => "Rigth", "wager" => 6}}) |> ok!()
+
+      assert host(game, {:submit, %{"answer" => "Right", "wager" => 6}}) ==
+               {:error, :already_submitted}
+
+      during = Game.view(game, :host, @t0)
+      assert {during.accepted_answers, during.submissions} == {nil, nil}
+
+      assert during.you == %{
+               role: "host",
+               player_id: "hana",
+               submission: %{answer: "Rigth", wager: 6, correct: nil, delta: nil}
+             }
+
+      assert [%{id: "hana", is_host: true, has_submitted: true}, %{id: "sam", is_host: false}] =
+               during.players
+
+      game = game |> host(:next) |> ok!()
+      assert game.players["hana"].score == -6
+      assert Game.view(game, :host, @t0).accepted_answers == ["Right"]
+
+      game = game |> host({:override, %{"player_id" => "hana", "correct" => true}}) |> ok!()
+      assert game.players["hana"].score == 6
+      assert Game.view(game, {:player, "sam"}, @t0).you.submission == nil
     end
 
     test "players are sorted by score desc, then name case-insensitively" do

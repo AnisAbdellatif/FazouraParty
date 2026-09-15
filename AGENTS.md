@@ -36,7 +36,7 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 - Answer matching v1: normalize (trim, collapse whitespace, case-fold, strip diacritics) then exact match against `accepted_answers`. **No fuzzy/Levenshtein matching.** Host override is the second pass.
 - Host overrides re-apply score deltas immediately and trigger a full `RoomState` re-broadcast.
 - Pack questions are **snapshotted at room start**; rooms never read or write the DB during play.
-- Guest-visible state must never leak accepted answers or other players' submissions before scoring.
+- **The host may also play** (joins with a display name). Because of that, nobody — host included — sees accepted answers or other players' submissions before the question ends (deadline or host ends it). From scoring on, the host sees the correct answers and can override any submission, including their own.
 
 ## 5. Elixir / Phoenix standards
 
