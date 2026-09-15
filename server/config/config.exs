@@ -10,9 +10,12 @@ import Config
 config :fazoura,
   ecto_repos: [Fazoura.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true],
-  # Phase 1 is database-free (rooms are in memory, packs load from priv/packs).
-  # Set to true once Postgres is introduced in Phase 2.
-  start_repo: false,
+  start_repo: true,
+  # Postgres on the server, SQLite on developer machines.
+  repo_adapter:
+    if(config_env() == :prod, do: Ecto.Adapters.Postgres, else: Ecto.Adapters.SQLite3),
+  # Uploaded question photos (served at /uploads). Overridden in runtime.exs for prod.
+  uploads_dir: Path.expand("../priv/uploads", __DIR__),
   cors_origins: []
 
 # Configure the endpoint

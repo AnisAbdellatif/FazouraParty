@@ -102,15 +102,16 @@ defmodule Fazoura.Game do
   # Whole pack, at the first question's time limit (clamped to the allowed range).
   defp default_settings(pack) do
     time =
-      case pack.questions do
-        [first | _] -> first.time_limit_ms
-        [] -> @default_time_limit_ms
+      case {pack.default_time_limit_ms, pack.questions} do
+        {ms, _} when is_integer(ms) -> ms
+        {nil, [first | _]} -> first.time_limit_ms
+        {nil, []} -> @default_time_limit_ms
       end
 
     %{
       question_count: min(length(pack.questions), @max_question_count),
       time_limit_ms: time |> max(@min_time_limit_ms) |> min(@max_time_limit_ms),
-      difficulty_multiplier: false
+      difficulty_multiplier: pack.default_difficulty_multiplier
     }
   end
 

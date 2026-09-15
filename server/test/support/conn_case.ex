@@ -31,8 +31,8 @@ defmodule FazouraWeb.ConnCase do
     end
   end
 
-  # Phase 1 has no database; add `Fazoura.DataCase.setup_sandbox(tags)` back in Phase 2.
-  setup _tags do
+  setup tags do
+    Fazoura.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 end

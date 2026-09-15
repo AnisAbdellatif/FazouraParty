@@ -1,11 +1,4 @@
-# Script for populating the database. You can run it as:
-#
-#     mix run priv/repo/seeds.exs
-#
-# Inside the script, you can read and write to any of your
-# repositories directly:
-#
-#     Fazoura.Repo.insert!(%Fazoura.SomeSchema{})
-#
-# We recommend using the bang functions (`insert!`, `update!`
-# and so on) as they will fail if something goes wrong.
+# Loads the built-in quizzes from priv/quizzes/*.json into the database.
+# Idempotent: run by `mix ecto.setup` / `mix setup`, safe to re-run after editing them.
+quizzes = Fazoura.Quizzes.sync_builtin!()
+IO.puts("Synced #{length(quizzes)} built-in quiz(zes)")

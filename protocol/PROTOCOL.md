@@ -49,14 +49,18 @@ Pushes from the host (§5) have `ref = null`.
 
 ### 3.1 Room creation
 
-**Cloud:** `POST /api/rooms` with body `{"pack_id": "<id>"}`
+**Cloud:** `POST /api/rooms` with body `{"quiz_id": "<uuid or built-in slug>"}` (`pack_id` is
+accepted as a legacy alias). Hosting a private quiz requires the owner's `x-owner-key`
+header (QUIZ_FORMAT.md §4, §5.7). The room snapshots the quiz and starts with its
+`default_settings`.
 
 ```json
 201 {"room_code": "K7QX2M", "host_token": "<signed token>"}
 ```
 
-Errors: `404 {"code": "pack_not_found"}`, `422 {"code": "empty_pack"}`. HTTP error bodies carry
-`code` only; clients map codes to their own messages.
+Errors: `404 {"code": "quiz_not_found"}` (unknown quiz, or private and not the owner),
+`422 {"code": "empty_pack"}`. HTTP error bodies carry `code` and `message`; clients branch on
+`code` only.
 
 **LAN:** the host app creates the room in-process; no HTTP call. The resulting `room_code` and
 `host_token` have the same shape.

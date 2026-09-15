@@ -15,5 +15,14 @@ defmodule FazouraWeb.Router do
     pipe_through :api
 
     post "/rooms", RoomController, :create
+
+    get "/quizzes", QuizController, :index
+    post "/quizzes", QuizController, :create
+    get "/quizzes/:id", QuizController, :show
+    put "/quizzes/:id", QuizController, :update
+    patch "/quizzes/:id", QuizController, :set_visibility
+    delete "/quizzes/:id", QuizController, :delete
+
+    post "/images", ImageController, :create
   end
 end

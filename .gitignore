@@ -39,3 +39,11 @@ app/android/app/debug/
 app/android/app/release/
 app/ios/Pods/
 app/ios/Flutter/Generated.xcconfig
+
+# Local databases and uploads
+server/*.db
+server/*.db-shm
+server/*.db-wal
+server/*.db-journal
+server/priv/uploads/
+server/tmp/

@@ -38,6 +38,7 @@ defmodule FazouraWeb.Endpoint do
   end
 
   plug FazouraWeb.Plugs.CORS
+  plug FazouraWeb.Plugs.Uploads
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 

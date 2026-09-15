@@ -2,8 +2,8 @@ defmodule Fazoura.Game.Pack do
   @moduledoc """
   Immutable pack snapshot used by a running room.
 
-  Phase 1 loads built-in packs from `priv/packs/<id>.json`. Rooms copy the pack at
-  creation, so later edits can never affect a running game.
+  Built from a stored quiz by `Fazoura.Quizzes.to_pack/1` (or `from_map/1` in tests).
+  Rooms copy the pack at creation, so later edits can never affect a running game.
   """
 
   defmodule Question do
@@ -32,23 +32,24 @@ defmodule Fazoura.Game.Pack do
   end
 
   @enforce_keys [:id, :title, :questions]
-  defstruct [:id, :title, :questions]
+  defstruct [
+    :id,
+    :title,
+    :questions,
+    # Suggested room settings from the quiz (QUIZ_FORMAT.md §2.1).
+    default_time_limit_ms: nil,
+    default_difficulty_multiplier: false
+  ]
 
-  @type t :: %__MODULE__{id: String.t(), title: String.t(), questions: [Question.t()]}
+  @type t :: %__MODULE__{
+          id: String.t(),
+          title: String.t(),
+          questions: [Question.t()],
+          default_time_limit_ms: pos_integer() | nil,
+          default_difficulty_multiplier: boolean()
+        }
 
   @default_time_limit_ms 30_000
-
-  @spec fetch(term()) :: {:ok, t()} | {:error, :pack_not_found}
-  def fetch(id) when is_binary(id) do
-    with true <- id =~ ~r/\A[a-z0-9-]{1,64}\z/,
-         {:ok, json} <- File.read(Path.join([:code.priv_dir(:fazoura), "packs", id <> ".json"])) do
-      {:ok, json |> Jason.decode!() |> Map.put("id", id) |> from_map()}
-    else
-      _ -> {:error, :pack_not_found}
-    end
-  end
-
-  def fetch(_id), do: {:error, :pack_not_found}
 
   @spec from_map(map()) :: t()
   def from_map(%{"title" => title, "questions" => questions} = map) do

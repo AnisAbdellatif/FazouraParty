@@ -3,15 +3,12 @@ import Config
 # Flutter Web dev server runs on its own random localhost port.
 config :fazoura, cors_origins: :all
 
-# Configure your database
+# Local SQLite database file (production uses Postgres).
 config :fazoura, Fazoura.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "fazoura_dev",
+  database: Path.expand("../fazoura_dev.db", __DIR__),
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
-  pool_size: 10
+  pool_size: 5
 
 # For development, we disable any cache and enable
 # debugging and code reloading.

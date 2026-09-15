@@ -1,11 +1,11 @@
 defmodule FazouraWeb.RoomChannelTest do
   use FazouraWeb.ChannelCase, async: true
 
-  alias Fazoura.Game.Pack
+  alias Fazoura.QuizFixtures
   alias Fazoura.Rooms
 
   setup do
-    {:ok, pack} = Pack.fetch("general-knowledge")
+    pack = QuizFixtures.pack()
     {:ok, code, host_token} = Rooms.create(pack)
     %{code: code, host_token: host_token}
   end
@@ -29,7 +29,7 @@ defmodule FazouraWeb.RoomChannelTest do
   end
 
   test "a host token only works for its own room", %{host_token: host_token} do
-    {:ok, pack} = Pack.fetch("general-knowledge")
+    pack = QuizFixtures.pack()
     {:ok, other_code, _} = Rooms.create(pack)
 
     assert {:error, %{code: "invalid_token"}} =
@@ -55,7 +55,7 @@ defmodule FazouraWeb.RoomChannelTest do
 
   test "room closes after the host has been absent for 10 minutes" do
     {:ok, clock} = Agent.start_link(fn -> 0 end)
-    {:ok, pack} = Pack.fetch("general-knowledge")
+    pack = QuizFixtures.pack()
     {:ok, code, _host_token} = Rooms.create(pack, now: fn -> Agent.get(clock, & &1) end)
 
     {:ok, _, socket} = join_room(code, %{"display_name" => "Sam"})

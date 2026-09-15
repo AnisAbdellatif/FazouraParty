@@ -43,7 +43,9 @@ defmodule Fazoura.MixProject do
       {:phoenix, "~> 1.8.13"},
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.13"},
+      # Postgres in production, SQLite locally (dev/test); see config.exs :repo_adapter.
       {:postgrex, ">= 0.0.0"},
+      {:ecto_sqlite3, "~> 0.24"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:jason, "~> 1.2"},
@@ -62,11 +64,10 @@ defmodule Fazoura.MixProject do
   # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
-      # Phase 1 has no database: restore "ecto.setup" in setup and the ecto steps in
-      # test once Postgres is introduced (Phase 2).
-      setup: ["deps.get"],
+      setup: ["deps.get", "ecto.setup"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
+      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       precommit: [
         "compile --warnings-as-errors",
         "deps.unlock --unused",
