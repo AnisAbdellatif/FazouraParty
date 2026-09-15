@@ -7,10 +7,14 @@ import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
 
 /// Podium for the finished game: 2nd / 1st / 3rd, then everyone else.
+///
+/// The host passes [onRematch] to get "Play again" in the same room
+/// (PROTOCOL.md §6.3); players see that they are waiting for it.
 class FinishedView extends StatelessWidget {
-  const FinishedView({super.key, required this.state});
+  const FinishedView({super.key, required this.state, this.onRematch});
 
   final RoomState state;
+  final VoidCallback? onRematch;
 
   String get _title {
     final players = state.players;
@@ -37,37 +41,63 @@ class FinishedView extends StatelessWidget {
     final fz = FzTheme.of(context);
     final players = state.players;
     final rest = players.skip(3).toList();
+    final isHost = onRematch != null;
+
     return FzBody(
-      footer: Row(
+      footer: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: FzButton(
-              key: const Key('backHomeButton'),
-              label: 'Back home',
-              onPressed: () => goHome(context),
+          if (isHost)
+            FzButton(
+              key: const Key('hostRematchButton'),
+              label: 'Play again',
+              trailing: 'same room',
+              onPressed: onRematch,
+            )
+          else
+            FzBlink(
+              child: Text(
+                'Waiting for the host to start a rematch…',
+                key: const Key('waitingForRematch'),
+                textAlign: TextAlign.center,
+                style: fz.m(12, color: FzColors.dim),
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 60,
-            height: 60,
-            child: OutlinedButton(
-              key: const Key('shareResultsButton'),
-              onPressed: () => _share(context),
-              style: OutlinedButton.styleFrom(
-                padding: EdgeInsets.zero,
-                foregroundColor: FzColors.dim,
-                side: const BorderSide(color: FzColors.line, width: 1.5),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+          SizedBox(height: isHost ? 10 : 14),
+          Row(
+            children: [
+              Expanded(
+                child: FzButton(
+                  key: const Key('backHomeButton'),
+                  label: 'Back home',
+                  kind: isHost ? FzButtonKind.outline : FzButtonKind.primary,
+                  onPressed: () => goHome(context),
                 ),
               ),
-              child: const Icon(
-                Icons.ios_share,
-                size: 18,
-                semanticLabel: 'Copy results',
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 60,
+                height: 60,
+                child: OutlinedButton(
+                  key: const Key('shareResultsButton'),
+                  onPressed: () => _share(context),
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    foregroundColor: FzColors.dim,
+                    side: const BorderSide(color: FzColors.line, width: 1.5),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.ios_share,
+                    size: 18,
+                    semanticLabel: 'Copy results',
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),

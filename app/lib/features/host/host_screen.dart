@@ -15,6 +15,7 @@ import '../../shared/widgets/reveal_summary.dart';
 import '../../shared/widgets/standings.dart';
 import '../finished/finished_view.dart';
 import '../leaderboard/leaderboard_view.dart' show deltasFor;
+import '../lobby/game_settings_editor.dart';
 import '../lobby/lobby_view.dart';
 import '../player_question/player_question_view.dart';
 import '../room_closed/room_closed_view.dart';
@@ -94,6 +95,12 @@ class _HostPhase extends ConsumerWidget {
     return switch (state.phase) {
       Phase.lobby => LobbyView(
         state: state,
+        settingsEditor: state.settings == null
+            ? null
+            : GameSettingsEditor(
+                packTitle: state.packTitle ?? 'Trivia',
+                settings: state.settings!,
+              ),
         footer: FzButton(
           key: const Key('hostNextButton'),
           label: 'Start game',
@@ -117,7 +124,10 @@ class _HostPhase extends ConsumerWidget {
         onOverride: (playerId, correct) =>
             run(() => connection.hostOverride(playerId, correct)),
       ),
-      Phase.finished => FinishedView(state: state),
+      Phase.finished => FinishedView(
+        state: state,
+        onRematch: () => run(connection.hostRematch),
+      ),
     };
   }
 }

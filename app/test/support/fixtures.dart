@@ -6,7 +6,7 @@ import 'package:fazoura_party/core/models/models.dart';
 /// (`protocol_version: 2`, `players[].is_host`).
 const roomStateExampleJson = '''
 {
-  "protocol_version": 2,
+  "protocol_version": 3,
   "room_code": "K7QX2M",
   "mode": "cloud",
   "phase": "question",
@@ -15,6 +15,14 @@ const roomStateExampleJson = '''
   "pack_title": "General Knowledge",
   "question_index": 2,
   "question_count": 10,
+  "game_number": 1,
+  "settings": {
+    "question_count": 10,
+    "time_limit_ms": 30000,
+    "max_question_count": 10,
+    "min_time_limit_ms": 10000,
+    "max_time_limit_ms": 120000
+  },
 
   "question": {
     "id": "q_03",

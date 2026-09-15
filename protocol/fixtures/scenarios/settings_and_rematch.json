@@ -1,0 +1,82 @@
+{
+  "name": "host configures question count and time, plays, then rematches in the same room",
+  "pack": {
+    "title": "Fixture Pack",
+    "questions": [
+      {"id": "q1", "type": "text", "prompt": "Say a", "accepted_answers": ["a"], "time_limit_ms": 30000},
+      {"id": "q2", "type": "text", "prompt": "Say b", "accepted_answers": ["b"], "time_limit_ms": 30000},
+      {"id": "q3", "type": "text", "prompt": "Say c", "accepted_answers": ["c"], "time_limit_ms": 30000}
+    ]
+  },
+  "steps": [
+    {"actor": "host", "join": {"protocol_version": 3, "host_token": "$host_token", "display_name": "Hana"}, "expect": {"status": "ok"}},
+    {"actor": "sam", "join": {"protocol_version": 3, "display_name": "Sam"}, "expect": {"status": "ok"}},
+
+    {"actor": "sam", "expect_state": {
+      "phase": "lobby", "game_number": 1, "question_count": 3,
+      "settings": {"question_count": 3, "time_limit_ms": 30000, "max_question_count": 3, "min_time_limit_ms": 10000, "max_time_limit_ms": 120000}
+    }},
+
+    {"actor": "sam", "push": "host_configure", "payload": {"question_count": 2, "time_limit_ms": 15000},
+     "expect": {"status": "error", "response": {"code": "not_host"}}},
+    {"actor": "host", "push": "host_configure", "payload": {"question_count": 0, "time_limit_ms": 15000},
+     "expect": {"status": "error", "response": {"code": "invalid_settings"}}},
+    {"actor": "host", "push": "host_configure", "payload": {"question_count": 4, "time_limit_ms": 15000},
+     "expect": {"status": "error", "response": {"code": "invalid_settings"}}},
+    {"actor": "host", "push": "host_configure", "payload": {"question_count": 2, "time_limit_ms": 5000},
+     "expect": {"status": "error", "response": {"code": "invalid_settings"}}},
+    {"actor": "host", "push": "host_configure", "payload": {"question_count": 2, "time_limit_ms": 15000},
+     "expect": {"status": "ok"}},
+
+    {"actor": "sam", "expect_state": {
+      "phase": "lobby", "question_count": 2,
+      "settings": {"question_count": 2, "time_limit_ms": 15000, "max_question_count": 3}
+    }},
+
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {
+      "phase": "question", "question_index": 0, "question_count": 2,
+      "question": {"id": "q1", "time_limit_ms": 15000}, "deadline": 1789502415000
+    }},
+    {"actor": "host", "push": "host_configure", "payload": {"question_count": 1, "time_limit_ms": 15000},
+     "expect": {"status": "error", "response": {"code": "invalid_phase"}}},
+
+    {"actor": "sam", "push": "submit", "payload": {"answer": "a", "wager": 4}, "expect": {"status": "ok"}},
+    {"advance_clock_ms": 15000},
+    {"actor": "sam", "expect_state": {"phase": "scoring", "players": [{"name": "Sam", "score": 4}, {"name": "Hana", "score": 0}]}},
+
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {"phase": "question", "question_index": 1, "question": {"id": "q2"}}},
+    {"actor": "sam", "push": "submit", "payload": {"answer": "nope", "wager": 2}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {
+      "phase": "finished", "game_number": 1,
+      "players": [{"name": "Sam", "score": 2}, {"name": "Hana", "score": 0}]
+    }},
+
+    {"actor": "sam", "push": "host_rematch", "payload": {},
+     "expect": {"status": "error", "response": {"code": "not_host"}}},
+    {"actor": "host", "push": "host_rematch", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {
+      "phase": "lobby", "game_number": 2, "question_index": null, "question": null,
+      "question_count": 2, "settings": {"question_count": 2, "time_limit_ms": 15000},
+      "players": [
+        {"name": "Hana", "score": 0, "is_host": true, "connected": true},
+        {"name": "Sam", "score": 0, "connected": true}
+      ],
+      "you": {"submission": null}
+    }},
+    {"actor": "host", "push": "host_rematch", "payload": {},
+     "expect": {"status": "error", "response": {"code": "invalid_phase"}}},
+
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {"phase": "question", "game_number": 2, "question_index": 0, "question": {"id": "q3"}}},
+    {"advance_clock_ms": 15000},
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {"phase": "question", "question_index": 1, "question": {"id": "q1"}}}
+  ]
+}

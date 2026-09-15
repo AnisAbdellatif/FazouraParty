@@ -103,6 +103,21 @@ class FakeGameConnection implements GameConnection {
     if (intentError != null) throw intentError!;
   }
 
+  final List<({int questionCount, int timeLimitMs})> configures = [];
+  int rematchCalls = 0;
+
+  @override
+  Future<void> hostConfigure({
+    required int questionCount,
+    required int timeLimitMs,
+  }) async {
+    configures.add((questionCount: questionCount, timeLimitMs: timeLimitMs));
+    if (intentError != null) throw intentError!;
+  }
+
+  @override
+  Future<void> hostRematch() async => rematchCalls++;
+
   @override
   Future<void> leave() async => leaveCalls++;
 }

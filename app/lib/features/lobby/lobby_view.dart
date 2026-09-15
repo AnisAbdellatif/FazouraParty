@@ -6,12 +6,19 @@ import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
 
 /// Room code, player grid and tonight's pack. Players get a waiting card at
-/// the bottom; the host passes a start button as [footer].
+/// the bottom; the host passes a start button as [footer] and the game
+/// settings editor as [settingsEditor].
 class LobbyView extends StatelessWidget {
-  const LobbyView({super.key, required this.state, this.footer});
+  const LobbyView({
+    super.key,
+    required this.state,
+    this.footer,
+    this.settingsEditor,
+  });
 
   final RoomState state;
   final Widget? footer;
+  final Widget? settingsEditor;
 
   Future<void> _share(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -74,20 +81,27 @@ class LobbyView extends StatelessWidget {
           const SizedBox(height: 16),
           PlayerGrid(players: state.players, youId: state.you.playerId),
           const SizedBox(height: 20),
-          FzPanel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const FzEyebrow('Tonight', size: 9.5),
-                const SizedBox(height: 6),
-                Text(
-                  '${state.packTitle ?? 'Trivia'} · '
-                  '${state.questionCount} questions',
-                  style: fz.h(15, height: 1.3),
+          settingsEditor ??
+              FzPanel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const FzEyebrow('Tonight', size: 9.5),
+                    const SizedBox(height: 6),
+                    Text(
+                      [
+                        state.packTitle ?? 'Trivia',
+                        '${state.questionCount} '
+                            '${state.questionCount == 1 ? 'question' : 'questions'}',
+                        if (state.settings != null)
+                          '${state.settings!.timeLimitMs ~/ 1000}s each',
+                      ].join(' · '),
+                      key: const Key('lobbyGameSummary'),
+                      style: fz.h(15, height: 1.3),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
         ],
       ),
     );

@@ -175,10 +175,13 @@ defmodule Fazoura.Rooms.RoomServer do
   defp update_game(%{game: game} = state, game), do: state
 
   defp update_game(state, game) do
+    # A rematch leaves `finished`, which cancels the finished-room expiry.
     finished_at =
-      if game.phase == :finished and is_nil(state.finished_at),
-        do: state.now.(),
-        else: state.finished_at
+      cond do
+        game.phase != :finished -> nil
+        is_nil(state.finished_at) -> state.now.()
+        true -> state.finished_at
+      end
 
     %{state | game: game, finished_at: finished_at} |> broadcast() |> schedule()
   end

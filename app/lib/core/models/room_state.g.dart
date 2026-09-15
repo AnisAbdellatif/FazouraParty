@@ -15,6 +15,10 @@ _RoomState _$RoomStateFromJson(Map<String, dynamic> json) => _RoomState(
   packTitle: json['pack_title'] as String?,
   questionIndex: (json['question_index'] as num?)?.toInt(),
   questionCount: (json['question_count'] as num).toInt(),
+  gameNumber: (json['game_number'] as num?)?.toInt() ?? 1,
+  settings: json['settings'] == null
+      ? null
+      : GameSettings.fromJson(json['settings'] as Map<String, dynamic>),
   question: json['question'] == null
       ? null
       : Question.fromJson(json['question'] as Map<String, dynamic>),
@@ -44,6 +48,8 @@ Map<String, dynamic> _$RoomStateToJson(_RoomState instance) =>
       'pack_title': instance.packTitle,
       'question_index': instance.questionIndex,
       'question_count': instance.questionCount,
+      'game_number': instance.gameNumber,
+      'settings': instance.settings?.toJson(),
       'question': instance.question?.toJson(),
       'deadline': instance.deadline,
       'paused_remaining_ms': instance.pausedRemainingMs,
@@ -62,6 +68,24 @@ const _$PhaseEnumMap = {
   Phase.leaderboard: 'leaderboard',
   Phase.finished: 'finished',
 };
+
+_GameSettings _$GameSettingsFromJson(Map<String, dynamic> json) =>
+    _GameSettings(
+      questionCount: (json['question_count'] as num).toInt(),
+      timeLimitMs: (json['time_limit_ms'] as num).toInt(),
+      maxQuestionCount: (json['max_question_count'] as num).toInt(),
+      minTimeLimitMs: (json['min_time_limit_ms'] as num?)?.toInt() ?? 10000,
+      maxTimeLimitMs: (json['max_time_limit_ms'] as num?)?.toInt() ?? 120000,
+    );
+
+Map<String, dynamic> _$GameSettingsToJson(_GameSettings instance) =>
+    <String, dynamic>{
+      'question_count': instance.questionCount,
+      'time_limit_ms': instance.timeLimitMs,
+      'max_question_count': instance.maxQuestionCount,
+      'min_time_limit_ms': instance.minTimeLimitMs,
+      'max_time_limit_ms': instance.maxTimeLimitMs,
+    };
 
 _Question _$QuestionFromJson(Map<String, dynamic> json) => _Question(
   id: json['id'] as String,

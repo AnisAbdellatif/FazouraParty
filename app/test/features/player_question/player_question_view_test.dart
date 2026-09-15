@@ -98,6 +98,46 @@ void main() {
     expect(find.byKey(const Key('wagerSlider')), findsNothing);
   });
 
+  testWidgets(
+    'a rematch resets the locked-in answer for the same question id',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final first = questionStateForPlayer();
+      final snapshot = ValueNotifier<RoomState>(first);
+      addTearDown(snapshot.dispose);
+      fake = FakeGameConnection(initialState: first);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [gameConnectionProvider.overrideWithValue(fake)],
+          child: MaterialApp(
+            home: Scaffold(
+              body: ValueListenableBuilder<RoomState>(
+                valueListenable: snapshot,
+                builder: (_, state, _) => PlayerQuestionView(state: state),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.enterText(find.byKey(const Key('answerField')), 'Canberra');
+      await tester.tap(find.byKey(const Key('submitButton')));
+      await tester.pump();
+      expect(find.byKey(const Key('ownSubmission')), findsOneWidget);
+
+      // Same question id, next game in the room.
+      snapshot.value = first.copyWith(gameNumber: 2);
+      await tester.pump();
+
+      expect(find.byKey(const Key('ownSubmission')), findsNothing);
+      expect(find.byKey(const Key('answerField')), findsOneWidget);
+    },
+  );
+
   testWidgets('a paused question disables Lock it in', (tester) async {
     await pumpView(
       tester,

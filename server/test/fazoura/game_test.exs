@@ -180,6 +180,82 @@ defmodule Fazoura.GameTest do
     end
   end
 
+  defp configure(game, count, time),
+    do: host(game, {:configure, %{"question_count" => count, "time_limit_ms" => time}})
+
+  describe "settings" do
+    test "defaults to the whole pack at the first question's time limit" do
+      game = game_with_players(["sam"], 3)
+      assert game.settings == %{question_count: 3, time_limit_ms: 10_000}
+
+      view = Game.view(game, :host, @t0)
+      assert view.question_count == 3
+
+      assert view.settings == %{
+               question_count: 3,
+               time_limit_ms: 10_000,
+               max_question_count: 3,
+               min_time_limit_ms: 10_000,
+               max_time_limit_ms: 120_000
+             }
+    end
+
+    test "host sets question count and time limit in the lobby only" do
+      game = game_with_players(["sam"], 3)
+
+      for {count, time} <- [{0, 20_000}, {4, 20_000}, {2, 9_999}, {2, 120_001}, {"2", 20_000}] do
+        assert configure(game, count, time) == {:error, :invalid_settings}
+      end
+
+      assert host(game, {:configure, %{}}) == {:error, :invalid_settings}
+
+      assert Game.handle(game, {:player, "sam"}, {:configure, %{}}, @t0) ==
+               {:error, :not_host}
+
+      game = game |> configure(2, 15_000) |> ok!()
+      game = game |> host(:next) |> ok!()
+      assert game.deadline == @t0 + 15_000
+      assert Game.view(game, :host, @t0).question.time_limit_ms == 15_000
+      assert configure(game, 1, 15_000) == {:error, :invalid_phase}
+
+      # Two questions, then finished.
+      game =
+        Enum.reduce(1..6, game, fn _, g -> g |> host(:next) |> ok!() end)
+
+      assert game.phase == :finished
+    end
+  end
+
+  describe "rematch" do
+    test "resets scores, keeps players and settings, and continues through the pack" do
+      game = game_with_players(["sam", "alex"], 3)
+
+      game =
+        game |> host({:configure, %{"question_count" => 2, "time_limit_ms" => 10_000}}) |> ok!()
+
+      game = game |> host(:next) |> ok!() |> submit("sam", "Right", 7) |> ok!()
+      game = Enum.reduce(1..6, game, fn _, g -> g |> host(:next) |> ok!() end)
+      assert game.phase == :finished
+      assert game.players["sam"].score == 7
+
+      assert Game.handle(game, {:player, "sam"}, :rematch, @t0) == {:error, :not_host}
+
+      game = game |> host(:rematch) |> ok!()
+      assert {game.phase, game.game_number, game.question_index} == {:lobby, 2, nil}
+      assert Enum.map(game.players, fn {_, p} -> p.score end) == [0, 0]
+      assert map_size(game.players) == 2
+      assert game.settings.question_count == 2
+      assert host(game, :rematch) == {:error, :invalid_phase}
+
+      # Offset 2 in a 3-question pack: q3, then wraps to q1.
+      game = game |> host(:next) |> ok!()
+      assert Game.view(game, :host, @t0).question.id == "q3"
+      game = game |> host(:next) |> ok!() |> host(:next) |> ok!() |> host(:next) |> ok!()
+      assert Game.view(game, :host, @t0).question.id == "q1"
+      assert Game.view(game, :host, @t0).game_number == 2
+    end
+  end
+
   describe "views" do
     test "players never see answers or others' submissions before scoring" do
       game =

@@ -46,7 +46,10 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
   @override
   void didUpdateWidget(PlayerQuestionView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.state.question?.id != widget.state.question?.id) {
+    // Question ids repeat across rematches, so the game number is part of the
+    // key (PROTOCOL.md §5.1).
+    if (oldWidget.state.gameNumber != widget.state.gameNumber ||
+        oldWidget.state.question?.id != widget.state.question?.id) {
       _answerController.clear();
       _wager = _defaultWager;
       _sending = false;

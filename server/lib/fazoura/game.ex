@@ -9,7 +9,10 @@ defmodule Fazoura.Game do
 
   alias Fazoura.Game.{Answer, Pack}
 
-  @protocol_version 2
+  @protocol_version 3
+  @min_time_limit_ms 10_000
+  @max_time_limit_ms 120_000
+  @default_time_limit_ms 30_000
   @max_players 100
   @max_name_length 20
   @max_answer_length 100
@@ -19,7 +22,13 @@ defmodule Fazoura.Game do
   @type phase :: :lobby | :question | :scoring | :leaderboard | :finished
   @type actor :: :host | {:player, String.t()}
   @type intent ::
-          {:submit, map()} | :next | :pause | :resume | {:override, map()}
+          {:submit, map()}
+          | :next
+          | :pause
+          | :resume
+          | {:override, map()}
+          | {:configure, map()}
+          | :rematch
   @type error :: {:error, atom()}
 
   @type player :: %{id: String.t(), name: String.t(), score: integer(), connected: boolean()}
@@ -39,14 +48,21 @@ defmodule Fazoura.Game do
           deadline: integer() | nil,
           paused_remaining_ms: non_neg_integer() | nil,
           host_player_id: String.t() | nil,
+          settings: %{question_count: pos_integer(), time_limit_ms: pos_integer()},
+          game_number: pos_integer(),
+          question_offset: non_neg_integer(),
           players: %{String.t() => player()},
           submissions: %{String.t() => submission()}
         }
 
-  @enforce_keys [:room_code, :pack]
+  @enforce_keys [:room_code, :pack, :settings]
   defstruct [
     :room_code,
     :pack,
+    :settings,
+    game_number: 1,
+    # Index into the pack where the current game starts; advances on rematch.
+    question_offset: 0,
     mode: :cloud,
     phase: :lobby,
     question_index: nil,
@@ -62,7 +78,26 @@ defmodule Fazoura.Game do
 
   @spec new(String.t(), Pack.t(), keyword()) :: t()
   def new(room_code, %Pack{} = pack, opts \\ []) do
-    %__MODULE__{room_code: room_code, pack: pack, mode: Keyword.get(opts, :mode, :cloud)}
+    %__MODULE__{
+      room_code: room_code,
+      pack: pack,
+      mode: Keyword.get(opts, :mode, :cloud),
+      settings: default_settings(pack)
+    }
+  end
+
+  # Whole pack, at the first question's time limit (clamped to the allowed range).
+  defp default_settings(pack) do
+    time =
+      case pack.questions do
+        [first | _] -> first.time_limit_ms
+        [] -> @default_time_limit_ms
+      end
+
+    %{
+      question_count: length(pack.questions),
+      time_limit_ms: time |> max(@min_time_limit_ms) |> min(@max_time_limit_ms)
+    }
   end
 
   ## Players
@@ -177,6 +212,33 @@ defmodule Fazoura.Game do
     end
   end
 
+  def handle(game, :host, {:configure, payload}, _now) do
+    with :ok <- require_phase(game, [:lobby]),
+         {:ok, settings} <- validate_settings(game, payload) do
+      {:ok, %{game | settings: settings}}
+    end
+  end
+
+  def handle(game, :host, :rematch, _now) do
+    with :ok <- require_phase(game, [:finished]) do
+      players = Map.new(game.players, fn {id, player} -> {id, %{player | score: 0}} end)
+      offset = rem(game.question_offset + game.settings.question_count, pack_size(game))
+
+      {:ok,
+       %{
+         game
+         | phase: :lobby,
+           question_index: nil,
+           deadline: nil,
+           paused_remaining_ms: nil,
+           submissions: %{},
+           players: players,
+           game_number: game.game_number + 1,
+           question_offset: offset
+       }}
+    end
+  end
+
   def handle(_game, _actor, _intent, _now), do: {:error, :invalid_payload}
 
   @doc "Ends the current question if its deadline has passed. Call before handling anything."
@@ -202,13 +264,11 @@ defmodule Fazoura.Game do
   defp correct?(%{override: override}), do: override
 
   defp start_question(game, index, now) do
-    question = Enum.at(game.pack.questions, index)
-
     %{
       game
       | phase: :question,
         question_index: index,
-        deadline: now + question.time_limit_ms,
+        deadline: now + game.settings.time_limit_ms,
         paused_remaining_ms: nil,
         submissions: %{}
     }
@@ -226,7 +286,7 @@ defmodule Fazoura.Game do
   defp after_leaderboard(game, now) do
     next = game.question_index + 1
 
-    if next < length(game.pack.questions),
+    if next < game.settings.question_count,
       do: start_question(game, next, now),
       else: %{game | phase: :finished, submissions: %{}}
   end
@@ -276,6 +336,17 @@ defmodule Fazoura.Game do
 
   defp validate_override(_payload), do: {:error, :invalid_payload}
 
+  defp validate_settings(game, %{"question_count" => count, "time_limit_ms" => time})
+       when is_integer(count) and is_integer(time) do
+    if count in 1..pack_size(game) and time in @min_time_limit_ms..@max_time_limit_ms,
+      do: {:ok, %{question_count: count, time_limit_ms: time}},
+      else: {:error, :invalid_settings}
+  end
+
+  defp validate_settings(_game, _payload), do: {:error, :invalid_settings}
+
+  defp pack_size(game), do: length(game.pack.questions)
+
   ## Views (PROTOCOL.md §5.1, §7)
 
   @doc "The complete `RoomState` snapshot as seen by `recipient`."
@@ -293,7 +364,15 @@ defmodule Fazoura.Game do
       server_time: now,
       pack_title: game.pack.title,
       question_index: game.question_index,
-      question_count: length(game.pack.questions),
+      question_count: game.settings.question_count,
+      game_number: game.game_number,
+      settings: %{
+        question_count: game.settings.question_count,
+        time_limit_ms: game.settings.time_limit_ms,
+        max_question_count: pack_size(game),
+        min_time_limit_ms: @min_time_limit_ms,
+        max_time_limit_ms: @max_time_limit_ms
+      },
       question: question && question_view(question),
       deadline: game.deadline,
       paused_remaining_ms: game.paused_remaining_ms,
@@ -304,7 +383,11 @@ defmodule Fazoura.Game do
     }
   end
 
-  defp current_question(game), do: Enum.at(game.pack.questions, game.question_index)
+  # The pack is played from `question_offset`, wrapping around, at the host's time limit.
+  defp current_question(game) do
+    index = rem(game.question_offset + game.question_index, pack_size(game))
+    %{Enum.at(game.pack.questions, index) | time_limit_ms: game.settings.time_limit_ms}
+  end
 
   defp question_view(question) do
     Map.take(question, [:id, :type, :prompt, :image_url, :time_limit_ms])

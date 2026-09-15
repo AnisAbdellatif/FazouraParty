@@ -33,6 +33,8 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 
 - **The server is authoritative.** Clients send intents only (`join`, `submit`, `next_question`, `override`, ...). All validation — wager range, phase, host permissions, one submission per question — happens server-side. Never trust client-computed scores or correctness.
 - Wager is an integer 1–10. Correct → `+wager`, incorrect → `−wager`.
+- **Game settings:** before a game starts (lobby), the host sets the number of questions (1..pack size) and the time per question (10–120 s). The time applies to every question.
+- **Rematch:** after a game finishes, the host can start a new game in the same room — same players and settings, scores reset, continuing through the pack. No new room is created.
 - Answer matching v1: normalize (trim, collapse whitespace, case-fold, strip diacritics) then exact match against `accepted_answers`. **No fuzzy/Levenshtein matching.** Host override is the second pass.
 - Host overrides re-apply score deltas immediately and trigger a full `RoomState` re-broadcast.
 - Pack questions are **snapshotted at room start**; rooms never read or write the DB during play.

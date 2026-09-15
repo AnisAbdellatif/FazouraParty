@@ -17,7 +17,8 @@ T _$identity<T>(T value) => value;
 mixin _$RoomState {
 
  int get protocolVersion; String get roomCode; Mode get mode; Phase get phase;/// Host clock (ms since epoch) when the snapshot was built.
- int get serverTime; String? get packTitle; int? get questionIndex; int get questionCount; Question? get question;/// Absolute server timestamp (ms since epoch); set only in `question`
+ int get serverTime; String? get packTitle; int? get questionIndex; int get questionCount;/// 1 for the first game in the room, +1 per rematch (protocol v3).
+ int get gameNumber; GameSettings? get settings; Question? get question;/// Absolute server timestamp (ms since epoch); set only in `question`
 /// while not paused.
  int? get deadline; int? get pausedRemainingMs; List<String>? get acceptedAnswers; List<PlayerSummary> get players; You get you; List<SubmissionView>? get submissions;
 /// Create a copy of RoomState
@@ -33,20 +34,20 @@ $RoomStateCopyWith<RoomState> get copyWith => _$RoomStateCopyWithImpl<RoomState>
 @override
 bool operator ==(Object other) {
   final _this = this as RoomState;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoomState&&(identical(other.protocolVersion, _this.protocolVersion) || other.protocolVersion == _this.protocolVersion)&&(identical(other.roomCode, _this.roomCode) || other.roomCode == _this.roomCode)&&(identical(other.mode, _this.mode) || other.mode == _this.mode)&&(identical(other.phase, _this.phase) || other.phase == _this.phase)&&(identical(other.serverTime, _this.serverTime) || other.serverTime == _this.serverTime)&&(identical(other.packTitle, _this.packTitle) || other.packTitle == _this.packTitle)&&(identical(other.questionIndex, _this.questionIndex) || other.questionIndex == _this.questionIndex)&&(identical(other.questionCount, _this.questionCount) || other.questionCount == _this.questionCount)&&(identical(other.question, _this.question) || other.question == _this.question)&&(identical(other.deadline, _this.deadline) || other.deadline == _this.deadline)&&(identical(other.pausedRemainingMs, _this.pausedRemainingMs) || other.pausedRemainingMs == _this.pausedRemainingMs)&&const DeepCollectionEquality().equals(other.acceptedAnswers, _this.acceptedAnswers)&&const DeepCollectionEquality().equals(other.players, _this.players)&&(identical(other.you, _this.you) || other.you == _this.you)&&const DeepCollectionEquality().equals(other.submissions, _this.submissions));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoomState&&(identical(other.protocolVersion, _this.protocolVersion) || other.protocolVersion == _this.protocolVersion)&&(identical(other.roomCode, _this.roomCode) || other.roomCode == _this.roomCode)&&(identical(other.mode, _this.mode) || other.mode == _this.mode)&&(identical(other.phase, _this.phase) || other.phase == _this.phase)&&(identical(other.serverTime, _this.serverTime) || other.serverTime == _this.serverTime)&&(identical(other.packTitle, _this.packTitle) || other.packTitle == _this.packTitle)&&(identical(other.questionIndex, _this.questionIndex) || other.questionIndex == _this.questionIndex)&&(identical(other.questionCount, _this.questionCount) || other.questionCount == _this.questionCount)&&(identical(other.gameNumber, _this.gameNumber) || other.gameNumber == _this.gameNumber)&&(identical(other.settings, _this.settings) || other.settings == _this.settings)&&(identical(other.question, _this.question) || other.question == _this.question)&&(identical(other.deadline, _this.deadline) || other.deadline == _this.deadline)&&(identical(other.pausedRemainingMs, _this.pausedRemainingMs) || other.pausedRemainingMs == _this.pausedRemainingMs)&&const DeepCollectionEquality().equals(other.acceptedAnswers, _this.acceptedAnswers)&&const DeepCollectionEquality().equals(other.players, _this.players)&&(identical(other.you, _this.you) || other.you == _this.you)&&const DeepCollectionEquality().equals(other.submissions, _this.submissions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as RoomState;
-  return Object.hash(runtimeType,_this.protocolVersion,_this.roomCode,_this.mode,_this.phase,_this.serverTime,_this.packTitle,_this.questionIndex,_this.questionCount,_this.question,_this.deadline,_this.pausedRemainingMs,const DeepCollectionEquality().hash(_this.acceptedAnswers),const DeepCollectionEquality().hash(_this.players),_this.you,const DeepCollectionEquality().hash(_this.submissions));
+  return Object.hash(runtimeType,_this.protocolVersion,_this.roomCode,_this.mode,_this.phase,_this.serverTime,_this.packTitle,_this.questionIndex,_this.questionCount,_this.gameNumber,_this.settings,_this.question,_this.deadline,_this.pausedRemainingMs,const DeepCollectionEquality().hash(_this.acceptedAnswers),const DeepCollectionEquality().hash(_this.players),_this.you,const DeepCollectionEquality().hash(_this.submissions));
 }
 
 @override
 String toString() {
   final _this = this as RoomState;
-  return 'RoomState(protocolVersion: ${_this.protocolVersion}, roomCode: ${_this.roomCode}, mode: ${_this.mode}, phase: ${_this.phase}, serverTime: ${_this.serverTime}, packTitle: ${_this.packTitle}, questionIndex: ${_this.questionIndex}, questionCount: ${_this.questionCount}, question: ${_this.question}, deadline: ${_this.deadline}, pausedRemainingMs: ${_this.pausedRemainingMs}, acceptedAnswers: ${_this.acceptedAnswers}, players: ${_this.players}, you: ${_this.you}, submissions: ${_this.submissions})';
+  return 'RoomState(protocolVersion: ${_this.protocolVersion}, roomCode: ${_this.roomCode}, mode: ${_this.mode}, phase: ${_this.phase}, serverTime: ${_this.serverTime}, packTitle: ${_this.packTitle}, questionIndex: ${_this.questionIndex}, questionCount: ${_this.questionCount}, gameNumber: ${_this.gameNumber}, settings: ${_this.settings}, question: ${_this.question}, deadline: ${_this.deadline}, pausedRemainingMs: ${_this.pausedRemainingMs}, acceptedAnswers: ${_this.acceptedAnswers}, players: ${_this.players}, you: ${_this.you}, submissions: ${_this.submissions})';
 }
 
 
@@ -57,11 +58,11 @@ abstract mixin class $RoomStateCopyWith<$Res>  {
   factory $RoomStateCopyWith(RoomState value, $Res Function(RoomState) _then) = _$RoomStateCopyWithImpl;
 @useResult
 $Res call({
- int protocolVersion, String roomCode, Mode mode, Phase phase, int serverTime, String? packTitle, int? questionIndex, int questionCount, Question? question, int? deadline, int? pausedRemainingMs, List<String>? acceptedAnswers, List<PlayerSummary> players, You you, List<SubmissionView>? submissions
+ int protocolVersion, String roomCode, Mode mode, Phase phase, int serverTime, String? packTitle, int? questionIndex, int questionCount, int gameNumber, GameSettings? settings, Question? question, int? deadline, int? pausedRemainingMs, List<String>? acceptedAnswers, List<PlayerSummary> players, You you, List<SubmissionView>? submissions
 });
 
 
-$QuestionCopyWith<$Res>? get question;$YouCopyWith<$Res> get you;
+$GameSettingsCopyWith<$Res>? get settings;$QuestionCopyWith<$Res>? get question;$YouCopyWith<$Res> get you;
 
 }
 /// @nodoc
@@ -74,7 +75,7 @@ class _$RoomStateCopyWithImpl<$Res>
 
 /// Create a copy of RoomState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? protocolVersion = null,Object? roomCode = null,Object? mode = null,Object? phase = null,Object? serverTime = null,Object? packTitle = freezed,Object? questionIndex = freezed,Object? questionCount = null,Object? question = freezed,Object? deadline = freezed,Object? pausedRemainingMs = freezed,Object? acceptedAnswers = freezed,Object? players = null,Object? you = null,Object? submissions = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? protocolVersion = null,Object? roomCode = null,Object? mode = null,Object? phase = null,Object? serverTime = null,Object? packTitle = freezed,Object? questionIndex = freezed,Object? questionCount = null,Object? gameNumber = null,Object? settings = freezed,Object? question = freezed,Object? deadline = freezed,Object? pausedRemainingMs = freezed,Object? acceptedAnswers = freezed,Object? players = null,Object? you = null,Object? submissions = freezed,}) {
   return _then(RoomState(
 protocolVersion: null == protocolVersion ? _self.protocolVersion : protocolVersion // ignore: cast_nullable_to_non_nullable
 as int,roomCode: null == roomCode ? _self.roomCode : roomCode // ignore: cast_nullable_to_non_nullable
@@ -84,7 +85,9 @@ as Phase,serverTime: null == serverTime ? _self.serverTime : serverTime // ignor
 as int,packTitle: freezed == packTitle ? _self.packTitle : packTitle // ignore: cast_nullable_to_non_nullable
 as String?,questionIndex: freezed == questionIndex ? _self.questionIndex : questionIndex // ignore: cast_nullable_to_non_nullable
 as int?,questionCount: null == questionCount ? _self.questionCount : questionCount // ignore: cast_nullable_to_non_nullable
-as int,question: freezed == question ? _self.question : question // ignore: cast_nullable_to_non_nullable
+as int,gameNumber: null == gameNumber ? _self.gameNumber : gameNumber // ignore: cast_nullable_to_non_nullable
+as int,settings: freezed == settings ? _self.settings : settings // ignore: cast_nullable_to_non_nullable
+as GameSettings?,question: freezed == question ? _self.question : question // ignore: cast_nullable_to_non_nullable
 as Question?,deadline: freezed == deadline ? _self.deadline : deadline // ignore: cast_nullable_to_non_nullable
 as int?,pausedRemainingMs: freezed == pausedRemainingMs ? _self.pausedRemainingMs : pausedRemainingMs // ignore: cast_nullable_to_non_nullable
 as int?,acceptedAnswers: freezed == acceptedAnswers ? _self.acceptedAnswers : acceptedAnswers // ignore: cast_nullable_to_non_nullable
@@ -95,6 +98,18 @@ as List<SubmissionView>?,
   ));
 }
 /// Create a copy of RoomState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$GameSettingsCopyWith<$Res>? get settings {
+    if (_self.settings == null) {
+    return null;
+  }
+
+  return $GameSettingsCopyWith<$Res>(_self.settings!, (value) {
+    return _then(_self.copyWith(settings: value));
+  });
+}/// Create a copy of RoomState
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
@@ -197,10 +212,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int protocolVersion,  String roomCode,  Mode mode,  Phase phase,  int serverTime,  String? packTitle,  int? questionIndex,  int questionCount,  Question? question,  int? deadline,  int? pausedRemainingMs,  List<String>? acceptedAnswers,  List<PlayerSummary> players,  You you,  List<SubmissionView>? submissions)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int protocolVersion,  String roomCode,  Mode mode,  Phase phase,  int serverTime,  String? packTitle,  int? questionIndex,  int questionCount,  int gameNumber,  GameSettings? settings,  Question? question,  int? deadline,  int? pausedRemainingMs,  List<String>? acceptedAnswers,  List<PlayerSummary> players,  You you,  List<SubmissionView>? submissions)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _RoomState() when $default != null:
-return $default(_that.protocolVersion,_that.roomCode,_that.mode,_that.phase,_that.serverTime,_that.packTitle,_that.questionIndex,_that.questionCount,_that.question,_that.deadline,_that.pausedRemainingMs,_that.acceptedAnswers,_that.players,_that.you,_that.submissions);case _:
+return $default(_that.protocolVersion,_that.roomCode,_that.mode,_that.phase,_that.serverTime,_that.packTitle,_that.questionIndex,_that.questionCount,_that.gameNumber,_that.settings,_that.question,_that.deadline,_that.pausedRemainingMs,_that.acceptedAnswers,_that.players,_that.you,_that.submissions);case _:
   return orElse();
 
 }
@@ -218,10 +233,10 @@ return $default(_that.protocolVersion,_that.roomCode,_that.mode,_that.phase,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int protocolVersion,  String roomCode,  Mode mode,  Phase phase,  int serverTime,  String? packTitle,  int? questionIndex,  int questionCount,  Question? question,  int? deadline,  int? pausedRemainingMs,  List<String>? acceptedAnswers,  List<PlayerSummary> players,  You you,  List<SubmissionView>? submissions)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int protocolVersion,  String roomCode,  Mode mode,  Phase phase,  int serverTime,  String? packTitle,  int? questionIndex,  int questionCount,  int gameNumber,  GameSettings? settings,  Question? question,  int? deadline,  int? pausedRemainingMs,  List<String>? acceptedAnswers,  List<PlayerSummary> players,  You you,  List<SubmissionView>? submissions)  $default,) {final _that = this;
 switch (_that) {
 case _RoomState():
-return $default(_that.protocolVersion,_that.roomCode,_that.mode,_that.phase,_that.serverTime,_that.packTitle,_that.questionIndex,_that.questionCount,_that.question,_that.deadline,_that.pausedRemainingMs,_that.acceptedAnswers,_that.players,_that.you,_that.submissions);case _:
+return $default(_that.protocolVersion,_that.roomCode,_that.mode,_that.phase,_that.serverTime,_that.packTitle,_that.questionIndex,_that.questionCount,_that.gameNumber,_that.settings,_that.question,_that.deadline,_that.pausedRemainingMs,_that.acceptedAnswers,_that.players,_that.you,_that.submissions);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -238,10 +253,10 @@ return $default(_that.protocolVersion,_that.roomCode,_that.mode,_that.phase,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int protocolVersion,  String roomCode,  Mode mode,  Phase phase,  int serverTime,  String? packTitle,  int? questionIndex,  int questionCount,  Question? question,  int? deadline,  int? pausedRemainingMs,  List<String>? acceptedAnswers,  List<PlayerSummary> players,  You you,  List<SubmissionView>? submissions)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int protocolVersion,  String roomCode,  Mode mode,  Phase phase,  int serverTime,  String? packTitle,  int? questionIndex,  int questionCount,  int gameNumber,  GameSettings? settings,  Question? question,  int? deadline,  int? pausedRemainingMs,  List<String>? acceptedAnswers,  List<PlayerSummary> players,  You you,  List<SubmissionView>? submissions)?  $default,) {final _that = this;
 switch (_that) {
 case _RoomState() when $default != null:
-return $default(_that.protocolVersion,_that.roomCode,_that.mode,_that.phase,_that.serverTime,_that.packTitle,_that.questionIndex,_that.questionCount,_that.question,_that.deadline,_that.pausedRemainingMs,_that.acceptedAnswers,_that.players,_that.you,_that.submissions);case _:
+return $default(_that.protocolVersion,_that.roomCode,_that.mode,_that.phase,_that.serverTime,_that.packTitle,_that.questionIndex,_that.questionCount,_that.gameNumber,_that.settings,_that.question,_that.deadline,_that.pausedRemainingMs,_that.acceptedAnswers,_that.players,_that.you,_that.submissions);case _:
   return null;
 
 }
@@ -253,7 +268,7 @@ return $default(_that.protocolVersion,_that.roomCode,_that.mode,_that.phase,_tha
 @JsonSerializable()
 
 class _RoomState implements RoomState {
-  const _RoomState({required this.protocolVersion, required this.roomCode, required this.mode, required this.phase, required this.serverTime, this.packTitle, this.questionIndex, required this.questionCount, this.question, this.deadline, this.pausedRemainingMs,  List<String>? acceptedAnswers,  List<PlayerSummary> players = const <PlayerSummary>[], required this.you,  List<SubmissionView>? submissions}): _acceptedAnswers = acceptedAnswers,_players = players,_submissions = submissions;
+  const _RoomState({required this.protocolVersion, required this.roomCode, required this.mode, required this.phase, required this.serverTime, this.packTitle, this.questionIndex, required this.questionCount, this.gameNumber = 1, this.settings, this.question, this.deadline, this.pausedRemainingMs,  List<String>? acceptedAnswers,  List<PlayerSummary> players = const <PlayerSummary>[], required this.you,  List<SubmissionView>? submissions}): _acceptedAnswers = acceptedAnswers,_players = players,_submissions = submissions;
   factory _RoomState.fromJson(Map<String, dynamic> json) => _$RoomStateFromJson(json);
 
 @override final  int protocolVersion;
@@ -265,6 +280,9 @@ class _RoomState implements RoomState {
 @override final  String? packTitle;
 @override final  int? questionIndex;
 @override final  int questionCount;
+/// 1 for the first game in the room, +1 per rematch (protocol v3).
+@override@JsonKey() final  int gameNumber;
+@override final  GameSettings? settings;
 @override final  Question? question;
 /// Absolute server timestamp (ms since epoch); set only in `question`
 /// while not paused.
@@ -310,18 +328,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoomState&&(identical(other.protocolVersion, protocolVersion) || other.protocolVersion == protocolVersion)&&(identical(other.roomCode, roomCode) || other.roomCode == roomCode)&&(identical(other.mode, mode) || other.mode == mode)&&(identical(other.phase, phase) || other.phase == phase)&&(identical(other.serverTime, serverTime) || other.serverTime == serverTime)&&(identical(other.packTitle, packTitle) || other.packTitle == packTitle)&&(identical(other.questionIndex, questionIndex) || other.questionIndex == questionIndex)&&(identical(other.questionCount, questionCount) || other.questionCount == questionCount)&&(identical(other.question, question) || other.question == question)&&(identical(other.deadline, deadline) || other.deadline == deadline)&&(identical(other.pausedRemainingMs, pausedRemainingMs) || other.pausedRemainingMs == pausedRemainingMs)&&const DeepCollectionEquality().equals(other.acceptedAnswers, _acceptedAnswers)&&const DeepCollectionEquality().equals(other.players, _players)&&(identical(other.you, you) || other.you == you)&&const DeepCollectionEquality().equals(other.submissions, _submissions));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoomState&&(identical(other.protocolVersion, protocolVersion) || other.protocolVersion == protocolVersion)&&(identical(other.roomCode, roomCode) || other.roomCode == roomCode)&&(identical(other.mode, mode) || other.mode == mode)&&(identical(other.phase, phase) || other.phase == phase)&&(identical(other.serverTime, serverTime) || other.serverTime == serverTime)&&(identical(other.packTitle, packTitle) || other.packTitle == packTitle)&&(identical(other.questionIndex, questionIndex) || other.questionIndex == questionIndex)&&(identical(other.questionCount, questionCount) || other.questionCount == questionCount)&&(identical(other.gameNumber, gameNumber) || other.gameNumber == gameNumber)&&(identical(other.settings, settings) || other.settings == settings)&&(identical(other.question, question) || other.question == question)&&(identical(other.deadline, deadline) || other.deadline == deadline)&&(identical(other.pausedRemainingMs, pausedRemainingMs) || other.pausedRemainingMs == pausedRemainingMs)&&const DeepCollectionEquality().equals(other.acceptedAnswers, _acceptedAnswers)&&const DeepCollectionEquality().equals(other.players, _players)&&(identical(other.you, you) || other.you == you)&&const DeepCollectionEquality().equals(other.submissions, _submissions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,protocolVersion,roomCode,mode,phase,serverTime,packTitle,questionIndex,questionCount,question,deadline,pausedRemainingMs,const DeepCollectionEquality().hash(_acceptedAnswers),const DeepCollectionEquality().hash(_players),you,const DeepCollectionEquality().hash(_submissions));
+    return Object.hash(runtimeType,protocolVersion,roomCode,mode,phase,serverTime,packTitle,questionIndex,questionCount,gameNumber,settings,question,deadline,pausedRemainingMs,const DeepCollectionEquality().hash(_acceptedAnswers),const DeepCollectionEquality().hash(_players),you,const DeepCollectionEquality().hash(_submissions));
 }
 
 @override
 String toString() {
-    return 'RoomState(protocolVersion: $protocolVersion, roomCode: $roomCode, mode: $mode, phase: $phase, serverTime: $serverTime, packTitle: $packTitle, questionIndex: $questionIndex, questionCount: $questionCount, question: $question, deadline: $deadline, pausedRemainingMs: $pausedRemainingMs, acceptedAnswers: $acceptedAnswers, players: $players, you: $you, submissions: $submissions)';
+    return 'RoomState(protocolVersion: $protocolVersion, roomCode: $roomCode, mode: $mode, phase: $phase, serverTime: $serverTime, packTitle: $packTitle, questionIndex: $questionIndex, questionCount: $questionCount, gameNumber: $gameNumber, settings: $settings, question: $question, deadline: $deadline, pausedRemainingMs: $pausedRemainingMs, acceptedAnswers: $acceptedAnswers, players: $players, you: $you, submissions: $submissions)';
 }
 
 
@@ -332,11 +350,11 @@ abstract mixin class _$RoomStateCopyWith<$Res> implements $RoomStateCopyWith<$Re
   factory _$RoomStateCopyWith(_RoomState value, $Res Function(_RoomState) _then) = __$RoomStateCopyWithImpl;
 @override @useResult
 $Res call({
- int protocolVersion, String roomCode, Mode mode, Phase phase, int serverTime, String? packTitle, int? questionIndex, int questionCount, Question? question, int? deadline, int? pausedRemainingMs, List<String>? acceptedAnswers, List<PlayerSummary> players, You you, List<SubmissionView>? submissions
+ int protocolVersion, String roomCode, Mode mode, Phase phase, int serverTime, String? packTitle, int? questionIndex, int questionCount, int gameNumber, GameSettings? settings, Question? question, int? deadline, int? pausedRemainingMs, List<String>? acceptedAnswers, List<PlayerSummary> players, You you, List<SubmissionView>? submissions
 });
 
 
-@override $QuestionCopyWith<$Res>? get question;@override $YouCopyWith<$Res> get you;
+@override $GameSettingsCopyWith<$Res>? get settings;@override $QuestionCopyWith<$Res>? get question;@override $YouCopyWith<$Res> get you;
 
 }
 /// @nodoc
@@ -349,7 +367,7 @@ class __$RoomStateCopyWithImpl<$Res>
 
 /// Create a copy of RoomState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? protocolVersion = null,Object? roomCode = null,Object? mode = null,Object? phase = null,Object? serverTime = null,Object? packTitle = freezed,Object? questionIndex = freezed,Object? questionCount = null,Object? question = freezed,Object? deadline = freezed,Object? pausedRemainingMs = freezed,Object? acceptedAnswers = freezed,Object? players = null,Object? you = null,Object? submissions = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? protocolVersion = null,Object? roomCode = null,Object? mode = null,Object? phase = null,Object? serverTime = null,Object? packTitle = freezed,Object? questionIndex = freezed,Object? questionCount = null,Object? gameNumber = null,Object? settings = freezed,Object? question = freezed,Object? deadline = freezed,Object? pausedRemainingMs = freezed,Object? acceptedAnswers = freezed,Object? players = null,Object? you = null,Object? submissions = freezed,}) {
   return _then(_RoomState(
 protocolVersion: null == protocolVersion ? _self.protocolVersion : protocolVersion // ignore: cast_nullable_to_non_nullable
 as int,roomCode: null == roomCode ? _self.roomCode : roomCode // ignore: cast_nullable_to_non_nullable
@@ -359,7 +377,9 @@ as Phase,serverTime: null == serverTime ? _self.serverTime : serverTime // ignor
 as int,packTitle: freezed == packTitle ? _self.packTitle : packTitle // ignore: cast_nullable_to_non_nullable
 as String?,questionIndex: freezed == questionIndex ? _self.questionIndex : questionIndex // ignore: cast_nullable_to_non_nullable
 as int?,questionCount: null == questionCount ? _self.questionCount : questionCount // ignore: cast_nullable_to_non_nullable
-as int,question: freezed == question ? _self.question : question // ignore: cast_nullable_to_non_nullable
+as int,gameNumber: null == gameNumber ? _self.gameNumber : gameNumber // ignore: cast_nullable_to_non_nullable
+as int,settings: freezed == settings ? _self.settings : settings // ignore: cast_nullable_to_non_nullable
+as GameSettings?,question: freezed == question ? _self.question : question // ignore: cast_nullable_to_non_nullable
 as Question?,deadline: freezed == deadline ? _self.deadline : deadline // ignore: cast_nullable_to_non_nullable
 as int?,pausedRemainingMs: freezed == pausedRemainingMs ? _self.pausedRemainingMs : pausedRemainingMs // ignore: cast_nullable_to_non_nullable
 as int?,acceptedAnswers: freezed == acceptedAnswers ? _self._acceptedAnswers : acceptedAnswers // ignore: cast_nullable_to_non_nullable
@@ -371,6 +391,18 @@ as List<SubmissionView>?,
 }
 
 /// Create a copy of RoomState
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$GameSettingsCopyWith<$Res>? get settings {
+    if (_self.settings == null) {
+    return null;
+  }
+
+  return $GameSettingsCopyWith<$Res>(_self.settings!, (value) {
+    return _then(_self.copyWith(settings: value));
+  });
+}/// Create a copy of RoomState
 /// with the given fields replaced by the non-null parameter values.
 @override
 @pragma('vm:prefer-inline')
@@ -392,6 +424,288 @@ $YouCopyWith<$Res> get you {
     return _then(_self.copyWith(you: value));
   });
 }
+}
+
+
+/// @nodoc
+mixin _$GameSettings {
+
+ int get questionCount; int get timeLimitMs; int get maxQuestionCount; int get minTimeLimitMs; int get maxTimeLimitMs;
+/// Create a copy of GameSettings
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$GameSettingsCopyWith<GameSettings> get copyWith => _$GameSettingsCopyWithImpl<GameSettings>(this as GameSettings, _$identity);
+
+  /// Serializes this GameSettings to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  final _this = this as GameSettings;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is GameSettings&&(identical(other.questionCount, _this.questionCount) || other.questionCount == _this.questionCount)&&(identical(other.timeLimitMs, _this.timeLimitMs) || other.timeLimitMs == _this.timeLimitMs)&&(identical(other.maxQuestionCount, _this.maxQuestionCount) || other.maxQuestionCount == _this.maxQuestionCount)&&(identical(other.minTimeLimitMs, _this.minTimeLimitMs) || other.minTimeLimitMs == _this.minTimeLimitMs)&&(identical(other.maxTimeLimitMs, _this.maxTimeLimitMs) || other.maxTimeLimitMs == _this.maxTimeLimitMs));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode {
+  final _this = this as GameSettings;
+  return Object.hash(runtimeType,_this.questionCount,_this.timeLimitMs,_this.maxQuestionCount,_this.minTimeLimitMs,_this.maxTimeLimitMs);
+}
+
+@override
+String toString() {
+  final _this = this as GameSettings;
+  return 'GameSettings(questionCount: ${_this.questionCount}, timeLimitMs: ${_this.timeLimitMs}, maxQuestionCount: ${_this.maxQuestionCount}, minTimeLimitMs: ${_this.minTimeLimitMs}, maxTimeLimitMs: ${_this.maxTimeLimitMs})';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $GameSettingsCopyWith<$Res>  {
+  factory $GameSettingsCopyWith(GameSettings value, $Res Function(GameSettings) _then) = _$GameSettingsCopyWithImpl;
+@useResult
+$Res call({
+ int questionCount, int timeLimitMs, int maxQuestionCount, int minTimeLimitMs, int maxTimeLimitMs
+});
+
+
+
+
+}
+/// @nodoc
+class _$GameSettingsCopyWithImpl<$Res>
+    implements $GameSettingsCopyWith<$Res> {
+  _$GameSettingsCopyWithImpl(this._self, this._then);
+
+  final GameSettings _self;
+  final $Res Function(GameSettings) _then;
+
+/// Create a copy of GameSettings
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? questionCount = null,Object? timeLimitMs = null,Object? maxQuestionCount = null,Object? minTimeLimitMs = null,Object? maxTimeLimitMs = null,}) {
+  return _then(GameSettings(
+questionCount: null == questionCount ? _self.questionCount : questionCount // ignore: cast_nullable_to_non_nullable
+as int,timeLimitMs: null == timeLimitMs ? _self.timeLimitMs : timeLimitMs // ignore: cast_nullable_to_non_nullable
+as int,maxQuestionCount: null == maxQuestionCount ? _self.maxQuestionCount : maxQuestionCount // ignore: cast_nullable_to_non_nullable
+as int,minTimeLimitMs: null == minTimeLimitMs ? _self.minTimeLimitMs : minTimeLimitMs // ignore: cast_nullable_to_non_nullable
+as int,maxTimeLimitMs: null == maxTimeLimitMs ? _self.maxTimeLimitMs : maxTimeLimitMs // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [GameSettings].
+extension GameSettingsPatterns on GameSettings {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _GameSettings value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _GameSettings() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _GameSettings value)  $default,){
+final _that = this;
+switch (_that) {
+case _GameSettings():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _GameSettings value)?  $default,){
+final _that = this;
+switch (_that) {
+case _GameSettings() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int questionCount,  int timeLimitMs,  int maxQuestionCount,  int minTimeLimitMs,  int maxTimeLimitMs)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _GameSettings() when $default != null:
+return $default(_that.questionCount,_that.timeLimitMs,_that.maxQuestionCount,_that.minTimeLimitMs,_that.maxTimeLimitMs);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int questionCount,  int timeLimitMs,  int maxQuestionCount,  int minTimeLimitMs,  int maxTimeLimitMs)  $default,) {final _that = this;
+switch (_that) {
+case _GameSettings():
+return $default(_that.questionCount,_that.timeLimitMs,_that.maxQuestionCount,_that.minTimeLimitMs,_that.maxTimeLimitMs);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int questionCount,  int timeLimitMs,  int maxQuestionCount,  int minTimeLimitMs,  int maxTimeLimitMs)?  $default,) {final _that = this;
+switch (_that) {
+case _GameSettings() when $default != null:
+return $default(_that.questionCount,_that.timeLimitMs,_that.maxQuestionCount,_that.minTimeLimitMs,_that.maxTimeLimitMs);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _GameSettings implements GameSettings {
+  const _GameSettings({required this.questionCount, required this.timeLimitMs, required this.maxQuestionCount, this.minTimeLimitMs = 10000, this.maxTimeLimitMs = 120000});
+  factory _GameSettings.fromJson(Map<String, dynamic> json) => _$GameSettingsFromJson(json);
+
+@override final  int questionCount;
+@override final  int timeLimitMs;
+@override final  int maxQuestionCount;
+@override@JsonKey() final  int minTimeLimitMs;
+@override@JsonKey() final  int maxTimeLimitMs;
+
+/// Create a copy of GameSettings
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$GameSettingsCopyWith<_GameSettings> get copyWith => __$GameSettingsCopyWithImpl<_GameSettings>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$GameSettingsToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _GameSettings&&(identical(other.questionCount, questionCount) || other.questionCount == questionCount)&&(identical(other.timeLimitMs, timeLimitMs) || other.timeLimitMs == timeLimitMs)&&(identical(other.maxQuestionCount, maxQuestionCount) || other.maxQuestionCount == maxQuestionCount)&&(identical(other.minTimeLimitMs, minTimeLimitMs) || other.minTimeLimitMs == minTimeLimitMs)&&(identical(other.maxTimeLimitMs, maxTimeLimitMs) || other.maxTimeLimitMs == maxTimeLimitMs));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode {
+    return Object.hash(runtimeType,questionCount,timeLimitMs,maxQuestionCount,minTimeLimitMs,maxTimeLimitMs);
+}
+
+@override
+String toString() {
+    return 'GameSettings(questionCount: $questionCount, timeLimitMs: $timeLimitMs, maxQuestionCount: $maxQuestionCount, minTimeLimitMs: $minTimeLimitMs, maxTimeLimitMs: $maxTimeLimitMs)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$GameSettingsCopyWith<$Res> implements $GameSettingsCopyWith<$Res> {
+  factory _$GameSettingsCopyWith(_GameSettings value, $Res Function(_GameSettings) _then) = __$GameSettingsCopyWithImpl;
+@override @useResult
+$Res call({
+ int questionCount, int timeLimitMs, int maxQuestionCount, int minTimeLimitMs, int maxTimeLimitMs
+});
+
+
+
+
+}
+/// @nodoc
+class __$GameSettingsCopyWithImpl<$Res>
+    implements _$GameSettingsCopyWith<$Res> {
+  __$GameSettingsCopyWithImpl(this._self, this._then);
+
+  final _GameSettings _self;
+  final $Res Function(_GameSettings) _then;
+
+/// Create a copy of GameSettings
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? questionCount = null,Object? timeLimitMs = null,Object? maxQuestionCount = null,Object? minTimeLimitMs = null,Object? maxTimeLimitMs = null,}) {
+  return _then(_GameSettings(
+questionCount: null == questionCount ? _self.questionCount : questionCount // ignore: cast_nullable_to_non_nullable
+as int,timeLimitMs: null == timeLimitMs ? _self.timeLimitMs : timeLimitMs // ignore: cast_nullable_to_non_nullable
+as int,maxQuestionCount: null == maxQuestionCount ? _self.maxQuestionCount : maxQuestionCount // ignore: cast_nullable_to_non_nullable
+as int,minTimeLimitMs: null == minTimeLimitMs ? _self.minTimeLimitMs : minTimeLimitMs // ignore: cast_nullable_to_non_nullable
+as int,maxTimeLimitMs: null == maxTimeLimitMs ? _self.maxTimeLimitMs : maxTimeLimitMs // ignore: cast_nullable_to_non_nullable
+as int,
+  ));
+}
+
+
 }
 
 

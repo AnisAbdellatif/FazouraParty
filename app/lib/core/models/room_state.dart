@@ -20,6 +20,10 @@ abstract class RoomState with _$RoomState {
     String? packTitle,
     int? questionIndex,
     required int questionCount,
+
+    /// 1 for the first game in the room, +1 per rematch (protocol v3).
+    @Default(1) int gameNumber,
+    GameSettings? settings,
     Question? question,
 
     /// Absolute server timestamp (ms since epoch); set only in `question`
@@ -34,6 +38,21 @@ abstract class RoomState with _$RoomState {
 
   factory RoomState.fromJson(Map<String, dynamic> json) =>
       _$RoomStateFromJson(json);
+}
+
+/// Host-chosen game settings and their bounds (PROTOCOL.md §6.2).
+@freezed
+abstract class GameSettings with _$GameSettings {
+  const factory GameSettings({
+    required int questionCount,
+    required int timeLimitMs,
+    required int maxQuestionCount,
+    @Default(10000) int minTimeLimitMs,
+    @Default(120000) int maxTimeLimitMs,
+  }) = _GameSettings;
+
+  factory GameSettings.fromJson(Map<String, dynamic> json) =>
+      _$GameSettingsFromJson(json);
 }
 
 @freezed

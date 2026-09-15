@@ -106,6 +106,40 @@ void main() {
     );
   });
 
+  testWidgets('host gets Play again; players wait for the rematch', (
+    tester,
+  ) async {
+    final state = finishedWith([
+      player('p1', 'Hana', 8),
+      player('p2', 'Sam', 5),
+    ]);
+    var rematches = 0;
+
+    tester.view.physicalSize = const Size(900, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: FinishedView(state: state, onRematch: () => rematches++),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.byKey(const Key('waitingForRematch')), findsNothing);
+    await tester.tap(find.byKey(const Key('hostRematchButton')));
+    await tester.pump();
+    expect(rematches, 1);
+
+    await pumpView(tester, state);
+    expect(find.byKey(const Key('hostRematchButton')), findsNothing);
+    expect(
+      find.text('Waiting for the host to start a rematch…'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('equal top scores are a tie', (tester) async {
     await pumpView(
       tester,

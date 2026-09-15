@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `2`** · Status: **FROZEN** (changes are breaking — see AGENTS.md §3)
+**Protocol version: `3`** · Status: **FROZEN** (changes are breaking — see AGENTS.md §3)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -85,7 +85,7 @@ Payload:
 
 ```json
 {
-  "protocol_version": 2,
+  "protocol_version": 3,
   "display_name": "Sam",
   "player_token": null,
   "host_token": null
@@ -143,6 +143,8 @@ Join error codes: `unsupported_protocol_version`, `room_not_found`, `invalid_tok
 | `host_pause` | host | `{}` | `question` (not paused) | Freezes the timer |
 | `host_resume` | host | `{}` | `question` (paused) | Restarts the timer |
 | `host_override` | host | `{"player_id": string, "correct": bool}` | `scoring`, `leaderboard` | Sets the verdict on that player's submission for the **current** question, including the host's own |
+| `host_configure` | host | `{"question_count": int, "time_limit_ms": int}` | `lobby` | Sets the game settings (§6.2). Replaces both values |
+| `host_rematch` | host | `{}` | `finished` | Starts a new game in the same room (§6.3) |
 
 Successful intents reply `{"status": "ok", "response": {}}` and — if state changed — trigger a
 `state` push to every connected client.
@@ -155,6 +157,8 @@ Successful intents reply `{"status": "ok", "response": {}}` and — if state cha
 
 Intent error codes: `invalid_phase`, `not_host`, `not_player`, `invalid_answer`, `invalid_wager`,
 `already_submitted`, `unknown_player`, `no_submission`, `paused`, `not_paused`,
+`invalid_settings` (question count outside 1..`max_question_count`, time limit outside
+`min_time_limit_ms`..`max_time_limit_ms`, or either missing/not an integer),
 `invalid_payload` (unknown event, or a payload with missing/mistyped fields not covered by a
 more specific code).
 
@@ -179,7 +183,7 @@ it per socket rather than broadcasting one identical payload.
 
 ```json
 {
-  "protocol_version": 2,
+  "protocol_version": 3,
   "room_code": "K7QX2M",
   "mode": "cloud",
   "phase": "question",
@@ -188,6 +192,14 @@ it per socket rather than broadcasting one identical payload.
   "pack_title": "General Knowledge",
   "question_index": 2,
   "question_count": 10,
+  "game_number": 1,
+  "settings": {
+    "question_count": 10,
+    "time_limit_ms": 30000,
+    "max_question_count": 10,
+    "min_time_limit_ms": 10000,
+    "max_time_limit_ms": 120000
+  },
 
   "question": {
     "id": "q_03",
@@ -216,12 +228,14 @@ it per socket rather than broadcasting one identical payload.
 
 | Field | Type | Notes |
 |---|---|---|
-| `protocol_version` | int | Always `2` |
+| `protocol_version` | int | Always `3` |
 | `mode` | `"cloud"` \| `"lan"` | |
 | `phase` | `"lobby"` \| `"question"` \| `"scoring"` \| `"leaderboard"` \| `"finished"` | §6 |
 | `server_time` | timestamp | Host clock when the snapshot was built. Clients compute `offset = server_time - local_now` and render timers from `deadline - (local_now + offset)` |
 | `pack_title` | string | Always present |
-| `question_count` | int | Always present |
+| `question_count` | int | Questions in the current game; always equals `settings.question_count` |
+| `game_number` | int | 1 for the first game in the room, +1 on every rematch. Question ids repeat across games, so clients key per-question UI state on (`game_number`, `question_index`) |
+| `settings` | object | Always present. `question_count`, `time_limit_ms` (applied to every question, overriding the pack), plus the bounds `max_question_count` (pack size), `min_time_limit_ms`, `max_time_limit_ms` |
 | `question_index` | int \| null | 0-based; `null` in `lobby` |
 | `question` | object \| null | `null` in `lobby` and `finished` |
 | `question.type` | `"text"` \| `"text_photo"` | `image_url` is non-null only for `text_photo` |
@@ -268,11 +282,12 @@ lobby ──host_next──► question ──host_next / deadline──► scor
 
 | Transition | Side effects |
 |---|---|
-| `lobby → question` | `question_index = 0`, `deadline = now + time_limit_ms` |
+| `lobby → question` | `question_index = 0`, `deadline = now + settings.time_limit_ms` |
 | `question → scoring` | Timer stops. Every submission is auto-matched and its `delta` applied to the player's score. Players without a submission get no delta |
 | `scoring → leaderboard` | None (overrides still allowed) |
 | `leaderboard → question` | `question_index += 1`, new deadline, previous submissions discarded from state |
-| `leaderboard → finished` | When the last question was just scored |
+| `leaderboard → finished` | When question `settings.question_count` was just scored |
+| `finished → lobby` | `host_rematch` (§6.3) |
 | pause / resume | `paused_remaining_ms = deadline - now`, `deadline = null` / `deadline = now + paused_remaining_ms`, `paused_remaining_ms = null` |
 
 `host_next` while `question` is active ends the question early. Starting a room with a pack of
@@ -283,6 +298,24 @@ zero questions is rejected at creation.
 `host_override` sets `override` on the current question's submission. The player's score is
 recomputed as: `score -= old_delta; score += new_delta`. Setting an override equal to
 `auto_correct` is allowed and stored. Overriding a player who did not submit returns `no_submission`.
+
+### 6.2 Game settings
+
+- Defaults when the room is created: `question_count` = pack size, `time_limit_ms` = the
+  first question's limit clamped to 10 000–120 000 ms.
+- `host_configure` is accepted only in `lobby` (before the first question, or after a
+  rematch). Settings persist across rematches until changed.
+- Every question uses `settings.time_limit_ms`; per-question pack limits are ignored.
+
+### 6.3 Rematch
+
+`host_rematch` in `finished` returns the room to `lobby` without creating a new room:
+
+- every player's `score` = 0; players, connection state, host and tokens are kept;
+- `game_number += 1`, `question_index = null`, submissions cleared;
+- the next game continues through the pack where the previous one stopped (wrapping around
+  to the first question), so a shorter game doesn't repeat the same questions;
+- the room's finished-expiry (§3.2) is cancelled.
 
 ## 7. Visibility rules
 
@@ -365,5 +398,6 @@ Confirmed by the project owner on 2026-09-15.
 | 5. Room code format / expiry | §3.2 |
 | 8. Guest accounts | None; signed per-room `player_token` |
 | Host participation (added in v2) | Host may play; no early access to answers; may override own submission |
+| Game settings & rematch (added in v3) | Host sets question count (1..pack) and per-question time (10–120 s) in the lobby; host-triggered rematch keeps the room and players, resets scores, continues through the pack |
 
 Changing any of these is a protocol version bump.

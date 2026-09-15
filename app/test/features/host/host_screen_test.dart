@@ -87,6 +87,24 @@ void main() {
     });
   });
 
+  group('host after the game', () {
+    testWidgets('Play again sends host_rematch', (tester) async {
+      await pumpHost(
+        tester,
+        scoringStateForHost().copyWith(
+          phase: Phase.finished,
+          question: null,
+          acceptedAnswers: null,
+          submissions: null,
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('hostRematchButton')));
+      await tester.pump();
+      expect(fake.rematchCalls, 1);
+    });
+  });
+
   group('host during scoring', () {
     testWidgets('shows the correct answer and all submissions', (tester) async {
       await pumpHost(tester, scoringStateForHost());
