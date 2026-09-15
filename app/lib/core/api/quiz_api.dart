@@ -16,13 +16,20 @@ class QuizApi {
   final Future<String> Function() ownerKey;
   final http.Client _client;
 
-  /// Public quizzes (§5.1).
-  Future<QuizPage> list({String? query, int limit = 20, int offset = 0}) async {
+  /// Public quizzes (§5.1). [query] matches the title or a tag; [tag] keeps
+  /// only quizzes carrying exactly that tag.
+  Future<QuizPage> list({
+    String? query,
+    String? tag,
+    int limit = 20,
+    int offset = 0,
+  }) async {
     final body = await _send(
       'GET',
       '/api/quizzes',
       query: {
         if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+        if (tag != null && tag.isNotEmpty) 'tag': tag,
         'limit': '$limit',
         'offset': '$offset',
       },
@@ -38,6 +45,18 @@ class QuizApi {
 
   Future<QuizDocument> get(String id) async =>
       QuizDocument.fromJson(await _send('GET', '/api/quizzes/$id'));
+
+  /// Tags public quizzes use, most used first (§5.2).
+  Future<List<TagCount>> popularTags({int limit = 30}) async {
+    final body = await _send('GET', '/api/tags', query: {'limit': '$limit'});
+    return [
+      for (final item in body['tags'] as List<dynamic>)
+        (
+          tag: (item as Map<String, dynamic>)['tag'] as String,
+          count: item['count'] as int,
+        ),
+    ];
+  }
 
   Future<QuizDocument> create(QuizDocument quiz) async => QuizDocument.fromJson(
     await _send('POST', '/api/quizzes', json: quiz.toJson()),

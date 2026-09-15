@@ -1,5 +1,5 @@
 defmodule FazouraWeb.QuizController do
-  @moduledoc "Public quiz browsing and publishing (QUIZ_FORMAT.md §5.1–5.5)."
+  @moduledoc "Public quiz browsing and publishing (QUIZ_FORMAT.md §5.1–5.6)."
 
   use FazouraWeb, :controller
 
@@ -14,7 +14,7 @@ defmodule FazouraWeb.QuizController do
 
     opts = [
       q: params["q"],
-      category: params["category"],
+      tag: params["tag"],
       limit: int_param(params["limit"], 20),
       offset: int_param(params["offset"], 0)
     ]
@@ -28,6 +28,11 @@ defmodule FazouraWeb.QuizController do
         end),
       next_offset: next_offset
     })
+  end
+
+  # GET /api/tags: the tags public quizzes actually use, most used first (§5.2).
+  def tags(conn, params) do
+    json(conn, %{tags: Quizzes.popular_tags(int_param(params["limit"], 30))})
   end
 
   def show(conn, %{"id" => id}) do
@@ -57,7 +62,7 @@ defmodule FazouraWeb.QuizController do
   end
 
   defp render_owned(conn, quiz) do
-    quiz = Fazoura.Repo.preload(quiz, :questions, force: true)
+    quiz = Fazoura.Repo.preload(quiz, [:questions, :quiz_tags], force: true)
     json(conn, Quizzes.to_document(quiz, owner?: true))
   end
 end

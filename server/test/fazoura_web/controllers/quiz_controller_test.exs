@@ -73,6 +73,27 @@ defmodule FazouraWeb.QuizControllerTest do
       conn |> get(~p"/api/quizzes?limit=1") |> json_response(200)
   end
 
+  test "index filters by tag and /api/tags lists the tags in use", %{conn: conn} do
+    create!(conn, %{"title" => "Open Quiz", "tags" => ["Movies", "quiz night"]})
+
+    %{"quizzes" => movies} = conn |> get(~p"/api/quizzes?tag=movies") |> json_response(200)
+    assert Enum.map(movies, & &1["title"]) == ["Open Quiz"]
+    assert hd(movies)["tags"] == ["movies", "quiz night"]
+
+    %{"quizzes" => searched} = conn |> get(~p"/api/quizzes?q=quiz night") |> json_response(200)
+    assert Enum.map(searched, & &1["title"]) == ["Open Quiz"]
+
+    %{"tags" => tags} = conn |> get(~p"/api/tags") |> json_response(200)
+    assert %{"tag" => "movies", "count" => 1} in tags
+    assert %{"tag" => "general", "count" => 1} in tags
+
+    assert conn
+           |> get(~p"/api/tags?limit=1")
+           |> json_response(200)
+           |> Map.fetch!("tags")
+           |> length() == 1
+  end
+
   test "show hides answers from everyone but the publisher", %{conn: conn} do
     %{"id" => id} = create!(conn)
 

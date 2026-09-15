@@ -94,7 +94,11 @@ void main() {
     await openEditor(tester);
 
     await enter(tester, 'quizTitleField', '  Movie Night ');
-    await tapKey(tester, 'category-movies');
+    await tapKey(tester, 'suggestedTag-movies');
+    await enter(tester, 'tagInput', '  Pub   QUIZ ');
+    await tapKey(tester, 'addTagButton');
+    // A tag still in the input is kept on save.
+    await enter(tester, 'tagInput', '80s');
     await enter(tester, 'questionPrompt-0', 'Who directed Jaws?');
     await enter(tester, 'answerInput-0', 'Spielberg');
     await tapKey(tester, 'addAnswer-0');
@@ -108,7 +112,7 @@ void main() {
     expect(saved, isNotNull);
     final quiz = saved!.quiz;
     expect(quiz.title, 'Movie Night');
-    expect(quiz.category, 'movies');
+    expect(quiz.tags, ['movies', 'pub quiz', '80s']);
     expect(quiz.visibility, 'private');
     expect(quiz.defaultSettings.timeLimitMs, 45000);
     expect(quiz.questions!.single.acceptedAnswers, [
@@ -127,6 +131,10 @@ void main() {
     expect(find.text('Give your quiz a title.'), findsOneWidget);
 
     await enter(tester, 'quizTitleField', 'Quiz');
+    await tapKey(tester, 'saveQuizButton');
+    expect(find.text('Add at least one tag.'), findsOneWidget);
+
+    await tapKey(tester, 'suggestedTag-general');
     await tapKey(tester, 'saveQuizButton');
     expect(find.text('Question 1 needs a question.'), findsOneWidget);
 
@@ -152,6 +160,7 @@ void main() {
     await openEditor(tester);
 
     await enter(tester, 'quizTitleField', 'Stills');
+    await tapKey(tester, 'suggestedTag-movies');
     await tapKey(tester, 'visibilityPublic');
     expect(find.text('Save & publish'), findsOneWidget);
     await tapKey(tester, 'questionType-0-photo');
@@ -189,6 +198,7 @@ void main() {
       'Old title',
       visibility: 'public',
       publishedId: 'pub-1',
+      tags: const ['quiz night'],
       questions: const [
         QuizQuestion(prompt: 'First', acceptedAnswers: ['1']),
         QuizQuestion(
@@ -206,6 +216,7 @@ void main() {
 
     expect(find.text('EDIT QUIZ'), findsOneWidget);
     expect(find.text('First'), findsOneWidget);
+    expect(find.byKey(const ValueKey('tag-quiz night')), findsOneWidget);
 
     await enter(tester, 'quizTitleField', 'New title');
     await tapKey(tester, 'moveDown-0');
@@ -222,6 +233,7 @@ void main() {
       'First',
     ]);
     expect(saved?.localId, 'local-1');
+    expect(saved?.quiz.tags, ['quiz night']);
     expect(saved?.quiz.questions!.first.difficulty, 'hard');
     expect(await tester.runAsync(stored), hasLength(1));
   });
@@ -231,6 +243,7 @@ void main() {
     server.failWrites = true;
 
     await enter(tester, 'quizTitleField', 'Quiz');
+    await tapKey(tester, 'suggestedTag-general');
     await tapKey(tester, 'visibilityPublic');
     await enter(tester, 'questionPrompt-0', 'Why?');
     await enter(tester, 'answerInput-0', 'Because');

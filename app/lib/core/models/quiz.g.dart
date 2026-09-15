@@ -14,7 +14,6 @@ _QuizDocument _$QuizDocumentFromJson(Map<String, dynamic> json) =>
       title: json['title'] as String,
       description: json['description'] as String?,
       language: json['language'] as String? ?? 'en',
-      category: json['category'] as String? ?? 'general',
       tags:
           (json['tags'] as List<dynamic>?)?.map((e) => e as String).toList() ??
           const <String>[],
@@ -47,7 +46,6 @@ Map<String, dynamic> _$QuizDocumentToJson(_QuizDocument instance) =>
       'title': instance.title,
       'description': instance.description,
       'language': instance.language,
-      'category': instance.category,
       'tags': instance.tags,
       'source': instance.source,
       'visibility': instance.visibility,

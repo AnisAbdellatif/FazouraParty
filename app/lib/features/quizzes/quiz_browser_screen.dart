@@ -70,6 +70,8 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
   final _search = TextEditingController();
   Timer? _debounce;
   bool _mine = false;
+  String? _tag;
+  List<TagCount> _popularTags = const [];
   List<QuizDocument> _public = const [];
   List<LocalQuiz> _local = const [];
   int? _nextOffset;
@@ -81,6 +83,7 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
   void initState() {
     super.initState();
     _loadPublic(reset: true);
+    _loadTags();
   }
 
   @override
@@ -104,7 +107,7 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
     try {
       final page = await ref
           .read(quizApiProvider)
-          .list(query: _search.text, offset: offset);
+          .list(query: _search.text, tag: _tag, offset: offset);
       if (!mounted || request != _request) return;
       setState(() {
         _public = reset ? page.quizzes : [..._public, ...page.quizzes];
@@ -142,6 +145,32 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
     }
   }
 
+  /// Tag chips for the public tab; the suggested list stands in until the
+  /// server says which tags are actually used.
+  Future<void> _loadTags() async {
+    try {
+      final tags = await ref.read(quizApiProvider).popularTags();
+      if (mounted) setState(() => _popularTags = tags);
+    } catch (_) {
+      // Not worth an error banner: the suggested tags are shown instead.
+    }
+  }
+
+  List<String> get _tagChoices {
+    if (_mine) {
+      final tags = <String>{for (final quiz in _local) ...quiz.quiz.tags};
+      return tags.toList()..sort();
+    }
+    if (_popularTags.isEmpty) return defaultQuizTags;
+    return [for (final entry in _popularTags) entry.tag];
+  }
+
+  void _setTag(String? tag) {
+    if (tag == _tag) return;
+    setState(() => _tag = tag);
+    _reload();
+  }
+
   void _reload() => _mine ? _loadLocal() : _loadPublic(reset: true);
 
   void _onSearchChanged(String _) {
@@ -157,16 +186,26 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
   void _setMine(bool mine) {
     if (mine == _mine) return;
     _debounce?.cancel();
-    setState(() => _mine = mine);
+    // The two tabs offer different tags, so a filter doesn't carry over —
+    // otherwise it silently hides everything in the tab you land on.
+    setState(() {
+      _mine = mine;
+      _tag = null;
+    });
     _reload();
   }
 
   List<LocalQuiz> get _filteredLocal {
     final term = _search.text.trim().toLowerCase();
-    if (term.isEmpty) return _local;
+    bool matches(LocalQuiz quiz) =>
+        term.isEmpty ||
+        quiz.quiz.title.toLowerCase().contains(term) ||
+        quiz.quiz.tags.any((tag) => tag.contains(term));
+
     return [
       for (final quiz in _local)
-        if (quiz.quiz.title.toLowerCase().contains(term)) quiz,
+        if ((_tag == null || quiz.quiz.tags.contains(_tag)) && matches(quiz))
+          quiz,
     ];
   }
 
@@ -299,8 +338,33 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
               onChanged: _onSearchChanged,
               style: fz.h(16, weight: FontWeight.w600),
               decoration: const InputDecoration(
-                hintText: 'Search by title',
+                hintText: 'Search by title or tag',
                 prefixIcon: Icon(Icons.search, color: FzColors.dim),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 36,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  FzChoice(
+                    key: const Key('tagFilterAll'),
+                    label: 'All tags',
+                    selected: _tag == null,
+                    onTap: () => _setTag(null),
+                  ),
+                  for (final tag in _tagChoices)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 7),
+                      child: FzChoice(
+                        key: ValueKey('tagFilter-$tag'),
+                        label: tag,
+                        selected: _tag == tag,
+                        onTap: () => _setTag(_tag == tag ? null : tag),
+                      ),
+                    ),
+                ],
               ),
             ),
             const SizedBox(height: 18),
@@ -323,7 +387,7 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
             if (!_loading && _error == null && empty)
               _EmptyState(
                 mine: _mine,
-                searching: _search.text.trim().isNotEmpty,
+                filtered: _search.text.trim().isNotEmpty || _tag != null,
                 onCreate: widget.onCreate == null ? null : _create,
               ),
             if (!_mine)
@@ -416,18 +480,20 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
 class _EmptyState extends StatelessWidget {
   const _EmptyState({
     required this.mine,
-    required this.searching,
+    required this.filtered,
     required this.onCreate,
   });
 
   final bool mine;
-  final bool searching;
+
+  /// A search term or tag filter is narrowing the list.
+  final bool filtered;
   final VoidCallback? onCreate;
 
   @override
   Widget build(BuildContext context) {
     final fz = FzTheme.of(context);
-    final offerCreate = mine && !searching && onCreate != null;
+    final offerCreate = mine && !filtered && onCreate != null;
     return FzPanel(
       key: const Key('quizBrowserEmpty'),
       color: Colors.transparent,
@@ -435,10 +501,10 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         children: [
           Text(
-            mine && !searching
+            mine && !filtered
                 ? "You haven't made a quiz yet. Private quizzes stay on this "
                       'device; publish one to share it with everyone.'
-                : 'No quizzes match that search.',
+                : 'Nothing matches that search or tag.',
             textAlign: TextAlign.center,
             style: fz.m(12, color: FzColors.dim, height: 1.5),
           ),
@@ -482,7 +548,7 @@ class _QuizCard extends StatelessWidget {
     final quiz = summary;
     final count = quiz.questionCount;
     final meta = [
-      categoryLabel(quiz.category),
+      ...quiz.tags.take(3),
       if (quiz.hasPhotos) 'Photos',
       if (quiz.defaultSettings.difficultyMultiplier) 'Difficulty bonus',
     ].join(' · ');
@@ -498,7 +564,7 @@ class _QuizCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             StripeHeader(
-              hue: categoryHues[quiz.category] ?? 60,
+              hue: tagHue(quiz.tags.isEmpty ? null : quiz.tags.first),
               tag: '$count ${count == 1 ? 'question' : 'questions'}',
             ),
             Padding(

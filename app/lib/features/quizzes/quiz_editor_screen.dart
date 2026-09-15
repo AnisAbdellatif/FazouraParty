@@ -111,7 +111,8 @@ class _DraftQuestion {
 class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
   final _title = TextEditingController();
   final _description = TextEditingController();
-  String _category = 'general';
+  final _tagInput = TextEditingController();
+  final List<String> _tags = [];
   String _visibility = 'private';
   int _timeLimitMs = 30000;
   bool _difficultyBonus = false;
@@ -136,9 +137,7 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
     _publishedId = existing.publishedId;
     _title.text = quiz.title;
     _description.text = quiz.description ?? '';
-    _category = quizCategories.containsKey(quiz.category)
-        ? quiz.category
-        : 'other';
+    _tags.addAll(quiz.tags.map(normalizeTag).where((tag) => tag.isNotEmpty));
     _visibility = quiz.isPublic ? 'public' : 'private';
     _timeLimitMs = quiz.defaultSettings.timeLimitMs;
     _difficultyBonus = quiz.defaultSettings.difficultyMultiplier;
@@ -150,6 +149,7 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
   void dispose() {
     _title.dispose();
     _description.dispose();
+    _tagInput.dispose();
     for (final question in _questions) {
       question.dispose();
     }
@@ -163,6 +163,7 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
     if (title.characters.length > maxQuizTitleLength) {
       return 'Titles can be at most $maxQuizTitleLength characters.';
     }
+    if (_tags.isEmpty) return 'Add at least one tag.';
     if (_questions.isEmpty) return 'Add at least one question.';
     for (final (index, question) in _questions.indexed) {
       final n = index + 1;
@@ -181,7 +182,23 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
     return null;
   }
 
+  /// Adds a tag typed in or picked from the suggestions, normalised.
+  void _addTag(String raw) {
+    final tag = normalizeTag(raw);
+    setState(() {
+      if (tag.isNotEmpty &&
+          !_tags.contains(tag) &&
+          _tags.length < maxQuizTags &&
+          tag.characters.length <= maxTagLength) {
+        _tags.add(tag);
+      }
+      _tagInput.clear();
+    });
+  }
+
   Future<void> _save() async {
+    // A tag still sitting in the input counts.
+    _addTag(_tagInput.text);
     setState(() {
       for (final question in _questions) {
         question.commitAnswerInput();
@@ -198,7 +215,7 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
       quiz: QuizDocument(
         title: _title.text.trim(),
         description: description.isEmpty ? null : description,
-        category: _category,
+        tags: [..._tags],
         visibility: _visibility,
         defaultSettings: QuizDefaultSettings(
           timeLimitMs: _timeLimitMs,
@@ -330,19 +347,74 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        const FzEyebrow('Category'),
+        Row(
+          children: [
+            const Expanded(child: FzEyebrow('Tags')),
+            Text(
+              '${_tags.length} / $maxQuizTags',
+              style: fz.m(11, color: FzColors.dim),
+            ),
+          ],
+        ),
         const SizedBox(height: 8),
+        if (_tags.isNotEmpty) ...[
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final tag in _tags)
+                InputChip(
+                  key: ValueKey('tag-$tag'),
+                  label: Text(tag, style: fz.m(12.5, color: FzColors.bg)),
+                  backgroundColor: FzColors.ac,
+                  side: const BorderSide(color: FzColors.ac),
+                  deleteIconColor: FzColors.bg,
+                  onDeleted: () => setState(() => _tags.remove(tag)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+        ],
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                key: const Key('tagInput'),
+                controller: _tagInput,
+                maxLength: maxTagLength,
+                style: fz.m(14),
+                decoration: const InputDecoration(
+                  hintText: 'Add a tag',
+                  counterText: '',
+                ),
+                onSubmitted: _addTag,
+              ),
+            ),
+            const SizedBox(width: 8),
+            FzPill(
+              key: const Key('addTagButton'),
+              label: 'Add',
+              onPressed: _tags.length >= maxQuizTags
+                  ? null
+                  : () => _addTag(_tagInput.text),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
         Wrap(
           spacing: 7,
           runSpacing: 7,
           children: [
-            for (final entry in quizCategories.entries)
-              FzChoice(
-                key: ValueKey('category-${entry.key}'),
-                label: entry.value,
-                selected: _category == entry.key,
-                onTap: () => setState(() => _category = entry.key),
-              ),
+            for (final tag in defaultQuizTags)
+              if (!_tags.contains(tag))
+                FzChoice(
+                  key: ValueKey('suggestedTag-$tag'),
+                  label: tag,
+                  selected: false,
+                  onTap: _tags.length >= maxQuizTags
+                      ? null
+                      : () => _addTag(tag),
+                ),
           ],
         ),
         const SizedBox(height: 20),

@@ -28,7 +28,6 @@ defmodule Fazoura.QuizzesTest do
         "format_version" => 1,
         "title" => "  Movie Night ",
         "description" => "Films",
-        "category" => "movies",
         "tags" => [" Cinema ", "cinema", "2000s"],
         "default_settings" => %{"time_limit_ms" => 20_000, "difficulty_multiplier" => true},
         "questions" => [question(), question(%{"prompt" => "Second?"})]
@@ -42,10 +41,10 @@ defmodule Fazoura.QuizzesTest do
   describe "create/2" do
     test "stores a custom quiz owned by the key, with cleaned fields" do
       assert {:ok, quiz} = Quizzes.create(quiz_params(), @owner)
-      quiz = Repo.preload(quiz, :questions, force: true)
+      quiz = Repo.preload(quiz, [:questions, :quiz_tags], force: true)
 
       assert %Quiz{source: "custom", visibility: "public", title: "Movie Night"} = quiz
-      assert quiz.tags == ["cinema", "2000s"]
+      assert Enum.map(quiz.quiz_tags, & &1.tag) == ["cinema", "2000s"]
       assert {quiz.question_count, quiz.has_photos} == {2, false}
       assert {quiz.default_time_limit_ms, quiz.default_difficulty_multiplier} == {20_000, true}
       assert Enum.map(quiz.questions, & &1.position) == [1, 2]
@@ -65,13 +64,12 @@ defmodule Fazoura.QuizzesTest do
                  quiz_params(%{
                    "format_version" => 2,
                    "title" => " ",
-                   "category" => "nope",
                    "tags" => Enum.map(1..11, &"t#{&1}")
                  }),
                  @owner
                )
 
-      assert %{format_version: _, title: _, category: _, tags: _} = errors(cs)
+      assert %{format_version: _, title: _, tags: _} = errors(cs)
 
       assert {:error, cs} = Quizzes.create(quiz_params(%{"questions" => []}), @owner)
       assert %{questions: _} = errors(cs)
@@ -103,6 +101,28 @@ defmodule Fazoura.QuizzesTest do
              ] = errors(cs).questions
     end
 
+    test "tags are required, cleaned and capped" do
+      assert {:ok, quiz} =
+               Quizzes.create(
+                 quiz_params(%{"tags" => ["  Pub   QUIZ ", "pub quiz", "80s"]}),
+                 @owner
+               )
+
+      quiz = Repo.preload(quiz, :quiz_tags)
+      assert Enum.map(quiz.quiz_tags, & &1.tag) == ["pub quiz", "80s"]
+      assert Enum.map(quiz.quiz_tags, & &1.position) == [1, 2]
+
+      for bad <- [[], ["  "], "movies", nil, Enum.map(1..11, &"t#{&1}")] do
+        assert {:error, cs} = Quizzes.create(quiz_params(%{"tags" => bad}), @owner)
+        assert %{tags: ["must be a list of 1 to 10 tags"]} = errors(cs)
+      end
+
+      assert {:error, cs} =
+               Quizzes.create(quiz_params(%{"tags" => [String.duplicate("a", 25)]}), @owner)
+
+      assert %{tags: ["each tag must be at most 24 characters"]} = errors(cs)
+    end
+
     test "photo questions must use images uploaded by the same owner" do
       {:ok, mine} = Quizzes.store_image(@png, @owner)
       {:ok, theirs} = Quizzes.store_image(@png, @other)
@@ -132,7 +152,10 @@ defmodule Fazoura.QuizzesTest do
       {:ok, movies} = Quizzes.create(quiz_params(), @owner)
 
       {:ok, science} =
-        Quizzes.create(quiz_params(%{"title" => "Science Fair", "category" => "science"}), @other)
+        Quizzes.create(
+          quiz_params(%{"title" => "Science Fair", "tags" => ["Science", "quiz night"]}),
+          @other
+        )
 
       %{builtin: builtin, movies: movies, science: science}
     end
@@ -145,13 +168,27 @@ defmodule Fazoura.QuizzesTest do
                Enum.sort([ctx.movies.id, ctx.science.id])
     end
 
-    test "search, category filter and paging", ctx do
+    test "search by title or tag, tag filter and paging", ctx do
       assert {:ok, [%{id: id}], nil} = Quizzes.list(q: "  sCiEnce%")
       assert id == ctx.science.id
-      assert {:ok, [%{id: ^id}], nil} = Quizzes.list(category: "science")
+      assert {:ok, [%{id: ^id}], nil} = Quizzes.list(tag: " Science ")
+      assert {:ok, [%{id: ^id}], nil} = Quizzes.list(q: "quiz night")
+      assert {:ok, [%{id: movies_id}], nil} = Quizzes.list(tag: "cinema")
+      assert movies_id == ctx.movies.id
+      assert {:ok, [], nil} = Quizzes.list(tag: "nobody uses this")
       assert {:ok, [first], 1} = Quizzes.list(limit: 1)
       assert first.id == ctx.builtin.id
       assert {:ok, [_, _], nil} = Quizzes.list(limit: 5, offset: 1)
+    end
+
+    test "popular_tags counts the tags public quizzes use" do
+      assert tags = Quizzes.popular_tags()
+      counts = Map.new(tags, &{&1.tag, &1.count})
+      assert counts["cinema"] == 1
+      assert counts["general"] == 1
+      assert counts["quiz night"] == 1
+      assert Enum.map(tags, & &1.tag) == Enum.sort(Enum.map(tags, & &1.tag))
+      assert Quizzes.popular_tags(1) |> length() == 1
     end
 
     test "fetch by uuid or slug", ctx do

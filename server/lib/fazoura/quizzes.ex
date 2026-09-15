@@ -11,7 +11,7 @@ defmodule Fazoura.Quizzes do
   import Ecto.Query
 
   alias Fazoura.Game.Pack
-  alias Fazoura.Quizzes.{Image, OwnerKey, Question, Quiz}
+  alias Fazoura.Quizzes.{Image, OwnerKey, Question, Quiz, Tag}
   alias Fazoura.Repo
   alias Fazoura.Rooms.Images
   alias Fazoura.Uploads
@@ -23,8 +23,8 @@ defmodule Fazoura.Quizzes do
   ## Listing and reading
 
   @doc """
-  Lists public quiz summaries. Options: `:q`, `:category`, `:limit` (1–50), `:offset`.
-  Returns the page and the next offset.
+  Lists public quiz summaries. Options: `:q` (title or tag), `:tag` (exact tag),
+  `:limit` (1–50), `:offset`. Returns the page and the next offset.
   """
   @spec list(keyword()) :: {:ok, [Quiz.t()], non_neg_integer() | nil}
   def list(opts \\ []) do
@@ -32,9 +32,9 @@ defmodule Fazoura.Quizzes do
     offset = opts |> Keyword.get(:offset, 0) |> max(0)
 
     rows =
-      from(q in Quiz, where: q.visibility == "public")
+      from(q in Quiz, where: q.visibility == "public", preload: [:quiz_tags])
       |> search(opts[:q])
-      |> in_category(opts[:category])
+      |> with_tag(opts[:tag])
       |> order_by([q],
         asc: fragment("CASE WHEN ? = 'builtin' THEN 0 ELSE 1 END", q.source),
         desc: q.updated_at,
@@ -48,19 +48,63 @@ defmodule Fazoura.Quizzes do
     {:ok, page, if(rest == [], do: nil, else: offset + limit)}
   end
 
+  # Matches the title or any tag, so typing "movies" finds quizzes tagged with it.
   defp search(query, text) when is_binary(text) do
     case text |> String.replace(~r/[%_\\]/, "") |> String.trim() |> String.downcase() do
-      "" -> query
-      term -> where(query, [q], like(fragment("lower(?)", q.title), ^"%#{term}%"))
+      "" ->
+        query
+
+      term ->
+        pattern = "%#{term}%"
+
+        where(
+          query,
+          [q],
+          like(fragment("lower(?)", q.title), ^pattern) or
+            fragment(
+              "EXISTS (SELECT 1 FROM quiz_tags qt WHERE qt.quiz_id = ? AND qt.tag LIKE ?)",
+              q.id,
+              ^pattern
+            )
+        )
     end
   end
 
   defp search(query, _text), do: query
 
-  defp in_category(query, category) when is_binary(category) and category != "",
-    do: where(query, [q], q.category == ^category)
+  defp with_tag(query, tag) when is_binary(tag) do
+    case Tag.normalize(tag) do
+      "" ->
+        query
 
-  defp in_category(query, _category), do: query
+      normalized ->
+        where(
+          query,
+          [q],
+          fragment(
+            "EXISTS (SELECT 1 FROM quiz_tags qt WHERE qt.quiz_id = ? AND qt.tag = ?)",
+            q.id,
+            ^normalized
+          )
+        )
+    end
+  end
+
+  defp with_tag(query, _tag), do: query
+
+  @doc "Tags used by public quizzes, most used first, then alphabetically."
+  @spec popular_tags(pos_integer()) :: [%{tag: String.t(), count: non_neg_integer()}]
+  def popular_tags(limit \\ 30) do
+    Repo.all(
+      from t in Tag,
+        join: q in Quiz,
+        on: q.id == t.quiz_id and q.visibility == "public",
+        group_by: t.tag,
+        order_by: [desc: count(t.id), asc: t.tag],
+        limit: ^(limit |> max(1) |> min(100)),
+        select: %{tag: t.tag, count: count(t.id)}
+    )
+  end
 
   @doc "A stored quiz with its questions, by uuid or built-in slug."
   @spec fetch(term()) :: {:ok, Quiz.t()} | {:error, :quiz_not_found}
@@ -72,7 +116,7 @@ defmodule Fazoura.Quizzes do
 
     case Repo.one(query) do
       nil -> {:error, :quiz_not_found}
-      quiz -> {:ok, Repo.preload(quiz, :questions)}
+      quiz -> {:ok, Repo.preload(quiz, [:questions, :quiz_tags])}
     end
   end
 
@@ -101,7 +145,13 @@ defmodule Fazoura.Quizzes do
   def create(params, owner_key) do
     with {:ok, hash} <- require_owner_key(owner_key),
          :ok <- check_images(params, hash) do
-      %Quiz{source: "custom", visibility: "public", owner_key_hash: hash, questions: []}
+      %Quiz{
+        source: "custom",
+        visibility: "public",
+        owner_key_hash: hash,
+        questions: [],
+        quiz_tags: []
+      }
       |> Quiz.changeset(params)
       |> Repo.insert()
     end
@@ -114,15 +164,16 @@ defmodule Fazoura.Quizzes do
   def replace(id, params, owner_key) do
     with {:ok, quiz} <- fetch_owned(id, owner_key),
          :ok <- check_images(params, quiz.owner_key_hash) do
-      Repo.transaction(fn -> replace_questions!(quiz, params) end)
+      Repo.transaction(fn -> replace_children!(quiz, params) end)
     end
   end
 
-  # Old questions are deleted first so the new ones can reuse their positions.
-  defp replace_questions!(quiz, params) do
+  # Old tags and questions are deleted first so the new ones can reuse their positions.
+  defp replace_children!(quiz, params) do
     Repo.delete_all(from(q in Question, where: q.quiz_id == ^quiz.id))
+    Repo.delete_all(from(t in Tag, where: t.quiz_id == ^quiz.id))
 
-    case %{quiz | questions: []} |> Quiz.changeset(params) |> Repo.update() do
+    case %{quiz | questions: [], quiz_tags: []} |> Quiz.changeset(params) |> Repo.update() do
       {:ok, updated} -> updated
       {:error, changeset} -> Repo.rollback(changeset)
     end
@@ -191,7 +242,7 @@ defmodule Fazoura.Quizzes do
   def inline_pack(params) do
     with {:ok, params, images} <- extract_inline_images(params),
          {:ok, quiz} <-
-           %Quiz{source: "inline", visibility: "private", questions: []}
+           %Quiz{source: "inline", visibility: "private", questions: [], quiz_tags: []}
            |> Quiz.changeset(params)
            |> Ecto.Changeset.apply_action(:insert) do
       Images.put(images)
@@ -267,8 +318,7 @@ defmodule Fazoura.Quizzes do
       title: quiz.title,
       description: quiz.description,
       language: quiz.language,
-      category: quiz.category,
-      tags: quiz.tags,
+      tags: Enum.map(quiz.quiz_tags, & &1.tag),
       source: quiz.source,
       visibility: quiz.visibility,
       is_owner: owner?,
@@ -353,11 +403,12 @@ defmodule Fazoura.Quizzes do
     quiz =
       case Repo.get_by(Quiz, slug: slug) do
         nil ->
-          %Quiz{slug: slug, source: "builtin", visibility: "public", questions: []}
+          %Quiz{slug: slug, source: "builtin", visibility: "public", questions: [], quiz_tags: []}
 
         existing ->
           Repo.delete_all(from(q in Question, where: q.quiz_id == ^existing.id))
-          %{existing | questions: []}
+          Repo.delete_all(from(t in Tag, where: t.quiz_id == ^existing.id))
+          %{existing | questions: [], quiz_tags: []}
       end
 
     quiz |> Quiz.changeset(params) |> Repo.insert_or_update!()

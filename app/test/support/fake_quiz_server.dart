@@ -15,12 +15,14 @@ QuizDocument quiz(
   bool owner = false,
   String source = 'custom',
   int count = 5,
+  List<String> tags = const ['general'],
 }) => QuizDocument(
   id: id,
   title: title,
   isOwner: owner,
   visibility: 'public',
   source: source,
+  tags: tags,
   questionCount: count,
 );
 
@@ -31,6 +33,7 @@ LocalQuiz localQuiz(
   String visibility = 'private',
   String? publishedId,
   List<QuizQuestion>? questions,
+  List<String> tags = const ['general'],
   DateTime? updatedAt,
 }) => LocalQuiz(
   localId: localId,
@@ -39,6 +42,7 @@ LocalQuiz localQuiz(
   quiz: QuizDocument(
     title: title,
     visibility: visibility,
+    tags: tags,
     questions:
         questions ??
         const [
@@ -95,12 +99,17 @@ class FakeQuizServer {
     if (request.method == 'GET' && path == '/api/quizzes') {
       if (failLists) return _json({'code': 'boom'}, 500);
       final search = query['q']?.toLowerCase();
+      final tag = query['tag'];
       final offset = int.parse(query['offset'] ?? '0');
       final limit = int.parse(query['limit'] ?? '20');
       final matching = quizzes
           .where(
-            (q) => search == null || q.title.toLowerCase().contains(search),
+            (q) =>
+                search == null ||
+                q.title.toLowerCase().contains(search) ||
+                q.tags.any((t) => t.contains(search)),
           )
+          .where((q) => tag == null || q.tags.contains(tag))
           .toList();
       return _json({
         'quizzes': [
@@ -108,6 +117,28 @@ class FakeQuizServer {
             q.copyWith(questions: null).toJson(),
         ],
         'next_offset': offset + limit < matching.length ? offset + limit : null,
+      });
+    }
+
+    if (request.method == 'GET' && path == '/api/tags') {
+      final counts = <String, int>{};
+      for (final q in quizzes) {
+        for (final tag in q.tags) {
+          counts[tag] = (counts[tag] ?? 0) + 1;
+        }
+      }
+      final entries = counts.entries.toList()
+        ..sort(
+          (a, b) => a.value == b.value
+              ? a.key.compareTo(b.key)
+              : b.value.compareTo(a.value),
+        );
+      final limit = int.parse(query['limit'] ?? '30');
+      return _json({
+        'tags': [
+          for (final entry in entries.take(limit))
+            {'tag': entry.key, 'count': entry.value},
+        ],
       });
     }
 

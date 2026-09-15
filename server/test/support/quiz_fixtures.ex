@@ -28,7 +28,7 @@ defmodule Fazoura.QuizFixtures do
       %{
         "format_version" => 1,
         "title" => "Movie Night",
-        "category" => "movies",
+        "tags" => ["movies", "cinema"],
         "questions" => [
           %{
             "type" => "text",

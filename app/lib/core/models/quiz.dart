@@ -16,7 +16,6 @@ abstract class QuizDocument with _$QuizDocument {
     required String title,
     String? description,
     @Default('en') String language,
-    @Default('general') String category,
     @Default(<String>[]) List<String> tags,
     @Default('custom') String source,
     @Default('private') String visibility,
@@ -119,19 +118,35 @@ class QuizPage {
   final int? nextOffset;
 }
 
-/// Categories from QUIZ_FORMAT.md §2.3 with display labels.
-const quizCategories = <String, String>{
-  'general': 'General',
-  'science': 'Science',
-  'history': 'History',
-  'geography': 'Geography',
-  'movies': 'Movies',
-  'music': 'Music',
-  'sports': 'Sports',
-  'food': 'Food',
-  'language': 'Language',
-  'pop_culture': 'Pop culture',
-  'other': 'Other',
-};
+/// Tags offered as quick picks in the editor and the browser
+/// (QUIZ_FORMAT.md §2.3). Any other tag can be typed in.
+const defaultQuizTags = <String>[
+  'general',
+  'science',
+  'history',
+  'geography',
+  'movies',
+  'tv',
+  'music',
+  'sports',
+  'food',
+  'nature',
+  'technology',
+  'art',
+  'books',
+  'gaming',
+  'pop culture',
+  'language',
+];
 
-String categoryLabel(String category) => quizCategories[category] ?? 'Other';
+/// Maximum tags per quiz, and the longest a tag may be (QUIZ_FORMAT.md §2.3).
+const maxQuizTags = 10;
+const maxTagLength = 24;
+
+/// Lower case, trimmed, inner whitespace collapsed — the server does the same,
+/// so "Pop  Culture" and "pop culture" are one tag.
+String normalizeTag(String tag) =>
+    tag.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+
+/// A tag and how many public quizzes use it (`GET /api/tags`).
+typedef TagCount = ({String tag, int count});

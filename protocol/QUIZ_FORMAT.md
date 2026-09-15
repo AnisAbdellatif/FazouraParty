@@ -35,8 +35,7 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
   "title": "Movie Night",
   "description": "Blockbusters from the last 30 years.",
   "language": "en",
-  "category": "movies",
-  "tags": ["cinema", "2000s"],
+  "tags": ["movies", "cinema", "2000s"],
   "source": "custom",
   "visibility": "public",
   "is_owner": true,
@@ -87,8 +86,7 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 | `title` | string | Required, 1–80 characters (trimmed) |
 | `description` | string \| null | ≤ 280 characters |
 | `language` | string | BCP-47-ish code, 2–10 chars, default `"en"` |
-| `category` | string | One of §2.3, default `"general"` |
-| `tags` | string[] | ≤ 10 tags, each 1–24 chars, lower-cased |
+| `tags` | string[] | Required: 1–10 tags in display order, each 1–24 characters. Free text, normalised to lower case with collapsed whitespace and de-duplicated (§2.3) |
 | `source` | `"builtin"` \| `"custom"` | Server-assigned |
 | `visibility` | `"public"` \| `"private"` | Stored quizzes are always `public`; the app uses `private` for quizzes kept on the device (§4). Ignored on input |
 | `is_owner` | bool | Output only: whether the request's publisher key published this quiz |
@@ -111,11 +109,24 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 | `image` | object \| null | Required for `text_photo`, must be `null` for `text`. Fields: `key` (from §5.6, when publishing); `data` (base64 JPEG/PNG/WebP ≤ 2 MB, for private quizzes sent inline, §5.7, and how the app keeps photos on the device); optional `alt` (≤ 140 chars); `url` is output only |
 | `explanation` | string \| null | ≤ 280 chars, shown after the reveal in a later release |
 
-### 2.3 Categories
+### 2.3 Tags
 
-`general`, `science`, `history`, `geography`, `movies`, `music`, `sports`, `food`,
-`language`, `pop_culture`, `other`. New categories may be added without a version bump;
-clients show unknown ones as "Other".
+Tags replace the old fixed category: a quiz carries **one to ten** of them, and any text
+is allowed, so people can group quizzes however they like ("pub quiz", "office party",
+"شعر").
+
+- Normalised by the server: lower-cased, outer whitespace trimmed, inner whitespace
+  collapsed, duplicates dropped, order preserved. So `"Pop  Culture"` and `"pop culture"`
+  are the same tag.
+- 1–24 characters each; a quiz needs at least one tag and at most ten.
+- Clients offer these **suggested tags** as quick picks. They are a convenience, not a
+  closed list, and adding to them needs no version bump:
+
+  `general`, `science`, `history`, `geography`, `movies`, `tv`, `music`, `sports`,
+  `food`, `nature`, `technology`, `art`, `books`, `gaming`, `pop culture`, `language`
+
+- The first tag also picks a quiz card's colour in the app; unknown tags get a stable
+  colour derived from the tag itself.
 
 ## 3. Storage (Ecto)
 
@@ -125,12 +136,17 @@ changesets), arrays via Ecto's `{:array, :string}`.
 ```
 quizzes
   id uuid PK · slug string UNIQUE NULL · format_version int
-  title string · description text NULL · language string · category string · tags string[]
+  title string · description text NULL · language string
   source string · visibility string · owner_key_hash string NULL (sha256 hex)
   default_time_limit_ms int · default_difficulty_multiplier bool
   question_count int · has_photos bool (denormalised for listing)
   inserted_at · updated_at
   INDEX (visibility, updated_at) · INDEX (owner_key_hash)
+
+quiz_tags
+  id uuid PK · quiz_id FK → quizzes ON DELETE CASCADE · tag string · position int
+  inserted_at
+  UNIQUE (quiz_id, tag) · INDEX (tag)
 
 quiz_questions
   id uuid PK · quiz_id FK → quizzes ON DELETE CASCADE · position int
@@ -179,9 +195,9 @@ JSON bodies; errors are `{"code": string, "message": string, "errors"?: {field: 
 
 ### 5.1 `GET /api/quizzes`
 
-Query: `q` (case-insensitive title search), `category`, `limit` (1–50, default 20),
-`offset`. Lists stored (public) quizzes; `is_owner` is true for ones published with the
-request's `x-owner-key`.
+Query: `q` (case-insensitive, matches the title **or** any tag), `tag` (exact tag, after
+normalisation), `limit` (1–50, default 20), `offset`. Lists stored (public) quizzes;
+`is_owner` is true for ones published with the request's `x-owner-key`.
 
 ```json
 200 {"quizzes": [<quiz document without "questions">], "next_offset": 20 | null}
@@ -189,28 +205,37 @@ request's `x-owner-key`.
 
 Order: built-in first, then most recently updated.
 
-### 5.2 `GET /api/quizzes/:id`
+### 5.2 `GET /api/tags`
+
+The tags public quizzes actually use, most used first then alphabetically. Query: `limit`
+(1–100, default 30). Clients merge this with their suggested list (§2.3).
+
+```json
+200 {"tags": [{"tag": "general", "count": 12}, {"tag": "pop culture", "count": 3}]}
+```
+
+### 5.3 `GET /api/quizzes/:id`
 
 `:id` is the uuid or a built-in slug. Returns the document **without** `questions`, or
 **with** them for the publisher.
 
-### 5.3 `POST /api/quizzes` (publish)
+### 5.4 `POST /api/quizzes` (publish)
 
 Header `x-owner-key` required. Body: a quiz document (server-assigned and output-only
 fields ignored; photos by `key`). `201` with the full document. `422 invalid_quiz` with
 `errors` on validation failure; `401 owner_key_required` without a valid key;
 `422 unknown_image` if a photo key wasn't uploaded with the same key.
 
-### 5.4 `PUT /api/quizzes/:id`
+### 5.5 `PUT /api/quizzes/:id`
 
-Publisher only. Replaces the quiz, including all questions (question ids are re-issued).
-`200` with the full document.
+Publisher only. Replaces the quiz, including all tags and questions (question ids are
+re-issued). `200` with the full document.
 
-### 5.5 `DELETE /api/quizzes/:id` (unpublish)
+### 5.6 `DELETE /api/quizzes/:id` (unpublish)
 
 Publisher only. `204`.
 
-### 5.6 `POST /api/images`
+### 5.7 `POST /api/images`
 
 Publisher key required. `multipart/form-data` with one `file` part: JPEG, PNG or WebP
 (checked by content, not by filename), ≤ 2 MB. Clients downscale to at most 1280 px on
@@ -222,13 +247,13 @@ the longest side. Only needed to publish.
 
 Errors: `413 image_too_large`, `415 unsupported_image`.
 
-### 5.7 Rooms
+### 5.8 Rooms
 
 `POST /api/rooms` accepts either:
 
 - `{"quiz_id": "<uuid or slug>"}`: a stored quiz (`pack_id` is still accepted as an
   alias); `404 quiz_not_found` if missing.
-- `{"quiz": <quiz document>}`: a **private quiz sent inline**. It is validated like §5.3
+- `{"quiz": <quiz document>}`: a **private quiz sent inline**. It is validated like §5.4
   (`422 invalid_quiz`) but not stored. Photos come as `image.data` (base64; `key` is
   ignored; `413 image_too_large`, `415 unsupported_image`). The server keeps them in memory
   and serves them at `/api/room-images/<random key>` until the room closes. Request bodies
@@ -241,6 +266,8 @@ becomes the room state's `question.image_url` (PROTOCOL.md §5.1).
 
 - New optional field → add to this doc, the changeset and the Dart model with a default.
   No version bump.
+- New suggested tag → add it to §2.3 and the clients' quick-pick list. No version bump;
+  tags are free text, so old clients still show it.
 - New question `type` → document its fields; old clients skip unknown types when listing
   and the server refuses to start a room on a client that can't play it (future
   `min_client_version`).

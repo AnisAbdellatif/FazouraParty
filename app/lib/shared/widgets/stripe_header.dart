@@ -2,20 +2,38 @@ import 'package:flutter/material.dart';
 
 import '../theme/fz_theme.dart';
 
-/// Hue per quiz category, used for card stripes.
-const categoryHues = <String, double>{
+/// Hues for the suggested tags; anything else gets a stable hue from its own
+/// letters, so a custom tag still colours its cards consistently.
+const _tagHues = <String, double>{
   'general': 25,
   'science': 200,
   'history': 35,
   'geography': 140,
   'movies': 300,
+  'tv': 285,
   'music': 265,
   'sports': 110,
   'food': 12,
+  'nature': 155,
+  'technology': 210,
+  'art': 320,
+  'books': 45,
+  'gaming': 250,
+  'pop culture': 330,
   'language': 180,
-  'pop_culture': 330,
-  'other': 60,
 };
+
+/// Card stripe hue for a quiz's first tag.
+double tagHue(String? tag) {
+  if (tag == null || tag.isEmpty) return 60;
+  final known = _tagHues[tag];
+  if (known != null) return known;
+  var hash = 7;
+  for (final unit in tag.codeUnits) {
+    hash = (hash * 31 + unit) % 360;
+  }
+  return hash.toDouble();
+}
 
 /// 74px two-tone 45° stripe band with a small tag in the corner — the design's
 /// `repeating-linear-gradient` card header.

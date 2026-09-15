@@ -1,10 +1,10 @@
 defmodule Fazoura.Quizzes.Quiz do
-  @moduledoc "A quiz and its ordered questions (protocol/QUIZ_FORMAT.md §2.1)."
+  @moduledoc "A quiz with its tags and ordered questions (protocol/QUIZ_FORMAT.md §2.1)."
 
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias Fazoura.Quizzes.Question
+  alias Fazoura.Quizzes.{Question, Tag}
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -12,7 +12,7 @@ defmodule Fazoura.Quizzes.Quiz do
   @format_version 1
   # Stored quizzes are public; inline (private) quizzes are never stored.
   @visibilities ~w(public private)
-  @categories ~w(general science history geography movies music sports food language pop_culture other)
+  @max_tags 10
 
   schema "quizzes" do
     field :slug, :string
@@ -20,8 +20,6 @@ defmodule Fazoura.Quizzes.Quiz do
     field :title, :string
     field :description, :string
     field :language, :string, default: "en"
-    field :category, :string, default: "general"
-    field :tags, {:array, :string}, default: []
     field :source, :string
     field :visibility, :string
     field :owner_key_hash, :string
@@ -30,6 +28,7 @@ defmodule Fazoura.Quizzes.Quiz do
     field :question_count, :integer, default: 0
     field :has_photos, :boolean, default: false
 
+    has_many :quiz_tags, Tag, preload_order: [asc: :position], on_replace: :delete
     has_many :questions, Question, preload_order: [asc: :position], on_replace: :delete
 
     timestamps(type: :utc_datetime)
@@ -38,12 +37,12 @@ defmodule Fazoura.Quizzes.Quiz do
   @type t :: %__MODULE__{}
 
   def format_version, do: @format_version
-  def categories, do: @categories
   def visibilities, do: @visibilities
+  def max_tags, do: @max_tags
 
   @doc """
-  `params` use the JSON document shape. Replaces all questions, so the quiz must have
-  `questions: []` loaded (see `Fazoura.Quizzes`).
+  `params` use the JSON document shape. Replaces all tags and questions, so the quiz must
+  have `quiz_tags: []` and `questions: []` loaded (see `Fazoura.Quizzes`).
   """
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(quiz, params) do
@@ -55,31 +54,55 @@ defmodule Fazoura.Quizzes.Quiz do
       :title,
       :description,
       :language,
-      :category,
-      :tags,
       :default_time_limit_ms,
       :default_difficulty_multiplier
     ])
     |> update_change(:title, &String.trim/1)
-    |> update_change(:tags, &clean_tags/1)
     |> validate_required([:format_version, :title])
     |> validate_number(:format_version, equal_to: @format_version)
     |> validate_length(:title, min: 1, max: 80)
     |> validate_length(:description, max: 280)
     |> validate_length(:language, min: 2, max: 10)
-    |> validate_inclusion(:category, @categories)
-    |> validate_length(:tags, max: 10)
-    |> validate_change(:tags, fn :tags, tags ->
-      if Enum.all?(tags, &(String.length(&1) <= 24)),
-        do: [],
-        else: [tags: "each tag must be at most 24 characters"]
-    end)
     |> validate_number(:default_time_limit_ms,
       greater_than_or_equal_to: 10_000,
       less_than_or_equal_to: 120_000
     )
+    |> put_tags(params["tags"])
     |> put_questions(params["questions"])
   end
+
+  # Tags are free text (§2.3): normalised, de-duplicated, order preserved.
+  defp put_tags(changeset, tags) when is_list(tags) do
+    cleaned = tags |> Enum.map(&Tag.normalize/1) |> Enum.reject(&(&1 == "")) |> Enum.uniq()
+
+    changeset
+    |> put_assoc(
+      :quiz_tags,
+      cleaned
+      |> Enum.with_index(1)
+      |> Enum.map(fn {tag, position} -> Tag.changeset(tag, position) end)
+    )
+    |> validate_tags(cleaned)
+  end
+
+  defp put_tags(changeset, _tags), do: add_error(changeset, :tags, tag_count_message())
+
+  # Checked on the input list, like questions: put_assoc records no change when the tags
+  # are the ones already stored, and validate_length would then skip them.
+  defp validate_tags(changeset, cleaned) do
+    cond do
+      length(cleaned) not in 1..@max_tags ->
+        add_error(changeset, :tags, tag_count_message())
+
+      Enum.any?(cleaned, &(String.length(&1) > Tag.max_length())) ->
+        add_error(changeset, :tags, "each tag must be at most #{Tag.max_length()} characters")
+
+      true ->
+        changeset
+    end
+  end
+
+  defp tag_count_message, do: "must be a list of 1 to #{@max_tags} tags"
 
   defp put_questions(changeset, questions) when is_list(questions) do
     question_changesets =
@@ -119,11 +142,4 @@ defmodule Fazoura.Quizzes.Quiz do
 
   defp put_present(map, _key, nil), do: map
   defp put_present(map, key, value), do: Map.put(map, key, value)
-
-  defp clean_tags(tags) do
-    tags
-    |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.uniq()
-  end
 end

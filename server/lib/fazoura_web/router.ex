@@ -22,6 +22,8 @@ defmodule FazouraWeb.Router do
     put "/quizzes/:id", QuizController, :update
     delete "/quizzes/:id", QuizController, :delete
 
+    get "/tags", QuizController, :tags
+
     post "/images", ImageController, :create
   end
 

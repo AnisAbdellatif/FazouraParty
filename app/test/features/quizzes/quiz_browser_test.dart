@@ -71,7 +71,7 @@ void main() {
       tester,
       public: [
         quiz('gk', 'General Knowledge', source: 'builtin', count: 20),
-        quiz('mv', 'Movie Night', owner: true),
+        quiz('mv', 'Movie Night', owner: true, tags: const ['movies']),
       ],
     );
 
@@ -90,6 +90,63 @@ void main() {
     await tapKey(tester, const ValueKey('quizCard-mv'));
     expect(picked, isA<PublicQuizChoice>());
     expect((picked! as PublicQuizChoice).quiz.id, 'mv');
+  });
+
+  testWidgets('filters the public list by tag', (tester) async {
+    await openBrowser(
+      tester,
+      public: [
+        quiz('mv', 'Movie Night', tags: const ['movies', 'pop culture']),
+        quiz('sc', 'Science Fair', tags: const ['science']),
+      ],
+    );
+
+    // Chips come from the tags public quizzes use.
+    expect(find.byKey(const ValueKey('tagFilter-movies')), findsOneWidget);
+    expect(find.byKey(const ValueKey('tagFilter-science')), findsOneWidget);
+
+    await tapKey(tester, const ValueKey('tagFilter-movies'));
+    expect(server.requests.last.url.queryParameters['tag'], 'movies');
+    expect(find.text('Movie Night'), findsOneWidget);
+    expect(find.text('Science Fair'), findsNothing);
+
+    // Tapping the selected chip clears the filter.
+    await tapKey(tester, const ValueKey('tagFilter-movies'));
+    expect(find.text('Science Fair'), findsOneWidget);
+    expect(server.requests.last.url.queryParameters['tag'], isNull);
+  });
+
+  testWidgets('switching tabs clears the tag filter', (tester) async {
+    await openBrowser(
+      tester,
+      public: [quiz('gk', 'General Knowledge', source: 'builtin')],
+      local: [
+        localQuiz('a', 'Secret Party', tags: const ['pub quiz']),
+      ],
+    );
+
+    await tapKey(tester, const ValueKey('tagFilter-general'));
+    await tapKey(tester, const Key('quizScopeMine'));
+
+    // The public tag would match nothing here, so it must not carry over.
+    expect(find.text('Secret Party'), findsOneWidget);
+    expect(find.byKey(const Key('quizBrowserEmpty')), findsNothing);
+  });
+
+  testWidgets('searching matches tags on this device too', (tester) async {
+    await openBrowser(
+      tester,
+      local: [
+        localQuiz('a', 'Secret Party', tags: const ['pub quiz']),
+        localQuiz('b', 'Shared Night', tags: const ['science']),
+      ],
+    );
+    await tapKey(tester, const Key('quizScopeMine'));
+
+    await tester.enterText(find.byKey(const Key('quizSearchField')), 'pub');
+    await settle(tester);
+    expect(find.text('Secret Party'), findsOneWidget);
+    expect(find.text('Shared Night'), findsNothing);
   });
 
   testWidgets('my quizzes come from the device and can be picked', (
