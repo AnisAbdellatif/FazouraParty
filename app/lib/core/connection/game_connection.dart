@@ -26,7 +26,12 @@ abstract interface class GameConnection {
   });
 
   /// Joins as the host of a room previously created with [hostToken].
-  Future<JoinResult> joinAsHost(String roomCode, String hostToken);
+  /// Pass [displayName] to also play (protocol v2, PROTOCOL.md §4.1).
+  Future<JoinResult> joinAsHost(
+    String roomCode,
+    String hostToken, {
+    String? displayName,
+  });
 
   Future<void> submit(String answer, int wager);
 

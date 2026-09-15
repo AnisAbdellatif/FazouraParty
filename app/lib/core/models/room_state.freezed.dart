@@ -680,7 +680,8 @@ as int,
 /// @nodoc
 mixin _$PlayerSummary {
 
- String get id; String get name; int get score; bool get connected; bool get hasSubmitted;
+ String get id; String get name; int get score; bool get connected; bool get hasSubmitted;/// True for the playing host (protocol v2).
+ bool get isHost;
 /// Create a copy of PlayerSummary
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -694,20 +695,20 @@ $PlayerSummaryCopyWith<PlayerSummary> get copyWith => _$PlayerSummaryCopyWithImp
 @override
 bool operator ==(Object other) {
   final _this = this as PlayerSummary;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PlayerSummary&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.score, _this.score) || other.score == _this.score)&&(identical(other.connected, _this.connected) || other.connected == _this.connected)&&(identical(other.hasSubmitted, _this.hasSubmitted) || other.hasSubmitted == _this.hasSubmitted));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PlayerSummary&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.score, _this.score) || other.score == _this.score)&&(identical(other.connected, _this.connected) || other.connected == _this.connected)&&(identical(other.hasSubmitted, _this.hasSubmitted) || other.hasSubmitted == _this.hasSubmitted)&&(identical(other.isHost, _this.isHost) || other.isHost == _this.isHost));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as PlayerSummary;
-  return Object.hash(runtimeType,_this.id,_this.name,_this.score,_this.connected,_this.hasSubmitted);
+  return Object.hash(runtimeType,_this.id,_this.name,_this.score,_this.connected,_this.hasSubmitted,_this.isHost);
 }
 
 @override
 String toString() {
   final _this = this as PlayerSummary;
-  return 'PlayerSummary(id: ${_this.id}, name: ${_this.name}, score: ${_this.score}, connected: ${_this.connected}, hasSubmitted: ${_this.hasSubmitted})';
+  return 'PlayerSummary(id: ${_this.id}, name: ${_this.name}, score: ${_this.score}, connected: ${_this.connected}, hasSubmitted: ${_this.hasSubmitted}, isHost: ${_this.isHost})';
 }
 
 
@@ -718,7 +719,7 @@ abstract mixin class $PlayerSummaryCopyWith<$Res>  {
   factory $PlayerSummaryCopyWith(PlayerSummary value, $Res Function(PlayerSummary) _then) = _$PlayerSummaryCopyWithImpl;
 @useResult
 $Res call({
- String id, String name, int score, bool connected, bool hasSubmitted
+ String id, String name, int score, bool connected, bool hasSubmitted, bool isHost
 });
 
 
@@ -735,13 +736,14 @@ class _$PlayerSummaryCopyWithImpl<$Res>
 
 /// Create a copy of PlayerSummary
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? score = null,Object? connected = null,Object? hasSubmitted = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? score = null,Object? connected = null,Object? hasSubmitted = null,Object? isHost = null,}) {
   return _then(PlayerSummary(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,score: null == score ? _self.score : score // ignore: cast_nullable_to_non_nullable
 as int,connected: null == connected ? _self.connected : connected // ignore: cast_nullable_to_non_nullable
 as bool,hasSubmitted: null == hasSubmitted ? _self.hasSubmitted : hasSubmitted // ignore: cast_nullable_to_non_nullable
+as bool,isHost: null == isHost ? _self.isHost : isHost // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -827,10 +829,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  int score,  bool connected,  bool hasSubmitted)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  int score,  bool connected,  bool hasSubmitted,  bool isHost)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PlayerSummary() when $default != null:
-return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitted);case _:
+return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitted,_that.isHost);case _:
   return orElse();
 
 }
@@ -848,10 +850,10 @@ return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitt
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  int score,  bool connected,  bool hasSubmitted)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  int score,  bool connected,  bool hasSubmitted,  bool isHost)  $default,) {final _that = this;
 switch (_that) {
 case _PlayerSummary():
-return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitted);case _:
+return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitted,_that.isHost);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -868,10 +870,10 @@ return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitt
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  int score,  bool connected,  bool hasSubmitted)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  int score,  bool connected,  bool hasSubmitted,  bool isHost)?  $default,) {final _that = this;
 switch (_that) {
 case _PlayerSummary() when $default != null:
-return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitted);case _:
+return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitted,_that.isHost);case _:
   return null;
 
 }
@@ -883,7 +885,7 @@ return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitt
 @JsonSerializable()
 
 class _PlayerSummary implements PlayerSummary {
-  const _PlayerSummary({required this.id, required this.name, required this.score, required this.connected, required this.hasSubmitted});
+  const _PlayerSummary({required this.id, required this.name, required this.score, required this.connected, required this.hasSubmitted, this.isHost = false});
   factory _PlayerSummary.fromJson(Map<String, dynamic> json) => _$PlayerSummaryFromJson(json);
 
 @override final  String id;
@@ -891,6 +893,8 @@ class _PlayerSummary implements PlayerSummary {
 @override final  int score;
 @override final  bool connected;
 @override final  bool hasSubmitted;
+/// True for the playing host (protocol v2).
+@override@JsonKey() final  bool isHost;
 
 /// Create a copy of PlayerSummary
 /// with the given fields replaced by the non-null parameter values.
@@ -905,18 +909,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PlayerSummary&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.score, score) || other.score == score)&&(identical(other.connected, connected) || other.connected == connected)&&(identical(other.hasSubmitted, hasSubmitted) || other.hasSubmitted == hasSubmitted));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PlayerSummary&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.score, score) || other.score == score)&&(identical(other.connected, connected) || other.connected == connected)&&(identical(other.hasSubmitted, hasSubmitted) || other.hasSubmitted == hasSubmitted)&&(identical(other.isHost, isHost) || other.isHost == isHost));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,name,score,connected,hasSubmitted);
+    return Object.hash(runtimeType,id,name,score,connected,hasSubmitted,isHost);
 }
 
 @override
 String toString() {
-    return 'PlayerSummary(id: $id, name: $name, score: $score, connected: $connected, hasSubmitted: $hasSubmitted)';
+    return 'PlayerSummary(id: $id, name: $name, score: $score, connected: $connected, hasSubmitted: $hasSubmitted, isHost: $isHost)';
 }
 
 
@@ -927,7 +931,7 @@ abstract mixin class _$PlayerSummaryCopyWith<$Res> implements $PlayerSummaryCopy
   factory _$PlayerSummaryCopyWith(_PlayerSummary value, $Res Function(_PlayerSummary) _then) = __$PlayerSummaryCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name, int score, bool connected, bool hasSubmitted
+ String id, String name, int score, bool connected, bool hasSubmitted, bool isHost
 });
 
 
@@ -944,13 +948,14 @@ class __$PlayerSummaryCopyWithImpl<$Res>
 
 /// Create a copy of PlayerSummary
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? score = null,Object? connected = null,Object? hasSubmitted = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? score = null,Object? connected = null,Object? hasSubmitted = null,Object? isHost = null,}) {
   return _then(_PlayerSummary(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,score: null == score ? _self.score : score // ignore: cast_nullable_to_non_nullable
 as int,connected: null == connected ? _self.connected : connected // ignore: cast_nullable_to_non_nullable
 as bool,hasSubmitted: null == hasSubmitted ? _self.hasSubmitted : hasSubmitted // ignore: cast_nullable_to_non_nullable
+as bool,isHost: null == isHost ? _self.isHost : isHost // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }

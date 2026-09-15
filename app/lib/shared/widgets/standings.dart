@@ -2,6 +2,29 @@ import 'package:flutter/material.dart';
 
 import '../../core/models/models.dart';
 
+/// Small "Host" label for the playing host.
+class HostBadge extends StatelessWidget {
+  const HostBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.tertiaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        child: Text(
+          'Host',
+          style: TextStyle(fontSize: 11, color: colors.onTertiaryContainer),
+        ),
+      ),
+    );
+  }
+}
+
 /// Players in the order received from the host (already sorted by the
 /// server, PROTOCOL.md §5.1).
 class Standings extends StatelessWidget {
@@ -37,7 +60,17 @@ class Standings extends StatelessWidget {
             leading: showScores
                 ? CircleAvatar(child: Text('${index + 1}'))
                 : const Icon(Icons.person_outline),
-            title: Text(player.name),
+            title: Row(
+              children: [
+                Flexible(
+                  child: Text(player.name, overflow: TextOverflow.ellipsis),
+                ),
+                if (player.isHost) ...[
+                  const SizedBox(width: 6),
+                  HostBadge(key: ValueKey('host-badge-${player.id}')),
+                ],
+              ],
+            ),
             subtitle: player.connected ? null : const Text('Disconnected'),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,

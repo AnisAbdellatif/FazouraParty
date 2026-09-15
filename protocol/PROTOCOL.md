@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `1`** · Status: **FROZEN** (changes are breaking — see AGENTS.md §3)
+**Protocol version: `2`** · Status: **FROZEN** (changes are breaking — see AGENTS.md §3)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -103,7 +103,12 @@ Payload:
 **Playing host.** If a host join carries a `display_name` and the host is not yet playing, the
 host also becomes a player: same name rules, same scoring, listed in `players` with
 `is_host: true`. The host's `player_id` is bound to the `host_token`, so host reconnects need
-only the `host_token`. A host cannot stop playing once they have started.
+only the `host_token`. A host cannot stop playing once they have started; a non-playing host
+may start playing on any later join by sending a `display_name` (late-join rules apply).
+
+If a host join with a `display_name` fails (`invalid_name`, `name_taken`, `room_full`), the
+whole join fails and the host is **not** connected; the `host_token` stays valid and the client
+should let the host retry with another name (or without one).
 
 `display_name`: trimmed, 1–20 characters after trimming (Unicode grapheme clusters), unique
 (case-insensitive) within the room. The same length unit applies to `answer` (§4.2).

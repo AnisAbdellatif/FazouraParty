@@ -20,7 +20,19 @@ class PhoenixGameConnection implements GameConnection {
     PhoenixSocket Function(String endpoint)? socketFactory,
   }) : _socketFactory = socketFactory ?? PhoenixSocket.new;
 
-  static const int protocolVersion = 1;
+  static const int protocolVersion = 2;
+
+  /// `phx_join` payload (PROTOCOL.md §4.1).
+  static Map<String, dynamic> joinPayload({
+    String? displayName,
+    String? playerToken,
+    String? hostToken,
+  }) => {
+    'protocol_version': protocolVersion,
+    'display_name': displayName,
+    'player_token': playerToken,
+    'host_token': hostToken,
+  };
 
   /// HTTP(S) base URL of the server, e.g. `http://localhost:4000`.
   final String baseUrl;
@@ -76,22 +88,35 @@ class PhoenixGameConnection implements GameConnection {
     String displayName, {
     String? playerToken,
   }) {
-    return _join(roomCode, {
-      'protocol_version': protocolVersion,
-      'display_name': displayName,
-      'player_token': playerToken,
-      'host_token': null,
-    });
+    return _join(
+      roomCode,
+      joinPayload(displayName: displayName, playerToken: playerToken),
+    );
   }
 
   @override
-  Future<JoinResult> joinAsHost(String roomCode, String hostToken) {
-    return _join(roomCode, {
-      'protocol_version': protocolVersion,
-      'display_name': null,
-      'player_token': null,
-      'host_token': hostToken,
-    });
+  Future<JoinResult> joinAsHost(
+    String roomCode,
+    String hostToken, {
+    String? displayName,
+  }) {
+    return _join(
+      roomCode,
+      joinPayload(displayName: displayName, hostToken: hostToken),
+    );
+  }
+
+  /// Payload phoenix_socket re-sends on automatic rejoins (PROTOCOL.md §4.1):
+  /// players rejoin with `player_token` only, hosts with `host_token` only.
+  static Map<String, dynamic> rejoinPayload(
+    Map<String, dynamic> joinParams,
+    JoinResult result,
+  ) {
+    final hostToken = joinParams['host_token'] as String?;
+    if (hostToken != null) return joinPayload(hostToken: hostToken);
+    return joinPayload(
+      playerToken: result.playerToken ?? joinParams['player_token'] as String?,
+    );
   }
 
   @override
@@ -181,11 +206,11 @@ class PhoenixGameConnection implements GameConnection {
       }
 
       final result = JoinResult.fromJson(_asMap(reply.response));
-      final token = result.playerToken;
-      if (token != null) {
-        // phoenix_socket re-sends these params on every automatic rejoin.
-        channel.parameters['player_token'] = token;
-      }
+      // phoenix_socket re-sends channel.parameters on every automatic rejoin.
+      final rejoin = rejoinPayload(params, result);
+      channel.parameters
+        ..clear()
+        ..addAll(rejoin);
       _joined = true;
       _status.add(ConnectionStatus.connected);
       return result;
@@ -262,7 +287,9 @@ class PhoenixGameConnection implements GameConnection {
     }
     if (!reply.isError) return;
     final error = _errorFrom(reply.response);
-    if (error.code == 'room_not_found') {
+    // §4.1: a rejoin failing with invalid_token or room_not_found means the
+    // room is gone; never silently re-join as someone new.
+    if (error.code == 'room_not_found' || error.code == 'invalid_token') {
       _completeClosed(RoomClosedReason.notFound);
     }
     // Any rejoin error is final; stop phoenix_socket's rejoin loop.

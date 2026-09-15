@@ -8,6 +8,7 @@ import '../../shared/widgets/connection_banner.dart';
 import '../../shared/widgets/countdown.dart';
 import '../../shared/widgets/standings.dart';
 import '../finished/finished_view.dart';
+import '../player_question/player_question_view.dart';
 import '../room_closed/room_closed_view.dart';
 
 class HostScreen extends ConsumerWidget {
@@ -92,8 +93,11 @@ class _HostDashboard extends ConsumerWidget {
     final connection = ref.watch(gameConnectionProvider);
     final theme = Theme.of(context);
     final inQuestion = state.phase == Phase.question;
+    final revealed =
+        state.phase == Phase.scoring || state.phase == Phase.leaderboard;
     final paused = inQuestion && state.pausedRemainingMs != null;
     final question = state.question;
+    final playing = state.you.playerId != null;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -142,7 +146,16 @@ class _HostDashboard extends ConsumerWidget {
             ),
           ],
         ),
-        if (question != null) ...[
+        if (inQuestion && playing) ...[
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              // Same answer + wager input as players (PROTOCOL.md §4.2).
+              child: PlayerQuestionView(state: state, embedded: true),
+            ),
+          ),
+        ] else if (question != null) ...[
           const SizedBox(height: 16),
           Card(
             child: Padding(
@@ -168,31 +181,43 @@ class _HostDashboard extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(question.prompt, style: theme.textTheme.headlineSmall),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      for (final answer in state.acceptedAnswers ?? <String>[])
-                        Chip(label: Text(answer)),
-                    ],
-                  ),
+                  if (revealed) ...[
+                    const SizedBox(height: 8),
+                    Text('Correct answer', style: theme.textTheme.labelLarge),
+                    const SizedBox(height: 4),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final answer
+                            in state.acceptedAnswers ?? <String>[])
+                          Chip(label: Text(answer)),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
           ),
+        ],
+        // Answers and submissions are only revealed after the question
+        // (PROTOCOL.md §7, v2), for the host too.
+        if (revealed && question != null)
           _SubmissionsCard(
             state: state,
             onOverride: (playerId, correct) =>
                 _run(context, () => connection.hostOverride(playerId, correct)),
           ),
-        ],
         const SizedBox(height: 16),
         Text(
           'Players (${state.players.length})',
           style: theme.textTheme.titleMedium,
         ),
-        Standings(players: state.players, showSubmitted: inQuestion),
+        Standings(
+          players: state.players,
+          highlightPlayerId: state.you.playerId,
+          showSubmitted: inQuestion,
+        ),
       ],
     );
   }
@@ -208,6 +233,7 @@ class _SubmissionsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final submissions = state.submissions ?? const <SubmissionView>[];
     final names = {for (final p in state.players) p.id: p.name};
+    final myId = state.you.playerId;
     final canOverride =
         state.phase == Phase.scoring || state.phase == Phase.leaderboard;
 
@@ -230,7 +256,9 @@ class _SubmissionsCard extends StatelessWidget {
           for (final submission in submissions)
             _SubmissionTile(
               submission: submission,
-              name: names[submission.playerId] ?? submission.playerId,
+              name:
+                  '${names[submission.playerId] ?? submission.playerId}'
+                  '${submission.playerId == myId ? ' (you)' : ''}',
               canOverride: canOverride,
               onOverride: onOverride,
             ),

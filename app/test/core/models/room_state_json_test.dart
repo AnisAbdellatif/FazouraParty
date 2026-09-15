@@ -12,7 +12,7 @@ void main() {
     test('parses the spec example', () {
       final state = RoomState.fromJson(json);
 
-      expect(state.protocolVersion, 1);
+      expect(state.protocolVersion, 2);
       expect(state.roomCode, 'K7QX2M');
       expect(state.mode, Mode.cloud);
       expect(state.phase, Phase.question);
@@ -91,6 +91,39 @@ void main() {
       ),
     );
     expect(view.toJson(), json);
+  });
+
+  test('PlayerSummary parses is_host (v2) and defaults it to false', () {
+    final host = PlayerSummary.fromJson({
+      'id': 'p_host',
+      'name': 'Hana',
+      'score': 0,
+      'connected': true,
+      'has_submitted': false,
+      'is_host': true,
+    });
+    expect(host.isHost, isTrue);
+    expect(host.toJson()['is_host'], true);
+
+    final legacy = PlayerSummary.fromJson({
+      'id': 'p_3f9a',
+      'name': 'Sam',
+      'score': 0,
+      'connected': true,
+      'has_submitted': false,
+    });
+    expect(legacy.isHost, isFalse);
+  });
+
+  test('JoinResult parses a playing host reply', () {
+    expect(
+      JoinResult.fromJson({
+        'role': 'host',
+        'player_id': 'p_host',
+        'player_token': null,
+      }),
+      const JoinResult(role: Role.host, playerId: 'p_host'),
+    );
   });
 
   test('JoinResult parses player and host replies', () {

@@ -91,6 +91,7 @@ _PlayerSummary _$PlayerSummaryFromJson(Map<String, dynamic> json) =>
       score: (json['score'] as num).toInt(),
       connected: json['connected'] as bool,
       hasSubmitted: json['has_submitted'] as bool,
+      isHost: json['is_host'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$PlayerSummaryToJson(_PlayerSummary instance) =>
@@ -100,6 +101,7 @@ Map<String, dynamic> _$PlayerSummaryToJson(_PlayerSummary instance) =>
       'score': instance.score,
       'connected': instance.connected,
       'has_submitted': instance.hasSubmitted,
+      'is_host': instance.isHost,
     };
 
 _You _$YouFromJson(Map<String, dynamic> json) => _You(

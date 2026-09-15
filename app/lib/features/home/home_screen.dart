@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../shared/describe_error.dart';
 import '../host/host_screen.dart';
+import '../host/host_setup_dialog.dart';
 import '../join/join_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -17,13 +18,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _creating = false;
 
   Future<void> _hostGame() async {
+    final setup = await showHostSetupDialog(context);
+    if (setup == null || !mounted) return;
     setState(() => _creating = true);
     try {
       final created = await ref.read(roomApiProvider).createRoom();
       ref.invalidate(gameConnectionProvider);
       await ref
           .read(gameConnectionProvider)
-          .joinAsHost(created.roomCode, created.hostToken);
+          .joinAsHost(
+            created.roomCode,
+            created.hostToken,
+            displayName: setup.displayName,
+          );
       if (!mounted) return;
       setState(() => _creating = false);
       await Navigator.of(context).push(

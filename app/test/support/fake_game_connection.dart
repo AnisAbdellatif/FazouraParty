@@ -61,9 +61,26 @@ class FakeGameConnection implements GameConnection {
     return joinResult;
   }
 
+  final List<({String roomCode, String hostToken, String? displayName})>
+  hostJoins = [];
+
   @override
-  Future<JoinResult> joinAsHost(String roomCode, String hostToken) async =>
-      const JoinResult(role: Role.host);
+  Future<JoinResult> joinAsHost(
+    String roomCode,
+    String hostToken, {
+    String? displayName,
+  }) async {
+    hostJoins.add((
+      roomCode: roomCode,
+      hostToken: hostToken,
+      displayName: displayName,
+    ));
+    if (joinError != null) throw joinError!;
+    return JoinResult(
+      role: Role.host,
+      playerId: displayName == null ? null : 'p_host',
+    );
+  }
 
   @override
   Future<void> submit(String answer, int wager) async {

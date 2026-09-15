@@ -58,6 +58,9 @@ abstract class PlayerSummary with _$PlayerSummary {
     required int score,
     required bool connected,
     required bool hasSubmitted,
+
+    /// True for the playing host (protocol v2).
+    @Default(false) bool isHost,
   }) = _PlayerSummary;
 
   factory PlayerSummary.fromJson(Map<String, dynamic> json) =>
@@ -93,9 +96,8 @@ abstract class OwnSubmission with _$OwnSubmission {
 
 /// An entry of `submissions` (host view, and everyone after scoring).
 ///
-/// [autoCorrect], [correct] and [delta] are nullable because PROTOCOL.md does
-/// not state their value in the host view during `question`, before
-/// auto-matching has run.
+/// PROTOCOL.md says only `override` may be null; [autoCorrect], [correct] and
+/// [delta] stay nullable here purely for tolerance.
 @freezed
 abstract class SubmissionView with _$SubmissionView {
   const factory SubmissionView({
