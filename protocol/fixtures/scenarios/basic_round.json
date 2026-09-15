@@ -7,14 +7,14 @@
     ]
   },
   "steps": [
-    {"actor": "host", "join": {"protocol_version": 3, "host_token": "$host_token"},
+    {"actor": "host", "join": {"protocol_version": 4, "host_token": "$host_token"},
      "expect": {"status": "ok", "response": {"role": "host", "player_id": null}}},
 
-    {"actor": "sam", "join": {"protocol_version": 3, "display_name": "Sam"},
+    {"actor": "sam", "join": {"protocol_version": 4, "display_name": "Sam"},
      "expect": {"status": "ok", "response": {"role": "player"}}},
-    {"actor": "alex", "join": {"protocol_version": 3, "display_name": "alex"},
+    {"actor": "alex", "join": {"protocol_version": 4, "display_name": "alex"},
      "expect": {"status": "ok", "response": {"role": "player"}}},
-    {"actor": "dup", "join": {"protocol_version": 3, "display_name": "SAM"},
+    {"actor": "dup", "join": {"protocol_version": 4, "display_name": "SAM"},
      "expect": {"status": "error", "response": {"code": "name_taken"}}},
 
     {"actor": "sam", "push": "submit", "payload": {"answer": "x", "wager": 5},

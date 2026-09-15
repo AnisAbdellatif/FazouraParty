@@ -31,36 +31,45 @@ class GameSettingsEditor extends ConsumerStatefulWidget {
 class _GameSettingsEditorState extends ConsumerState<GameSettingsEditor> {
   late int _count = widget.settings.questionCount;
   late int _timeMs = widget.settings.timeLimitMs;
+  late bool _bonus = widget.settings.difficultyMultiplier;
   bool _dragging = false;
 
   @override
   void didUpdateWidget(GameSettingsEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!_dragging && oldWidget.settings != widget.settings) {
-      _count = widget.settings.questionCount;
-      _timeMs = widget.settings.timeLimitMs;
+      _resetFromServer();
     }
   }
 
-  Future<void> _send({int? count, int? timeMs}) async {
+  void _resetFromServer() {
+    _count = widget.settings.questionCount;
+    _timeMs = widget.settings.timeLimitMs;
+    _bonus = widget.settings.difficultyMultiplier;
+  }
+
+  Future<void> _send({int? count, int? timeMs, bool? bonus}) async {
     final nextCount = count ?? _count;
     final nextTime = timeMs ?? _timeMs;
+    final nextBonus = bonus ?? _bonus;
     setState(() {
       _count = nextCount;
       _timeMs = nextTime;
+      _bonus = nextBonus;
     });
     final messenger = ScaffoldMessenger.of(context);
     try {
       await ref
           .read(gameConnectionProvider)
-          .hostConfigure(questionCount: nextCount, timeLimitMs: nextTime);
+          .hostConfigure(
+            questionCount: nextCount,
+            timeLimitMs: nextTime,
+            difficultyMultiplier: nextBonus,
+          );
     } catch (error) {
       messenger.showSnackBar(SnackBar(content: Text(describeError(error))));
       if (!mounted) return;
-      setState(() {
-        _count = widget.settings.questionCount;
-        _timeMs = widget.settings.timeLimitMs;
-      });
+      setState(_resetFromServer);
     }
   }
 
@@ -147,6 +156,34 @@ class _GameSettingsEditorState extends ConsumerState<GameSettingsEditor> {
                   selected: _timeMs == s * 1000,
                   onTap: () => _send(timeMs: s * 1000),
                 ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+          // A plain row rather than SwitchListTile: list tiles inside the
+          // coloured panel would hide their ink.
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Difficulty bonus', style: fz.h(15)),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Harder questions score more: easy ×1, medium ×2, hard ×3',
+                      style: fz.m(11, color: FzColors.dim, height: 1.4),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Switch(
+                key: const Key('difficultyBonusSwitch'),
+                value: _bonus,
+                onChanged: (value) => _send(bonus: value),
+              ),
             ],
           ),
         ],

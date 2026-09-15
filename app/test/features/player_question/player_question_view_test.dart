@@ -138,6 +138,31 @@ void main() {
     },
   );
 
+  testWidgets('difficulty bonus shows the badge and multiplied points', (
+    tester,
+  ) async {
+    final base = questionStateForPlayer();
+    await pumpView(
+      tester,
+      base.copyWith(
+        question: base.question!.copyWith(difficulty: 'hard', multiplier: 3),
+        settings: base.settings!.copyWith(difficultyMultiplier: true),
+      ),
+    );
+
+    expect(find.text('HARD ×3'), findsOneWidget);
+    slider(tester).onChanged!(4);
+    await tester.pump();
+    expect(text(tester, 'wagerHint'), '+12 if right · −12 if wrong');
+  });
+
+  testWidgets('no badge without the difficulty bonus', (tester) async {
+    await pumpView(tester, questionStateForPlayer());
+
+    expect(find.byKey(const Key('difficultyBadge')), findsNothing);
+    expect(text(tester, 'wagerHint'), '+5 if right · −5 if wrong');
+  });
+
   testWidgets('a paused question disables Lock it in', (tester) async {
     await pumpView(
       tester,

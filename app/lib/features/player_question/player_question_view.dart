@@ -64,6 +64,9 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
     super.dispose();
   }
 
+  /// Points per wager unit for this question (protocol v4, §9).
+  int get _multiplier => widget.state.question?.multiplier ?? 1;
+
   Future<void> _submit() async {
     final answer = _answerController.text.trim();
     if (answer.isEmpty || answer.characters.length > maxAnswerLength) {
@@ -129,6 +132,17 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
             timeLimitMs: question?.timeLimitMs,
           ),
           const SizedBox(height: 30),
+          if (question != null &&
+              (state.settings?.difficultyMultiplier ?? false)) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: _DifficultyBadge(
+                difficulty: question.difficulty,
+                multiplier: question.multiplier,
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
           if (question != null)
             FzEnter(
               key: ValueKey('prompt-${question.id}'),
@@ -195,7 +209,8 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
                 const FzEyebrow('Wager'),
                 const SizedBox(height: 6),
                 Text(
-                  '+$_wager if right · −$_wager if wrong',
+                  '+${_wager * _multiplier} if right · '
+                  '−${_wager * _multiplier} if wrong',
                   key: const Key('wagerHint'),
                   style: fz.m(11, color: FzColors.dim),
                 ),
@@ -253,6 +268,35 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
         onPressed: busy || paused ? null : _submit,
       ),
     ];
+  }
+}
+
+/// "HARD ×3" pill shown when the difficulty bonus is on.
+class _DifficultyBadge extends StatelessWidget {
+  const _DifficultyBadge({required this.difficulty, required this.multiplier});
+
+  final String difficulty;
+  final int multiplier;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (multiplier) {
+      >= 3 => FzColors.ac2,
+      2 => FzColors.ac,
+      _ => FzColors.ok,
+    };
+    return Container(
+      key: const Key('difficultyBadge'),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '${difficulty.toUpperCase()} ×$multiplier',
+        style: FzTheme.of(context).m(9.5, color: color, tracking: .14),
+      ),
+    );
   }
 }
 

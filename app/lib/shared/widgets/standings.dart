@@ -111,7 +111,12 @@ class _StandingRow extends StatelessWidget {
               width: 22,
               child: Text('$rank', style: fz.m(13, color: FzColors.dim)),
             ),
-          FzAvatar(id: player.id, name: player.name, size: 34),
+          FzAvatar(
+            id: player.id,
+            name: player.name,
+            hue: player.avatarHue,
+            size: 34,
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

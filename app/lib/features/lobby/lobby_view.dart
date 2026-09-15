@@ -95,6 +95,8 @@ class LobbyView extends StatelessWidget {
                             '${state.questionCount == 1 ? 'question' : 'questions'}',
                         if (state.settings != null)
                           '${state.settings!.timeLimitMs ~/ 1000}s each',
+                        if (state.settings?.difficultyMultiplier ?? false)
+                          'difficulty bonus',
                       ].join(' · '),
                       key: const Key('lobbyGameSummary'),
                       style: fz.h(15, height: 1.3),
@@ -202,7 +204,7 @@ class _PlayerCard extends StatelessWidget {
         opacity: player.connected ? 1 : .5,
         child: Column(
           children: [
-            FzAvatar(id: player.id, name: player.name),
+            FzAvatar(id: player.id, name: player.name, hue: player.avatarHue),
             const SizedBox(height: 8),
             Text(
               player.name,

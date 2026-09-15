@@ -430,7 +430,8 @@ $YouCopyWith<$Res> get you {
 /// @nodoc
 mixin _$GameSettings {
 
- int get questionCount; int get timeLimitMs; int get maxQuestionCount; int get minTimeLimitMs; int get maxTimeLimitMs;
+ int get questionCount; int get timeLimitMs; int get maxQuestionCount;/// Harder questions score wager × 2 (medium) or × 3 (hard) (protocol v4).
+ bool get difficultyMultiplier; int get minTimeLimitMs; int get maxTimeLimitMs;
 /// Create a copy of GameSettings
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -444,20 +445,20 @@ $GameSettingsCopyWith<GameSettings> get copyWith => _$GameSettingsCopyWithImpl<G
 @override
 bool operator ==(Object other) {
   final _this = this as GameSettings;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is GameSettings&&(identical(other.questionCount, _this.questionCount) || other.questionCount == _this.questionCount)&&(identical(other.timeLimitMs, _this.timeLimitMs) || other.timeLimitMs == _this.timeLimitMs)&&(identical(other.maxQuestionCount, _this.maxQuestionCount) || other.maxQuestionCount == _this.maxQuestionCount)&&(identical(other.minTimeLimitMs, _this.minTimeLimitMs) || other.minTimeLimitMs == _this.minTimeLimitMs)&&(identical(other.maxTimeLimitMs, _this.maxTimeLimitMs) || other.maxTimeLimitMs == _this.maxTimeLimitMs));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is GameSettings&&(identical(other.questionCount, _this.questionCount) || other.questionCount == _this.questionCount)&&(identical(other.timeLimitMs, _this.timeLimitMs) || other.timeLimitMs == _this.timeLimitMs)&&(identical(other.maxQuestionCount, _this.maxQuestionCount) || other.maxQuestionCount == _this.maxQuestionCount)&&(identical(other.difficultyMultiplier, _this.difficultyMultiplier) || other.difficultyMultiplier == _this.difficultyMultiplier)&&(identical(other.minTimeLimitMs, _this.minTimeLimitMs) || other.minTimeLimitMs == _this.minTimeLimitMs)&&(identical(other.maxTimeLimitMs, _this.maxTimeLimitMs) || other.maxTimeLimitMs == _this.maxTimeLimitMs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as GameSettings;
-  return Object.hash(runtimeType,_this.questionCount,_this.timeLimitMs,_this.maxQuestionCount,_this.minTimeLimitMs,_this.maxTimeLimitMs);
+  return Object.hash(runtimeType,_this.questionCount,_this.timeLimitMs,_this.maxQuestionCount,_this.difficultyMultiplier,_this.minTimeLimitMs,_this.maxTimeLimitMs);
 }
 
 @override
 String toString() {
   final _this = this as GameSettings;
-  return 'GameSettings(questionCount: ${_this.questionCount}, timeLimitMs: ${_this.timeLimitMs}, maxQuestionCount: ${_this.maxQuestionCount}, minTimeLimitMs: ${_this.minTimeLimitMs}, maxTimeLimitMs: ${_this.maxTimeLimitMs})';
+  return 'GameSettings(questionCount: ${_this.questionCount}, timeLimitMs: ${_this.timeLimitMs}, maxQuestionCount: ${_this.maxQuestionCount}, difficultyMultiplier: ${_this.difficultyMultiplier}, minTimeLimitMs: ${_this.minTimeLimitMs}, maxTimeLimitMs: ${_this.maxTimeLimitMs})';
 }
 
 
@@ -468,7 +469,7 @@ abstract mixin class $GameSettingsCopyWith<$Res>  {
   factory $GameSettingsCopyWith(GameSettings value, $Res Function(GameSettings) _then) = _$GameSettingsCopyWithImpl;
 @useResult
 $Res call({
- int questionCount, int timeLimitMs, int maxQuestionCount, int minTimeLimitMs, int maxTimeLimitMs
+ int questionCount, int timeLimitMs, int maxQuestionCount, bool difficultyMultiplier, int minTimeLimitMs, int maxTimeLimitMs
 });
 
 
@@ -485,12 +486,13 @@ class _$GameSettingsCopyWithImpl<$Res>
 
 /// Create a copy of GameSettings
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? questionCount = null,Object? timeLimitMs = null,Object? maxQuestionCount = null,Object? minTimeLimitMs = null,Object? maxTimeLimitMs = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? questionCount = null,Object? timeLimitMs = null,Object? maxQuestionCount = null,Object? difficultyMultiplier = null,Object? minTimeLimitMs = null,Object? maxTimeLimitMs = null,}) {
   return _then(GameSettings(
 questionCount: null == questionCount ? _self.questionCount : questionCount // ignore: cast_nullable_to_non_nullable
 as int,timeLimitMs: null == timeLimitMs ? _self.timeLimitMs : timeLimitMs // ignore: cast_nullable_to_non_nullable
 as int,maxQuestionCount: null == maxQuestionCount ? _self.maxQuestionCount : maxQuestionCount // ignore: cast_nullable_to_non_nullable
-as int,minTimeLimitMs: null == minTimeLimitMs ? _self.minTimeLimitMs : minTimeLimitMs // ignore: cast_nullable_to_non_nullable
+as int,difficultyMultiplier: null == difficultyMultiplier ? _self.difficultyMultiplier : difficultyMultiplier // ignore: cast_nullable_to_non_nullable
+as bool,minTimeLimitMs: null == minTimeLimitMs ? _self.minTimeLimitMs : minTimeLimitMs // ignore: cast_nullable_to_non_nullable
 as int,maxTimeLimitMs: null == maxTimeLimitMs ? _self.maxTimeLimitMs : maxTimeLimitMs // ignore: cast_nullable_to_non_nullable
 as int,
   ));
@@ -577,10 +579,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int questionCount,  int timeLimitMs,  int maxQuestionCount,  int minTimeLimitMs,  int maxTimeLimitMs)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int questionCount,  int timeLimitMs,  int maxQuestionCount,  bool difficultyMultiplier,  int minTimeLimitMs,  int maxTimeLimitMs)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _GameSettings() when $default != null:
-return $default(_that.questionCount,_that.timeLimitMs,_that.maxQuestionCount,_that.minTimeLimitMs,_that.maxTimeLimitMs);case _:
+return $default(_that.questionCount,_that.timeLimitMs,_that.maxQuestionCount,_that.difficultyMultiplier,_that.minTimeLimitMs,_that.maxTimeLimitMs);case _:
   return orElse();
 
 }
@@ -598,10 +600,10 @@ return $default(_that.questionCount,_that.timeLimitMs,_that.maxQuestionCount,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int questionCount,  int timeLimitMs,  int maxQuestionCount,  int minTimeLimitMs,  int maxTimeLimitMs)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int questionCount,  int timeLimitMs,  int maxQuestionCount,  bool difficultyMultiplier,  int minTimeLimitMs,  int maxTimeLimitMs)  $default,) {final _that = this;
 switch (_that) {
 case _GameSettings():
-return $default(_that.questionCount,_that.timeLimitMs,_that.maxQuestionCount,_that.minTimeLimitMs,_that.maxTimeLimitMs);case _:
+return $default(_that.questionCount,_that.timeLimitMs,_that.maxQuestionCount,_that.difficultyMultiplier,_that.minTimeLimitMs,_that.maxTimeLimitMs);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -618,10 +620,10 @@ return $default(_that.questionCount,_that.timeLimitMs,_that.maxQuestionCount,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int questionCount,  int timeLimitMs,  int maxQuestionCount,  int minTimeLimitMs,  int maxTimeLimitMs)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int questionCount,  int timeLimitMs,  int maxQuestionCount,  bool difficultyMultiplier,  int minTimeLimitMs,  int maxTimeLimitMs)?  $default,) {final _that = this;
 switch (_that) {
 case _GameSettings() when $default != null:
-return $default(_that.questionCount,_that.timeLimitMs,_that.maxQuestionCount,_that.minTimeLimitMs,_that.maxTimeLimitMs);case _:
+return $default(_that.questionCount,_that.timeLimitMs,_that.maxQuestionCount,_that.difficultyMultiplier,_that.minTimeLimitMs,_that.maxTimeLimitMs);case _:
   return null;
 
 }
@@ -633,12 +635,14 @@ return $default(_that.questionCount,_that.timeLimitMs,_that.maxQuestionCount,_th
 @JsonSerializable()
 
 class _GameSettings implements GameSettings {
-  const _GameSettings({required this.questionCount, required this.timeLimitMs, required this.maxQuestionCount, this.minTimeLimitMs = 10000, this.maxTimeLimitMs = 120000});
+  const _GameSettings({required this.questionCount, required this.timeLimitMs, required this.maxQuestionCount, this.difficultyMultiplier = false, this.minTimeLimitMs = 10000, this.maxTimeLimitMs = 120000});
   factory _GameSettings.fromJson(Map<String, dynamic> json) => _$GameSettingsFromJson(json);
 
 @override final  int questionCount;
 @override final  int timeLimitMs;
 @override final  int maxQuestionCount;
+/// Harder questions score wager × 2 (medium) or × 3 (hard) (protocol v4).
+@override@JsonKey() final  bool difficultyMultiplier;
 @override@JsonKey() final  int minTimeLimitMs;
 @override@JsonKey() final  int maxTimeLimitMs;
 
@@ -655,18 +659,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _GameSettings&&(identical(other.questionCount, questionCount) || other.questionCount == questionCount)&&(identical(other.timeLimitMs, timeLimitMs) || other.timeLimitMs == timeLimitMs)&&(identical(other.maxQuestionCount, maxQuestionCount) || other.maxQuestionCount == maxQuestionCount)&&(identical(other.minTimeLimitMs, minTimeLimitMs) || other.minTimeLimitMs == minTimeLimitMs)&&(identical(other.maxTimeLimitMs, maxTimeLimitMs) || other.maxTimeLimitMs == maxTimeLimitMs));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _GameSettings&&(identical(other.questionCount, questionCount) || other.questionCount == questionCount)&&(identical(other.timeLimitMs, timeLimitMs) || other.timeLimitMs == timeLimitMs)&&(identical(other.maxQuestionCount, maxQuestionCount) || other.maxQuestionCount == maxQuestionCount)&&(identical(other.difficultyMultiplier, difficultyMultiplier) || other.difficultyMultiplier == difficultyMultiplier)&&(identical(other.minTimeLimitMs, minTimeLimitMs) || other.minTimeLimitMs == minTimeLimitMs)&&(identical(other.maxTimeLimitMs, maxTimeLimitMs) || other.maxTimeLimitMs == maxTimeLimitMs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,questionCount,timeLimitMs,maxQuestionCount,minTimeLimitMs,maxTimeLimitMs);
+    return Object.hash(runtimeType,questionCount,timeLimitMs,maxQuestionCount,difficultyMultiplier,minTimeLimitMs,maxTimeLimitMs);
 }
 
 @override
 String toString() {
-    return 'GameSettings(questionCount: $questionCount, timeLimitMs: $timeLimitMs, maxQuestionCount: $maxQuestionCount, minTimeLimitMs: $minTimeLimitMs, maxTimeLimitMs: $maxTimeLimitMs)';
+    return 'GameSettings(questionCount: $questionCount, timeLimitMs: $timeLimitMs, maxQuestionCount: $maxQuestionCount, difficultyMultiplier: $difficultyMultiplier, minTimeLimitMs: $minTimeLimitMs, maxTimeLimitMs: $maxTimeLimitMs)';
 }
 
 
@@ -677,7 +681,7 @@ abstract mixin class _$GameSettingsCopyWith<$Res> implements $GameSettingsCopyWi
   factory _$GameSettingsCopyWith(_GameSettings value, $Res Function(_GameSettings) _then) = __$GameSettingsCopyWithImpl;
 @override @useResult
 $Res call({
- int questionCount, int timeLimitMs, int maxQuestionCount, int minTimeLimitMs, int maxTimeLimitMs
+ int questionCount, int timeLimitMs, int maxQuestionCount, bool difficultyMultiplier, int minTimeLimitMs, int maxTimeLimitMs
 });
 
 
@@ -694,12 +698,13 @@ class __$GameSettingsCopyWithImpl<$Res>
 
 /// Create a copy of GameSettings
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? questionCount = null,Object? timeLimitMs = null,Object? maxQuestionCount = null,Object? minTimeLimitMs = null,Object? maxTimeLimitMs = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? questionCount = null,Object? timeLimitMs = null,Object? maxQuestionCount = null,Object? difficultyMultiplier = null,Object? minTimeLimitMs = null,Object? maxTimeLimitMs = null,}) {
   return _then(_GameSettings(
 questionCount: null == questionCount ? _self.questionCount : questionCount // ignore: cast_nullable_to_non_nullable
 as int,timeLimitMs: null == timeLimitMs ? _self.timeLimitMs : timeLimitMs // ignore: cast_nullable_to_non_nullable
 as int,maxQuestionCount: null == maxQuestionCount ? _self.maxQuestionCount : maxQuestionCount // ignore: cast_nullable_to_non_nullable
-as int,minTimeLimitMs: null == minTimeLimitMs ? _self.minTimeLimitMs : minTimeLimitMs // ignore: cast_nullable_to_non_nullable
+as int,difficultyMultiplier: null == difficultyMultiplier ? _self.difficultyMultiplier : difficultyMultiplier // ignore: cast_nullable_to_non_nullable
+as bool,minTimeLimitMs: null == minTimeLimitMs ? _self.minTimeLimitMs : minTimeLimitMs // ignore: cast_nullable_to_non_nullable
 as int,maxTimeLimitMs: null == maxTimeLimitMs ? _self.maxTimeLimitMs : maxTimeLimitMs // ignore: cast_nullable_to_non_nullable
 as int,
   ));
@@ -712,7 +717,9 @@ as int,
 /// @nodoc
 mixin _$Question {
 
- String get id; QuestionType get type; String get prompt; String? get imageUrl; int get timeLimitMs;
+ String get id; QuestionType get type; String get prompt; String? get imageUrl; int get timeLimitMs;/// "easy" | "medium" | "hard" (protocol v4).
+ String get difficulty;/// Points multiplier: 1 unless the difficulty bonus is on (§9).
+ int get multiplier;
 /// Create a copy of Question
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -726,20 +733,20 @@ $QuestionCopyWith<Question> get copyWith => _$QuestionCopyWithImpl<Question>(thi
 @override
 bool operator ==(Object other) {
   final _this = this as Question;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Question&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.type, _this.type) || other.type == _this.type)&&(identical(other.prompt, _this.prompt) || other.prompt == _this.prompt)&&(identical(other.imageUrl, _this.imageUrl) || other.imageUrl == _this.imageUrl)&&(identical(other.timeLimitMs, _this.timeLimitMs) || other.timeLimitMs == _this.timeLimitMs));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Question&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.type, _this.type) || other.type == _this.type)&&(identical(other.prompt, _this.prompt) || other.prompt == _this.prompt)&&(identical(other.imageUrl, _this.imageUrl) || other.imageUrl == _this.imageUrl)&&(identical(other.timeLimitMs, _this.timeLimitMs) || other.timeLimitMs == _this.timeLimitMs)&&(identical(other.difficulty, _this.difficulty) || other.difficulty == _this.difficulty)&&(identical(other.multiplier, _this.multiplier) || other.multiplier == _this.multiplier));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as Question;
-  return Object.hash(runtimeType,_this.id,_this.type,_this.prompt,_this.imageUrl,_this.timeLimitMs);
+  return Object.hash(runtimeType,_this.id,_this.type,_this.prompt,_this.imageUrl,_this.timeLimitMs,_this.difficulty,_this.multiplier);
 }
 
 @override
 String toString() {
   final _this = this as Question;
-  return 'Question(id: ${_this.id}, type: ${_this.type}, prompt: ${_this.prompt}, imageUrl: ${_this.imageUrl}, timeLimitMs: ${_this.timeLimitMs})';
+  return 'Question(id: ${_this.id}, type: ${_this.type}, prompt: ${_this.prompt}, imageUrl: ${_this.imageUrl}, timeLimitMs: ${_this.timeLimitMs}, difficulty: ${_this.difficulty}, multiplier: ${_this.multiplier})';
 }
 
 
@@ -750,7 +757,7 @@ abstract mixin class $QuestionCopyWith<$Res>  {
   factory $QuestionCopyWith(Question value, $Res Function(Question) _then) = _$QuestionCopyWithImpl;
 @useResult
 $Res call({
- String id, QuestionType type, String prompt, String? imageUrl, int timeLimitMs
+ String id, QuestionType type, String prompt, String? imageUrl, int timeLimitMs, String difficulty, int multiplier
 });
 
 
@@ -767,13 +774,15 @@ class _$QuestionCopyWithImpl<$Res>
 
 /// Create a copy of Question
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? type = null,Object? prompt = null,Object? imageUrl = freezed,Object? timeLimitMs = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? type = null,Object? prompt = null,Object? imageUrl = freezed,Object? timeLimitMs = null,Object? difficulty = null,Object? multiplier = null,}) {
   return _then(Question(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
 as QuestionType,prompt: null == prompt ? _self.prompt : prompt // ignore: cast_nullable_to_non_nullable
 as String,imageUrl: freezed == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
 as String?,timeLimitMs: null == timeLimitMs ? _self.timeLimitMs : timeLimitMs // ignore: cast_nullable_to_non_nullable
+as int,difficulty: null == difficulty ? _self.difficulty : difficulty // ignore: cast_nullable_to_non_nullable
+as String,multiplier: null == multiplier ? _self.multiplier : multiplier // ignore: cast_nullable_to_non_nullable
 as int,
   ));
 }
@@ -859,10 +868,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  QuestionType type,  String prompt,  String? imageUrl,  int timeLimitMs)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  QuestionType type,  String prompt,  String? imageUrl,  int timeLimitMs,  String difficulty,  int multiplier)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Question() when $default != null:
-return $default(_that.id,_that.type,_that.prompt,_that.imageUrl,_that.timeLimitMs);case _:
+return $default(_that.id,_that.type,_that.prompt,_that.imageUrl,_that.timeLimitMs,_that.difficulty,_that.multiplier);case _:
   return orElse();
 
 }
@@ -880,10 +889,10 @@ return $default(_that.id,_that.type,_that.prompt,_that.imageUrl,_that.timeLimitM
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  QuestionType type,  String prompt,  String? imageUrl,  int timeLimitMs)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  QuestionType type,  String prompt,  String? imageUrl,  int timeLimitMs,  String difficulty,  int multiplier)  $default,) {final _that = this;
 switch (_that) {
 case _Question():
-return $default(_that.id,_that.type,_that.prompt,_that.imageUrl,_that.timeLimitMs);case _:
+return $default(_that.id,_that.type,_that.prompt,_that.imageUrl,_that.timeLimitMs,_that.difficulty,_that.multiplier);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -900,10 +909,10 @@ return $default(_that.id,_that.type,_that.prompt,_that.imageUrl,_that.timeLimitM
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  QuestionType type,  String prompt,  String? imageUrl,  int timeLimitMs)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  QuestionType type,  String prompt,  String? imageUrl,  int timeLimitMs,  String difficulty,  int multiplier)?  $default,) {final _that = this;
 switch (_that) {
 case _Question() when $default != null:
-return $default(_that.id,_that.type,_that.prompt,_that.imageUrl,_that.timeLimitMs);case _:
+return $default(_that.id,_that.type,_that.prompt,_that.imageUrl,_that.timeLimitMs,_that.difficulty,_that.multiplier);case _:
   return null;
 
 }
@@ -915,7 +924,7 @@ return $default(_that.id,_that.type,_that.prompt,_that.imageUrl,_that.timeLimitM
 @JsonSerializable()
 
 class _Question implements Question {
-  const _Question({required this.id, required this.type, required this.prompt, this.imageUrl, required this.timeLimitMs});
+  const _Question({required this.id, required this.type, required this.prompt, this.imageUrl, required this.timeLimitMs, this.difficulty = 'easy', this.multiplier = 1});
   factory _Question.fromJson(Map<String, dynamic> json) => _$QuestionFromJson(json);
 
 @override final  String id;
@@ -923,6 +932,10 @@ class _Question implements Question {
 @override final  String prompt;
 @override final  String? imageUrl;
 @override final  int timeLimitMs;
+/// "easy" | "medium" | "hard" (protocol v4).
+@override@JsonKey() final  String difficulty;
+/// Points multiplier: 1 unless the difficulty bonus is on (§9).
+@override@JsonKey() final  int multiplier;
 
 /// Create a copy of Question
 /// with the given fields replaced by the non-null parameter values.
@@ -937,18 +950,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Question&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl)&&(identical(other.timeLimitMs, timeLimitMs) || other.timeLimitMs == timeLimitMs));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Question&&(identical(other.id, id) || other.id == id)&&(identical(other.type, type) || other.type == type)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl)&&(identical(other.timeLimitMs, timeLimitMs) || other.timeLimitMs == timeLimitMs)&&(identical(other.difficulty, difficulty) || other.difficulty == difficulty)&&(identical(other.multiplier, multiplier) || other.multiplier == multiplier));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,type,prompt,imageUrl,timeLimitMs);
+    return Object.hash(runtimeType,id,type,prompt,imageUrl,timeLimitMs,difficulty,multiplier);
 }
 
 @override
 String toString() {
-    return 'Question(id: $id, type: $type, prompt: $prompt, imageUrl: $imageUrl, timeLimitMs: $timeLimitMs)';
+    return 'Question(id: $id, type: $type, prompt: $prompt, imageUrl: $imageUrl, timeLimitMs: $timeLimitMs, difficulty: $difficulty, multiplier: $multiplier)';
 }
 
 
@@ -959,7 +972,7 @@ abstract mixin class _$QuestionCopyWith<$Res> implements $QuestionCopyWith<$Res>
   factory _$QuestionCopyWith(_Question value, $Res Function(_Question) _then) = __$QuestionCopyWithImpl;
 @override @useResult
 $Res call({
- String id, QuestionType type, String prompt, String? imageUrl, int timeLimitMs
+ String id, QuestionType type, String prompt, String? imageUrl, int timeLimitMs, String difficulty, int multiplier
 });
 
 
@@ -976,13 +989,15 @@ class __$QuestionCopyWithImpl<$Res>
 
 /// Create a copy of Question
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? type = null,Object? prompt = null,Object? imageUrl = freezed,Object? timeLimitMs = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? type = null,Object? prompt = null,Object? imageUrl = freezed,Object? timeLimitMs = null,Object? difficulty = null,Object? multiplier = null,}) {
   return _then(_Question(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
 as QuestionType,prompt: null == prompt ? _self.prompt : prompt // ignore: cast_nullable_to_non_nullable
 as String,imageUrl: freezed == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
 as String?,timeLimitMs: null == timeLimitMs ? _self.timeLimitMs : timeLimitMs // ignore: cast_nullable_to_non_nullable
+as int,difficulty: null == difficulty ? _self.difficulty : difficulty // ignore: cast_nullable_to_non_nullable
+as String,multiplier: null == multiplier ? _self.multiplier : multiplier // ignore: cast_nullable_to_non_nullable
 as int,
   ));
 }
@@ -995,7 +1010,9 @@ as int,
 mixin _$PlayerSummary {
 
  String get id; String get name; int get score; bool get connected; bool get hasSubmitted;/// True for the playing host (protocol v2).
- bool get isHost;
+ bool get isHost;/// 0–359, assigned at random by the server (protocol v4). Every client
+/// renders the same colour from it.
+ int? get avatarHue;
 /// Create a copy of PlayerSummary
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1009,20 +1026,20 @@ $PlayerSummaryCopyWith<PlayerSummary> get copyWith => _$PlayerSummaryCopyWithImp
 @override
 bool operator ==(Object other) {
   final _this = this as PlayerSummary;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PlayerSummary&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.score, _this.score) || other.score == _this.score)&&(identical(other.connected, _this.connected) || other.connected == _this.connected)&&(identical(other.hasSubmitted, _this.hasSubmitted) || other.hasSubmitted == _this.hasSubmitted)&&(identical(other.isHost, _this.isHost) || other.isHost == _this.isHost));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PlayerSummary&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.name, _this.name) || other.name == _this.name)&&(identical(other.score, _this.score) || other.score == _this.score)&&(identical(other.connected, _this.connected) || other.connected == _this.connected)&&(identical(other.hasSubmitted, _this.hasSubmitted) || other.hasSubmitted == _this.hasSubmitted)&&(identical(other.isHost, _this.isHost) || other.isHost == _this.isHost)&&(identical(other.avatarHue, _this.avatarHue) || other.avatarHue == _this.avatarHue));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as PlayerSummary;
-  return Object.hash(runtimeType,_this.id,_this.name,_this.score,_this.connected,_this.hasSubmitted,_this.isHost);
+  return Object.hash(runtimeType,_this.id,_this.name,_this.score,_this.connected,_this.hasSubmitted,_this.isHost,_this.avatarHue);
 }
 
 @override
 String toString() {
   final _this = this as PlayerSummary;
-  return 'PlayerSummary(id: ${_this.id}, name: ${_this.name}, score: ${_this.score}, connected: ${_this.connected}, hasSubmitted: ${_this.hasSubmitted}, isHost: ${_this.isHost})';
+  return 'PlayerSummary(id: ${_this.id}, name: ${_this.name}, score: ${_this.score}, connected: ${_this.connected}, hasSubmitted: ${_this.hasSubmitted}, isHost: ${_this.isHost}, avatarHue: ${_this.avatarHue})';
 }
 
 
@@ -1033,7 +1050,7 @@ abstract mixin class $PlayerSummaryCopyWith<$Res>  {
   factory $PlayerSummaryCopyWith(PlayerSummary value, $Res Function(PlayerSummary) _then) = _$PlayerSummaryCopyWithImpl;
 @useResult
 $Res call({
- String id, String name, int score, bool connected, bool hasSubmitted, bool isHost
+ String id, String name, int score, bool connected, bool hasSubmitted, bool isHost, int? avatarHue
 });
 
 
@@ -1050,7 +1067,7 @@ class _$PlayerSummaryCopyWithImpl<$Res>
 
 /// Create a copy of PlayerSummary
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? score = null,Object? connected = null,Object? hasSubmitted = null,Object? isHost = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? score = null,Object? connected = null,Object? hasSubmitted = null,Object? isHost = null,Object? avatarHue = freezed,}) {
   return _then(PlayerSummary(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -1058,7 +1075,8 @@ as String,score: null == score ? _self.score : score // ignore: cast_nullable_to
 as int,connected: null == connected ? _self.connected : connected // ignore: cast_nullable_to_non_nullable
 as bool,hasSubmitted: null == hasSubmitted ? _self.hasSubmitted : hasSubmitted // ignore: cast_nullable_to_non_nullable
 as bool,isHost: null == isHost ? _self.isHost : isHost // ignore: cast_nullable_to_non_nullable
-as bool,
+as bool,avatarHue: freezed == avatarHue ? _self.avatarHue : avatarHue // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
@@ -1143,10 +1161,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  int score,  bool connected,  bool hasSubmitted,  bool isHost)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  int score,  bool connected,  bool hasSubmitted,  bool isHost,  int? avatarHue)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PlayerSummary() when $default != null:
-return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitted,_that.isHost);case _:
+return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitted,_that.isHost,_that.avatarHue);case _:
   return orElse();
 
 }
@@ -1164,10 +1182,10 @@ return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitt
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  int score,  bool connected,  bool hasSubmitted,  bool isHost)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  int score,  bool connected,  bool hasSubmitted,  bool isHost,  int? avatarHue)  $default,) {final _that = this;
 switch (_that) {
 case _PlayerSummary():
-return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitted,_that.isHost);case _:
+return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitted,_that.isHost,_that.avatarHue);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1184,10 +1202,10 @@ return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitt
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  int score,  bool connected,  bool hasSubmitted,  bool isHost)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  int score,  bool connected,  bool hasSubmitted,  bool isHost,  int? avatarHue)?  $default,) {final _that = this;
 switch (_that) {
 case _PlayerSummary() when $default != null:
-return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitted,_that.isHost);case _:
+return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitted,_that.isHost,_that.avatarHue);case _:
   return null;
 
 }
@@ -1199,7 +1217,7 @@ return $default(_that.id,_that.name,_that.score,_that.connected,_that.hasSubmitt
 @JsonSerializable()
 
 class _PlayerSummary implements PlayerSummary {
-  const _PlayerSummary({required this.id, required this.name, required this.score, required this.connected, required this.hasSubmitted, this.isHost = false});
+  const _PlayerSummary({required this.id, required this.name, required this.score, required this.connected, required this.hasSubmitted, this.isHost = false, this.avatarHue});
   factory _PlayerSummary.fromJson(Map<String, dynamic> json) => _$PlayerSummaryFromJson(json);
 
 @override final  String id;
@@ -1209,6 +1227,9 @@ class _PlayerSummary implements PlayerSummary {
 @override final  bool hasSubmitted;
 /// True for the playing host (protocol v2).
 @override@JsonKey() final  bool isHost;
+/// 0–359, assigned at random by the server (protocol v4). Every client
+/// renders the same colour from it.
+@override final  int? avatarHue;
 
 /// Create a copy of PlayerSummary
 /// with the given fields replaced by the non-null parameter values.
@@ -1223,18 +1244,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PlayerSummary&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.score, score) || other.score == score)&&(identical(other.connected, connected) || other.connected == connected)&&(identical(other.hasSubmitted, hasSubmitted) || other.hasSubmitted == hasSubmitted)&&(identical(other.isHost, isHost) || other.isHost == isHost));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PlayerSummary&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.score, score) || other.score == score)&&(identical(other.connected, connected) || other.connected == connected)&&(identical(other.hasSubmitted, hasSubmitted) || other.hasSubmitted == hasSubmitted)&&(identical(other.isHost, isHost) || other.isHost == isHost)&&(identical(other.avatarHue, avatarHue) || other.avatarHue == avatarHue));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,name,score,connected,hasSubmitted,isHost);
+    return Object.hash(runtimeType,id,name,score,connected,hasSubmitted,isHost,avatarHue);
 }
 
 @override
 String toString() {
-    return 'PlayerSummary(id: $id, name: $name, score: $score, connected: $connected, hasSubmitted: $hasSubmitted, isHost: $isHost)';
+    return 'PlayerSummary(id: $id, name: $name, score: $score, connected: $connected, hasSubmitted: $hasSubmitted, isHost: $isHost, avatarHue: $avatarHue)';
 }
 
 
@@ -1245,7 +1266,7 @@ abstract mixin class _$PlayerSummaryCopyWith<$Res> implements $PlayerSummaryCopy
   factory _$PlayerSummaryCopyWith(_PlayerSummary value, $Res Function(_PlayerSummary) _then) = __$PlayerSummaryCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name, int score, bool connected, bool hasSubmitted, bool isHost
+ String id, String name, int score, bool connected, bool hasSubmitted, bool isHost, int? avatarHue
 });
 
 
@@ -1262,7 +1283,7 @@ class __$PlayerSummaryCopyWithImpl<$Res>
 
 /// Create a copy of PlayerSummary
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? score = null,Object? connected = null,Object? hasSubmitted = null,Object? isHost = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? score = null,Object? connected = null,Object? hasSubmitted = null,Object? isHost = null,Object? avatarHue = freezed,}) {
   return _then(_PlayerSummary(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -1270,7 +1291,8 @@ as String,score: null == score ? _self.score : score // ignore: cast_nullable_to
 as int,connected: null == connected ? _self.connected : connected // ignore: cast_nullable_to_non_nullable
 as bool,hasSubmitted: null == hasSubmitted ? _self.hasSubmitted : hasSubmitted // ignore: cast_nullable_to_non_nullable
 as bool,isHost: null == isHost ? _self.isHost : isHost // ignore: cast_nullable_to_non_nullable
-as bool,
+as bool,avatarHue: freezed == avatarHue ? _self.avatarHue : avatarHue // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
@@ -1862,7 +1884,7 @@ mixin _$SubmissionView {
 
  String get playerId; String get answer; int get wager; bool? get autoCorrect;/// Wire key `override` (renamed in Dart: a field named `override` shadows
 /// the `@override` annotation in generated code).
-@JsonKey(name: 'override') bool? get overrideVerdict; bool? get correct; int? get delta;
+@JsonKey(name: 'override') bool? get overrideVerdict; bool? get correct; int get multiplier; int? get delta;
 /// Create a copy of SubmissionView
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -1876,20 +1898,20 @@ $SubmissionViewCopyWith<SubmissionView> get copyWith => _$SubmissionViewCopyWith
 @override
 bool operator ==(Object other) {
   final _this = this as SubmissionView;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubmissionView&&(identical(other.playerId, _this.playerId) || other.playerId == _this.playerId)&&(identical(other.answer, _this.answer) || other.answer == _this.answer)&&(identical(other.wager, _this.wager) || other.wager == _this.wager)&&(identical(other.autoCorrect, _this.autoCorrect) || other.autoCorrect == _this.autoCorrect)&&(identical(other.overrideVerdict, _this.overrideVerdict) || other.overrideVerdict == _this.overrideVerdict)&&(identical(other.correct, _this.correct) || other.correct == _this.correct)&&(identical(other.delta, _this.delta) || other.delta == _this.delta));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is SubmissionView&&(identical(other.playerId, _this.playerId) || other.playerId == _this.playerId)&&(identical(other.answer, _this.answer) || other.answer == _this.answer)&&(identical(other.wager, _this.wager) || other.wager == _this.wager)&&(identical(other.autoCorrect, _this.autoCorrect) || other.autoCorrect == _this.autoCorrect)&&(identical(other.overrideVerdict, _this.overrideVerdict) || other.overrideVerdict == _this.overrideVerdict)&&(identical(other.correct, _this.correct) || other.correct == _this.correct)&&(identical(other.multiplier, _this.multiplier) || other.multiplier == _this.multiplier)&&(identical(other.delta, _this.delta) || other.delta == _this.delta));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as SubmissionView;
-  return Object.hash(runtimeType,_this.playerId,_this.answer,_this.wager,_this.autoCorrect,_this.overrideVerdict,_this.correct,_this.delta);
+  return Object.hash(runtimeType,_this.playerId,_this.answer,_this.wager,_this.autoCorrect,_this.overrideVerdict,_this.correct,_this.multiplier,_this.delta);
 }
 
 @override
 String toString() {
   final _this = this as SubmissionView;
-  return 'SubmissionView(playerId: ${_this.playerId}, answer: ${_this.answer}, wager: ${_this.wager}, autoCorrect: ${_this.autoCorrect}, overrideVerdict: ${_this.overrideVerdict}, correct: ${_this.correct}, delta: ${_this.delta})';
+  return 'SubmissionView(playerId: ${_this.playerId}, answer: ${_this.answer}, wager: ${_this.wager}, autoCorrect: ${_this.autoCorrect}, overrideVerdict: ${_this.overrideVerdict}, correct: ${_this.correct}, multiplier: ${_this.multiplier}, delta: ${_this.delta})';
 }
 
 
@@ -1900,7 +1922,7 @@ abstract mixin class $SubmissionViewCopyWith<$Res>  {
   factory $SubmissionViewCopyWith(SubmissionView value, $Res Function(SubmissionView) _then) = _$SubmissionViewCopyWithImpl;
 @useResult
 $Res call({
- String playerId, String answer, int wager, bool? autoCorrect,@JsonKey(name: 'override') bool? overrideVerdict, bool? correct, int? delta
+ String playerId, String answer, int wager, bool? autoCorrect,@JsonKey(name: 'override') bool? overrideVerdict, bool? correct, int multiplier, int? delta
 });
 
 
@@ -1917,7 +1939,7 @@ class _$SubmissionViewCopyWithImpl<$Res>
 
 /// Create a copy of SubmissionView
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? playerId = null,Object? answer = null,Object? wager = null,Object? autoCorrect = freezed,Object? overrideVerdict = freezed,Object? correct = freezed,Object? delta = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? playerId = null,Object? answer = null,Object? wager = null,Object? autoCorrect = freezed,Object? overrideVerdict = freezed,Object? correct = freezed,Object? multiplier = null,Object? delta = freezed,}) {
   return _then(SubmissionView(
 playerId: null == playerId ? _self.playerId : playerId // ignore: cast_nullable_to_non_nullable
 as String,answer: null == answer ? _self.answer : answer // ignore: cast_nullable_to_non_nullable
@@ -1925,7 +1947,8 @@ as String,wager: null == wager ? _self.wager : wager // ignore: cast_nullable_to
 as int,autoCorrect: freezed == autoCorrect ? _self.autoCorrect : autoCorrect // ignore: cast_nullable_to_non_nullable
 as bool?,overrideVerdict: freezed == overrideVerdict ? _self.overrideVerdict : overrideVerdict // ignore: cast_nullable_to_non_nullable
 as bool?,correct: freezed == correct ? _self.correct : correct // ignore: cast_nullable_to_non_nullable
-as bool?,delta: freezed == delta ? _self.delta : delta // ignore: cast_nullable_to_non_nullable
+as bool?,multiplier: null == multiplier ? _self.multiplier : multiplier // ignore: cast_nullable_to_non_nullable
+as int,delta: freezed == delta ? _self.delta : delta // ignore: cast_nullable_to_non_nullable
 as int?,
   ));
 }
@@ -2011,10 +2034,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String playerId,  String answer,  int wager,  bool? autoCorrect, @JsonKey(name: 'override')  bool? overrideVerdict,  bool? correct,  int? delta)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String playerId,  String answer,  int wager,  bool? autoCorrect, @JsonKey(name: 'override')  bool? overrideVerdict,  bool? correct,  int multiplier,  int? delta)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _SubmissionView() when $default != null:
-return $default(_that.playerId,_that.answer,_that.wager,_that.autoCorrect,_that.overrideVerdict,_that.correct,_that.delta);case _:
+return $default(_that.playerId,_that.answer,_that.wager,_that.autoCorrect,_that.overrideVerdict,_that.correct,_that.multiplier,_that.delta);case _:
   return orElse();
 
 }
@@ -2032,10 +2055,10 @@ return $default(_that.playerId,_that.answer,_that.wager,_that.autoCorrect,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String playerId,  String answer,  int wager,  bool? autoCorrect, @JsonKey(name: 'override')  bool? overrideVerdict,  bool? correct,  int? delta)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String playerId,  String answer,  int wager,  bool? autoCorrect, @JsonKey(name: 'override')  bool? overrideVerdict,  bool? correct,  int multiplier,  int? delta)  $default,) {final _that = this;
 switch (_that) {
 case _SubmissionView():
-return $default(_that.playerId,_that.answer,_that.wager,_that.autoCorrect,_that.overrideVerdict,_that.correct,_that.delta);case _:
+return $default(_that.playerId,_that.answer,_that.wager,_that.autoCorrect,_that.overrideVerdict,_that.correct,_that.multiplier,_that.delta);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -2052,10 +2075,10 @@ return $default(_that.playerId,_that.answer,_that.wager,_that.autoCorrect,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String playerId,  String answer,  int wager,  bool? autoCorrect, @JsonKey(name: 'override')  bool? overrideVerdict,  bool? correct,  int? delta)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String playerId,  String answer,  int wager,  bool? autoCorrect, @JsonKey(name: 'override')  bool? overrideVerdict,  bool? correct,  int multiplier,  int? delta)?  $default,) {final _that = this;
 switch (_that) {
 case _SubmissionView() when $default != null:
-return $default(_that.playerId,_that.answer,_that.wager,_that.autoCorrect,_that.overrideVerdict,_that.correct,_that.delta);case _:
+return $default(_that.playerId,_that.answer,_that.wager,_that.autoCorrect,_that.overrideVerdict,_that.correct,_that.multiplier,_that.delta);case _:
   return null;
 
 }
@@ -2067,7 +2090,7 @@ return $default(_that.playerId,_that.answer,_that.wager,_that.autoCorrect,_that.
 @JsonSerializable()
 
 class _SubmissionView implements SubmissionView {
-  const _SubmissionView({required this.playerId, required this.answer, required this.wager, this.autoCorrect, @JsonKey(name: 'override') this.overrideVerdict, this.correct, this.delta});
+  const _SubmissionView({required this.playerId, required this.answer, required this.wager, this.autoCorrect, @JsonKey(name: 'override') this.overrideVerdict, this.correct, this.multiplier = 1, this.delta});
   factory _SubmissionView.fromJson(Map<String, dynamic> json) => _$SubmissionViewFromJson(json);
 
 @override final  String playerId;
@@ -2078,6 +2101,7 @@ class _SubmissionView implements SubmissionView {
 /// the `@override` annotation in generated code).
 @override@JsonKey(name: 'override') final  bool? overrideVerdict;
 @override final  bool? correct;
+@override@JsonKey() final  int multiplier;
 @override final  int? delta;
 
 /// Create a copy of SubmissionView
@@ -2093,18 +2117,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubmissionView&&(identical(other.playerId, playerId) || other.playerId == playerId)&&(identical(other.answer, answer) || other.answer == answer)&&(identical(other.wager, wager) || other.wager == wager)&&(identical(other.autoCorrect, autoCorrect) || other.autoCorrect == autoCorrect)&&(identical(other.overrideVerdict, overrideVerdict) || other.overrideVerdict == overrideVerdict)&&(identical(other.correct, correct) || other.correct == correct)&&(identical(other.delta, delta) || other.delta == delta));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _SubmissionView&&(identical(other.playerId, playerId) || other.playerId == playerId)&&(identical(other.answer, answer) || other.answer == answer)&&(identical(other.wager, wager) || other.wager == wager)&&(identical(other.autoCorrect, autoCorrect) || other.autoCorrect == autoCorrect)&&(identical(other.overrideVerdict, overrideVerdict) || other.overrideVerdict == overrideVerdict)&&(identical(other.correct, correct) || other.correct == correct)&&(identical(other.multiplier, multiplier) || other.multiplier == multiplier)&&(identical(other.delta, delta) || other.delta == delta));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,playerId,answer,wager,autoCorrect,overrideVerdict,correct,delta);
+    return Object.hash(runtimeType,playerId,answer,wager,autoCorrect,overrideVerdict,correct,multiplier,delta);
 }
 
 @override
 String toString() {
-    return 'SubmissionView(playerId: $playerId, answer: $answer, wager: $wager, autoCorrect: $autoCorrect, overrideVerdict: $overrideVerdict, correct: $correct, delta: $delta)';
+    return 'SubmissionView(playerId: $playerId, answer: $answer, wager: $wager, autoCorrect: $autoCorrect, overrideVerdict: $overrideVerdict, correct: $correct, multiplier: $multiplier, delta: $delta)';
 }
 
 
@@ -2115,7 +2139,7 @@ abstract mixin class _$SubmissionViewCopyWith<$Res> implements $SubmissionViewCo
   factory _$SubmissionViewCopyWith(_SubmissionView value, $Res Function(_SubmissionView) _then) = __$SubmissionViewCopyWithImpl;
 @override @useResult
 $Res call({
- String playerId, String answer, int wager, bool? autoCorrect,@JsonKey(name: 'override') bool? overrideVerdict, bool? correct, int? delta
+ String playerId, String answer, int wager, bool? autoCorrect,@JsonKey(name: 'override') bool? overrideVerdict, bool? correct, int multiplier, int? delta
 });
 
 
@@ -2132,7 +2156,7 @@ class __$SubmissionViewCopyWithImpl<$Res>
 
 /// Create a copy of SubmissionView
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? playerId = null,Object? answer = null,Object? wager = null,Object? autoCorrect = freezed,Object? overrideVerdict = freezed,Object? correct = freezed,Object? delta = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? playerId = null,Object? answer = null,Object? wager = null,Object? autoCorrect = freezed,Object? overrideVerdict = freezed,Object? correct = freezed,Object? multiplier = null,Object? delta = freezed,}) {
   return _then(_SubmissionView(
 playerId: null == playerId ? _self.playerId : playerId // ignore: cast_nullable_to_non_nullable
 as String,answer: null == answer ? _self.answer : answer // ignore: cast_nullable_to_non_nullable
@@ -2140,7 +2164,8 @@ as String,wager: null == wager ? _self.wager : wager // ignore: cast_nullable_to
 as int,autoCorrect: freezed == autoCorrect ? _self.autoCorrect : autoCorrect // ignore: cast_nullable_to_non_nullable
 as bool?,overrideVerdict: freezed == overrideVerdict ? _self.overrideVerdict : overrideVerdict // ignore: cast_nullable_to_non_nullable
 as bool?,correct: freezed == correct ? _self.correct : correct // ignore: cast_nullable_to_non_nullable
-as bool?,delta: freezed == delta ? _self.delta : delta // ignore: cast_nullable_to_non_nullable
+as bool?,multiplier: null == multiplier ? _self.multiplier : multiplier // ignore: cast_nullable_to_non_nullable
+as int,delta: freezed == delta ? _self.delta : delta // ignore: cast_nullable_to_non_nullable
 as int?,
   ));
 }

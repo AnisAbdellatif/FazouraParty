@@ -54,7 +54,9 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('timeChip-20')));
     await tester.pump();
-    expect(fake.configures, [(questionCount: 10, timeLimitMs: 20000)]);
+    expect(fake.configures, [
+      (questionCount: 10, timeLimitMs: 20000, difficultyMultiplier: false),
+    ]);
     expect(textByKey(tester, 'timeLimitValue').data, '20s');
 
     final slider = tester.widget<Slider>(
@@ -68,8 +70,41 @@ void main() {
         .onChangeEnd!(4);
     await tester.pump();
 
-    expect(fake.configures.last, (questionCount: 4, timeLimitMs: 20000));
+    expect(fake.configures.last, (
+      questionCount: 4,
+      timeLimitMs: 20000,
+      difficultyMultiplier: false,
+    ));
     expect(textByKey(tester, 'questionCountValue').data, '4');
+
+    await tester.tap(find.byKey(const Key('difficultyBonusSwitch')));
+    await tester.pump();
+    expect(fake.configures.last, (
+      questionCount: 4,
+      timeLimitMs: 20000,
+      difficultyMultiplier: true,
+    ));
+  });
+
+  testWidgets('the question slider goes up to 20 when the pack allows', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const HostScreen(roomCode: 'K7QX2M'),
+      lobbyState(role: Role.host).copyWith(
+        settings: const GameSettings(
+          questionCount: 20,
+          timeLimitMs: 30000,
+          maxQuestionCount: 20,
+        ),
+      ),
+    );
+
+    final slider = tester.widget<Slider>(
+      find.byKey(const Key('questionCountSlider')),
+    );
+    expect((slider.max, slider.divisions), (20.0, 19));
   });
 
   testWidgets('players see the settings read-only', (tester) async {
@@ -79,6 +114,7 @@ void main() {
         questionCount: 5,
         timeLimitMs: 45000,
         maxQuestionCount: 10,
+        difficultyMultiplier: true,
       ),
     );
     await pump(tester, Scaffold(body: LobbyView(state: state)), state);
@@ -86,7 +122,7 @@ void main() {
     expect(find.byKey(const Key('gameSettingsEditor')), findsNothing);
     expect(
       textByKey(tester, 'lobbyGameSummary').data,
-      'General Knowledge · 5 questions · 45s each',
+      'General Knowledge · 5 questions · 45s each · difficulty bonus',
     );
   });
 }

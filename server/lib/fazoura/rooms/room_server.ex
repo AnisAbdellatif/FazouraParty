@@ -122,7 +122,9 @@ defmodule Fazoura.Rooms.RoomServer do
   defp authenticate(game, params) do
     id = new_player_id()
 
-    with {:ok, game} <- Game.add_player(game, id, params["display_name"]) do
+    hue = Game.pick_avatar_hue(game)
+
+    with {:ok, game} <- Game.add_player(game, id, params["display_name"], hue) do
       token = Phoenix.Token.sign(FazouraWeb.Endpoint, "player", {game.room_code, id})
       {:ok, {:player, id}, player_reply(id, token), game}
     end
@@ -130,7 +132,9 @@ defmodule Fazoura.Rooms.RoomServer do
 
   # A host join with a display name makes the host play too (PROTOCOL.md §4.1).
   defp maybe_add_host_player(game, nil), do: {:ok, game}
-  defp maybe_add_host_player(game, name), do: Game.add_host_player(game, new_player_id(), name)
+
+  defp maybe_add_host_player(game, name),
+    do: Game.add_host_player(game, new_player_id(), name, Game.pick_avatar_hue(game))
 
   defp new_player_id, do: "p_" <> Base.url_encode64(:crypto.strong_rand_bytes(6), padding: false)
 

@@ -9,7 +9,10 @@ defmodule Fazoura.Game do
 
   alias Fazoura.Game.{Answer, Pack}
 
-  @protocol_version 3
+  @protocol_version 4
+  @max_question_count 20
+  # Points = wager × multiplier when the difficulty bonus is on (PROTOCOL.md §9).
+  @multipliers %{"easy" => 1, "medium" => 2, "hard" => 3}
   @min_time_limit_ms 10_000
   @max_time_limit_ms 120_000
   @default_time_limit_ms 30_000
@@ -31,7 +34,13 @@ defmodule Fazoura.Game do
           | :rematch
   @type error :: {:error, atom()}
 
-  @type player :: %{id: String.t(), name: String.t(), score: integer(), connected: boolean()}
+  @type player :: %{
+          id: String.t(),
+          name: String.t(),
+          score: integer(),
+          connected: boolean(),
+          avatar_hue: non_neg_integer()
+        }
   @type submission :: %{
           answer: String.t(),
           wager: pos_integer(),
@@ -48,7 +57,11 @@ defmodule Fazoura.Game do
           deadline: integer() | nil,
           paused_remaining_ms: non_neg_integer() | nil,
           host_player_id: String.t() | nil,
-          settings: %{question_count: pos_integer(), time_limit_ms: pos_integer()},
+          settings: %{
+            question_count: pos_integer(),
+            time_limit_ms: pos_integer(),
+            difficulty_multiplier: boolean()
+          },
           game_number: pos_integer(),
           question_offset: non_neg_integer(),
           players: %{String.t() => player()},
@@ -95,38 +108,65 @@ defmodule Fazoura.Game do
       end
 
     %{
-      question_count: length(pack.questions),
-      time_limit_ms: time |> max(@min_time_limit_ms) |> min(@max_time_limit_ms)
+      question_count: min(length(pack.questions), @max_question_count),
+      time_limit_ms: time |> max(@min_time_limit_ms) |> min(@max_time_limit_ms),
+      difficulty_multiplier: false
     }
   end
 
   ## Players
 
-  @spec add_player(t(), String.t(), term()) :: {:ok, t()} | error()
-  def add_player(%__MODULE__{} = game, id, name) when is_binary(name) do
+  @spec add_player(t(), String.t(), term(), non_neg_integer()) :: {:ok, t()} | error()
+  def add_player(game, id, name, avatar_hue \\ 0)
+
+  def add_player(%__MODULE__{} = game, id, name, avatar_hue) when is_binary(name) do
     name = String.trim(name)
 
     cond do
       String.length(name) not in 1..@max_name_length -> {:error, :invalid_name}
       map_size(game.players) >= @max_players -> {:error, :room_full}
       name_taken?(game, name) -> {:error, :name_taken}
-      true -> {:ok, put_in(game.players[id], %{id: id, name: name, score: 0, connected: false})}
+      true -> {:ok, put_in(game.players[id], new_player(id, name, avatar_hue))}
     end
   end
 
-  def add_player(_game, _id, _name), do: {:error, :invalid_name}
+  def add_player(_game, _id, _name, _avatar_hue), do: {:error, :invalid_name}
+
+  defp new_player(id, name, avatar_hue),
+    do: %{id: id, name: name, score: 0, connected: false, avatar_hue: avatar_hue}
+
+  @doc """
+  A random avatar hue (0..359), kept as far as possible from hues already used in
+  the room. `random` must return an integer in 0..359 (injectable for tests).
+  """
+  @spec pick_avatar_hue(t(), (-> non_neg_integer())) :: non_neg_integer()
+  def pick_avatar_hue(game, random \\ fn -> :rand.uniform(360) - 1 end) do
+    used = Enum.map(game.players, fn {_id, player} -> player.avatar_hue end)
+    candidates = for _ <- 1..12, do: random.()
+    Enum.max_by(candidates, &min_hue_distance(&1, used))
+  end
+
+  defp min_hue_distance(_hue, []), do: 360
+
+  defp min_hue_distance(hue, used) do
+    used
+    |> Enum.map(fn other -> min(abs(hue - other), 360 - abs(hue - other)) end)
+    |> Enum.min()
+  end
 
   @doc """
   Makes the host a player too. A no-op if the host already plays (the name is ignored).
   """
-  @spec add_host_player(t(), String.t(), term()) :: {:ok, t()} | error()
-  def add_host_player(%__MODULE__{host_player_id: nil} = game, id, name) do
-    with {:ok, game} <- add_player(game, id, name) do
+  @spec add_host_player(t(), String.t(), term(), non_neg_integer()) :: {:ok, t()} | error()
+  def add_host_player(game, id, name, avatar_hue \\ 0)
+
+  def add_host_player(%__MODULE__{host_player_id: nil} = game, id, name, avatar_hue) do
+    with {:ok, game} <- add_player(game, id, name, avatar_hue) do
       {:ok, %{game | host_player_id: id}}
     end
   end
 
-  def add_host_player(game, _id, _name), do: {:ok, game}
+  def add_host_player(game, _id, _name, _avatar_hue), do: {:ok, game}
 
   @spec player?(t(), String.t() | nil) :: boolean()
   def player?(game, id), do: Map.has_key?(game.players, id)
@@ -152,11 +192,14 @@ defmodule Fazoura.Game do
          :ok <- require_no_submission(game, id),
          {:ok, answer} <- validate_answer(payload["answer"]),
          {:ok, wager} <- validate_wager(payload["wager"]) do
+      question = current_question(game)
+
       submission = %{
         answer: answer,
         wager: wager,
-        auto_correct: Answer.correct?(answer, current_question(game).accepted_answers),
-        override: nil
+        auto_correct: Answer.correct?(answer, question.accepted_answers),
+        override: nil,
+        multiplier: multiplier(game, question)
       }
 
       {:ok, put_in(game.submissions[id], submission)}
@@ -257,8 +300,17 @@ defmodule Fazoura.Game do
   ## Scoring
 
   @spec delta(submission()) :: integer()
-  def delta(submission),
-    do: if(correct?(submission), do: submission.wager, else: -submission.wager)
+  def delta(submission) do
+    points = submission.wager * Map.get(submission, :multiplier, 1)
+    if correct?(submission), do: points, else: -points
+  end
+
+  @doc "Score multiplier for `question` under the current settings."
+  @spec multiplier(t(), Pack.Question.t()) :: pos_integer()
+  def multiplier(%__MODULE__{settings: %{difficulty_multiplier: true}}, question),
+    do: Map.fetch!(@multipliers, question.difficulty)
+
+  def multiplier(_game, _question), do: 1
 
   defp correct?(%{override: nil, auto_correct: auto}), do: auto
   defp correct?(%{override: override}), do: override
@@ -336,16 +388,23 @@ defmodule Fazoura.Game do
 
   defp validate_override(_payload), do: {:error, :invalid_payload}
 
-  defp validate_settings(game, %{"question_count" => count, "time_limit_ms" => time})
-       when is_integer(count) and is_integer(time) do
-    if count in 1..pack_size(game) and time in @min_time_limit_ms..@max_time_limit_ms,
-      do: {:ok, %{question_count: count, time_limit_ms: time}},
-      else: {:error, :invalid_settings}
+  defp validate_settings(game, %{
+         "question_count" => count,
+         "time_limit_ms" => time,
+         "difficulty_multiplier" => bonus
+       })
+       when is_integer(count) and is_integer(time) and is_boolean(bonus) do
+    if count in 1..max_question_count(game) and
+         time in @min_time_limit_ms..@max_time_limit_ms,
+       do: {:ok, %{question_count: count, time_limit_ms: time, difficulty_multiplier: bonus}},
+       else: {:error, :invalid_settings}
   end
 
   defp validate_settings(_game, _payload), do: {:error, :invalid_settings}
 
   defp pack_size(game), do: length(game.pack.questions)
+
+  defp max_question_count(game), do: min(pack_size(game), @max_question_count)
 
   ## Views (PROTOCOL.md §5.1, §7)
 
@@ -369,11 +428,12 @@ defmodule Fazoura.Game do
       settings: %{
         question_count: game.settings.question_count,
         time_limit_ms: game.settings.time_limit_ms,
-        max_question_count: pack_size(game),
+        difficulty_multiplier: game.settings.difficulty_multiplier,
+        max_question_count: max_question_count(game),
         min_time_limit_ms: @min_time_limit_ms,
         max_time_limit_ms: @max_time_limit_ms
       },
-      question: question && question_view(question),
+      question: question && question_view(game, question),
       deadline: game.deadline,
       paused_remaining_ms: game.paused_remaining_ms,
       accepted_answers: if(question && revealed?, do: question.accepted_answers),
@@ -389,8 +449,10 @@ defmodule Fazoura.Game do
     %{Enum.at(game.pack.questions, index) | time_limit_ms: game.settings.time_limit_ms}
   end
 
-  defp question_view(question) do
-    Map.take(question, [:id, :type, :prompt, :image_url, :time_limit_ms])
+  defp question_view(game, question) do
+    question
+    |> Map.take([:id, :type, :prompt, :image_url, :time_limit_ms, :difficulty])
+    |> Map.put(:multiplier, multiplier(game, question))
   end
 
   defp players_view(game) do
@@ -422,6 +484,7 @@ defmodule Fazoura.Game do
         auto_correct: submission.auto_correct,
         override: submission.override,
         correct: correct?(submission),
+        multiplier: Map.get(submission, :multiplier, 1),
         delta: delta(submission)
       }
     end

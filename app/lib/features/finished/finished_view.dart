@@ -219,7 +219,12 @@ class _PodiumColumn extends StatelessWidget {
     return Column(
       key: ValueKey('podium-$rank'),
       children: [
-        FzAvatar(id: player.id, name: player.name, size: first ? 68 : 52),
+        FzAvatar(
+          id: player.id,
+          name: player.name,
+          hue: player.avatarHue,
+          size: first ? 68 : 52,
+        ),
         const SizedBox(height: 10),
         Text(
           isYou ? '${player.name} (you)' : player.name,

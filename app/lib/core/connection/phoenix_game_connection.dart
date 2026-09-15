@@ -20,7 +20,7 @@ class PhoenixGameConnection implements GameConnection {
     PhoenixSocket Function(String endpoint)? socketFactory,
   }) : _socketFactory = socketFactory ?? PhoenixSocket.new;
 
-  static const int protocolVersion = 3;
+  static const int protocolVersion = 4;
 
   /// `phx_join` payload (PROTOCOL.md §4.1).
   static Map<String, dynamic> joinPayload({
@@ -140,9 +140,11 @@ class PhoenixGameConnection implements GameConnection {
   Future<void> hostConfigure({
     required int questionCount,
     required int timeLimitMs,
+    required bool difficultyMultiplier,
   }) => _push('host_configure', {
     'question_count': questionCount,
     'time_limit_ms': timeLimitMs,
+    'difficulty_multiplier': difficultyMultiplier,
   });
 
   @override

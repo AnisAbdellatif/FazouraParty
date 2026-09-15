@@ -47,6 +47,9 @@ abstract class GameSettings with _$GameSettings {
     required int questionCount,
     required int timeLimitMs,
     required int maxQuestionCount,
+
+    /// Harder questions score wager × 2 (medium) or × 3 (hard) (protocol v4).
+    @Default(false) bool difficultyMultiplier,
     @Default(10000) int minTimeLimitMs,
     @Default(120000) int maxTimeLimitMs,
   }) = _GameSettings;
@@ -63,6 +66,12 @@ abstract class Question with _$Question {
     required String prompt,
     String? imageUrl,
     required int timeLimitMs,
+
+    /// "easy" | "medium" | "hard" (protocol v4).
+    @Default('easy') String difficulty,
+
+    /// Points multiplier: 1 unless the difficulty bonus is on (§9).
+    @Default(1) int multiplier,
   }) = _Question;
 
   factory Question.fromJson(Map<String, dynamic> json) =>
@@ -80,6 +89,10 @@ abstract class PlayerSummary with _$PlayerSummary {
 
     /// True for the playing host (protocol v2).
     @Default(false) bool isHost,
+
+    /// 0–359, assigned at random by the server (protocol v4). Every client
+    /// renders the same colour from it.
+    int? avatarHue,
   }) = _PlayerSummary;
 
   factory PlayerSummary.fromJson(Map<String, dynamic> json) =>
@@ -129,6 +142,7 @@ abstract class SubmissionView with _$SubmissionView {
     /// the `@override` annotation in generated code).
     @JsonKey(name: 'override') bool? overrideVerdict,
     bool? correct,
+    @Default(1) int multiplier,
     int? delta,
   }) = _SubmissionView;
 

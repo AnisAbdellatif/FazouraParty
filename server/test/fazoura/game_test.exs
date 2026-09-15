@@ -180,13 +180,23 @@ defmodule Fazoura.GameTest do
     end
   end
 
-  defp configure(game, count, time),
-    do: host(game, {:configure, %{"question_count" => count, "time_limit_ms" => time}})
+  defp configure(game, count, time, bonus \\ false),
+    do:
+      host(
+        game,
+        {:configure,
+         %{"question_count" => count, "time_limit_ms" => time, "difficulty_multiplier" => bonus}}
+      )
 
   describe "settings" do
     test "defaults to the whole pack at the first question's time limit" do
       game = game_with_players(["sam"], 3)
-      assert game.settings == %{question_count: 3, time_limit_ms: 10_000}
+
+      assert game.settings == %{
+               question_count: 3,
+               time_limit_ms: 10_000,
+               difficulty_multiplier: false
+             }
 
       view = Game.view(game, :host, @t0)
       assert view.question_count == 3
@@ -194,6 +204,7 @@ defmodule Fazoura.GameTest do
       assert view.settings == %{
                question_count: 3,
                time_limit_ms: 10_000,
+               difficulty_multiplier: false,
                max_question_count: 3,
                min_time_limit_ms: 10_000,
                max_time_limit_ms: 120_000
@@ -208,6 +219,11 @@ defmodule Fazoura.GameTest do
       end
 
       assert host(game, {:configure, %{}}) == {:error, :invalid_settings}
+
+      assert host(game, {:configure, %{"question_count" => 2, "time_limit_ms" => 20_000}}) ==
+               {:error, :invalid_settings}
+
+      assert configure(game, 2, 20_000, "yes") == {:error, :invalid_settings}
 
       assert Game.handle(game, {:player, "sam"}, {:configure, %{}}, @t0) ==
                {:error, :not_host}
@@ -226,12 +242,76 @@ defmodule Fazoura.GameTest do
     end
   end
 
+  describe "question cap and difficulty bonus" do
+    test "at most 20 questions per game, even with a bigger pack" do
+      game = game_with_players(["sam"], 25)
+      assert game.settings.question_count == 20
+      assert Game.view(game, :host, @t0).settings.max_question_count == 20
+      assert configure(game, 21, 30_000) == {:error, :invalid_settings}
+      assert {:ok, _} = configure(game, 20, 30_000)
+    end
+
+    for c <- ProtocolFixtures.load!("scoring.json")["multiplier"] do
+      test "#{c["difficulty"]}, bonus #{c["bonus"]}: wager #{c["wager"]} -> #{c["delta"]}" do
+        c = unquote(Macro.escape(c))
+
+        pack =
+          Pack.from_map(%{
+            "title" => "T",
+            "questions" => [
+              %{
+                "id" => "q1",
+                "prompt" => "?",
+                "difficulty" => c["difficulty"],
+                "accepted_answers" => ["Right"],
+                "time_limit_ms" => 10_000
+              }
+            ]
+          })
+
+        {:ok, game} = Game.add_player(Game.new("ROOM42", pack), "sam", "Sam")
+        game = game |> configure(1, 10_000, c["bonus"]) |> ok!() |> host(:next) |> ok!()
+        assert Game.view(game, :host, @t0).question.multiplier == c["multiplier"]
+        answer = if c["correct"], do: "Right", else: "Wrong"
+        game = game |> submit("sam", answer, c["wager"]) |> ok!() |> host(:next) |> ok!()
+
+        assert game.players["sam"].score == c["delta"]
+        assert [%{multiplier: m, delta: d}] = Game.view(game, :host, @t0).submissions
+        assert {m, d} == {c["multiplier"], c["delta"]}
+      end
+    end
+
+    test "unknown difficulties are rejected when loading a pack" do
+      assert_raise ArgumentError, fn ->
+        Pack.from_map(%{
+          "title" => "T",
+          "questions" => [
+            %{"id" => "q", "prompt" => "?", "difficulty" => "brutal", "accepted_answers" => []}
+          ]
+        })
+      end
+    end
+  end
+
+  describe "avatar hues" do
+    test "stay within 0..359 and spread away from hues already in the room" do
+      {:ok, game} = Game.add_player(Game.new("ROOM42", pack()), "a", "A", 100)
+      candidates = Stream.cycle([95, 110, 280, 102]) |> Stream.take(12) |> Enum.to_list()
+      {:ok, agent} = Agent.start_link(fn -> candidates end)
+      next = fn -> Agent.get_and_update(agent, fn [h | t] -> {h, t} end) end
+
+      assert Game.pick_avatar_hue(game, next) == 280
+
+      for _ <- 1..50, do: assert(Game.pick_avatar_hue(game) in 0..359)
+      assert Game.view(game, :host, @t0).players |> hd() |> Map.fetch!(:avatar_hue) == 100
+    end
+  end
+
   describe "rematch" do
     test "resets scores, keeps players and settings, and continues through the pack" do
       game = game_with_players(["sam", "alex"], 3)
 
-      game =
-        game |> host({:configure, %{"question_count" => 2, "time_limit_ms" => 10_000}}) |> ok!()
+      game = game |> configure(2, 10_000) |> ok!()
 
       game = game |> host(:next) |> ok!() |> submit("sam", "Right", 7) |> ok!()
       game = Enum.reduce(1..6, game, fn _, g -> g |> host(:next) |> ok!() end)

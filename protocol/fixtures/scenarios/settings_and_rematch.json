@@ -9,23 +9,23 @@
     ]
   },
   "steps": [
-    {"actor": "host", "join": {"protocol_version": 3, "host_token": "$host_token", "display_name": "Hana"}, "expect": {"status": "ok"}},
-    {"actor": "sam", "join": {"protocol_version": 3, "display_name": "Sam"}, "expect": {"status": "ok"}},
+    {"actor": "host", "join": {"protocol_version": 4, "host_token": "$host_token", "display_name": "Hana"}, "expect": {"status": "ok"}},
+    {"actor": "sam", "join": {"protocol_version": 4, "display_name": "Sam"}, "expect": {"status": "ok"}},
 
     {"actor": "sam", "expect_state": {
       "phase": "lobby", "game_number": 1, "question_count": 3,
       "settings": {"question_count": 3, "time_limit_ms": 30000, "max_question_count": 3, "min_time_limit_ms": 10000, "max_time_limit_ms": 120000}
     }},
 
-    {"actor": "sam", "push": "host_configure", "payload": {"question_count": 2, "time_limit_ms": 15000},
+    {"actor": "sam", "push": "host_configure", "payload": {"question_count": 2, "time_limit_ms": 15000, "difficulty_multiplier": false},
      "expect": {"status": "error", "response": {"code": "not_host"}}},
-    {"actor": "host", "push": "host_configure", "payload": {"question_count": 0, "time_limit_ms": 15000},
+    {"actor": "host", "push": "host_configure", "payload": {"question_count": 0, "time_limit_ms": 15000, "difficulty_multiplier": false},
      "expect": {"status": "error", "response": {"code": "invalid_settings"}}},
-    {"actor": "host", "push": "host_configure", "payload": {"question_count": 4, "time_limit_ms": 15000},
+    {"actor": "host", "push": "host_configure", "payload": {"question_count": 4, "time_limit_ms": 15000, "difficulty_multiplier": false},
      "expect": {"status": "error", "response": {"code": "invalid_settings"}}},
-    {"actor": "host", "push": "host_configure", "payload": {"question_count": 2, "time_limit_ms": 5000},
+    {"actor": "host", "push": "host_configure", "payload": {"question_count": 2, "time_limit_ms": 5000, "difficulty_multiplier": false},
      "expect": {"status": "error", "response": {"code": "invalid_settings"}}},
-    {"actor": "host", "push": "host_configure", "payload": {"question_count": 2, "time_limit_ms": 15000},
+    {"actor": "host", "push": "host_configure", "payload": {"question_count": 2, "time_limit_ms": 15000, "difficulty_multiplier": false},
      "expect": {"status": "ok"}},
 
     {"actor": "sam", "expect_state": {
@@ -38,7 +38,7 @@
       "phase": "question", "question_index": 0, "question_count": 2,
       "question": {"id": "q1", "time_limit_ms": 15000}, "deadline": 1789502415000
     }},
-    {"actor": "host", "push": "host_configure", "payload": {"question_count": 1, "time_limit_ms": 15000},
+    {"actor": "host", "push": "host_configure", "payload": {"question_count": 1, "time_limit_ms": 15000, "difficulty_multiplier": false},
      "expect": {"status": "error", "response": {"code": "invalid_phase"}}},
 
     {"actor": "sam", "push": "submit", "payload": {"answer": "a", "wager": 4}, "expect": {"status": "ok"}},

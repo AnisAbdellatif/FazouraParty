@@ -74,6 +74,7 @@ _GameSettings _$GameSettingsFromJson(Map<String, dynamic> json) =>
       questionCount: (json['question_count'] as num).toInt(),
       timeLimitMs: (json['time_limit_ms'] as num).toInt(),
       maxQuestionCount: (json['max_question_count'] as num).toInt(),
+      difficultyMultiplier: json['difficulty_multiplier'] as bool? ?? false,
       minTimeLimitMs: (json['min_time_limit_ms'] as num?)?.toInt() ?? 10000,
       maxTimeLimitMs: (json['max_time_limit_ms'] as num?)?.toInt() ?? 120000,
     );
@@ -83,6 +84,7 @@ Map<String, dynamic> _$GameSettingsToJson(_GameSettings instance) =>
       'question_count': instance.questionCount,
       'time_limit_ms': instance.timeLimitMs,
       'max_question_count': instance.maxQuestionCount,
+      'difficulty_multiplier': instance.difficultyMultiplier,
       'min_time_limit_ms': instance.minTimeLimitMs,
       'max_time_limit_ms': instance.maxTimeLimitMs,
     };
@@ -93,6 +95,8 @@ _Question _$QuestionFromJson(Map<String, dynamic> json) => _Question(
   prompt: json['prompt'] as String,
   imageUrl: json['image_url'] as String?,
   timeLimitMs: (json['time_limit_ms'] as num).toInt(),
+  difficulty: json['difficulty'] as String? ?? 'easy',
+  multiplier: (json['multiplier'] as num?)?.toInt() ?? 1,
 );
 
 Map<String, dynamic> _$QuestionToJson(_Question instance) => <String, dynamic>{
@@ -101,6 +105,8 @@ Map<String, dynamic> _$QuestionToJson(_Question instance) => <String, dynamic>{
   'prompt': instance.prompt,
   'image_url': instance.imageUrl,
   'time_limit_ms': instance.timeLimitMs,
+  'difficulty': instance.difficulty,
+  'multiplier': instance.multiplier,
 };
 
 const _$QuestionTypeEnumMap = {
@@ -116,6 +122,7 @@ _PlayerSummary _$PlayerSummaryFromJson(Map<String, dynamic> json) =>
       connected: json['connected'] as bool,
       hasSubmitted: json['has_submitted'] as bool,
       isHost: json['is_host'] as bool? ?? false,
+      avatarHue: (json['avatar_hue'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$PlayerSummaryToJson(_PlayerSummary instance) =>
@@ -126,6 +133,7 @@ Map<String, dynamic> _$PlayerSummaryToJson(_PlayerSummary instance) =>
       'connected': instance.connected,
       'has_submitted': instance.hasSubmitted,
       'is_host': instance.isHost,
+      'avatar_hue': instance.avatarHue,
     };
 
 _You _$YouFromJson(Map<String, dynamic> json) => _You(
@@ -168,6 +176,7 @@ _SubmissionView _$SubmissionViewFromJson(Map<String, dynamic> json) =>
       autoCorrect: json['auto_correct'] as bool?,
       overrideVerdict: json['override'] as bool?,
       correct: json['correct'] as bool?,
+      multiplier: (json['multiplier'] as num?)?.toInt() ?? 1,
       delta: (json['delta'] as num?)?.toInt(),
     );
 
@@ -179,5 +188,6 @@ Map<String, dynamic> _$SubmissionViewToJson(_SubmissionView instance) =>
       'auto_correct': instance.autoCorrect,
       'override': instance.overrideVerdict,
       'correct': instance.correct,
+      'multiplier': instance.multiplier,
       'delta': instance.delta,
     };

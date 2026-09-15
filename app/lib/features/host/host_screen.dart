@@ -14,7 +14,7 @@ import '../../shared/widgets/game_top_bar.dart';
 import '../../shared/widgets/reveal_summary.dart';
 import '../../shared/widgets/standings.dart';
 import '../finished/finished_view.dart';
-import '../leaderboard/leaderboard_view.dart' show deltasFor;
+import '../leaderboard/leaderboard_view.dart' show deltasFor, wagerLabel;
 import '../lobby/game_settings_editor.dart';
 import '../lobby/lobby_view.dart';
 import '../player_question/player_question_view.dart';
@@ -364,7 +364,7 @@ class _SubmissionRow extends StatelessWidget {
     final correct = submission.correct ?? submission.autoCorrect ?? false;
     final name = player?.name ?? submission.playerId;
     final details = <String>[
-      'wager ${submission.wager}',
+      wagerLabel(submission),
       if (submission.autoCorrect != null)
         'auto ${submission.autoCorrect! ? '✓' : '✗'}',
       if (submission.overrideVerdict != null) 'corrected',
@@ -382,7 +382,12 @@ class _SubmissionRow extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
           child: Row(
             children: [
-              FzAvatar(id: submission.playerId, name: name, size: 34),
+              FzAvatar(
+                id: submission.playerId,
+                name: name,
+                hue: player?.avatarHue,
+                size: 34,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

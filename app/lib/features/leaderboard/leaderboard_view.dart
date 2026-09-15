@@ -70,6 +70,11 @@ class LeaderboardView extends StatelessWidget {
   }
 }
 
+/// "wager 3", or "wager 3 ×3" when the difficulty bonus multiplied it.
+String wagerLabel(SubmissionView submission) => submission.multiplier > 1
+    ? 'wager ${submission.wager} ×${submission.multiplier}'
+    : 'wager ${submission.wager}';
+
 /// Score change per player for the question just scored.
 Map<String, int> deltasFor(RoomState state) => {
   for (final s in state.submissions ?? const <SubmissionView>[])
@@ -217,7 +222,7 @@ class _SubmissionResultRow extends StatelessWidget {
                 Text(
                   [
                     submission.answer,
-                    'wager ${submission.wager}',
+                    wagerLabel(submission),
                     if (submission.overrideVerdict != null) 'corrected by host',
                   ].join(' · '),
                   style: fz.m(11, color: FzColors.dim, height: 1.3),

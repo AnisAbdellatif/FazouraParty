@@ -10,7 +10,15 @@ defmodule Fazoura.Game.Pack do
     @moduledoc false
 
     @enforce_keys [:id, :type, :prompt, :accepted_answers, :time_limit_ms]
-    defstruct [:id, :type, :prompt, :accepted_answers, :time_limit_ms, image_url: nil]
+    defstruct [
+      :id,
+      :type,
+      :prompt,
+      :accepted_answers,
+      :time_limit_ms,
+      image_url: nil,
+      difficulty: "easy"
+    ]
 
     @type t :: %__MODULE__{
             id: String.t(),
@@ -18,7 +26,8 @@ defmodule Fazoura.Game.Pack do
             prompt: String.t(),
             accepted_answers: [String.t()],
             time_limit_ms: pos_integer(),
-            image_url: String.t() | nil
+            image_url: String.t() | nil,
+            difficulty: String.t()
           }
   end
 
@@ -57,7 +66,15 @@ defmodule Fazoura.Game.Pack do
       prompt: Map.fetch!(map, "prompt"),
       accepted_answers: Map.fetch!(map, "accepted_answers"),
       time_limit_ms: Map.get(map, "time_limit_ms", @default_time_limit_ms),
-      image_url: Map.get(map, "image_url")
+      image_url: Map.get(map, "image_url"),
+      difficulty: difficulty!(Map.get(map, "difficulty", "easy"))
     }
   end
+
+  @difficulties ~w(easy medium hard)
+
+  defp difficulty!(value) when value in @difficulties, do: value
+
+  defp difficulty!(value),
+    do: raise(ArgumentError, "unknown difficulty #{inspect(value)}; use easy, medium or hard")
 end

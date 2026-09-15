@@ -12,7 +12,7 @@ void main() {
     test('parses the spec example', () {
       final state = RoomState.fromJson(json);
 
-      expect(state.protocolVersion, 3);
+      expect(state.protocolVersion, 4);
       expect(state.roomCode, 'K7QX2M');
       expect(state.mode, Mode.cloud);
       expect(state.phase, Phase.question);
@@ -39,6 +39,7 @@ void main() {
           score: 12,
           connected: true,
           hasSubmitted: true,
+          avatarHue: 212,
         ),
       ]);
       expect(

@@ -354,18 +354,26 @@ class FzPanel extends StatelessWidget {
   }
 }
 
-/// Circle with the player's initial on a stable per-player hue.
+/// Circle with the player's initial on their colour.
+///
+/// [hue] is the server-assigned `avatar_hue` (protocol v4), so every device
+/// shows the same colour; the id-derived colour is only a fallback.
 class FzAvatar extends StatelessWidget {
   const FzAvatar({
     super.key,
     required this.id,
     required this.name,
+    this.hue,
     this.size = 46,
   });
 
   final String id;
   final String name;
+  final int? hue;
   final double size;
+
+  static Color colorForHue(int hue) =>
+      HSLColor.fromAHSL(1, (hue % 360).toDouble(), .9, .72).toColor();
 
   static Color colorFor(String id) {
     var hash = 0;
@@ -385,7 +393,10 @@ class FzAvatar extends StatelessWidget {
       width: size,
       height: size,
       alignment: Alignment.center,
-      decoration: BoxDecoration(color: colorFor(id), shape: BoxShape.circle),
+      decoration: BoxDecoration(
+        color: hue == null ? colorFor(id) : colorForHue(hue!),
+        shape: BoxShape.circle,
+      ),
       child: Text(
         initial,
         style: FzTheme.of(context).h(size * .37, color: FzColors.bg),

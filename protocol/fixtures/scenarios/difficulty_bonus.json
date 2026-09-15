@@ -1,0 +1,67 @@
+{
+  "name": "difficulty bonus multiplies points by question difficulty, including overrides",
+  "pack": {
+    "title": "Fixture Pack",
+    "questions": [
+      {"id": "q1", "type": "text", "difficulty": "easy", "prompt": "Say a", "accepted_answers": ["a"], "time_limit_ms": 30000},
+      {"id": "q2", "type": "text", "difficulty": "hard", "prompt": "Say b", "accepted_answers": ["b"], "time_limit_ms": 30000},
+      {"id": "q3", "type": "text", "difficulty": "medium", "prompt": "Say c", "accepted_answers": ["c"], "time_limit_ms": 30000}
+    ]
+  },
+  "steps": [
+    {"actor": "host", "join": {"protocol_version": 4, "host_token": "$host_token"}, "expect": {"status": "ok"}},
+    {"actor": "sam", "join": {"protocol_version": 4, "display_name": "Sam"}, "expect": {"status": "ok"}},
+
+    {"actor": "sam", "expect_state": {"phase": "lobby", "settings": {"difficulty_multiplier": false}}},
+    {"actor": "host", "push": "host_configure", "payload": {"question_count": 3, "time_limit_ms": 30000},
+     "expect": {"status": "error", "response": {"code": "invalid_settings"}}},
+    {"actor": "host", "push": "host_configure", "payload": {"question_count": 3, "time_limit_ms": 30000, "difficulty_multiplier": "yes"},
+     "expect": {"status": "error", "response": {"code": "invalid_settings"}}},
+    {"actor": "host", "push": "host_configure", "payload": {"question_count": 3, "time_limit_ms": 30000, "difficulty_multiplier": true},
+     "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {"settings": {"question_count": 3, "difficulty_multiplier": true}}},
+
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {"phase": "question", "question": {"id": "q1", "difficulty": "easy", "multiplier": 1}}},
+    {"actor": "sam", "push": "submit", "payload": {"answer": "a", "wager": 5}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {
+      "phase": "scoring",
+      "players": [{"name": "Sam", "score": 5}],
+      "submissions": [{"player_id": "$player_id:sam", "multiplier": 1, "delta": 5}]
+    }},
+
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {"phase": "question", "question": {"id": "q2", "difficulty": "hard", "multiplier": 3}}},
+    {"actor": "sam", "push": "submit", "payload": {"answer": "b", "wager": 3}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {
+      "phase": "scoring",
+      "players": [{"name": "Sam", "score": 14}],
+      "submissions": [{"player_id": "$player_id:sam", "wager": 3, "multiplier": 3, "correct": true, "delta": 9}],
+      "you": {"submission": {"correct": true, "delta": 9}}
+    }},
+
+    {"actor": "host", "push": "host_override", "payload": {"player_id": "$player_id:sam", "correct": false}, "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {
+      "players": [{"name": "Sam", "score": -4}],
+      "submissions": [{"multiplier": 3, "correct": false, "delta": -9}]
+    }},
+
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {"phase": "question", "question": {"id": "q3", "difficulty": "medium", "multiplier": 2}}},
+    {"actor": "sam", "push": "submit", "payload": {"answer": "nope", "wager": 4}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {"players": [{"name": "Sam", "score": -12}], "submissions": [{"multiplier": 2, "delta": -8}]}},
+
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_rematch", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_configure", "payload": {"question_count": 1, "time_limit_ms": 30000, "difficulty_multiplier": false},
+     "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "sam", "expect_state": {"phase": "question", "game_number": 2, "question": {"id": "q1", "difficulty": "easy", "multiplier": 1}}}
+  ]
+}

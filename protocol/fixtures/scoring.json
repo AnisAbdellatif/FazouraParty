@@ -34,5 +34,11 @@
       "score_after_override": 6
     }
   ],
+  "multiplier": [
+    {"difficulty": "easy", "bonus": true, "wager": 5, "correct": true, "multiplier": 1, "delta": 5},
+    {"difficulty": "medium", "bonus": true, "wager": 4, "correct": false, "multiplier": 2, "delta": -8},
+    {"difficulty": "hard", "bonus": true, "wager": 3, "correct": true, "multiplier": 3, "delta": 9},
+    {"difficulty": "hard", "bonus": false, "wager": 3, "correct": true, "multiplier": 1, "delta": 3}
+  ],
   "invalid_wagers": [0, 11, -1, 5.5, "5", null]
 }

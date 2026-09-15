@@ -44,6 +44,7 @@ abstract interface class GameConnection {
   Future<void> hostConfigure({
     required int questionCount,
     required int timeLimitMs,
+    required bool difficultyMultiplier,
   });
 
   /// Finished only: new game in the same room (§6.3).

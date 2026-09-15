@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `3`** · Status: **FROZEN** (changes are breaking — see AGENTS.md §3)
+**Protocol version: `4`** · Status: **FROZEN** (changes are breaking — see AGENTS.md §3)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -85,7 +85,7 @@ Payload:
 
 ```json
 {
-  "protocol_version": 3,
+  "protocol_version": 4,
   "display_name": "Sam",
   "player_token": null,
   "host_token": null
@@ -143,7 +143,7 @@ Join error codes: `unsupported_protocol_version`, `room_not_found`, `invalid_tok
 | `host_pause` | host | `{}` | `question` (not paused) | Freezes the timer |
 | `host_resume` | host | `{}` | `question` (paused) | Restarts the timer |
 | `host_override` | host | `{"player_id": string, "correct": bool}` | `scoring`, `leaderboard` | Sets the verdict on that player's submission for the **current** question, including the host's own |
-| `host_configure` | host | `{"question_count": int, "time_limit_ms": int}` | `lobby` | Sets the game settings (§6.2). Replaces both values |
+| `host_configure` | host | `{"question_count": int, "time_limit_ms": int, "difficulty_multiplier": bool}` | `lobby` | Sets the game settings (§6.2). All three fields are required and replace the current values |
 | `host_rematch` | host | `{}` | `finished` | Starts a new game in the same room (§6.3) |
 
 Successful intents reply `{"status": "ok", "response": {}}` and — if state changed — trigger a
@@ -158,7 +158,7 @@ Successful intents reply `{"status": "ok", "response": {}}` and — if state cha
 Intent error codes: `invalid_phase`, `not_host`, `not_player`, `invalid_answer`, `invalid_wager`,
 `already_submitted`, `unknown_player`, `no_submission`, `paused`, `not_paused`,
 `invalid_settings` (question count outside 1..`max_question_count`, time limit outside
-`min_time_limit_ms`..`max_time_limit_ms`, or either missing/not an integer),
+`min_time_limit_ms`..`max_time_limit_ms`, or any field missing or of the wrong type),
 `invalid_payload` (unknown event, or a payload with missing/mistyped fields not covered by a
 more specific code).
 
@@ -183,7 +183,7 @@ it per socket rather than broadcasting one identical payload.
 
 ```json
 {
-  "protocol_version": 3,
+  "protocol_version": 4,
   "room_code": "K7QX2M",
   "mode": "cloud",
   "phase": "question",
@@ -196,6 +196,7 @@ it per socket rather than broadcasting one identical payload.
   "settings": {
     "question_count": 10,
     "time_limit_ms": 30000,
+    "difficulty_multiplier": false,
     "max_question_count": 10,
     "min_time_limit_ms": 10000,
     "max_time_limit_ms": 120000
@@ -206,14 +207,16 @@ it per socket rather than broadcasting one identical payload.
     "type": "text",
     "prompt": "What is the capital of Australia?",
     "image_url": null,
-    "time_limit_ms": 30000
+    "time_limit_ms": 30000,
+    "difficulty": "easy",
+    "multiplier": 1
   },
   "deadline": 1789502430000,
   "paused_remaining_ms": null,
   "accepted_answers": null,
 
   "players": [
-    {"id": "p_3f9a", "name": "Sam", "score": 12, "connected": true, "has_submitted": true, "is_host": false}
+    {"id": "p_3f9a", "name": "Sam", "score": 12, "connected": true, "has_submitted": true, "is_host": false, "avatar_hue": 212}
   ],
 
   "you": {
@@ -228,14 +231,14 @@ it per socket rather than broadcasting one identical payload.
 
 | Field | Type | Notes |
 |---|---|---|
-| `protocol_version` | int | Always `3` |
+| `protocol_version` | int | Always `4` |
 | `mode` | `"cloud"` \| `"lan"` | |
 | `phase` | `"lobby"` \| `"question"` \| `"scoring"` \| `"leaderboard"` \| `"finished"` | §6 |
 | `server_time` | timestamp | Host clock when the snapshot was built. Clients compute `offset = server_time - local_now` and render timers from `deadline - (local_now + offset)` |
 | `pack_title` | string | Always present |
 | `question_count` | int | Questions in the current game; always equals `settings.question_count` |
 | `game_number` | int | 1 for the first game in the room, +1 on every rematch. Question ids repeat across games, so clients key per-question UI state on (`game_number`, `question_index`) |
-| `settings` | object | Always present. `question_count`, `time_limit_ms` (applied to every question, overriding the pack), plus the bounds `max_question_count` (pack size), `min_time_limit_ms`, `max_time_limit_ms` |
+| `settings` | object | Always present. `question_count`, `time_limit_ms` (applied to every question, overriding the pack), `difficulty_multiplier` (bool), plus the bounds `max_question_count` (min(pack size, 20)), `min_time_limit_ms`, `max_time_limit_ms` |
 | `question_index` | int \| null | 0-based; `null` in `lobby` |
 | `question` | object \| null | `null` in `lobby` and `finished` |
 | `question.type` | `"text"` \| `"text_photo"` | `image_url` is non-null only for `text_photo` |
@@ -244,6 +247,9 @@ it per socket rather than broadcasting one identical payload.
 | `accepted_answers` | string[] \| null | §7 |
 | `players` | array | Sorted by `score` desc, then `name` asc (case-insensitive). Includes the host only if playing |
 | `players[].is_host` | bool | `true` for the playing host |
+| `players[].avatar_hue` | int | 0–359. Picked at random by the host implementation when the player is added, kept as far as possible from hues already in the room; stable for the player's lifetime so every client shows the same colour |
+| `question.difficulty` | `"easy"` \| `"medium"` \| `"hard"` | From the pack; `"easy"` when the pack doesn't say |
+| `question.multiplier` | int | Points multiplier for this question: `1` when `settings.difficulty_multiplier` is off, else easy `1`, medium `2`, hard `3` (§9) |
 | `you` | object | The recipient's own view: `role` (`"host"` \| `"player"`), `player_id`, `submission` |
 | `you.player_id` | string \| null | `null` only for a host who is not playing |
 | `you.submission` | object \| null | Recipient's own submission for the current question; `correct`/`delta` are `null` until `scoring` |
@@ -253,7 +259,7 @@ it per socket rather than broadcasting one identical payload.
 
 ```json
 {"player_id": "p_3f9a", "answer": "canbera", "wager": 7,
- "auto_correct": false, "override": true, "correct": true, "delta": 7}
+ "auto_correct": false, "override": true, "correct": true, "multiplier": 1, "delta": 7}
 ```
 
 All seven fields are always present and non-null except `override`. Entries are ordered like
@@ -262,7 +268,8 @@ All seven fields are always present and non-null except `override`. Entries are 
 - `auto_correct` — result of automatic matching (§8).
 - `override` — `null` if the host has not overridden, else the host's verdict.
 - `correct` — effective verdict: `override ?? auto_correct`.
-- `delta` — `+wager` if `correct`, else `-wager`.
+- `multiplier` — the question's multiplier at the time of the submission.
+- `delta` — `+wager × multiplier` if `correct`, else `-wager × multiplier`.
 
 ### 5.2 `room_closed`
 
@@ -301,7 +308,9 @@ recomputed as: `score -= old_delta; score += new_delta`. Setting an override equ
 
 ### 6.2 Game settings
 
-- Defaults when the room is created: `question_count` = pack size, `time_limit_ms` = the
+- At most **20** questions per game: `max_question_count` = min(pack size, 20).
+- Defaults when the room is created: `question_count` = `max_question_count`,
+  `difficulty_multiplier` = `false`, `time_limit_ms` = the
   first question's limit clamped to 10 000–120 000 ms.
 - `host_configure` is accepted only in `lobby` (before the first question, or after a
   rematch). Settings persist across rematches until changed.
@@ -350,7 +359,10 @@ Punctuation is **not** stripped. Test cases: [`fixtures/normalize.json`](fixture
 
 ## 9. Scoring
 
-- `delta = correct ? +wager : -wager`
+- `delta = (correct ? +1 : -1) × wager × multiplier`
+- `multiplier` = 1, unless `settings.difficulty_multiplier` is on: easy 1, medium 2, hard 3.
+  It is fixed per question when the player submits (settings can't change mid-game), and
+  host overrides recompute with the same multiplier.
 - Scores **may go negative** *(provisional — open item §10.2)*.
 - Cases: [`fixtures/scoring.json`](fixtures/scoring.json).
 
@@ -399,5 +411,6 @@ Confirmed by the project owner on 2026-09-15.
 | 8. Guest accounts | None; signed per-room `player_token` |
 | Host participation (added in v2) | Host may play; no early access to answers; may override own submission |
 | Game settings & rematch (added in v3) | Host sets question count (1..pack) and per-question time (10–120 s) in the lobby; host-triggered rematch keeps the room and players, resets scores, continues through the pack |
+| Avatars, 20 questions, difficulty bonus (added in v4) | Server-assigned random avatar hues; up to 20 questions per game; optional difficulty multiplier easy ×1 / medium ×2 / hard ×3, off by default |
 
 Changing any of these is a protocol version bump.

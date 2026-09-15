@@ -20,7 +20,7 @@ void main() {
     });
   });
 
-  group('join payloads (PROTOCOL.md §4.1, v3)', () {
+  group('join payloads (PROTOCOL.md §4.1, v4)', () {
     test('host join sends display_name when playing along', () {
       expect(
         PhoenixGameConnection.joinPayload(
@@ -28,7 +28,7 @@ void main() {
           hostToken: 'host-tok',
         ),
         {
-          'protocol_version': 3,
+          'protocol_version': 4,
           'display_name': 'Hana',
           'player_token': null,
           'host_token': 'host-tok',
@@ -38,7 +38,7 @@ void main() {
 
     test('non-playing host join sends a null display_name', () {
       expect(PhoenixGameConnection.joinPayload(hostToken: 'host-tok'), {
-        'protocol_version': 3,
+        'protocol_version': 4,
         'display_name': null,
         'player_token': null,
         'host_token': 'host-tok',
@@ -56,7 +56,7 @@ void main() {
           const JoinResult(role: Role.host, playerId: 'p_host'),
         ),
         {
-          'protocol_version': 3,
+          'protocol_version': 4,
           'display_name': null,
           'player_token': null,
           'host_token': 'host-tok',
@@ -76,7 +76,7 @@ void main() {
           ),
         ),
         {
-          'protocol_version': 3,
+          'protocol_version': 4,
           'display_name': null,
           'player_token': 'player-tok',
           'host_token': null,

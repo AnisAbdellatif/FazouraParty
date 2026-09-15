@@ -32,7 +32,11 @@ abstract interface class GameConnection {
   Future<void> hostOverride(String playerId, bool correct);
 
   /// Lobby only (PROTOCOL.md §6.2).
-  Future<void> hostConfigure({required int questionCount, required int timeLimitMs});
+  Future<void> hostConfigure({
+    required int questionCount,
+    required int timeLimitMs,
+    required bool difficultyMultiplier,
+  });
 
   /// Finished only: new game in the same room (§6.3).
   Future<void> hostRematch();
