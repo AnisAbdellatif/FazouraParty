@@ -17,6 +17,9 @@ form of this spec.
 - Unknown keys in a payload must be ignored by the receiver (forward-compatible additions are
   still announced by a version bump, but must not crash old readers).
 - `null` and an absent key mean the same thing for optional fields.
+- Enum-valued strings (`phase`, `type`, `mode`, `role`, error `code`) may gain values only
+  with a version bump. A client that receives an unknown value should keep the previous
+  state and log it, not crash.
 
 ## 2. Transport
 
@@ -52,7 +55,8 @@ Pushes from the host (§5) have `ref = null`.
 201 {"room_code": "K7QX2M", "host_token": "<signed token>"}
 ```
 
-Errors: `404 {"code": "pack_not_found"}`.
+Errors: `404 {"code": "pack_not_found"}`, `422 {"code": "empty_pack"}`. HTTP error bodies carry
+`code` only; clients map codes to their own messages.
 
 **LAN:** the host app creates the room in-process; no HTTP call. The resulting `room_code` and
 `host_token` have the same shape.
@@ -94,7 +98,13 @@ Payload:
 | New player | `display_name` |
 | Rejoining player | `player_token` (`display_name` ignored) |
 
-`display_name`: trimmed, 1–20 characters after trimming, unique (case-insensitive) within the room.
+`display_name`: trimmed, 1–20 characters after trimming (Unicode grapheme clusters), unique
+(case-insensitive) within the room. The same length unit applies to `answer` (§4.2).
+
+**Reconnects:** after its first successful join a player client must always rejoin (including
+automatic transport reconnects) with `player_token` only. If a rejoin fails with
+`invalid_token` or `room_not_found`, the client discards the token and treats the room as
+gone; it must not silently re-join as a new player.
 
 Join reply `ok` response:
 
@@ -197,6 +207,8 @@ it per socket rather than broadcasting one identical payload.
 | `mode` | `"cloud"` \| `"lan"` | |
 | `phase` | `"lobby"` \| `"question"` \| `"scoring"` \| `"leaderboard"` \| `"finished"` | §6 |
 | `server_time` | timestamp | Host clock when the snapshot was built. Clients compute `offset = server_time - local_now` and render timers from `deadline - (local_now + offset)` |
+| `pack_title` | string | Always present |
+| `question_count` | int | Always present |
 | `question_index` | int \| null | 0-based; `null` in `lobby` |
 | `question` | object \| null | `null` in `lobby` and `finished` |
 | `question.type` | `"text"` \| `"text_photo"` | `image_url` is non-null only for `text_photo` |
@@ -214,6 +226,10 @@ it per socket rather than broadcasting one identical payload.
 {"player_id": "p_3f9a", "answer": "canbera", "wager": 7,
  "auto_correct": false, "override": true, "correct": true, "delta": 7}
 ```
+
+All seven fields are always present and non-null except `override`. During `question`
+(host view only) `auto_correct`, `correct` and `delta` are computed on the fly from the
+submission as it stands; they are what would be applied if the question ended now.
 
 - `auto_correct` — result of automatic matching (§8).
 - `override` — `null` if the host has not overridden, else the host's verdict.

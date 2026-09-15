@@ -1,0 +1,315 @@
+import 'dart:async';
+import 'dart:developer' as developer;
+
+import 'package:phoenix_socket/phoenix_socket.dart';
+
+import '../models/models.dart';
+import 'game_connection.dart';
+import 'replay_latest.dart';
+
+/// Cloud-mode [GameConnection] over Phoenix Channels (PROTOCOL.md §2).
+///
+/// One instance serves one room session: call [join] or [joinAsHost] once,
+/// then [leave]. Reconnects and heartbeats are handled by `phoenix_socket`;
+/// after a player's first join the channel's join params are switched to the
+/// issued `player_token` so automatic rejoins reclaim the same identity.
+class PhoenixGameConnection implements GameConnection {
+  PhoenixGameConnection({
+    required this.baseUrl,
+    this.timeout = const Duration(seconds: 15),
+    PhoenixSocket Function(String endpoint)? socketFactory,
+  }) : _socketFactory = socketFactory ?? PhoenixSocket.new;
+
+  static const int protocolVersion = 1;
+
+  /// HTTP(S) base URL of the server, e.g. `http://localhost:4000`.
+  final String baseUrl;
+
+  /// Timeout for connecting and for the join reply.
+  final Duration timeout;
+
+  final PhoenixSocket Function(String endpoint) _socketFactory;
+
+  final ReplayLatest<RoomState> _state = ReplayLatest<RoomState>();
+  final ReplayLatest<ConnectionStatus> _status = ReplayLatest<ConnectionStatus>(
+    ConnectionStatus.disconnected,
+  );
+  final Completer<RoomClosedReason> _closed = Completer<RoomClosedReason>();
+  final List<StreamSubscription<Object?>> _subscriptions = [];
+
+  PhoenixSocket? _socket;
+  PhoenixChannel? _channel;
+  bool _joining = false;
+  bool _joined = false;
+  bool _left = false;
+
+  /// `<base>/socket/websocket?vsn=2.0.0` with an http→ws / https→wss scheme.
+  static Uri socketUri(String baseUrl) {
+    final base = Uri.parse(baseUrl);
+    final scheme = switch (base.scheme) {
+      'https' || 'wss' => 'wss',
+      _ => 'ws',
+    };
+    var path = base.path;
+    while (path.endsWith('/')) {
+      path = path.substring(0, path.length - 1);
+    }
+    return base.replace(
+      scheme: scheme,
+      path: '$path/socket/websocket',
+      queryParameters: const {'vsn': '2.0.0'},
+    );
+  }
+
+  @override
+  Stream<RoomState> get state => _state.stream;
+
+  @override
+  Stream<ConnectionStatus> get status => _status.stream;
+
+  @override
+  Future<RoomClosedReason> get closed => _closed.future;
+
+  @override
+  Future<JoinResult> join(
+    String roomCode,
+    String displayName, {
+    String? playerToken,
+  }) {
+    return _join(roomCode, {
+      'protocol_version': protocolVersion,
+      'display_name': displayName,
+      'player_token': playerToken,
+      'host_token': null,
+    });
+  }
+
+  @override
+  Future<JoinResult> joinAsHost(String roomCode, String hostToken) {
+    return _join(roomCode, {
+      'protocol_version': protocolVersion,
+      'display_name': null,
+      'player_token': null,
+      'host_token': hostToken,
+    });
+  }
+
+  @override
+  Future<void> submit(String answer, int wager) =>
+      _push('submit', {'answer': answer, 'wager': wager});
+
+  @override
+  Future<void> hostNext() => _push('host_next', const {});
+
+  @override
+  Future<void> hostPause() => _push('host_pause', const {});
+
+  @override
+  Future<void> hostResume() => _push('host_resume', const {});
+
+  @override
+  Future<void> hostOverride(String playerId, bool correct) =>
+      _push('host_override', {'player_id': playerId, 'correct': correct});
+
+  @override
+  Future<void> leave() async {
+    if (_left) return;
+    _left = true;
+    final channel = _channel;
+    if (channel != null && _joined) {
+      try {
+        await channel.leave().future.timeout(const Duration(seconds: 2));
+      } on Object {
+        // Best effort: the socket is disposed below either way.
+      }
+    }
+    _teardown();
+    _status.add(ConnectionStatus.disconnected);
+    await _state.close();
+    await _status.close();
+  }
+
+  Future<JoinResult> _join(String roomCode, Map<String, dynamic> params) async {
+    if (_left) {
+      throw StateError('This connection has been left.');
+    }
+    if (_joining || _joined) {
+      throw StateError('This connection is already joined to a room.');
+    }
+    _joining = true;
+    _status.add(ConnectionStatus.connecting);
+
+    final socket = _socketFactory(socketUri(baseUrl).toString());
+    _socket = socket;
+    _subscriptions
+      ..add(socket.closeStream.listen((_) => _onSocketDown()))
+      ..add(socket.errorStream.listen((_) => _onSocketDown()));
+
+    try {
+      try {
+        await socket.connect().timeout(timeout);
+      } on TimeoutException {
+        throw const GameError(
+          code: GameError.connectionFailed,
+          message: 'Could not reach the game server.',
+        );
+      }
+
+      final channel = socket.addChannel(
+        topic: 'room:$roomCode',
+        parameters: params,
+      );
+      _channel = channel;
+      _subscriptions.add(channel.messages.listen(_onChannelMessage));
+
+      final PushResponse reply;
+      try {
+        reply = await channel.join().future.timeout(timeout);
+      } on Object {
+        throw const GameError(
+          code: GameError.connectionFailed,
+          message: 'The game server did not answer.',
+        );
+      }
+
+      if (!reply.isOk) {
+        final error = _errorFrom(reply.response);
+        if (error.code == 'room_not_found') {
+          _completeClosed(RoomClosedReason.notFound);
+        }
+        throw error;
+      }
+
+      final result = JoinResult.fromJson(_asMap(reply.response));
+      final token = result.playerToken;
+      if (token != null) {
+        // phoenix_socket re-sends these params on every automatic rejoin.
+        channel.parameters['player_token'] = token;
+      }
+      _joined = true;
+      _status.add(ConnectionStatus.connected);
+      return result;
+    } catch (_) {
+      _teardown();
+      if (!_left) _status.add(ConnectionStatus.disconnected);
+      rethrow;
+    } finally {
+      _joining = false;
+    }
+  }
+
+  Future<void> _push(String event, Map<String, dynamic> payload) async {
+    final channel = _channel;
+    if (channel == null || !_joined) {
+      throw const GameError(
+        code: GameError.notJoined,
+        message: 'Not connected to a room.',
+      );
+    }
+    final PushResponse reply;
+    try {
+      reply = await channel.push(event, payload).future;
+    } on ChannelTimeoutException {
+      throw const GameError(
+        code: GameError.timeout,
+        message: 'The game server did not answer.',
+      );
+    } on Object {
+      throw const GameError(
+        code: GameError.connectionFailed,
+        message: 'Connection to the game server was lost.',
+      );
+    }
+    if (!reply.isOk) {
+      throw _errorFrom(reply.response);
+    }
+  }
+
+  void _onChannelMessage(Message message) {
+    switch (message.event.value) {
+      case 'state':
+        try {
+          _state.add(RoomState.fromJson(_asMap(message.payload)));
+        } catch (error, stackTrace) {
+          developer.log(
+            'Ignoring malformed state payload',
+            name: 'PhoenixGameConnection',
+            error: error,
+            stackTrace: stackTrace,
+          );
+        }
+      case 'room_closed':
+        _completeClosed(_reasonFrom(_asMap(message.payload)['reason']));
+        _shutdown();
+      default:
+        final channel = _channel;
+        if (_joined &&
+            channel != null &&
+            message.event.isChannelReply &&
+            message.ref != null &&
+            message.ref == channel.joinRef) {
+          _onRejoinReply(PushResponse.fromMessage(message));
+        }
+    }
+  }
+
+  /// Reply to an automatic rejoin performed by phoenix_socket after a
+  /// reconnect.
+  void _onRejoinReply(PushResponse reply) {
+    if (reply.isOk) {
+      _status.add(ConnectionStatus.connected);
+      return;
+    }
+    if (!reply.isError) return;
+    final error = _errorFrom(reply.response);
+    if (error.code == 'room_not_found') {
+      _completeClosed(RoomClosedReason.notFound);
+    }
+    // Any rejoin error is final; stop phoenix_socket's rejoin loop.
+    _shutdown();
+  }
+
+  void _onSocketDown() {
+    if (_left || _closed.isCompleted) return;
+    if (_joined) _status.add(ConnectionStatus.reconnecting);
+  }
+
+  void _completeClosed(RoomClosedReason reason) {
+    if (!_closed.isCompleted) _closed.complete(reason);
+  }
+
+  void _shutdown() {
+    _teardown();
+    _status.add(ConnectionStatus.disconnected);
+  }
+
+  void _teardown() {
+    for (final subscription in _subscriptions) {
+      subscription.cancel();
+    }
+    _subscriptions.clear();
+    _socket?.dispose();
+    _socket = null;
+    _channel = null;
+    _joined = false;
+  }
+
+  static GameError _errorFrom(Object? response) {
+    final map = _asMap(response);
+    final code = map['code'];
+    final message = map['message'];
+    return GameError(
+      code: code is String ? code : 'unknown_error',
+      message: message is String ? message : null,
+    );
+  }
+
+  static RoomClosedReason _reasonFrom(Object? reason) => switch (reason) {
+    'host_timeout' => RoomClosedReason.hostTimeout,
+    'finished' => RoomClosedReason.finished,
+    _ => RoomClosedReason.shutdown,
+  };
+
+  static Map<String, dynamic> _asMap(Object? value) =>
+      value is Map ? Map<String, dynamic>.from(value) : <String, dynamic>{};
+}
