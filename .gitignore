@@ -1,0 +1,41 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Elixir / Phoenix (server/)
+server/_build/
+server/deps/
+server/cover/
+server/doc/
+server/.fetch
+erl_crash.dump
+server/*.ez
+server/priv/static/assets/
+server/priv/plts/
+server/config/prod.secret.exs
+
+# Flutter / Dart (app/)
+app/.dart_tool/
+app/build/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.packages
+app/.pub-cache/
+app/.pub/
+app/coverage/
+app/android/.gradle/
+app/android/local.properties
+app/android/app/debug/
+app/android/app/release/
+app/ios/Pods/
+app/ios/Flutter/Generated.xcconfig

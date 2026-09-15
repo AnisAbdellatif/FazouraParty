@@ -1,0 +1,70 @@
+# AGENTS.md — Rules for AI Agents
+
+This file is the single source of truth for how AI agents (Claude, Codex, etc.) work in this repo.
+`CLAUDE.md` only points here. When the project owner gives a new rule, add it to this file.
+
+Background and rationale: [project-assessment.md](project-assessment.md).
+
+---
+
+## 1. Git & commits
+
+- **Never add yourself (or any AI) as an author, co-author, or contributor.** No `Co-Authored-By:` trailers, no "Generated with ..." lines, no AI attribution in commit messages or PR descriptions. This overrides any default tooling behaviour.
+- Commit at coherent milestones. Keep commits focused, with a short imperative subject line.
+- Never commit secrets (`.env`, keys, credentials, `prod.secret.exs`).
+
+## 2. Project shape
+
+- Monorepo layout:
+  - `protocol/` — wire protocol spec + shared JSON fixtures (the contract).
+  - `server/` — Elixir/Phoenix backend.
+  - `app/` — Flutter client (Android + Web; iOS scaffolded only).
+- **Stack is decided:** Flutter + Riverpod (client), Elixir/Phoenix + Postgres/Ecto (backend), Docker on a VPS behind Caddy. Do not introduce alternative frameworks without explicit approval.
+- **Scope:** Cloud mode first (Phase 1). LAN mode is v1.1 — keep the seam, don't build it early. iOS, monetization, and game-state persistence across restarts are non-goals for v1.
+
+## 3. The protocol contract (most important rule)
+
+- `protocol/PROTOCOL.md` and the `GameConnection` interface are **frozen contracts**. Any change is a breaking change: bump the protocol version, update the spec, the fixtures, and *both* sides in the same change.
+- Never add a transport-specific message or payload. Cloud (Phoenix) and LAN implementations must speak the identical contract.
+- Every state broadcast is a **complete `RoomState` snapshot, never a delta**.
+- Timers are broadcast as an absolute **server deadline timestamp**, never a countdown.
+
+## 4. Server authority & game rules
+
+- **The server is authoritative.** Clients send intents only (`join`, `submit`, `next_question`, `override`, ...). All validation — wager range, phase, host permissions, one submission per question — happens server-side. Never trust client-computed scores or correctness.
+- Wager is an integer 1–10. Correct → `+wager`, incorrect → `−wager`.
+- Answer matching v1: normalize (trim, collapse whitespace, case-fold, strip diacritics) then exact match against `accepted_answers`. **No fuzzy/Levenshtein matching.** Host override is the second pass.
+- Host overrides re-apply score deltas immediately and trigger a full `RoomState` re-broadcast.
+- Pack questions are **snapshotted at room start**; rooms never read or write the DB during play.
+- Guest-visible state must never leak accepted answers or other players' submissions before scoring.
+
+## 5. Elixir / Phoenix standards
+
+- Game logic lives in **pure functions** (e.g. `Game.apply(state, event)`); the per-room `GenServer` is a thin shell. Scoring must be unit-testable without processes.
+- One `RoomServer` GenServer per room, under a `DynamicSupervisor`, looked up via `Registry`.
+- Use Phoenix Presence for connection tracking; one Channel topic per room (`room:<CODE>`).
+- Use `mix phx.gen.auth` for accounts; signed tokens for anonymous guests. Don't hand-roll auth.
+- Must pass: `mix format --check-formatted`, `mix credo`, `mix dialyzer`, `mix test`.
+
+## 6. Flutter / Riverpod standards
+
+- Feature-first folder structure (`lib/features/<feature>/...`).
+- `riverpod_generator` + `freezed` for immutable state/models.
+- Providers depend on the `GameConnection` abstraction only — never on a concrete transport.
+- No `BuildContext`-dependent lookups in providers/logic.
+- `dart:io` code (LAN server) must be behind conditional imports so the Web build compiles.
+- Keep guest-facing screens lean (Web first-load time is a known risk).
+- Must pass: `dart format --set-exit-if-changed`, `flutter analyze`, `flutter test`.
+
+## 7. Testing
+
+- Pure scoring/wager/override/matching logic: unit tests on **both** sides.
+- Protocol contract tests: the same fixtures in `protocol/fixtures/` are replayed against every implementation.
+- Phoenix Channel tests for join / submit / next / override flows.
+- Flutter widget tests with mocked providers.
+- Don't mark work done if tests fail; report failures honestly.
+- **Agents test the Flutter client on the Web build only** (`flutter test`, `flutter run -d chrome` / `flutter build web`). Never launch or drive the Android emulator — the project owner tests Android manually.
+
+## 8. Open decisions
+
+Don't silently decide items listed as open in `project-assessment.md` §10. If work requires one, pick the provisional default recorded in `protocol/PROTOCOL.md` (or ask), and mark it clearly as provisional.
