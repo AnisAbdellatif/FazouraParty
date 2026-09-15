@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/fz_theme.dart';
 import 'fz.dart';
+import 'question_photo.dart';
 
 /// The question that just ended and its accepted answers as green pills.
 class RevealSummary extends StatelessWidget {
@@ -9,10 +10,14 @@ class RevealSummary extends StatelessWidget {
     super.key,
     required this.prompt,
     required this.acceptedAnswers,
+    this.imageUrl,
   });
 
   final String prompt;
   final List<String> acceptedAnswers;
+
+  /// Photo of a text+photo question, shown small for context.
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -20,6 +25,10 @@ class RevealSummary extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (imageUrl != null) ...[
+          QuestionPhoto(url: imageUrl!, maxHeight: 140),
+          const SizedBox(height: 12),
+        ],
         Text(prompt, style: fz.h(18, height: 1.25, tracking: -.02)),
         const SizedBox(height: 12),
         const FzEyebrow('Correct answer', color: FzColors.ok),

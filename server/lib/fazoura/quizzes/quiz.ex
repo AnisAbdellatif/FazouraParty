@@ -10,6 +10,7 @@ defmodule Fazoura.Quizzes.Quiz do
   @foreign_key_type :binary_id
 
   @format_version 1
+  # Stored quizzes are public; inline (private) quizzes are never stored.
   @visibilities ~w(public private)
   @categories ~w(general science history geography movies music sports food language pop_culture other)
 
@@ -56,19 +57,17 @@ defmodule Fazoura.Quizzes.Quiz do
       :language,
       :category,
       :tags,
-      :visibility,
       :default_time_limit_ms,
       :default_difficulty_multiplier
     ])
     |> update_change(:title, &String.trim/1)
     |> update_change(:tags, &clean_tags/1)
-    |> validate_required([:format_version, :title, :visibility])
+    |> validate_required([:format_version, :title])
     |> validate_number(:format_version, equal_to: @format_version)
     |> validate_length(:title, min: 1, max: 80)
     |> validate_length(:description, max: 280)
     |> validate_length(:language, min: 2, max: 10)
     |> validate_inclusion(:category, @categories)
-    |> validate_inclusion(:visibility, @visibilities)
     |> validate_length(:tags, max: 10)
     |> validate_change(:tags, fn :tags, tags ->
       if Enum.all?(tags, &(String.length(&1) <= 24)),
@@ -80,14 +79,6 @@ defmodule Fazoura.Quizzes.Quiz do
       less_than_or_equal_to: 120_000
     )
     |> put_questions(params["questions"])
-  end
-
-  @spec visibility_changeset(t(), term()) :: Ecto.Changeset.t()
-  def visibility_changeset(quiz, visibility) do
-    quiz
-    |> cast(%{"visibility" => visibility}, [:visibility])
-    |> validate_required([:visibility])
-    |> validate_inclusion(:visibility, @visibilities)
   end
 
   defp put_questions(changeset, questions) when is_list(questions) do

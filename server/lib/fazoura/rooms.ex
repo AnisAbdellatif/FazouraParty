@@ -5,26 +5,32 @@ defmodule Fazoura.Rooms do
   """
 
   alias Fazoura.Game.Pack
-  alias Fazoura.Rooms.RoomServer
+  alias Fazoura.Rooms.{Images, RoomServer}
 
   @code_alphabet ~c"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
   @code_length 6
 
   @doc """
   Starts a room for `pack`. Options: `:now` (0-arity fun returning epoch ms, for tests),
-  `:mode` (`:cloud` | `:lan`).
+  `:mode` (`:cloud` | `:lan`), `:image_keys` (private-quiz photos in
+  `Fazoura.Rooms.Images`, freed when the room exits).
   """
   @spec create(Pack.t(), keyword()) :: {:ok, String.t(), String.t()} | {:error, :empty_pack}
   def create(pack, opts \\ [])
   def create(%Pack{questions: []}, _opts), do: {:error, :empty_pack}
 
   def create(%Pack{} = pack, opts) do
+    {image_keys, server_opts} = Keyword.pop(opts, :image_keys, [])
     code = generate_code()
-    spec = {RoomServer, Keyword.merge(opts, code: code, pack: pack)}
+    spec = {RoomServer, Keyword.merge(server_opts, code: code, pack: pack)}
 
     case DynamicSupervisor.start_child(Fazoura.Rooms.Supervisor, spec) do
-      {:ok, _pid} -> {:ok, code, RoomServer.host_token(code)}
-      {:error, {:already_started, _pid}} -> create(pack, opts)
+      {:ok, pid} ->
+        :ok = Images.attach(image_keys, pid)
+        {:ok, code, RoomServer.host_token(code)}
+
+      {:error, {:already_started, _pid}} ->
+        create(pack, opts)
     end
   end
 

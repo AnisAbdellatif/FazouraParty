@@ -20,6 +20,13 @@ String describeError(Object error) {
     'no_submission' => 'That player did not answer.',
     'not_host' => 'Only the host can do that.',
     'not_player' => 'Only players can do that.',
+    'quiz_not_found' ||
+    'pack_not_found' => 'That quiz is gone or no longer shared with you.',
+    'owner_key_required' => 'This device could not prove it owns that quiz.',
+    'unknown_image' => 'A photo is missing. Pick it again and save.',
+    'image_too_large' => 'That photo is too big (2 MB max).',
+    'unsupported_image' => 'Use a JPEG, PNG or WebP photo.',
+    'invalid_quiz' => error.message ?? 'The quiz has errors.',
     GameError.connectionFailed => 'Could not reach the game server.',
     GameError.timeout => 'The game server did not answer.',
     _ => error.message ?? 'Something went wrong (${error.code}).',

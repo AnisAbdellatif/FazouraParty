@@ -18,10 +18,12 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
    field, or adding a required one, bumps `format_version` and needs a migration path.
 3. **Room-safe.** Rooms snapshot a quiz when created (PROTOCOL.md §6.2), so editing a quiz
    never affects a running game.
-4. **No answer leaks.** Accepted answers are only sent to the quiz's owner, never to
-   people browsing public quizzes (they may end up playing it).
-5. **Accounts later.** Ownership is a per-device secret today; the model leaves room for a
-   user id without changing the document.
+4. **No answer leaks.** Accepted answers are only sent to the device that published the
+   quiz, never to people browsing public quizzes (they may end up playing it).
+5. **No accounts.** A quiz is either *private* (kept on the device that made it and sent
+   to the server only for the lifetime of a room) or *public* (published to the server
+   database for everyone). A per-device secret lets the publishing device update or
+   unpublish; the model leaves room for a user id later without changing the document.
 
 ## 2. Quiz document (format version 1)
 
@@ -36,7 +38,7 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
   "category": "movies",
   "tags": ["cinema", "2000s"],
   "source": "custom",
-  "visibility": "private",
+  "visibility": "public",
   "is_owner": true,
   "default_settings": {
     "time_limit_ms": 30000,
@@ -88,8 +90,8 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 | `category` | string | One of §2.3, default `"general"` |
 | `tags` | string[] | ≤ 10 tags, each 1–24 chars, lower-cased |
 | `source` | `"builtin"` \| `"custom"` | Server-assigned |
-| `visibility` | `"public"` \| `"private"` | Required on create; changeable by the owner (§4) |
-| `is_owner` | bool | Output only: whether the request's owner key owns this quiz |
+| `visibility` | `"public"` \| `"private"` | Stored quizzes are always `public`; the app uses `private` for quizzes kept on the device (§4). Ignored on input |
+| `is_owner` | bool | Output only: whether the request's publisher key published this quiz |
 | `default_settings` | object | Suggested room settings. `time_limit_ms` 10 000–120 000 (default 30 000), `difficulty_multiplier` bool (default false). Rooms start with these; the host can still change them in the lobby |
 | `question_count` | int | Output only |
 | `has_photos` | bool | Output only: at least one `text_photo` question |
@@ -106,7 +108,7 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 | `accepted_answers` | string[] | Required, 1–10 answers, each 1–100 characters. Matching is PROTOCOL.md §8 |
 | `difficulty` | `"easy"` \| `"medium"` \| `"hard"` | Default `"easy"`; drives the difficulty bonus (PROTOCOL.md §9) |
 | `time_limit_ms` | int \| null | Reserved for per-question overrides; ignored by rooms today |
-| `image` | object \| null | Required for `text_photo`, must be `null` for `text`. On input only `key` (from §5.6) and optional `alt` (≤ 140 chars); `url` is output only |
+| `image` | object \| null | Required for `text_photo`, must be `null` for `text`. Fields: `key` (from §5.6, when publishing); `data` (base64 JPEG/PNG/WebP ≤ 2 MB, for private quizzes sent inline, §5.7, and how the app keeps photos on the device); optional `alt` (≤ 140 chars); `url` is output only |
 | `explanation` | string \| null | ≤ 280 chars, shown after the reveal in a later release |
 
 ### 2.3 Categories
@@ -142,27 +144,34 @@ images
   owner_key_hash string · inserted_at
 ```
 
+- **Only public quizzes are stored.** Private quizzes never reach the database.
 - **Built-in quizzes** live as documents in `server/priv/quizzes/<slug>.json` and are
   synced into the database by slug (`mix run priv/repo/seeds.exs`, also run by `mix setup`).
-  They are `source: builtin`, `visibility: public`, and have no owner.
+  They are `source: builtin`, `visibility: public`, and have no publisher.
 - **Image files** are stored under the configured uploads directory and served at
   `/uploads/<key>`. The database row records ownership for cleanup.
 - **Future accounts:** add `quizzes.owner_user_id` (nullable) and claim existing quizzes
-  by owner key; the document is unchanged.
+  by publisher key; the document is unchanged.
 
-## 4. Ownership and visibility (no accounts yet)
+## 4. Private and public quizzes (no accounts)
 
-- Each app install generates a random **owner key** (≥ 32 URL-safe characters) once and
-  keeps it on the device. It is sent as the `x-owner-key` HTTP header. The server stores
-  only `sha256(owner_key)`.
-- Creating a quiz requires an owner key; that key owns it.
-- `public` quizzes: listed for everyone and hostable by anyone.
-- `private` quizzes: listed only for the owner and hostable only by the owner. Friends
-  still play them by joining the owner's room.
-- Only the owner can read accepted answers, edit, change visibility or delete.
-  Built-in quizzes cannot be edited through the API.
-- A request for a quiz the caller can't see gets `404 quiz_not_found` — never `403` —
-  so private quizzes can't be probed.
+- **Private** (the default when creating): the quiz lives only on the device that made it
+  (the app's local database, photos included as `image.data`). Each time that device hosts
+  it, the whole document is sent with room creation (§5.7); the server validates it, plays
+  it, and forgets it (photos included) when the room closes. Friends play it by joining
+  the room.
+- **Public:** the device publishes the document (§5.3) and it is stored in the server
+  database, listed for everyone and hostable by anyone. The device keeps its local copy
+  (the one it edits) and remembers the published id.
+- The creator can switch at any time: publishing uploads photos (§5.6) and creates or
+  replaces the stored copy; making it private again deletes the stored copy (§5.5).
+- Each app install generates a random **publisher key** (≥ 32 URL-safe characters) once
+  and keeps it on the device. It is not an account: it is sent as the `x-owner-key` HTTP
+  header and only proves "this device published it". The server stores
+  `sha256(publisher_key)`. Only that key can read a published quiz's accepted answers,
+  replace it or unpublish it. Built-in quizzes cannot be changed through the API.
+- Requests for a quiz that doesn't exist, or to change one someone else published, get
+  `404 quiz_not_found`, never `403`.
 
 ## 5. REST API
 
@@ -170,8 +179,9 @@ JSON bodies; errors are `{"code": string, "message": string, "errors"?: {field: 
 
 ### 5.1 `GET /api/quizzes`
 
-Query: `scope=public|mine` (default `public`; `mine` requires `x-owner-key`),
-`q` (case-insensitive title search), `category`, `limit` (1–50, default 20), `offset`.
+Query: `q` (case-insensitive title search), `category`, `limit` (1–50, default 20),
+`offset`. Lists stored (public) quizzes; `is_owner` is true for ones published with the
+request's `x-owner-key`.
 
 ```json
 200 {"quizzes": [<quiz document without "questions">], "next_offset": 20 | null}
@@ -181,30 +191,30 @@ Order: built-in first, then most recently updated.
 
 ### 5.2 `GET /api/quizzes/:id`
 
-`:id` is the uuid or a built-in slug. Returns the document **without** `questions` for
-non-owners (built-ins included), and **with** `questions` for the owner.
+`:id` is the uuid or a built-in slug. Returns the document **without** `questions`, or
+**with** them for the publisher.
 
-### 5.3 `POST /api/quizzes`
+### 5.3 `POST /api/quizzes` (publish)
 
 Header `x-owner-key` required. Body: a quiz document (server-assigned and output-only
-fields ignored). `201` with the full document. `422 invalid_quiz` with `errors` on
-validation failure; `401 owner_key_required` without a valid key.
+fields ignored; photos by `key`). `201` with the full document. `422 invalid_quiz` with
+`errors` on validation failure; `401 owner_key_required` without a valid key;
+`422 unknown_image` if a photo key wasn't uploaded with the same key.
 
 ### 5.4 `PUT /api/quizzes/:id`
 
-Owner only. Replaces the quiz, including all questions (question ids are re-issued).
+Publisher only. Replaces the quiz, including all questions (question ids are re-issued).
 `200` with the full document.
 
-### 5.5 `PATCH /api/quizzes/:id` · `DELETE /api/quizzes/:id`
+### 5.5 `DELETE /api/quizzes/:id` (unpublish)
 
-Owner only. `PATCH` accepts `{"visibility": "public" | "private"}` → `200` document.
-`DELETE` → `204`.
+Publisher only. `204`.
 
 ### 5.6 `POST /api/images`
 
-Owner key required. `multipart/form-data` with one `file` part: JPEG, PNG or WebP
+Publisher key required. `multipart/form-data` with one `file` part: JPEG, PNG or WebP
 (checked by content, not by filename), ≤ 2 MB. Clients downscale to at most 1280 px on
-the longest side before uploading.
+the longest side. Only needed to publish.
 
 ```json
 201 {"key": "5b0e4f1c9a2d7e3f.jpg", "url": "https://…/uploads/5b0e4f1c9a2d7e3f.jpg"}
@@ -214,10 +224,18 @@ Errors: `413 image_too_large`, `415 unsupported_image`.
 
 ### 5.7 Rooms
 
-`POST /api/rooms` accepts `{"quiz_id": "<uuid or slug>"}` (`pack_id` is still accepted as
-an alias) plus the optional `x-owner-key` header, needed to host a private quiz. The room
-snapshots the quiz and starts with its `default_settings`. A question's `image.url` becomes
-the room state's `question.image_url` (PROTOCOL.md §5.1).
+`POST /api/rooms` accepts either:
+
+- `{"quiz_id": "<uuid or slug>"}`: a stored quiz (`pack_id` is still accepted as an
+  alias); `404 quiz_not_found` if missing.
+- `{"quiz": <quiz document>}`: a **private quiz sent inline**. It is validated like §5.3
+  (`422 invalid_quiz`) but not stored. Photos come as `image.data` (base64; `key` is
+  ignored; `413 image_too_large`, `415 unsupported_image`). The server keeps them in memory
+  and serves them at `/api/room-images/<random key>` until the room closes. Request bodies
+  may be up to 32 MB.
+
+The room snapshots the quiz and starts with its `default_settings`. A question's photo URL
+becomes the room state's `question.image_url` (PROTOCOL.md §5.1).
 
 ## 6. Evolution checklist
 

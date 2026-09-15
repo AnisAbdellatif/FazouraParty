@@ -20,13 +20,13 @@ defmodule FazouraWeb.QuizControllerTest do
     |> json_response(201)
   end
 
-  test "create returns the full owned document", %{conn: conn} do
-    doc = create!(conn)
+  test "publishing returns the full document, always public", %{conn: conn} do
+    doc = create!(conn, %{"visibility" => "private"})
 
     assert %{
              "format_version" => 1,
              "source" => "custom",
-             "visibility" => "private",
+             "visibility" => "public",
              "is_owner" => true,
              "question_count" => 1,
              "has_photos" => false,
@@ -37,7 +37,7 @@ defmodule FazouraWeb.QuizControllerTest do
            } = doc
   end
 
-  test "create requires an owner key and a valid document", %{conn: conn} do
+  test "publishing requires a publisher key and a valid document", %{conn: conn} do
     assert %{"code" => "owner_key_required"} =
              conn |> post(~p"/api/quizzes", QuizFixtures.quiz_params()) |> json_response(401)
 
@@ -53,9 +53,8 @@ defmodule FazouraWeb.QuizControllerTest do
     assert %{"title" => _, "questions" => _} = errors
   end
 
-  test "index lists public quizzes without questions, and mine with a key", %{conn: conn} do
-    private = create!(conn)
-    public = create!(conn, %{"title" => "Open Quiz", "visibility" => "public"})
+  test "index lists published quizzes without questions", %{conn: conn} do
+    create!(conn, %{"title" => "Open Quiz"})
 
     %{"quizzes" => listed, "next_offset" => nil} =
       conn |> as(@other) |> get(~p"/api/quizzes") |> json_response(200)
@@ -64,14 +63,8 @@ defmodule FazouraWeb.QuizControllerTest do
     refute Enum.any?(listed, &Map.has_key?(&1, "questions"))
     assert Enum.all?(listed, &(&1["is_owner"] == false))
 
-    %{"quizzes" => mine} =
-      conn |> as(@owner) |> get(~p"/api/quizzes?scope=mine") |> json_response(200)
-
-    assert mine |> Enum.map(& &1["id"]) |> Enum.sort() == Enum.sort([private["id"], public["id"]])
-    assert Enum.all?(mine, & &1["is_owner"])
-
-    assert %{"code" => "owner_key_required"} =
-             conn |> get(~p"/api/quizzes?scope=mine") |> json_response(401)
+    %{"quizzes" => mine} = conn |> as(@owner) |> get(~p"/api/quizzes") |> json_response(200)
+    assert Enum.map(mine, & &1["is_owner"]) == [false, true]
 
     %{"quizzes" => [%{"title" => "Open Quiz"}]} =
       conn |> get(~p"/api/quizzes?q=open&limit=5") |> json_response(200)
@@ -80,21 +73,24 @@ defmodule FazouraWeb.QuizControllerTest do
       conn |> get(~p"/api/quizzes?limit=1") |> json_response(200)
   end
 
-  test "show hides answers from non-owners and private quizzes from others", %{conn: conn} do
-    private = create!(conn)
+  test "show hides answers from everyone but the publisher", %{conn: conn} do
+    %{"id" => id} = create!(conn)
 
-    assert %{"code" => "quiz_not_found"} =
-             conn |> as(@other) |> get(~p"/api/quizzes/#{private["id"]}") |> json_response(404)
+    other = conn |> as(@other) |> get(~p"/api/quizzes/#{id}") |> json_response(200)
+    refute Map.has_key?(other, "questions")
 
     assert %{"questions" => [_]} =
-             conn |> as(@owner) |> get(~p"/api/quizzes/#{private["id"]}") |> json_response(200)
+             conn |> as(@owner) |> get(~p"/api/quizzes/#{id}") |> json_response(200)
 
     builtin = conn |> get(~p"/api/quizzes/general-knowledge") |> json_response(200)
     assert %{"source" => "builtin", "question_count" => 20} = builtin
     refute Map.has_key?(builtin, "questions")
+
+    assert %{"code" => "quiz_not_found"} =
+             conn |> get(~p"/api/quizzes/nope") |> json_response(404)
   end
 
-  test "owner updates, changes visibility and deletes", %{conn: conn} do
+  test "publisher updates and unpublishes", %{conn: conn} do
     %{"id" => id} = create!(conn)
 
     replacement =
@@ -121,26 +117,12 @@ defmodule FazouraWeb.QuizControllerTest do
            } =
              conn |> as(@owner) |> put(~p"/api/quizzes/#{id}", replacement) |> json_response(200)
 
-    assert %{"visibility" => "public"} =
-             conn
-             |> as(@owner)
-             |> patch(~p"/api/quizzes/#{id}", %{visibility: "public"})
-             |> json_response(200)
-
-    assert %{"id" => ^id} = conn |> get(~p"/api/quizzes/#{id}") |> json_response(200)
-
-    assert %{"code" => "invalid_quiz"} =
-             conn
-             |> as(@owner)
-             |> patch(~p"/api/quizzes/#{id}", %{visibility: "friends"})
-             |> json_response(422)
-
     assert conn |> as(@other) |> delete(~p"/api/quizzes/#{id}") |> json_response(404)
     assert conn |> as(@owner) |> delete(~p"/api/quizzes/#{id}") |> response(204)
     assert conn |> get(~p"/api/quizzes/#{id}") |> json_response(404)
   end
 
-  test "CORS preflight allows the owner key header and write methods", %{conn: conn} do
+  test "CORS preflight allows the publisher key header and write methods", %{conn: conn} do
     Application.put_env(:fazoura, :cors_origins, :all)
     on_exit(fn -> Application.put_env(:fazoura, :cors_origins, []) end)
 
@@ -151,6 +133,6 @@ defmodule FazouraWeb.QuizControllerTest do
 
     assert response(conn, 204)
     assert get_resp_header(conn, "access-control-allow-headers") |> hd() =~ "x-owner-key"
-    assert get_resp_header(conn, "access-control-allow-methods") |> hd() =~ "PATCH"
+    assert get_resp_header(conn, "access-control-allow-methods") |> hd() =~ "DELETE"
   end
 end

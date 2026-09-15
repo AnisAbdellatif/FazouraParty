@@ -2,8 +2,10 @@ defmodule Fazoura.Quizzes do
   @moduledoc """
   Quizzes: the content rooms play (protocol/QUIZ_FORMAT.md).
 
-  Stored with Ecto, exchanged as JSON documents. Until accounts exist, a per-device
-  owner key owns custom quizzes; private quizzes are only visible to that key.
+  There are no accounts. The database only holds public quizzes (built-in and
+  published ones); a per-device publisher key lets the device that published a quiz
+  update or unpublish it. Private quizzes never reach the database: the app keeps them
+  and sends the whole document each time it hosts (`inline_pack/1`).
   """
 
   import Ecto.Query
@@ -11,6 +13,7 @@ defmodule Fazoura.Quizzes do
   alias Fazoura.Game.Pack
   alias Fazoura.Quizzes.{Image, OwnerKey, Question, Quiz}
   alias Fazoura.Repo
+  alias Fazoura.Rooms.Images
   alias Fazoura.Uploads
 
   @uuid ~r/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i
@@ -20,45 +23,30 @@ defmodule Fazoura.Quizzes do
   ## Listing and reading
 
   @doc """
-  Lists quiz summaries. Options: `:scope` ("public" | "mine"), `:owner_key`, `:q`,
-  `:category`, `:limit` (1–50), `:offset`. Returns the page and the next offset.
+  Lists public quiz summaries. Options: `:q`, `:category`, `:limit` (1–50), `:offset`.
+  Returns the page and the next offset.
   """
-  @spec list(keyword()) ::
-          {:ok, [Quiz.t()], non_neg_integer() | nil}
-          | {:error, :owner_key_required | :invalid_scope}
+  @spec list(keyword()) :: {:ok, [Quiz.t()], non_neg_integer() | nil}
   def list(opts \\ []) do
     limit = opts |> Keyword.get(:limit, 20) |> max(1) |> min(50)
     offset = opts |> Keyword.get(:offset, 0) |> max(0)
 
-    with {:ok, query} <- scope_query(Keyword.get(opts, :scope, "public"), opts[:owner_key]) do
-      rows =
-        query
-        |> search(opts[:q])
-        |> in_category(opts[:category])
-        |> order_by([q],
-          asc: fragment("CASE WHEN ? = 'builtin' THEN 0 ELSE 1 END", q.source),
-          desc: q.updated_at,
-          asc: q.id
-        )
-        |> limit(^(limit + 1))
-        |> offset(^offset)
-        |> Repo.all()
+    rows =
+      from(q in Quiz, where: q.visibility == "public")
+      |> search(opts[:q])
+      |> in_category(opts[:category])
+      |> order_by([q],
+        asc: fragment("CASE WHEN ? = 'builtin' THEN 0 ELSE 1 END", q.source),
+        desc: q.updated_at,
+        asc: q.id
+      )
+      |> limit(^(limit + 1))
+      |> offset(^offset)
+      |> Repo.all()
 
-      {page, rest} = Enum.split(rows, limit)
-      {:ok, page, if(rest == [], do: nil, else: offset + limit)}
-    end
+    {page, rest} = Enum.split(rows, limit)
+    {:ok, page, if(rest == [], do: nil, else: offset + limit)}
   end
-
-  defp scope_query("public", _key), do: {:ok, from(q in Quiz, where: q.visibility == "public")}
-
-  defp scope_query("mine", key) do
-    case OwnerKey.hash(key) do
-      {:ok, hash} -> {:ok, from(q in Quiz, where: q.owner_key_hash == ^hash)}
-      :error -> {:error, :owner_key_required}
-    end
-  end
-
-  defp scope_query(_scope, _key), do: {:error, :invalid_scope}
 
   defp search(query, text) when is_binary(text) do
     case text |> String.replace(~r/[%_\\]/, "") |> String.trim() |> String.downcase() do
@@ -74,22 +62,9 @@ defmodule Fazoura.Quizzes do
 
   defp in_category(query, _category), do: query
 
-  @doc "A quiz (with questions) the caller may see, by uuid or built-in slug."
-  @spec fetch_visible(term(), owner_key()) :: {:ok, Quiz.t()} | {:error, :quiz_not_found}
-  def fetch_visible(id, owner_key) do
-    with {:ok, quiz} <- get(id),
-         true <- quiz.visibility == "public" or owner?(quiz, owner_key) do
-      {:ok, quiz}
-    else
-      _ -> {:error, :quiz_not_found}
-    end
-  end
-
-  @spec owner?(Quiz.t(), owner_key()) :: boolean()
-  def owner?(%Quiz{owner_key_hash: nil}, _key), do: false
-  def owner?(%Quiz{owner_key_hash: hash}, key), do: OwnerKey.hash(key) == {:ok, hash}
-
-  defp get(id) when is_binary(id) do
+  @doc "A stored quiz with its questions, by uuid or built-in slug."
+  @spec fetch(term()) :: {:ok, Quiz.t()} | {:error, :quiz_not_found}
+  def fetch(id) when is_binary(id) do
     query =
       if id =~ @uuid,
         do: from(q in Quiz, where: q.id == ^String.downcase(id)),
@@ -101,10 +76,15 @@ defmodule Fazoura.Quizzes do
     end
   end
 
-  defp get(_id), do: {:error, :quiz_not_found}
+  def fetch(_id), do: {:error, :quiz_not_found}
+
+  @doc "Whether `key` is the publisher key the quiz was published with."
+  @spec owner?(Quiz.t(), owner_key()) :: boolean()
+  def owner?(%Quiz{owner_key_hash: nil}, _key), do: false
+  def owner?(%Quiz{owner_key_hash: hash}, key), do: OwnerKey.hash(key) == {:ok, hash}
 
   defp fetch_owned(id, owner_key) do
-    with {:ok, quiz} <- get(id),
+    with {:ok, quiz} <- fetch(id),
          true <- owner?(quiz, owner_key) do
       {:ok, quiz}
     else
@@ -112,21 +92,22 @@ defmodule Fazoura.Quizzes do
     end
   end
 
-  ## Writing
+  ## Publishing
 
+  @doc "Publishes a quiz document. The publisher key may later update or unpublish it."
   @spec create(map(), owner_key()) ::
           {:ok, Quiz.t()}
           | {:error, Ecto.Changeset.t() | :owner_key_required | :unknown_image}
   def create(params, owner_key) do
     with {:ok, hash} <- require_owner_key(owner_key),
          :ok <- check_images(params, hash) do
-      %Quiz{source: "custom", owner_key_hash: hash, questions: []}
+      %Quiz{source: "custom", visibility: "public", owner_key_hash: hash, questions: []}
       |> Quiz.changeset(params)
       |> Repo.insert()
     end
   end
 
-  @doc "Replaces a custom quiz and all its questions. Owner only."
+  @doc "Replaces a published quiz and all its questions. Publisher only."
   @spec replace(term(), map(), owner_key()) ::
           {:ok, Quiz.t()}
           | {:error, Ecto.Changeset.t() | :quiz_not_found | :unknown_image}
@@ -147,14 +128,7 @@ defmodule Fazoura.Quizzes do
     end
   end
 
-  @spec set_visibility(term(), term(), owner_key()) ::
-          {:ok, Quiz.t()} | {:error, Ecto.Changeset.t() | :quiz_not_found}
-  def set_visibility(id, visibility, owner_key) do
-    with {:ok, quiz} <- fetch_owned(id, owner_key) do
-      quiz |> Quiz.visibility_changeset(visibility) |> Repo.update()
-    end
-  end
-
+  @doc "Unpublishes (deletes) a quiz. Publisher only."
   @spec delete(term(), owner_key()) :: :ok | {:error, :quiz_not_found}
   def delete(id, owner_key) do
     with {:ok, quiz} <- fetch_owned(id, owner_key),
@@ -170,7 +144,7 @@ defmodule Fazoura.Quizzes do
     end
   end
 
-  # Photo questions may only use images uploaded with the same owner key.
+  # Photo questions may only use images uploaded with the same publisher key.
   defp check_images(%{"questions" => questions}, hash) when is_list(questions) do
     keys =
       for %{"image" => %{"key" => key}} <- questions, is_binary(key), uniq: true, do: key
@@ -203,11 +177,84 @@ defmodule Fazoura.Quizzes do
     end
   end
 
+  ## Private (inline) quizzes
+
+  @doc """
+  Validates a private quiz document sent with room creation (QUIZ_FORMAT.md §5.7) and
+  builds its pack without touching the database. Photos come inline as base64
+  `image.data`; they are kept in memory by `Fazoura.Rooms.Images` under the returned keys,
+  which the caller attaches to the room (or deletes if the room can't start).
+  """
+  @spec inline_pack(term()) ::
+          {:ok, Pack.t(), [String.t()]}
+          | {:error, Ecto.Changeset.t() | :image_too_large | :unsupported_image}
+  def inline_pack(params) do
+    with {:ok, params, images} <- extract_inline_images(params),
+         {:ok, quiz} <-
+           %Quiz{source: "inline", visibility: "private", questions: []}
+           |> Quiz.changeset(params)
+           |> Ecto.Changeset.apply_action(:insert) do
+      Images.put(images)
+      {:ok, to_pack(quiz, &Images.url/1), Enum.map(images, &elem(&1, 0))}
+    end
+  end
+
+  defp extract_inline_images(%{"questions" => questions} = params) when is_list(questions) do
+    result =
+      Enum.reduce_while(questions, {:ok, [], []}, fn question, {:ok, acc, images} ->
+        case inline_image(question) do
+          {:ok, question, nil} -> {:cont, {:ok, [question | acc], images}}
+          {:ok, question, image} -> {:cont, {:ok, [question | acc], [image | images]}}
+          error -> {:halt, error}
+        end
+      end)
+
+    with {:ok, questions, images} <- result do
+      {:ok, Map.put(params, "questions", Enum.reverse(questions)), Enum.reverse(images)}
+    end
+  end
+
+  defp extract_inline_images(params), do: {:ok, params, []}
+
+  # Stored image keys mean nothing for an inline quiz, so only `data` counts.
+  defp inline_image(%{"image" => %{"data" => data} = image} = question) when is_binary(data) do
+    with {:ok, binary} <- decode_image(data),
+         {:ok, content_type, ext} <- detect_image(binary) do
+      key = Images.new_key(ext)
+
+      {:ok, Map.put(question, "image", %{"key" => key, "alt" => image["alt"]}),
+       {key, content_type, binary}}
+    end
+  end
+
+  defp inline_image(%{} = question), do: {:ok, Map.put(question, "image", nil), nil}
+  defp inline_image(question), do: {:ok, question, nil}
+
+  defp decode_image(data) do
+    case Base.decode64(data, ignore: :whitespace) do
+      {:ok, binary} when byte_size(binary) > 0 -> size_check(binary)
+      _ -> {:error, :unsupported_image}
+    end
+  end
+
+  defp size_check(binary) do
+    if byte_size(binary) > Uploads.max_bytes(),
+      do: {:error, :image_too_large},
+      else: {:ok, binary}
+  end
+
+  defp detect_image(binary) do
+    case Uploads.detect(binary) do
+      {:ok, content_type, ext} -> {:ok, content_type, ext}
+      :error -> {:error, :unsupported_image}
+    end
+  end
+
   ## Documents (JSON shape, QUIZ_FORMAT.md §2)
 
   @doc """
   The quiz as a JSON document. Questions (and their accepted answers) are included only
-  for the owner, and only when `questions: true` (default).
+  for the publisher, and only when `questions: true` (default).
   """
   @spec to_document(Quiz.t(), keyword()) :: map()
   def to_document(%Quiz{} = quiz, opts \\ []) do
@@ -259,23 +306,26 @@ defmodule Fazoura.Quizzes do
     }
   end
 
-  @doc "Immutable snapshot a room plays (PROTOCOL.md §6.2)."
-  @spec to_pack(Quiz.t()) :: Pack.t()
-  def to_pack(%Quiz{} = quiz) do
+  @doc """
+  Immutable snapshot a room plays (PROTOCOL.md §6.2). `image_url` turns an image key
+  into the URL players load.
+  """
+  @spec to_pack(Quiz.t(), (String.t() -> String.t())) :: Pack.t()
+  def to_pack(%Quiz{} = quiz, image_url \\ &Uploads.url/1) do
     %Pack{
-      id: quiz.id,
+      id: quiz.id || "inline",
       title: quiz.title,
       default_time_limit_ms: quiz.default_time_limit_ms,
       default_difficulty_multiplier: quiz.default_difficulty_multiplier,
       questions:
         Enum.map(quiz.questions, fn question ->
           %Pack.Question{
-            id: question.id,
+            id: question.id || "q#{question.position}",
             type: question.type,
             prompt: question.prompt,
             accepted_answers: question.accepted_answers,
             time_limit_ms: question.time_limit_ms || quiz.default_time_limit_ms,
-            image_url: question.image_key && Uploads.url(question.image_key),
+            image_url: question.image_key && image_url.(question.image_key),
             difficulty: question.difficulty
           }
         end)
@@ -292,7 +342,7 @@ defmodule Fazoura.Quizzes do
   def sync_builtin!(dir \\ Path.join(:code.priv_dir(:fazoura), "quizzes")) do
     for path <- dir |> Path.join("*.json") |> Path.wildcard() |> Enum.sort() do
       slug = Path.basename(path, ".json")
-      params = path |> File.read!() |> Jason.decode!() |> Map.put("visibility", "public")
+      params = path |> File.read!() |> Jason.decode!()
 
       {:ok, quiz} = Repo.transaction(fn -> upsert_builtin!(slug, params) end)
       quiz
@@ -303,7 +353,7 @@ defmodule Fazoura.Quizzes do
     quiz =
       case Repo.get_by(Quiz, slug: slug) do
         nil ->
-          %Quiz{slug: slug, source: "builtin", questions: []}
+          %Quiz{slug: slug, source: "builtin", visibility: "public", questions: []}
 
         existing ->
           Repo.delete_all(from(q in Question, where: q.quiz_id == ^existing.id))

@@ -15,6 +15,7 @@ defmodule Fazoura.Application do
         {DNSCluster, query: Application.get_env(:fazoura, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: Fazoura.PubSub},
         {Registry, keys: :unique, name: Fazoura.Rooms.Registry},
+        Fazoura.Rooms.Images,
         {DynamicSupervisor, name: Fazoura.Rooms.Supervisor, strategy: :one_for_one},
         # Start to serve requests, typically the last entry
         FazouraWeb.Endpoint

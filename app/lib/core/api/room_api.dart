@@ -15,18 +15,26 @@ class RoomApi {
   final String baseUrl;
   final http.Client _client;
 
-  /// `POST /api/rooms {pack_id}` → `{room_code, host_token}`.
-  /// Throws [GameError] (e.g. `pack_not_found`) on failure.
-  Future<CreatedRoom> createRoom({String packId = builtInPackId}) async {
+  /// `POST /api/rooms` → `{room_code, host_token}` (PROTOCOL.md §3.1).
+  /// Hosts the stored quiz [quizId], or, when [inlineQuiz] is given, a
+  /// private quiz sent whole with its photos (QUIZ_FORMAT.md §5.7).
+  /// Throws [GameError] (e.g. `quiz_not_found`) on failure.
+  Future<CreatedRoom> createRoom({
+    String quizId = builtInPackId,
+    QuizDocument? inlineQuiz,
+  }) async {
     final base = baseUrl.endsWith('/')
         ? baseUrl.substring(0, baseUrl.length - 1)
         : baseUrl;
+    final body = inlineQuiz != null
+        ? {'quiz': inlineQuiz.forInlineRoom().toJson()}
+        : {'quiz_id': quizId};
     final http.Response response;
     try {
       response = await _client.post(
         Uri.parse('$base/api/rooms'),
-        headers: const {'content-type': 'application/json'},
-        body: jsonEncode({'pack_id': packId}),
+        headers: {'content-type': 'application/json'},
+        body: jsonEncode(body),
       );
     } on Object {
       throw const GameError(
@@ -35,12 +43,12 @@ class RoomApi {
       );
     }
 
-    final body = _decode(response.body);
+    final decoded = _decode(response.body);
     if (response.statusCode == 201 || response.statusCode == 200) {
-      return CreatedRoom.fromJson(body);
+      return CreatedRoom.fromJson(decoded);
     }
-    final code = body['code'];
-    final message = body['message'];
+    final code = decoded['code'];
+    final message = decoded['message'];
     throw GameError(
       code: code is String ? code : 'http_${response.statusCode}',
       message: message is String ? message : null,

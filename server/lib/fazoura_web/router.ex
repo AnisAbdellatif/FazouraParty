@@ -20,9 +20,13 @@ defmodule FazouraWeb.Router do
     post "/quizzes", QuizController, :create
     get "/quizzes/:id", QuizController, :show
     put "/quizzes/:id", QuizController, :update
-    patch "/quizzes/:id", QuizController, :set_visibility
     delete "/quizzes/:id", QuizController, :delete
 
     post "/images", ImageController, :create
+  end
+
+  # Images are fetched with image Accept headers, so no JSON content negotiation.
+  scope "/api", FazouraWeb do
+    get "/room-images/:key", RoomImageController, :show
   end
 end

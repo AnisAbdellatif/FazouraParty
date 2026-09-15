@@ -49,17 +49,19 @@ Pushes from the host (§5) have `ref = null`.
 
 ### 3.1 Room creation
 
-**Cloud:** `POST /api/rooms` with body `{"quiz_id": "<uuid or built-in slug>"}` (`pack_id` is
-accepted as a legacy alias). Hosting a private quiz requires the owner's `x-owner-key`
-header (QUIZ_FORMAT.md §4, §5.7). The room snapshots the quiz and starts with its
+**Cloud:** `POST /api/rooms` with body `{"quiz_id": "<uuid or built-in slug>"}` for a stored
+(public) quiz (`pack_id` is accepted as a legacy alias), or `{"quiz": <quiz document>}` for a
+private quiz kept on the host's device, sent inline with base64 photos and never stored
+(QUIZ_FORMAT.md §4, §5.7). The room snapshots the quiz and starts with its
 `default_settings`.
 
 ```json
 201 {"room_code": "K7QX2M", "host_token": "<signed token>"}
 ```
 
-Errors: `404 {"code": "quiz_not_found"}` (unknown quiz, or private and not the owner),
-`422 {"code": "empty_pack"}`. HTTP error bodies carry `code` and `message`; clients branch on
+Errors: `404 {"code": "quiz_not_found"}` (unknown quiz id), `422 {"code": "invalid_quiz"}`
+(inline quiz fails validation), `413 image_too_large` / `415 unsupported_image` (inline
+photos), `422 {"code": "empty_pack"}`. HTTP error bodies carry `code` and `message`; clients branch on
 `code` only.
 
 **LAN:** the host app creates the room in-process; no HTTP call. The resulting `room_code` and

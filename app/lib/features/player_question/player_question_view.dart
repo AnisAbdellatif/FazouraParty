@@ -7,6 +7,7 @@ import '../../shared/describe_error.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/countdown.dart';
 import '../../shared/widgets/fz.dart';
+import '../../shared/widgets/question_photo.dart';
 import '../../shared/widgets/submitted_dots.dart';
 
 const minWager = 1;
@@ -158,6 +159,13 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
                 ),
               ),
             ),
+          if (question?.imageUrl != null) ...[
+            const SizedBox(height: 16),
+            QuestionPhoto(
+              key: const Key('questionPhoto'),
+              url: question!.imageUrl!,
+            ),
+          ],
           const SizedBox(height: 28),
           if (!widget.canAnswer)
             FzPanel(

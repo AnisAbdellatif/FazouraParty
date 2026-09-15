@@ -49,6 +49,7 @@ class LeaderboardView extends StatelessWidget {
             const SizedBox(height: 18),
             RevealSummary(
               prompt: question.prompt,
+              imageUrl: question.imageUrl,
               acceptedAnswers: state.acceptedAnswers ?? const [],
             ),
           ],

@@ -236,6 +236,7 @@ class _HostReveal extends StatelessWidget {
             const SizedBox(height: 18),
             RevealSummary(
               prompt: question.prompt,
+              imageUrl: question.imageUrl,
               acceptedAnswers: state.acceptedAnswers ?? const [],
             ),
             const SizedBox(height: 22),

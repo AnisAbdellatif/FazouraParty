@@ -11,7 +11,7 @@ defmodule FazouraWeb.FallbackController do
         conn,
         :not_found,
         "quiz_not_found",
-        "That quiz doesn't exist or isn't shared with you."
+        "That quiz doesn't exist or was unpublished."
       )
 
   def call(conn, {:error, :owner_key_required}),
@@ -20,11 +20,8 @@ defmodule FazouraWeb.FallbackController do
         conn,
         :unauthorized,
         "owner_key_required",
-        "Send this device's owner key in the x-owner-key header."
+        "Send this device's publisher key in the x-owner-key header."
       )
-
-  def call(conn, {:error, :invalid_scope}),
-    do: error(conn, :unprocessable_entity, "invalid_scope", "scope must be public or mine.")
 
   def call(conn, {:error, :unknown_image}),
     do:

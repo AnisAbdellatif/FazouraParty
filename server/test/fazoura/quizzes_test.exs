@@ -4,6 +4,7 @@ defmodule Fazoura.QuizzesTest do
 
   alias Fazoura.Quizzes
   alias Fazoura.Quizzes.Quiz
+  alias Fazoura.Rooms.Images
 
   @owner "owner-key-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   @other "other-key-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
@@ -29,7 +30,6 @@ defmodule Fazoura.QuizzesTest do
         "description" => "Films",
         "category" => "movies",
         "tags" => [" Cinema ", "cinema", "2000s"],
-        "visibility" => "private",
         "default_settings" => %{"time_limit_ms" => 20_000, "difficulty_multiplier" => true},
         "questions" => [question(), question(%{"prompt" => "Second?"})]
       },
@@ -44,7 +44,7 @@ defmodule Fazoura.QuizzesTest do
       assert {:ok, quiz} = Quizzes.create(quiz_params(), @owner)
       quiz = Repo.preload(quiz, :questions, force: true)
 
-      assert %Quiz{source: "custom", visibility: "private", title: "Movie Night"} = quiz
+      assert %Quiz{source: "custom", visibility: "public", title: "Movie Night"} = quiz
       assert quiz.tags == ["cinema", "2000s"]
       assert {quiz.question_count, quiz.has_photos} == {2, false}
       assert {quiz.default_time_limit_ms, quiz.default_difficulty_multiplier} == {20_000, true}
@@ -65,14 +65,13 @@ defmodule Fazoura.QuizzesTest do
                  quiz_params(%{
                    "format_version" => 2,
                    "title" => " ",
-                   "visibility" => "friends",
                    "category" => "nope",
                    "tags" => Enum.map(1..11, &"t#{&1}")
                  }),
                  @owner
                )
 
-      assert %{format_version: _, title: _, visibility: _, category: _, tags: _} = errors(cs)
+      assert %{format_version: _, title: _, category: _, tags: _} = errors(cs)
 
       assert {:error, cs} = Quizzes.create(quiz_params(%{"questions" => []}), @owner)
       assert %{questions: _} = errors(cs)
@@ -127,57 +126,47 @@ defmodule Fazoura.QuizzesTest do
     end
   end
 
-  describe "visibility and listing" do
+  describe "listing and reading" do
     setup do
       [builtin] = Quizzes.sync_builtin!()
-      {:ok, private} = Quizzes.create(quiz_params(), @owner)
+      {:ok, movies} = Quizzes.create(quiz_params(), @owner)
 
-      {:ok, public} =
-        Quizzes.create(
-          quiz_params(%{
-            "title" => "Science Fair",
-            "visibility" => "public",
-            "category" => "science"
-          }),
-          @other
-        )
+      {:ok, science} =
+        Quizzes.create(quiz_params(%{"title" => "Science Fair", "category" => "science"}), @other)
 
-      %{builtin: builtin, private: private, public: public}
+      %{builtin: builtin, movies: movies, science: science}
     end
 
-    test "public scope lists public quizzes, built-ins first", ctx do
-      assert {:ok, quizzes, nil} = Quizzes.list(scope: "public")
-      assert Enum.map(quizzes, & &1.id) == [ctx.builtin.id, ctx.public.id]
-    end
+    test "lists published quizzes, built-ins first, newest next", ctx do
+      assert {:ok, quizzes, nil} = Quizzes.list()
+      assert hd(quizzes).id == ctx.builtin.id
 
-    test "mine lists the owner's quizzes of any visibility", ctx do
-      assert {:ok, [quiz], nil} = Quizzes.list(scope: "mine", owner_key: @owner)
-      assert quiz.id == ctx.private.id
-      assert Quizzes.list(scope: "mine") == {:error, :owner_key_required}
-      assert Quizzes.list(scope: "everything") == {:error, :invalid_scope}
+      assert quizzes |> tl() |> Enum.map(& &1.id) |> Enum.sort() ==
+               Enum.sort([ctx.movies.id, ctx.science.id])
     end
 
     test "search, category filter and paging", ctx do
       assert {:ok, [%{id: id}], nil} = Quizzes.list(q: "  sCiEnce%")
-      assert id == ctx.public.id
+      assert id == ctx.science.id
       assert {:ok, [%{id: ^id}], nil} = Quizzes.list(category: "science")
       assert {:ok, [first], 1} = Quizzes.list(limit: 1)
       assert first.id == ctx.builtin.id
-      assert {:ok, [second], nil} = Quizzes.list(limit: 1, offset: 1)
-      assert second.id == ctx.public.id
+      assert {:ok, [_, _], nil} = Quizzes.list(limit: 5, offset: 1)
     end
 
-    test "private quizzes are only visible to their owner", ctx do
-      assert {:error, :quiz_not_found} = Quizzes.fetch_visible(ctx.private.id, nil)
-      assert {:error, :quiz_not_found} = Quizzes.fetch_visible(ctx.private.id, @other)
-      assert {:ok, _} = Quizzes.fetch_visible(ctx.private.id, @owner)
-      assert {:ok, %{id: id}} = Quizzes.fetch_visible("general-knowledge", nil)
-      assert id == ctx.builtin.id
-      assert {:error, :quiz_not_found} = Quizzes.fetch_visible("missing", nil)
+    test "fetch by uuid or slug", ctx do
+      assert {:ok, %{id: id}} = Quizzes.fetch(ctx.movies.id)
+      assert id == ctx.movies.id
+      assert {:ok, %{id: builtin_id}} = Quizzes.fetch("general-knowledge")
+      assert builtin_id == ctx.builtin.id
+      assert {:error, :quiz_not_found} = Quizzes.fetch("missing")
+      assert {:error, :quiz_not_found} = Quizzes.fetch(nil)
     end
 
-    test "documents include answers only for the owner", ctx do
-      {:ok, quiz} = Quizzes.fetch_visible(ctx.private.id, @owner)
+    test "documents include answers only for the publisher", ctx do
+      {:ok, quiz} = Quizzes.fetch(ctx.movies.id)
+      assert Quizzes.owner?(quiz, @owner)
+      refute Quizzes.owner?(quiz, @other)
       refute Map.has_key?(Quizzes.to_document(quiz), :questions)
 
       assert %{is_owner: true, questions: [%{accepted_answers: ["Canberra"]} | _]} =
@@ -187,13 +176,13 @@ defmodule Fazoura.QuizzesTest do
     end
   end
 
-  describe "replace/3, set_visibility/3, delete/2" do
+  describe "replace/3 and delete/2" do
     setup do
       {:ok, quiz} = Quizzes.create(quiz_params(), @owner)
       %{quiz: quiz}
     end
 
-    test "owner replaces the quiz and all its questions", %{quiz: quiz} do
+    test "publisher replaces the quiz and all its questions", %{quiz: quiz} do
       params =
         quiz_params(%{"title" => "Renamed", "questions" => [question(%{"prompt" => "Only one"})]})
 
@@ -206,23 +195,72 @@ defmodule Fazoura.QuizzesTest do
       assert {:error, %Ecto.Changeset{}} =
                Quizzes.replace(quiz.id, quiz_params(%{"questions" => []}), @owner)
 
-      {:ok, unchanged} = Quizzes.fetch_visible(quiz.id, @owner)
+      {:ok, unchanged} = Quizzes.fetch(quiz.id)
       assert unchanged.question_count == 1
     end
 
-    test "owner changes visibility", %{quiz: quiz} do
-      assert {:error, :quiz_not_found} = Quizzes.set_visibility(quiz.id, "public", @other)
-      assert {:error, %Ecto.Changeset{}} = Quizzes.set_visibility(quiz.id, "friends", @owner)
-      assert {:ok, %{visibility: "public"}} = Quizzes.set_visibility(quiz.id, "public", @owner)
-      assert {:ok, _} = Quizzes.fetch_visible(quiz.id, nil)
-    end
-
-    test "owner deletes; built-ins can't be changed through the API", %{quiz: quiz} do
+    test "publisher unpublishes; built-ins can't be changed through the API", %{quiz: quiz} do
       [builtin] = Quizzes.sync_builtin!()
       assert {:error, :quiz_not_found} = Quizzes.delete(builtin.id, @owner)
       assert {:error, :quiz_not_found} = Quizzes.delete(quiz.id, @other)
       assert :ok = Quizzes.delete(quiz.id, @owner)
-      assert {:error, :quiz_not_found} = Quizzes.fetch_visible(quiz.id, @owner)
+      assert {:error, :quiz_not_found} = Quizzes.fetch(quiz.id)
+    end
+  end
+
+  describe "inline_pack/1 (private quizzes)" do
+    test "builds a pack without storing anything, photos held in memory" do
+      params =
+        quiz_params(%{
+          "questions" => [
+            question(),
+            question(%{
+              "type" => "text_photo",
+              "image" => %{"data" => Base.encode64(@png), "alt" => "A still", "key" => "ignored"}
+            })
+          ]
+        })
+
+      assert {:ok, pack, [key]} = Quizzes.inline_pack(params)
+      assert Repo.aggregate(Quiz, :count) == 0
+
+      assert {pack.id, pack.title, pack.default_time_limit_ms} ==
+               {"inline", "Movie Night", 20_000}
+
+      assert [%{id: "q1", image_url: nil}, %{id: "q2", image_url: url}] = pack.questions
+      assert hd(pack.questions).accepted_answers == ["Canberra"]
+      assert String.ends_with?(url, "/api/room-images/" <> key)
+      assert String.ends_with?(key, ".png")
+      assert Images.fetch(key) == {:ok, "image/png", @png}
+
+      Images.delete([key])
+      assert Images.fetch(key) == :error
+    end
+
+    test "validates the document and the photos" do
+      assert {:error, %Ecto.Changeset{}} = Quizzes.inline_pack(quiz_params(%{"questions" => []}))
+      assert {:error, %Ecto.Changeset{}} = Quizzes.inline_pack("nope")
+
+      photo = fn data ->
+        quiz_params(%{
+          "questions" => [question(%{"type" => "text_photo", "image" => %{"data" => data}})]
+        })
+      end
+
+      assert Quizzes.inline_pack(photo.("not base64!")) == {:error, :unsupported_image}
+      assert Quizzes.inline_pack(photo.(Base.encode64("GIF89a"))) == {:error, :unsupported_image}
+
+      too_big = Base.encode64(@png <> :binary.copy(<<0>>, Fazoura.Uploads.max_bytes()))
+      assert Quizzes.inline_pack(photo.(too_big)) == {:error, :image_too_large}
+
+      # A stored image key without data is not a photo for an inline quiz.
+      no_data =
+        quiz_params(%{
+          "questions" => [question(%{"type" => "text_photo", "image" => %{"key" => "x.png"}})]
+        })
+
+      assert {:error, cs} = Quizzes.inline_pack(no_data)
+      assert [%{image: ["a photo question needs an image"]}] = errors(cs).questions
     end
   end
 
@@ -233,7 +271,7 @@ defmodule Fazoura.QuizzesTest do
       assert first.id == again.id
       assert Repo.aggregate(Quiz, :count) == 1
 
-      {:ok, quiz} = Quizzes.fetch_visible("general-knowledge", nil)
+      {:ok, quiz} = Quizzes.fetch("general-knowledge")
       assert {quiz.source, quiz.visibility, quiz.question_count} == {"builtin", "public", 20}
 
       assert Enum.map(quiz.questions, & &1.difficulty) |> Enum.uniq() |> Enum.sort() ==
@@ -252,7 +290,7 @@ defmodule Fazoura.QuizzesTest do
         })
 
       {:ok, quiz} = Quizzes.create(params, @owner)
-      {:ok, quiz} = Quizzes.fetch_visible(quiz.id, @owner)
+      {:ok, quiz} = Quizzes.fetch(quiz.id)
       pack = Quizzes.to_pack(quiz)
 
       assert {pack.title, pack.default_time_limit_ms, pack.default_difficulty_multiplier} ==

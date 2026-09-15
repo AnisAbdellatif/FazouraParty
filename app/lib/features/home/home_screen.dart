@@ -8,8 +8,8 @@ import '../../shared/widgets/fz.dart';
 import '../host/host_screen.dart';
 import '../host/host_setup_dialog.dart';
 import '../join/join_screen.dart';
-import '../mock/pack_picker_screen.dart';
 import '../mock/profile_screen.dart';
+import '../quizzes/quiz_browser_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -22,15 +22,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _creating = false;
 
   Future<void> _hostGame() async {
-    final packId = await showPackPicker(context);
-    if (packId == null || !mounted) return;
+    final choice = await showQuizBrowser(context);
+    if (choice == null || !mounted) return;
     final setup = await showHostSetupDialog(context);
     if (setup == null || !mounted) return;
     setState(() => _creating = true);
     try {
-      final created = await ref
-          .read(roomApiProvider)
-          .createRoom(packId: packId);
+      final api = ref.read(roomApiProvider);
+      final created = await switch (choice) {
+        PublicQuizChoice(:final quiz) => api.createRoom(quizId: quiz.hostId),
+        LocalQuizChoice(:final quiz)
+            when quiz.isPublished && quiz.wantsPublic =>
+          api.createRoom(quizId: quiz.publishedId!),
+        // Private quizzes are sent whole each time (QUIZ_FORMAT.md §5.7).
+        LocalQuizChoice(:final quiz) => api.createRoom(inlineQuiz: quiz.quiz),
+      };
       ref.invalidate(gameConnectionProvider);
       await ref
           .read(gameConnectionProvider)

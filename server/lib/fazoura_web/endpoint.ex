@@ -45,6 +45,8 @@ defmodule FazouraWeb.Endpoint do
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
+    # Private quizzes arrive inline with base64 photos (QUIZ_FORMAT.md §5.7).
+    length: 32_000_000,
     json_decoder: Phoenix.json_library()
 
   plug Plug.MethodOverride
