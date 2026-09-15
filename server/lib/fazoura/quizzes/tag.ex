@@ -15,6 +15,27 @@ defmodule Fazoura.Quizzes.Tag do
 
   @max_length 24
 
+  # Quick picks the apps show when nothing else is configured; an admin can replace this
+  # list at runtime (`Fazoura.Settings.suggested_tags/0`).
+  @default_suggested [
+    "general",
+    "science",
+    "history",
+    "geography",
+    "movies",
+    "tv",
+    "music",
+    "sports",
+    "food",
+    "nature",
+    "technology",
+    "art",
+    "books",
+    "gaming",
+    "pop culture",
+    "language"
+  ]
+
   schema "quiz_tags" do
     field :tag, :string
     field :position, :integer
@@ -28,6 +49,9 @@ defmodule Fazoura.Quizzes.Tag do
 
   @spec max_length() :: pos_integer()
   def max_length, do: @max_length
+
+  @spec default_suggested() :: [String.t()]
+  def default_suggested, do: @default_suggested
 
   @doc ~S(Lower cased and trimmed, inner whitespace collapsed; anything else becomes "".)
   @spec normalize(term()) :: String.t()

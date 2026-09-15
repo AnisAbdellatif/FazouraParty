@@ -26,6 +26,7 @@ defmodule FazouraWeb do
       # Import common connection and controller functions to use in pipelines
       import Plug.Conn
       import Phoenix.Controller
+      import Phoenix.LiveView.Router
     end
   end
 
@@ -40,6 +41,32 @@ defmodule FazouraWeb do
       use Phoenix.Controller, formats: [:html, :json]
 
       import Plug.Conn
+
+      unquote(verified_routes())
+    end
+  end
+
+  @doc "HEEx markup: layouts and the admin dashboard's function components."
+  def html do
+    quote do
+      use Phoenix.Component
+
+      unquote(html_helpers())
+    end
+  end
+
+  @doc "The admin dashboard's LiveViews (/admin only; the game itself is JSON + channels)."
+  def live_view do
+    quote do
+      use Phoenix.LiveView, layout: {FazouraWeb.Layouts, :admin}
+
+      unquote(html_helpers())
+    end
+  end
+
+  defp html_helpers do
+    quote do
+      import Phoenix.HTML
 
       unquote(verified_routes())
     end

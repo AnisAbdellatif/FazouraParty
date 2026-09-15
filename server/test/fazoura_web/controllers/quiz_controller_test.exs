@@ -83,9 +83,12 @@ defmodule FazouraWeb.QuizControllerTest do
     %{"quizzes" => searched} = conn |> get(~p"/api/quizzes?q=quiz night") |> json_response(200)
     assert Enum.map(searched, & &1["title"]) == ["Open Quiz"]
 
-    %{"tags" => tags} = conn |> get(~p"/api/tags") |> json_response(200)
+    %{"tags" => tags, "suggested" => suggested} =
+      conn |> get(~p"/api/tags") |> json_response(200)
+
     assert %{"tag" => "movies", "count" => 1} in tags
     assert %{"tag" => "general", "count" => 1} in tags
+    assert "pop culture" in suggested
 
     assert conn
            |> get(~p"/api/tags?limit=1")

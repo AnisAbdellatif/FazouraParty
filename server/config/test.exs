@@ -12,6 +12,8 @@ config :fazoura, Fazoura.Repo,
 
 config :fazoura, uploads_dir: Path.expand("../tmp/test_uploads", __DIR__)
 
+config :fazoura, admin: [username: "admin", password: "test-admin-password"]
+
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :fazoura, FazouraWeb.Endpoint,

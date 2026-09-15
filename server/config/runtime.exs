@@ -23,6 +23,11 @@ end
 config :fazoura, FazouraWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# The admin dashboard (/admin) only exists when both are set.
+if username = System.get_env("ADMIN_USERNAME") do
+  config :fazoura, admin: [username: username, password: System.get_env("ADMIN_PASSWORD")]
+end
+
 if config_env() == :prod do
   # Phase 1 runs without a database; DATABASE_URL becomes required in Phase 2.
   if database_url = System.get_env("DATABASE_URL") do

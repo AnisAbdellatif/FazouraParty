@@ -3,6 +3,9 @@ import Config
 # Flutter Web dev server runs on its own random localhost port.
 config :fazoura, cors_origins: :all
 
+# Local-only admin credentials; production reads them from the environment.
+config :fazoura, admin: [username: "admin", password: "admin"]
+
 # Local SQLite database file (production uses Postgres).
 config :fazoura, Fazoura.Repo,
   database: Path.expand("../fazoura_dev.db", __DIR__),

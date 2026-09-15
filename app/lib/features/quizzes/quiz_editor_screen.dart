@@ -276,6 +276,8 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
   @override
   Widget build(BuildContext context) {
     final fz = FzTheme.of(context);
+    // The server's quick picks, or the built-in list until they arrive.
+    final suggested = ref.watch(suggestedTagsProvider).value ?? defaultQuizTags;
     return Scaffold(
       body: FzPage(
         header: Row(
@@ -313,12 +315,12 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
             ),
           ],
         ),
-        child: _form(fz),
+        child: _form(fz, suggested),
       ),
     );
   }
 
-  Widget _form(FzTheme fz) {
+  Widget _form(FzTheme fz, List<String> suggested) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -405,7 +407,7 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
           spacing: 7,
           runSpacing: 7,
           children: [
-            for (final tag in defaultQuizTags)
+            for (final tag in suggested)
               if (!_tags.contains(tag))
                 FzChoice(
                   key: ValueKey('suggestedTag-$tag'),

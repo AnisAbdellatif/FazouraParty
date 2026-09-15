@@ -46,16 +46,23 @@ class QuizApi {
   Future<QuizDocument> get(String id) async =>
       QuizDocument.fromJson(await _send('GET', '/api/quizzes/$id'));
 
-  /// Tags public quizzes use, most used first (§5.2).
-  Future<List<TagCount>> popularTags({int limit = 30}) async {
+  /// Tags public quizzes use (most used first) and the quick picks an admin
+  /// maintains on the server (§5.2).
+  Future<QuizTags> tags({int limit = 30}) async {
     final body = await _send('GET', '/api/tags', query: {'limit': '$limit'});
-    return [
-      for (final item in body['tags'] as List<dynamic>)
-        (
-          tag: (item as Map<String, dynamic>)['tag'] as String,
-          count: item['count'] as int,
-        ),
-    ];
+    return (
+      popular: [
+        for (final item in body['tags'] as List<dynamic>? ?? const [])
+          (
+            tag: (item as Map<String, dynamic>)['tag'] as String,
+            count: item['count'] as int,
+          ),
+      ],
+      suggested: [
+        for (final tag in body['suggested'] as List<dynamic>? ?? const [])
+          tag as String,
+      ],
+    );
   }
 
   Future<QuizDocument> create(QuizDocument quiz) async => QuizDocument.fromJson(

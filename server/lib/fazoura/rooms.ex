@@ -5,6 +5,7 @@ defmodule Fazoura.Rooms do
   """
 
   alias Fazoura.Game.Pack
+  alias Fazoura.Metrics
   alias Fazoura.Rooms.{Images, RoomServer}
 
   @code_alphabet ~c"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -27,6 +28,7 @@ defmodule Fazoura.Rooms do
     case DynamicSupervisor.start_child(Fazoura.Rooms.Supervisor, spec) do
       {:ok, pid} ->
         :ok = Images.attach(image_keys, pid)
+        Metrics.increment(:rooms_created)
         {:ok, code, RoomServer.host_token(code)}
 
       {:error, {:already_started, _pid}} ->
@@ -40,6 +42,24 @@ defmodule Fazoura.Rooms do
 
   @spec intent(String.t(), pid(), Fazoura.Game.intent()) :: :ok | {:error, atom()}
   def intent(code, pid, intent), do: call(code, {:intent, pid, intent})
+
+  @doc """
+  A snapshot of every running room, for the admin dashboard. Rooms that stop while being
+  asked are simply left out.
+  """
+  @spec active() :: [map()]
+  def active do
+    Fazoura.Rooms.Registry
+    |> Registry.select([{{:_, :"$1", :_}, [], [:"$1"]}])
+    |> Enum.flat_map(fn pid ->
+      try do
+        [GenServer.call(pid, :summary, 200)]
+      catch
+        :exit, _reason -> []
+      end
+    end)
+    |> Enum.sort_by(& &1.code)
+  end
 
   @doc "Forces timer/expiry evaluation now. Used by tests with an injected clock."
   @spec tick(String.t()) :: :ok | {:error, :room_not_found}

@@ -71,6 +71,26 @@ defmodule Fazoura.Rooms.RoomServer do
     end
   end
 
+  # Read-only snapshot for the admin dashboard (Fazoura.Rooms.active/0).
+  def handle_call(:summary, _from, state) do
+    game = state.game
+
+    summary = %{
+      code: game.room_code,
+      phase: game.phase,
+      quiz_title: game.pack.title,
+      players: map_size(game.players),
+      connections: map_size(state.conns),
+      answered: map_size(game.submissions),
+      question_number: game.question_index && game.question_index + 1,
+      question_count: game.settings.question_count,
+      game_number: game.game_number,
+      host_present: state.host_absent_since == nil
+    }
+
+    {:reply, summary, state}
+  end
+
   def handle_call(:tick, _from, state) do
     case advance(state) do
       {:ok, state} -> {:reply, :ok, state}

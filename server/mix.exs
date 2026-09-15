@@ -41,6 +41,9 @@ defmodule Fazoura.MixProject do
   defp deps do
     [
       {:phoenix, "~> 1.8.13"},
+      # Admin dashboard only (/admin); the game itself is JSON + channels.
+      {:phoenix_live_view, "~> 1.1"},
+      {:lazy_html, ">= 0.1.0", only: :test},
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.13"},
       # Postgres in production, SQLite locally (dev/test); see config.exs :repo_adapter.

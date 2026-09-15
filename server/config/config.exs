@@ -16,7 +16,9 @@ config :fazoura,
     if(config_env() == :prod, do: Ecto.Adapters.Postgres, else: Ecto.Adapters.SQLite3),
   # Uploaded question photos (served at /uploads). Overridden in runtime.exs for prod.
   uploads_dir: Path.expand("../priv/uploads", __DIR__),
-  cors_origins: []
+  cors_origins: [],
+  # /admin is disabled unless both are set (runtime.exs reads ADMIN_USERNAME/ADMIN_PASSWORD).
+  admin: [username: nil, password: nil]
 
 # Configure the endpoint
 config :fazoura, FazouraWeb.Endpoint,

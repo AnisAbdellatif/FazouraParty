@@ -139,6 +139,53 @@ final class QuizApiProvider
 
 String _$quizApiHash() => r'4bca49f6386e49dbb66aaf46b3755e5c5111a02b';
 
+/// Tag quick picks, maintained by an admin on the server. Falls back to the
+/// built-in list when the server can't be reached (QUIZ_FORMAT.md §2.3).
+
+@ProviderFor(suggestedTags)
+final suggestedTagsProvider = SuggestedTagsProvider._();
+
+/// Tag quick picks, maintained by an admin on the server. Falls back to the
+/// built-in list when the server can't be reached (QUIZ_FORMAT.md §2.3).
+
+final class SuggestedTagsProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<List<String>>,
+          List<String>,
+          FutureOr<List<String>>
+        >
+    with $FutureModifier<List<String>>, $FutureProvider<List<String>> {
+  /// Tag quick picks, maintained by an admin on the server. Falls back to the
+  /// built-in list when the server can't be reached (QUIZ_FORMAT.md §2.3).
+  SuggestedTagsProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'suggestedTagsProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$suggestedTagsHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<List<String>> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<List<String>> create(Ref ref) {
+    return suggestedTags(ref);
+  }
+}
+
+String _$suggestedTagsHash() => r'f1f9f190a078aad99b313b420b687311e5f3599b';
+
 /// On-device database. Overridden with an in-memory one in tests.
 
 @ProviderFor(localDatabase)

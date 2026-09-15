@@ -72,6 +72,7 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
   bool _mine = false;
   String? _tag;
   List<TagCount> _popularTags = const [];
+  List<String> _suggested = defaultQuizTags;
   List<QuizDocument> _public = const [];
   List<LocalQuiz> _local = const [];
   int? _nextOffset;
@@ -149,8 +150,12 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
   /// server says which tags are actually used.
   Future<void> _loadTags() async {
     try {
-      final tags = await ref.read(quizApiProvider).popularTags();
-      if (mounted) setState(() => _popularTags = tags);
+      final tags = await ref.read(quizApiProvider).tags();
+      if (!mounted) return;
+      setState(() {
+        _popularTags = tags.popular;
+        if (tags.suggested.isNotEmpty) _suggested = tags.suggested;
+      });
     } catch (_) {
       // Not worth an error banner: the suggested tags are shown instead.
     }
@@ -161,7 +166,7 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
       final tags = <String>{for (final quiz in _local) ...quiz.quiz.tags};
       return tags.toList()..sort();
     }
-    if (_popularTags.isEmpty) return defaultQuizTags;
+    if (_popularTags.isEmpty) return _suggested;
     return [for (final entry in _popularTags) entry.tag];
   }
 

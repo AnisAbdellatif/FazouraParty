@@ -15,6 +15,11 @@ defmodule FazouraWeb.Endpoint do
     websocket: true,
     longpoll: false
 
+  # Admin dashboard LiveViews; the session carries the admin flag (Plugs.AdminAuth).
+  socket "/live", Phoenix.LiveView.Socket,
+    websocket: [connect_info: [session: @session_options]],
+    longpoll: false
+
   # Serve at "/" the static files from "priv/static" directory.
   #
   # When code reloading is disabled (e.g., in production),
@@ -39,6 +44,18 @@ defmodule FazouraWeb.Endpoint do
 
   plug FazouraWeb.Plugs.CORS
   plug FazouraWeb.Plugs.Uploads
+
+  # The dashboard's only JavaScript, served straight from the deps (no asset pipeline).
+  plug Plug.Static,
+    at: "/admin/js/phoenix",
+    from: {:phoenix, "priv/static"},
+    only: ~w(phoenix.min.js)
+
+  plug Plug.Static,
+    at: "/admin/js/live",
+    from: {:phoenix_live_view, "priv/static"},
+    only: ~w(phoenix_live_view.min.js)
+
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 

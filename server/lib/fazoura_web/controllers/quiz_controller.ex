@@ -30,9 +30,13 @@ defmodule FazouraWeb.QuizController do
     })
   end
 
-  # GET /api/tags: the tags public quizzes actually use, most used first (§5.2).
+  # GET /api/tags: the tags public quizzes actually use, most used first, plus the
+  # suggested quick picks an admin maintains (§5.2).
   def tags(conn, params) do
-    json(conn, %{tags: Quizzes.popular_tags(int_param(params["limit"], 30))})
+    json(conn, %{
+      tags: Quizzes.popular_tags(int_param(params["limit"], 30)),
+      suggested: Fazoura.Settings.suggested_tags()
+    })
   end
 
   def show(conn, %{"id" => id}) do

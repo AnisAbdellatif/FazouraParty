@@ -119,8 +119,9 @@ is allowed, so people can group quizzes however they like ("pub quiz", "office p
   collapsed, duplicates dropped, order preserved. So `"Pop  Culture"` and `"pop culture"`
   are the same tag.
 - 1–24 characters each; a quiz needs at least one tag and at most ten.
-- Clients offer these **suggested tags** as quick picks. They are a convenience, not a
-  closed list, and adding to them needs no version bump:
+- Clients offer **suggested tags** as quick picks. They are a convenience, not a closed
+  list. The server serves them from `GET /api/tags` and an admin edits them (ADMIN.md
+  §3.3); apps keep this built-in list as the offline fallback:
 
   `general`, `science`, `history`, `geography`, `movies`, `tv`, `music`, `sports`,
   `food`, `nature`, `technology`, `art`, `books`, `gaming`, `pop culture`, `language`
@@ -207,11 +208,16 @@ Order: built-in first, then most recently updated.
 
 ### 5.2 `GET /api/tags`
 
-The tags public quizzes actually use, most used first then alphabetically. Query: `limit`
-(1–100, default 30). Clients merge this with their suggested list (§2.3).
+`tags` are the tags public quizzes actually use, most used first then alphabetically
+(query: `limit`, 1–100, default 30). `suggested` is the admin-maintained quick-pick list
+(§2.3, ADMIN.md §3.3); clients fall back to their built-in list when it is empty or the
+server can't be reached.
 
 ```json
-200 {"tags": [{"tag": "general", "count": 12}, {"tag": "pop culture", "count": 3}]}
+200 {
+  "tags": [{"tag": "general", "count": 12}, {"tag": "pop culture", "count": 3}],
+  "suggested": ["general", "science", "movies"]
+}
 ```
 
 ### 5.3 `GET /api/quizzes/:id`
@@ -266,8 +272,8 @@ becomes the room state's `question.image_url` (PROTOCOL.md §5.1).
 
 - New optional field → add to this doc, the changeset and the Dart model with a default.
   No version bump.
-- New suggested tag → add it to §2.3 and the clients' quick-pick list. No version bump;
-  tags are free text, so old clients still show it.
+- New suggested tag → an admin adds it in the dashboard; no release needed. Changing the
+  built-in fallback means editing §2.3, `Fazoura.Quizzes.Tag` and the Dart constant.
 - New question `type` → document its fields; old clients skip unknown types when listing
   and the server refuses to start a room on a client that can't play it (future
   `min_client_version`).

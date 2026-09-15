@@ -8,6 +8,7 @@ import 'package:sembast/sembast.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/quiz_api.dart';
+import '../models/models.dart';
 import '../quizzes/quiz_library.dart';
 import '../storage/local_database.dart';
 import '../storage/local_quiz_store.dart';
@@ -59,6 +60,18 @@ QuizApi quizApi(Ref ref) {
   );
   ref.onDispose(api.close);
   return api;
+}
+
+/// Tag quick picks, maintained by an admin on the server. Falls back to the
+/// built-in list when the server can't be reached (QUIZ_FORMAT.md §2.3).
+@Riverpod(keepAlive: true)
+Future<List<String>> suggestedTags(Ref ref) async {
+  try {
+    final tags = await ref.watch(quizApiProvider).tags();
+    return tags.suggested.isEmpty ? defaultQuizTags : tags.suggested;
+  } catch (_) {
+    return defaultQuizTags;
+  }
 }
 
 /// On-device database. Overridden with an in-memory one in tests.

@@ -70,6 +70,10 @@ class FakeQuizServer {
 
   final List<QuizDocument> quizzes;
   final List<http.Request> requests = [];
+
+  /// What an admin has configured as quick picks (`GET /api/tags`).
+  List<String> suggestedTags = defaultQuizTags;
+
   bool failLists = false;
   bool failWrites = false;
   int _ids = 0;
@@ -139,6 +143,7 @@ class FakeQuizServer {
           for (final entry in entries.take(limit))
             {'tag': entry.key, 'count': entry.value},
         ],
+        'suggested': suggestedTags,
       });
     }
 

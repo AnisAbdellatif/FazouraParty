@@ -108,7 +108,7 @@ void main() {
     await tapKey(tester, 'defaultTime-45');
     await tapKey(tester, 'saveQuizButton');
 
-    expect(server.requests, isEmpty);
+    expect(server.requestsWith('POST', '/api/quizzes'), isEmpty);
     expect(saved, isNotNull);
     final quiz = saved!.quiz;
     expect(quiz.title, 'Movie Night');
@@ -171,7 +171,11 @@ void main() {
 
     expect(pickerCalls, 1);
     expect(find.byKey(const Key('photoPreview-0')), findsOneWidget);
-    expect(server.requests, isEmpty, reason: 'nothing uploads until saving');
+    expect(
+      server.requestsWith('POST', '/api/images'),
+      isEmpty,
+      reason: 'nothing uploads until saving',
+    );
 
     await tapKey(tester, 'saveQuizButton');
 

@@ -7,6 +7,8 @@ defmodule Fazoura.Application do
 
   @impl true
   def start(_type, _args) do
+    Fazoura.Metrics.setup()
+
     children =
       [
         FazouraWeb.Telemetry,

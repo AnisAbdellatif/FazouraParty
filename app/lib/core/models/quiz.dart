@@ -150,3 +150,6 @@ String normalizeTag(String tag) =>
 
 /// A tag and how many public quizzes use it (`GET /api/tags`).
 typedef TagCount = ({String tag, int count});
+
+/// What `GET /api/tags` answers: tags in use, and the server's quick picks.
+typedef QuizTags = ({List<TagCount> popular, List<String> suggested});
