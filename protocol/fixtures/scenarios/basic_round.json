@@ -23,6 +23,11 @@
      "expect": {"status": "error", "response": {"code": "not_host"}}},
 
     {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "host", "expect_state": {"players": [
+      {"name": "alex", "connected": true, "has_submitted": false},
+      {"name": "Sam", "connected": true, "has_submitted": false}
+    ]}},
+
     {"actor": "sam", "expect_state": {
       "phase": "question", "question_index": 0, "question_count": 1,
       "question": {"id": "q1", "prompt": "Capital of Australia?"},

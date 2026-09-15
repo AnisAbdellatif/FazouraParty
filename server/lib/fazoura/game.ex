@@ -1,0 +1,345 @@
+defmodule Fazoura.Game do
+  @moduledoc """
+  Pure game logic for one room (PROTOCOL.md §4–§9).
+
+  No processes, timers or clocks: every function takes the state (and `now` where time
+  matters) and returns a new state. `Fazoura.Rooms.RoomServer` is the thin process shell
+  that owns the state, supplies the clock and delivers views to sockets.
+  """
+
+  alias Fazoura.Game.{Answer, Pack}
+
+  @protocol_version 1
+  @max_players 100
+  @max_name_length 20
+  @max_answer_length 100
+  @min_wager 1
+  @max_wager 10
+
+  @type phase :: :lobby | :question | :scoring | :leaderboard | :finished
+  @type actor :: :host | {:player, String.t()}
+  @type intent ::
+          {:submit, map()} | :next | :pause | :resume | {:override, map()}
+  @type error :: {:error, atom()}
+
+  @type player :: %{id: String.t(), name: String.t(), score: integer(), connected: boolean()}
+  @type submission :: %{
+          answer: String.t(),
+          wager: pos_integer(),
+          auto_correct: boolean(),
+          override: boolean() | nil
+        }
+
+  @type t :: %__MODULE__{
+          room_code: String.t(),
+          mode: :cloud | :lan,
+          pack: Pack.t(),
+          phase: phase(),
+          question_index: non_neg_integer() | nil,
+          deadline: integer() | nil,
+          paused_remaining_ms: non_neg_integer() | nil,
+          players: %{String.t() => player()},
+          submissions: %{String.t() => submission()}
+        }
+
+  @enforce_keys [:room_code, :pack]
+  defstruct [
+    :room_code,
+    :pack,
+    mode: :cloud,
+    phase: :lobby,
+    question_index: nil,
+    deadline: nil,
+    paused_remaining_ms: nil,
+    players: %{},
+    submissions: %{}
+  ]
+
+  @spec protocol_version() :: pos_integer()
+  def protocol_version, do: @protocol_version
+
+  @spec new(String.t(), Pack.t(), keyword()) :: t()
+  def new(room_code, %Pack{} = pack, opts \\ []) do
+    %__MODULE__{room_code: room_code, pack: pack, mode: Keyword.get(opts, :mode, :cloud)}
+  end
+
+  ## Players
+
+  @spec add_player(t(), String.t(), term()) :: {:ok, t()} | error()
+  def add_player(%__MODULE__{} = game, id, name) when is_binary(name) do
+    name = String.trim(name)
+
+    cond do
+      String.length(name) not in 1..@max_name_length -> {:error, :invalid_name}
+      map_size(game.players) >= @max_players -> {:error, :room_full}
+      name_taken?(game, name) -> {:error, :name_taken}
+      true -> {:ok, put_in(game.players[id], %{id: id, name: name, score: 0, connected: false})}
+    end
+  end
+
+  def add_player(_game, _id, _name), do: {:error, :invalid_name}
+
+  @spec player?(t(), String.t()) :: boolean()
+  def player?(game, id), do: Map.has_key?(game.players, id)
+
+  @spec set_connected(t(), String.t(), boolean()) :: t()
+  def set_connected(game, id, connected?) do
+    if player?(game, id), do: put_in(game.players[id].connected, connected?), else: game
+  end
+
+  defp name_taken?(game, name) do
+    key = String.downcase(name)
+    Enum.any?(game.players, fn {_id, p} -> String.downcase(p.name) == key end)
+  end
+
+  ## Intents
+
+  @spec handle(t(), actor(), intent(), integer()) :: {:ok, t()} | error()
+  def handle(game, {:player, id}, {:submit, payload}, now) do
+    with :ok <- require_player(game, id),
+         :ok <- require_phase(game, [:question]),
+         :ok <- require_running(game),
+         :ok <- require_before_deadline(game, now),
+         :ok <- require_no_submission(game, id),
+         {:ok, answer} <- validate_answer(payload["answer"]),
+         {:ok, wager} <- validate_wager(payload["wager"]) do
+      submission = %{
+        answer: answer,
+        wager: wager,
+        auto_correct: Answer.correct?(answer, current_question(game).accepted_answers),
+        override: nil
+      }
+
+      {:ok, put_in(game.submissions[id], submission)}
+    end
+  end
+
+  def handle(_game, {:player, _id}, _host_intent, _now), do: {:error, :not_host}
+  def handle(_game, :host, {:submit, _payload}, _now), do: {:error, :not_player}
+
+  def handle(game, :host, :next, now) do
+    case game.phase do
+      :lobby -> {:ok, start_question(game, 0, now)}
+      :question -> {:ok, score_question(game)}
+      :scoring -> {:ok, %{game | phase: :leaderboard}}
+      :leaderboard -> {:ok, after_leaderboard(game, now)}
+      :finished -> {:error, :invalid_phase}
+    end
+  end
+
+  def handle(game, :host, :pause, now) do
+    with :ok <- require_phase(game, [:question]),
+         :ok <- require_running(game) do
+      {:ok, %{game | deadline: nil, paused_remaining_ms: max(game.deadline - now, 0)}}
+    end
+  end
+
+  def handle(game, :host, :resume, now) do
+    with :ok <- require_phase(game, [:question]) do
+      case game.paused_remaining_ms do
+        nil -> {:error, :not_paused}
+        ms -> {:ok, %{game | deadline: now + ms, paused_remaining_ms: nil}}
+      end
+    end
+  end
+
+  def handle(game, :host, {:override, payload}, _now) do
+    with :ok <- require_phase(game, [:scoring, :leaderboard]),
+         {:ok, id, correct} <- validate_override(payload),
+         :ok <- require_player(game, id),
+         {:ok, old} <- fetch_submission(game, id) do
+      new = %{old | override: correct}
+      score_change = delta(new) - delta(old)
+
+      game =
+        game
+        |> put_in([Access.key!(:submissions), id], new)
+        |> update_in([Access.key!(:players), id, :score], &(&1 + score_change))
+
+      {:ok, game}
+    end
+  end
+
+  def handle(_game, _actor, _intent, _now), do: {:error, :invalid_payload}
+
+  @doc "Ends the current question if its deadline has passed. Call before handling anything."
+  @spec tick(t(), integer()) :: t()
+  def tick(%__MODULE__{phase: :question, deadline: deadline} = game, now)
+      when is_integer(deadline) and now >= deadline,
+      do: score_question(game)
+
+  def tick(game, _now), do: game
+
+  @doc "The next time `tick/2` must run, if any."
+  @spec deadline(t()) :: integer() | nil
+  def deadline(%__MODULE__{phase: :question, deadline: deadline}), do: deadline
+  def deadline(_game), do: nil
+
+  ## Scoring
+
+  @spec delta(submission()) :: integer()
+  def delta(submission),
+    do: if(correct?(submission), do: submission.wager, else: -submission.wager)
+
+  defp correct?(%{override: nil, auto_correct: auto}), do: auto
+  defp correct?(%{override: override}), do: override
+
+  defp start_question(game, index, now) do
+    question = Enum.at(game.pack.questions, index)
+
+    %{
+      game
+      | phase: :question,
+        question_index: index,
+        deadline: now + question.time_limit_ms,
+        paused_remaining_ms: nil,
+        submissions: %{}
+    }
+  end
+
+  defp score_question(game) do
+    players =
+      Enum.reduce(game.submissions, game.players, fn {id, submission}, players ->
+        update_in(players, [id, :score], &(&1 + delta(submission)))
+      end)
+
+    %{game | phase: :scoring, players: players, deadline: nil, paused_remaining_ms: nil}
+  end
+
+  defp after_leaderboard(game, now) do
+    next = game.question_index + 1
+
+    if next < length(game.pack.questions),
+      do: start_question(game, next, now),
+      else: %{game | phase: :finished, submissions: %{}}
+  end
+
+  ## Validation
+
+  defp require_player(game, id),
+    do: if(player?(game, id), do: :ok, else: {:error, :unknown_player})
+
+  defp require_phase(game, phases),
+    do: if(game.phase in phases, do: :ok, else: {:error, :invalid_phase})
+
+  defp require_running(%{paused_remaining_ms: nil}), do: :ok
+  defp require_running(_game), do: {:error, :paused}
+
+  defp require_before_deadline(%{deadline: deadline}, now) when now < deadline, do: :ok
+  defp require_before_deadline(_game, _now), do: {:error, :invalid_phase}
+
+  defp require_no_submission(game, id),
+    do: if(Map.has_key?(game.submissions, id), do: {:error, :already_submitted}, else: :ok)
+
+  defp fetch_submission(game, id) do
+    case Map.fetch(game.submissions, id) do
+      {:ok, submission} -> {:ok, submission}
+      :error -> {:error, :no_submission}
+    end
+  end
+
+  defp validate_answer(answer) when is_binary(answer) do
+    answer = String.trim(answer)
+
+    if String.length(answer) in 1..@max_answer_length,
+      do: {:ok, answer},
+      else: {:error, :invalid_answer}
+  end
+
+  defp validate_answer(_answer), do: {:error, :invalid_answer}
+
+  defp validate_wager(wager) when is_integer(wager) and wager in @min_wager..@max_wager,
+    do: {:ok, wager}
+
+  defp validate_wager(_wager), do: {:error, :invalid_wager}
+
+  defp validate_override(%{"player_id" => id, "correct" => correct})
+       when is_binary(id) and is_boolean(correct),
+       do: {:ok, id, correct}
+
+  defp validate_override(_payload), do: {:error, :invalid_payload}
+
+  ## Views (PROTOCOL.md §5.1, §7)
+
+  @doc "The complete `RoomState` snapshot as seen by `recipient`."
+  @spec view(t(), actor(), integer()) :: map()
+  def view(game, recipient, now) do
+    question = if game.phase in [:lobby, :finished], do: nil, else: current_question(game)
+    revealed? = recipient == :host or game.phase in [:scoring, :leaderboard]
+
+    %{
+      protocol_version: @protocol_version,
+      room_code: game.room_code,
+      mode: Atom.to_string(game.mode),
+      phase: Atom.to_string(game.phase),
+      server_time: now,
+      pack_title: game.pack.title,
+      question_index: game.question_index,
+      question_count: length(game.pack.questions),
+      question: question && question_view(question),
+      deadline: game.deadline,
+      paused_remaining_ms: game.paused_remaining_ms,
+      accepted_answers: if(question && revealed?, do: question.accepted_answers),
+      players: players_view(game),
+      you: you_view(game, recipient, question),
+      submissions: if(question && revealed?, do: submissions_view(game))
+    }
+  end
+
+  defp current_question(game), do: Enum.at(game.pack.questions, game.question_index)
+
+  defp question_view(question) do
+    Map.take(question, [:id, :type, :prompt, :image_url, :time_limit_ms])
+  end
+
+  defp players_view(game) do
+    tracks_submissions? = game.phase in [:question, :scoring, :leaderboard]
+
+    game
+    |> sorted_players()
+    |> Enum.map(fn p ->
+      Map.put(p, :has_submitted, tracks_submissions? and Map.has_key?(game.submissions, p.id))
+    end)
+  end
+
+  defp sorted_players(game) do
+    game.players
+    |> Map.values()
+    |> Enum.sort_by(&{-&1.score, String.downcase(&1.name)})
+  end
+
+  defp submissions_view(game) do
+    for player <- sorted_players(game),
+        submission = game.submissions[player.id] do
+      %{
+        player_id: player.id,
+        answer: submission.answer,
+        wager: submission.wager,
+        auto_correct: submission.auto_correct,
+        override: submission.override,
+        correct: correct?(submission),
+        delta: delta(submission)
+      }
+    end
+  end
+
+  defp you_view(_game, :host, _question), do: %{role: "host", player_id: nil, submission: nil}
+
+  defp you_view(game, {:player, id}, question) do
+    submission = question && game.submissions[id]
+    scored? = game.phase in [:scoring, :leaderboard]
+
+    %{
+      role: "player",
+      player_id: id,
+      submission:
+        submission &&
+          %{
+            answer: submission.answer,
+            wager: submission.wager,
+            correct: if(scored?, do: correct?(submission)),
+            delta: if(scored?, do: delta(submission))
+          }
+    }
+  end
+end

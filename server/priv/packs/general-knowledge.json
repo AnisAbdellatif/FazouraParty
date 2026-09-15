@@ -1,0 +1,15 @@
+{
+  "title": "General Knowledge",
+  "questions": [
+    {"id": "gk01", "type": "text", "prompt": "What is the capital of Australia?", "accepted_answers": ["Canberra"], "time_limit_ms": 30000},
+    {"id": "gk02", "type": "text", "prompt": "Which planet is known as the Red Planet?", "accepted_answers": ["Mars"], "time_limit_ms": 30000},
+    {"id": "gk03", "type": "text", "prompt": "What is the chemical symbol for gold?", "accepted_answers": ["Au"], "time_limit_ms": 30000},
+    {"id": "gk04", "type": "text", "prompt": "How many sides does a hexagon have?", "accepted_answers": ["6", "six"], "time_limit_ms": 30000},
+    {"id": "gk05", "type": "text", "prompt": "Who painted the Mona Lisa?", "accepted_answers": ["Leonardo da Vinci", "da Vinci", "Leonardo"], "time_limit_ms": 30000},
+    {"id": "gk06", "type": "text", "prompt": "What is the largest ocean on Earth?", "accepted_answers": ["Pacific", "Pacific Ocean", "the Pacific", "the Pacific Ocean"], "time_limit_ms": 30000},
+    {"id": "gk07", "type": "text", "prompt": "In which country is the city of Marrakesh?", "accepted_answers": ["Morocco"], "time_limit_ms": 30000},
+    {"id": "gk08", "type": "text", "prompt": "What is the hardest natural substance?", "accepted_answers": ["Diamond", "Diamonds"], "time_limit_ms": 30000},
+    {"id": "gk09", "type": "text", "prompt": "How many minutes are in a day?", "accepted_answers": ["1440", "1,440"], "time_limit_ms": 30000},
+    {"id": "gk10", "type": "text", "prompt": "Which language has the most native speakers worldwide?", "accepted_answers": ["Mandarin", "Mandarin Chinese", "Chinese"], "time_limit_ms": 30000}
+  ]
+}

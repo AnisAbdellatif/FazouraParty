@@ -42,9 +42,12 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 
 - Game logic lives in **pure functions** (e.g. `Game.apply(state, event)`); the per-room `GenServer` is a thin shell. Scoring must be unit-testable without processes.
 - One `RoomServer` GenServer per room, under a `DynamicSupervisor`, looked up via `Registry`.
-- Use Phoenix Presence for connection tracking; one Channel topic per room (`room:<CODE>`).
+- One Channel topic per room (`room:<CODE>`). The Channel is a transport adapter only — no game logic.
+- Connection tracking: the `RoomServer` monitors each joined channel process and derives `connected` from that. (Chosen over Phoenix Presence because state views are per-recipient and the LAN host must mirror the behaviour exactly; revisit Presence only if rooms go multi-node.)
+- Time is injected (`now` function option), never read directly inside game logic, so timer behaviour is testable.
 - Use `mix phx.gen.auth` for accounts; signed tokens for anonymous guests. Don't hand-roll auth.
-- Must pass: `mix format --check-formatted`, `mix credo`, `mix dialyzer`, `mix test`.
+- Must pass: `mix format --check-formatted`, `mix credo --strict`, `mix dialyzer`, `mix test` (`mix precommit` runs most of these).
+- Phase 1 is database-free (`config :fazoura, start_repo: false`); don't add DB-dependent code until Phase 2.
 
 ## 6. Flutter / Riverpod standards
 

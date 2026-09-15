@@ -131,7 +131,12 @@ Successful intents reply `{"status": "ok", "response": {}}` and — if state cha
 - Rejected after the deadline even if the phase transition has not happened yet.
 
 Intent error codes: `invalid_phase`, `not_host`, `not_player`, `invalid_answer`, `invalid_wager`,
-`already_submitted`, `unknown_player`, `no_submission`, `paused`, `not_paused`.
+`already_submitted`, `unknown_player`, `no_submission`, `paused`, `not_paused`,
+`invalid_payload` (unknown event, or a payload with missing/mistyped fields not covered by a
+more specific code).
+
+Every error `response` is `{"code": string, "message": string}`. `message` is human-readable
+English for logs/fallback UI; clients must branch on `code` only.
 
 A client leaves with `phx_leave` (or by closing the socket). Leaving does not remove a player;
 they are marked `connected: false` and keep their score.
