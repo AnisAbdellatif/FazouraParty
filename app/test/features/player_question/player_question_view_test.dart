@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/buttons.dart';
 import '../../support/fake_game_connection.dart';
 import '../../support/fixtures.dart';
 
@@ -12,6 +13,10 @@ void main() {
   late FakeGameConnection fake;
 
   Future<void> pumpView(WidgetTester tester, RoomState state) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
     fake = FakeGameConnection(initialState: state);
     await tester.pumpWidget(
       ProviderScope(
@@ -24,57 +29,47 @@ void main() {
     await tester.pump();
   }
 
-  IconButton iconButton(WidgetTester tester, String key) =>
-      tester.widget<IconButton>(find.byKey(Key(key)));
+  Slider slider(WidgetTester tester) =>
+      tester.widget<Slider>(find.byKey(const Key('wagerSlider')));
 
-  String wagerText(WidgetTester tester) =>
-      tester.widget<Text>(find.byKey(const Key('wagerValue'))).data!;
+  String text(WidgetTester tester, String key) =>
+      tester.widget<Text>(find.byKey(Key(key))).data!;
 
-  testWidgets('wager is bounded to 1..10', (tester) async {
-    await pumpView(tester, questionStateForPlayer());
-
-    expect(wagerText(tester), '5');
-
-    for (var i = 0; i < 5; i++) {
-      await tester.tap(find.byKey(const Key('wagerIncrement')));
-      await tester.pump();
-    }
-    expect(wagerText(tester), '10');
-    expect(iconButton(tester, 'wagerIncrement').onPressed, isNull);
-
-    for (var i = 0; i < 9; i++) {
-      await tester.tap(find.byKey(const Key('wagerDecrement')));
-      await tester.pump();
-    }
-    expect(wagerText(tester), '1');
-    expect(iconButton(tester, 'wagerDecrement').onPressed, isNull);
-    expect(iconButton(tester, 'wagerIncrement').onPressed, isNotNull);
-  });
-
-  testWidgets('submit sends answer and wager, then disables inputs', (
+  testWidgets('wager slider is bounded to 1..10 and shows the value', (
     tester,
   ) async {
     await pumpView(tester, questionStateForPlayer());
 
+    expect(slider(tester).min, 1);
+    expect(slider(tester).max, 10);
+    expect(slider(tester).divisions, 9);
+    expect(text(tester, 'wagerValue'), '5');
+
+    slider(tester).onChanged!(10);
+    await tester.pump();
+    expect(text(tester, 'wagerValue'), '10');
+    expect(text(tester, 'wagerHint'), '+10 if right · −10 if wrong');
+
+    slider(tester).onChanged!(1);
+    await tester.pump();
+    expect(text(tester, 'wagerValue'), '1');
+  });
+
+  testWidgets('submit sends answer and wager, then locks in', (tester) async {
+    await pumpView(tester, questionStateForPlayer());
+
     await tester.enterText(find.byKey(const Key('answerField')), ' Canberra ');
-    await tester.tap(find.byKey(const Key('wagerIncrement')));
+    slider(tester).onChanged!(6);
     await tester.pump();
     await tester.tap(find.byKey(const Key('submitButton')));
     await tester.pump();
 
     expect(fake.submissions, [(answer: 'Canberra', wager: 6)]);
-    expect(
-      tester.widget<TextField>(find.byKey(const Key('answerField'))).enabled,
-      isFalse,
-    );
-    expect(
-      tester
-          .widget<FilledButton>(find.byKey(const Key('submitButton')))
-          .onPressed,
-      isNull,
-    );
-    expect(iconButton(tester, 'wagerIncrement').onPressed, isNull);
-    expect(iconButton(tester, 'wagerDecrement').onPressed, isNull);
+    expect(find.byKey(const Key('ownSubmission')), findsOneWidget);
+    expect(find.text('Your answer: Canberra'), findsOneWidget);
+    expect(find.text('Wager 6'), findsOneWidget);
+    expect(find.byKey(const Key('answerField')), findsNothing);
+    expect(find.byKey(const Key('submitButton')), findsNothing);
   });
 
   testWidgets('empty answer is not submitted', (tester) async {
@@ -87,7 +82,7 @@ void main() {
     expect(find.byKey(const Key('submitError')), findsOneWidget);
   });
 
-  testWidgets('an existing own submission is shown and inputs are locked', (
+  testWidgets('an existing own submission is shown and inputs are hidden', (
     tester,
   ) async {
     await pumpView(
@@ -99,15 +94,21 @@ void main() {
 
     expect(find.text('Your answer: Canberra'), findsOneWidget);
     expect(find.text('Wager 7'), findsOneWidget);
-    expect(
-      tester.widget<TextField>(find.byKey(const Key('answerField'))).enabled,
-      isFalse,
+    expect(find.byKey(const Key('answerField')), findsNothing);
+    expect(find.byKey(const Key('wagerSlider')), findsNothing);
+  });
+
+  testWidgets('a paused question disables Lock it in', (tester) async {
+    await pumpView(
+      tester,
+      questionStateForPlayer().copyWith(
+        deadline: null,
+        pausedRemainingMs: 8000,
+      ),
     );
-    expect(
-      tester
-          .widget<FilledButton>(find.byKey(const Key('submitButton')))
-          .onPressed,
-      isNull,
-    );
+
+    expect(find.text('Paused'), findsOneWidget);
+    expect(find.text('PAUSED · 8s'), findsOneWidget);
+    expect(isEnabled(tester, const Key('submitButton')), isFalse);
   });
 }

@@ -3,9 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers/connection_providers.dart';
 import '../../shared/describe_error.dart';
+import '../../shared/theme/fz_theme.dart';
+import '../../shared/widgets/fz.dart';
 import '../host/host_screen.dart';
 import '../host/host_setup_dialog.dart';
 import '../join/join_screen.dart';
+import '../mock/pack_picker_screen.dart';
+import '../mock/profile_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -18,11 +22,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _creating = false;
 
   Future<void> _hostGame() async {
+    final packId = await showPackPicker(context);
+    if (packId == null || !mounted) return;
     final setup = await showHostSetupDialog(context);
     if (setup == null || !mounted) return;
     setState(() => _creating = true);
     try {
-      final created = await ref.read(roomApiProvider).createRoom();
+      final created = await ref
+          .read(roomApiProvider)
+          .createRoom(packId: packId);
       ref.invalidate(gameConnectionProvider);
       await ref
           .read(gameConnectionProvider)
@@ -49,56 +57,108 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final fz = FzTheme.of(context);
+    TextStyle wordmark() => fz.displayFont(
+      const TextStyle(
+        fontSize: 64,
+        fontWeight: FontWeight.w900,
+        height: .84,
+        letterSpacing: -3.2,
+      ),
+    );
+
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Fazoura Party',
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.displaySmall,
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Trivia with confidence wagers',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 40),
-                  FilledButton.icon(
-                    key: const Key('hostGameButton'),
-                    onPressed: _creating ? null : _hostGame,
-                    icon: _creating
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.tv),
-                    label: const Text('Host a game'),
-                  ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    key: const Key('joinGameButton'),
-                    onPressed: _creating
-                        ? null
-                        : () => Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const JoinScreen(),
-                            ),
-                          ),
-                    icon: const Icon(Icons.login),
-                    label: const Text('Join a game'),
-                  ),
-                ],
+      body: FzPage(
+        header: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            FzCircleButton(
+              key: const Key('profileButton'),
+              icon: Icons.person_outline,
+              tooltip: 'Profile (preview)',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const ProfileScreen()),
               ),
             ),
+          ],
+        ),
+        footer: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            FzButton(
+              key: const Key('hostGameButton'),
+              label: _creating ? 'Creating…' : 'Start a party',
+              trailing: 'host',
+              onPressed: _creating ? null : _hostGame,
+            ),
+            const SizedBox(height: 11),
+            FzButton(
+              key: const Key('joinGameButton'),
+              label: 'Join with a code',
+              trailing: '6 chars',
+              kind: FzButtonKind.outline,
+              onPressed: _creating
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const JoinScreen(),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 56),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'FAZOURA',
+                      style: wordmark().copyWith(
+                        color: FzColors.ac,
+                        shadows: [
+                          Shadow(
+                            color: FzColors.ac.withValues(alpha: .45),
+                            blurRadius: 42,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'PARTY',
+                      style: wordmark().copyWith(
+                        foreground: Paint()
+                          ..style = PaintingStyle.stroke
+                          ..strokeWidth = 1.8
+                          ..color = FzColors.ac2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(width: 52, height: 4, color: FzColors.ac2),
+              const SizedBox(height: 18),
+              Text(
+                'fazoura (n.) — a riddle.\n'
+                'one phone each, one wager each,\n'
+                'ten questions of shouting.',
+                style: fz.m(
+                  13,
+                  weight: FontWeight.w400,
+                  color: FzColors.dim,
+                  height: 1.7,
+                ),
+              ),
+            ],
           ),
         ),
       ),

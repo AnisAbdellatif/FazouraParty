@@ -13,17 +13,26 @@ import '../../support/fake_game_connection.dart';
 
 void main() {
   late FakeGameConnection fake;
+  late List<Object?> requestedPacks;
 
   Future<void> pumpHome(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(900, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
     fake = FakeGameConnection();
+    requestedPacks = [];
     final api = RoomApi(
       baseUrl: 'http://localhost:4000',
-      client: MockClient(
-        (_) async => http.Response(
+      client: MockClient((request) async {
+        requestedPacks.add(
+          (jsonDecode(request.body) as Map<String, dynamic>)['pack_id'],
+        );
+        return http.Response(
           jsonEncode({'room_code': 'K7QX2M', 'host_token': 'host-tok'}),
           201,
-        ),
-      ),
+        );
+      }),
     );
     await tester.pumpWidget(
       ProviderScope(
@@ -42,13 +51,19 @@ void main() {
     }
   }
 
+  Future<void> pickGeneralKnowledge(WidgetTester tester) async {
+    await tester.tap(find.byKey(const Key('hostGameButton')));
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey('pack-general-knowledge')));
+    await settle(tester);
+  }
+
   testWidgets('play along (default on) joins as host with display_name', (
     tester,
   ) async {
     await pumpHome(tester);
+    await pickGeneralKnowledge(tester);
 
-    await tester.tap(find.byKey(const Key('hostGameButton')));
-    await settle(tester);
     expect(
       tester
           .widget<SwitchListTile>(find.byKey(const Key('playAlongSwitch')))
@@ -69,19 +84,19 @@ void main() {
     await tester.tap(find.byKey(const Key('createRoomButton')));
     await settle(tester);
 
+    expect(requestedPacks, ['general-knowledge']);
     expect(fake.hostJoins, [
       (roomCode: 'K7QX2M', hostToken: 'host-tok', displayName: 'Hana'),
     ]);
-    expect(find.text('Hosting'), findsOneWidget);
+    expect(find.text('HOSTING'), findsOneWidget);
   });
 
   testWidgets('play along off joins as host without display_name', (
     tester,
   ) async {
     await pumpHome(tester);
+    await pickGeneralKnowledge(tester);
 
-    await tester.tap(find.byKey(const Key('hostGameButton')));
-    await settle(tester);
     await tester.tap(find.byKey(const Key('playAlongSwitch')));
     await tester.pump();
     await tester.tap(find.byKey(const Key('createRoomButton')));
@@ -90,5 +105,19 @@ void main() {
     expect(fake.hostJoins, [
       (roomCode: 'K7QX2M', hostToken: 'host-tok', displayName: null),
     ]);
+  });
+
+  testWidgets('placeholder packs marked SOON cannot be picked', (tester) async {
+    await pumpHome(tester);
+    await tester.tap(find.byKey(const Key('hostGameButton')));
+    await settle(tester);
+
+    expect(find.text('SOON'), findsNWidgets(2));
+    await tester.tap(find.byKey(const ValueKey('pack-house-rules')));
+    await settle(tester);
+
+    expect(find.text("Pick tonight's\npack"), findsOneWidget);
+    expect(find.byKey(const Key('playAlongSwitch')), findsNothing);
+    expect(requestedPacks, isEmpty);
   });
 }

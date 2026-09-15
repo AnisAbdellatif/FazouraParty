@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/buttons.dart';
 import '../../support/fake_game_connection.dart';
 
 void main() {
@@ -23,13 +24,30 @@ void main() {
       expect(validateDisplayName('a' * 21), isNotNull);
       expect(validateDisplayName('  ${'a' * 20}  '), isNull);
     });
+
+    test('RoomCodeInputFormatter keeps 6 upper-case letters/digits', () {
+      final formatted = RoomCodeInputFormatter().formatEditUpdate(
+        TextEditingValue.empty,
+        const TextEditingValue(text: ' k7-qx 2m9z'),
+      );
+      expect(formatted.text, 'K7QX2M');
+      expect(formatted.selection, const TextSelection.collapsed(offset: 6));
+    });
   });
 
   group('JoinScreen', () {
     late FakeGameConnection fake;
     late ProviderContainer container;
 
+    const joinButton = Key('joinButton');
+    const codeField = Key('roomCodeField');
+    const nameField = Key('displayNameField');
+
     Future<void> pumpJoin(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(900, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
       fake = FakeGameConnection();
       container = ProviderContainer.test(
         overrides: [gameConnectionProvider.overrideWithValue(fake)],
@@ -42,25 +60,36 @@ void main() {
       );
     }
 
-    testWidgets('shows validation errors and does not join', (tester) async {
+    testWidgets('join stays disabled until a full code and a name', (
+      tester,
+    ) async {
+      await pumpJoin(tester);
+      expect(isEnabled(tester, joinButton), isFalse);
+
+      await tester.enterText(find.byKey(codeField), 'abc');
+      await tester.enterText(find.byKey(nameField), 'Sam');
+      await tester.pump();
+      expect(isEnabled(tester, joinButton), isFalse);
+
+      await tester.enterText(find.byKey(codeField), ' k7qx 2m ');
+      await tester.pump();
+      expect(isEnabled(tester, joinButton), isTrue);
+
+      // The boxes show the normalized code.
+      for (final char in 'K7QX2M'.split('')) {
+        expect(find.text(char), findsOneWidget);
+      }
+    });
+
+    testWidgets('rejects a name longer than 20 characters', (tester) async {
       await pumpJoin(tester);
 
-      await tester.tap(find.byKey(const Key('joinButton')));
+      await tester.enterText(find.byKey(codeField), 'K7QX2M');
+      await tester.enterText(find.byKey(nameField), 'x' * 21);
+      await tester.pump();
+      await tester.tap(find.byKey(joinButton));
       await tester.pump();
 
-      expect(find.text('Enter the room code'), findsOneWidget);
-      expect(find.text('Enter a display name'), findsOneWidget);
-      expect(fake.joins, isEmpty);
-
-      await tester.enterText(find.byKey(const Key('roomCodeField')), 'abc');
-      await tester.enterText(
-        find.byKey(const Key('displayNameField')),
-        'x' * 21,
-      );
-      await tester.tap(find.byKey(const Key('joinButton')));
-      await tester.pump();
-
-      expect(find.text('Room codes are 6 letters or digits'), findsOneWidget);
       expect(find.text('Use at most 20 characters'), findsOneWidget);
       expect(fake.joins, isEmpty);
     });
@@ -70,15 +99,10 @@ void main() {
     ) async {
       await pumpJoin(tester);
 
-      await tester.enterText(
-        find.byKey(const Key('roomCodeField')),
-        ' k7qx 2m ',
-      );
-      await tester.enterText(
-        find.byKey(const Key('displayNameField')),
-        '  Sam ',
-      );
-      await tester.tap(find.byKey(const Key('joinButton')));
+      await tester.enterText(find.byKey(codeField), ' k7qx 2m ');
+      await tester.enterText(find.byKey(nameField), '  Sam ');
+      await tester.pump();
+      await tester.tap(find.byKey(joinButton));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
@@ -87,16 +111,17 @@ void main() {
       expect(fake.joins.single.displayName, 'Sam');
       expect(fake.joins.single.playerToken, isNull);
       expect(container.read(playerTokensProvider), {'K7QX2M': 'token-1'});
-      expect(find.text('Room K7QX2M'), findsOneWidget);
+      expect(find.text('ROOM K7QX2M'), findsOneWidget);
     });
 
     testWidgets('shows join errors from the host', (tester) async {
       await pumpJoin(tester);
       fake.joinError = const GameError(code: 'name_taken');
 
-      await tester.enterText(find.byKey(const Key('roomCodeField')), 'K7QX2M');
-      await tester.enterText(find.byKey(const Key('displayNameField')), 'Sam');
-      await tester.tap(find.byKey(const Key('joinButton')));
+      await tester.enterText(find.byKey(codeField), 'K7QX2M');
+      await tester.enterText(find.byKey(nameField), 'Sam');
+      await tester.pump();
+      await tester.tap(find.byKey(joinButton));
       await tester.pump();
 
       expect(

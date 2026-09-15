@@ -5,7 +5,10 @@ import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../core/providers/player_tokens.dart';
 import '../../shared/describe_error.dart';
+import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/connection_banner.dart';
+import '../../shared/widgets/fz.dart';
+import '../../shared/widgets/game_top_bar.dart';
 import '../finished/finished_view.dart';
 import '../leaderboard/leaderboard_view.dart';
 import '../lobby/lobby_view.dart';
@@ -33,31 +36,34 @@ class PlayerGameScreen extends ConsumerWidget {
         if (didPop) ref.invalidate(gameConnectionProvider);
       },
       child: Scaffold(
-        appBar: AppBar(
-          title: Text('Room $roomCode'),
-          actions: [
-            IconButton(
-              tooltip: 'Leave',
-              icon: const Icon(Icons.logout),
-              onPressed: () => Navigator.of(context).maybePop(),
+        body: FzBackground(
+          child: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                GameTopBar(
+                  label: 'Room $roomCode',
+                  onLeave: () => Navigator.of(context).maybePop(),
+                ),
+                const ConnectionBanner(),
+                Expanded(
+                  child: closedReason != null
+                      ? RoomClosedView(reason: closedReason)
+                      : switch (snapshot) {
+                          AsyncData(:final value) => _PhaseView(state: value),
+                          AsyncError(:final error) => Center(
+                            child: Text(
+                              describeError(error),
+                              style: FzTheme.of(context)
+                                  .m(12, color: FzColors.dim),
+                            ),
+                          ),
+                          _ => const Center(child: CircularProgressIndicator()),
+                        },
+                ),
+              ],
             ),
-          ],
-        ),
-        body: Column(
-          children: [
-            const ConnectionBanner(),
-            Expanded(
-              child: closedReason != null
-                  ? RoomClosedView(reason: closedReason)
-                  : switch (snapshot) {
-                      AsyncData(:final value) => _PhaseView(state: value),
-                      AsyncError(:final error) => Center(
-                        child: Text(describeError(error)),
-                      ),
-                      _ => const Center(child: CircularProgressIndicator()),
-                    },
-            ),
-          ],
+          ),
         ),
       ),
     );

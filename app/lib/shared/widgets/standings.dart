@@ -1,32 +1,32 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models/models.dart';
+import '../format.dart';
+import '../theme/fz_theme.dart';
+import 'fz.dart';
 
-/// Small "Host" label for the playing host.
+/// Pink "HOST" tag for the playing host.
 class HostBadge extends StatelessWidget {
   const HostBadge({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return DecoratedBox(
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: colors.tertiaryContainer,
-        borderRadius: BorderRadius.circular(8),
+        color: FzColors.ac2.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(999),
       ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-        child: Text(
-          'Host',
-          style: TextStyle(fontSize: 11, color: colors.onTertiaryContainer),
-        ),
+      child: Text(
+        'HOST',
+        style: FzTheme.of(context).m(8.5, color: FzColors.ac2, tracking: .14),
       ),
     );
   }
 }
 
-/// Players in the order received from the host (already sorted by the
-/// server, PROTOCOL.md §5.1).
+/// Ranked player rows in the order received from the host (already sorted by
+/// the server, PROTOCOL.md §5.1).
 class Standings extends StatelessWidget {
   const Standings({
     super.key,
@@ -34,6 +34,7 @@ class Standings extends StatelessWidget {
     this.highlightPlayerId,
     this.showScores = true,
     this.showSubmitted = false,
+    this.deltas = const {},
   });
 
   final List<PlayerSummary> players;
@@ -41,67 +42,143 @@ class Standings extends StatelessWidget {
   final bool showScores;
   final bool showSubmitted;
 
+  /// Score change for the question just scored, by player id.
+  final Map<String, int> deltas;
+
   @override
   Widget build(BuildContext context) {
+    final fz = FzTheme.of(context);
     if (players.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(16),
-        child: Text('No players yet.'),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Text('No players yet.', style: fz.m(12, color: FzColors.dim)),
       );
     }
-    final theme = Theme.of(context);
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (final (index, player) in players.indexed)
-          ListTile(
-            key: ValueKey('player-${player.id}'),
-            dense: true,
-            selected: player.id == highlightPlayerId,
-            leading: showScores
-                ? CircleAvatar(child: Text('${index + 1}'))
-                : const Icon(Icons.person_outline),
-            title: Row(
-              children: [
-                Flexible(
-                  child: Text(player.name, overflow: TextOverflow.ellipsis),
-                ),
-                if (player.isHost) ...[
-                  const SizedBox(width: 6),
-                  HostBadge(key: ValueKey('host-badge-${player.id}')),
-                ],
-              ],
-            ),
-            subtitle: player.connected ? null : const Text('Disconnected'),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (showSubmitted)
-                  Icon(
-                    player.hasSubmitted
-                        ? Icons.check_circle
-                        : Icons.hourglass_empty,
-                    key: ValueKey('submitted-${player.id}'),
-                    semanticLabel: player.hasSubmitted
-                        ? 'Answered'
-                        : 'Not answered',
-                  ),
-                if (!player.connected)
-                  const Padding(
-                    padding: EdgeInsets.only(left: 8),
-                    child: Icon(Icons.wifi_off, semanticLabel: 'Disconnected'),
-                  ),
-                if (showScores)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 12),
-                    child: Text(
-                      '${player.score}',
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  ),
-              ],
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _StandingRow(
+              rank: index + 1,
+              player: player,
+              isYou: player.id == highlightPlayerId,
+              showScores: showScores,
+              showSubmitted: showSubmitted,
+              delta: deltas[player.id],
             ),
           ),
       ],
+    );
+  }
+}
+
+class _StandingRow extends StatelessWidget {
+  const _StandingRow({
+    required this.rank,
+    required this.player,
+    required this.isYou,
+    required this.showScores,
+    required this.showSubmitted,
+    required this.delta,
+  });
+
+  final int rank;
+  final PlayerSummary player;
+  final bool isYou;
+  final bool showScores;
+  final bool showSubmitted;
+  final int? delta;
+
+  @override
+  Widget build(BuildContext context) {
+    final fz = FzTheme.of(context);
+    return Container(
+      key: ValueKey('player-${player.id}'),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+      decoration: BoxDecoration(
+        color: isYou
+            ? FzColors.ac.withValues(alpha: .14)
+            : const Color(0x0DFBF6EC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: isYou ? FzColors.ac : Colors.transparent),
+      ),
+      child: Row(
+        children: [
+          if (showScores)
+            SizedBox(
+              width: 22,
+              child: Text('$rank', style: fz.m(13, color: FzColors.dim)),
+            ),
+          FzAvatar(id: player.id, name: player.name, size: 34),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        player.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: fz.h(15),
+                      ),
+                    ),
+                    if (player.isHost) ...[
+                      const SizedBox(width: 6),
+                      HostBadge(key: ValueKey('host-badge-${player.id}')),
+                    ],
+                  ],
+                ),
+                if (!player.connected) ...[
+                  const SizedBox(height: 4),
+                  Text('Disconnected', style: fz.m(10, color: FzColors.dim)),
+                ],
+              ],
+            ),
+          ),
+          if (showSubmitted)
+            Icon(
+              player.hasSubmitted ? Icons.check_circle : Icons.hourglass_empty,
+              key: ValueKey('submitted-${player.id}'),
+              size: 18,
+              color: player.hasSubmitted ? FzColors.ok : FzColors.faint,
+              semanticLabel: player.hasSubmitted ? 'Answered' : 'Not answered',
+            ),
+          if (!player.connected)
+            const Padding(
+              padding: EdgeInsets.only(left: 8),
+              child: Icon(
+                Icons.wifi_off,
+                size: 16,
+                color: FzColors.dim,
+                semanticLabel: 'Disconnected',
+              ),
+            ),
+          if (delta != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 10),
+              child: Text(
+                formatDelta(delta!),
+                style: fz.m(
+                  11,
+                  color: delta! >= 0 ? FzColors.ok : FzColors.ac2,
+                ),
+              ),
+            ),
+          if (showScores)
+            SizedBox(
+              width: 52,
+              child: Text(
+                '${player.score}',
+                textAlign: TextAlign.right,
+                style: fz.m(17),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

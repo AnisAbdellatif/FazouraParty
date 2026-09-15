@@ -27,6 +27,11 @@ void main() {
     await tester.pump();
   }
 
+  Finder inRow(String playerId, Finder finder) => find.descendant(
+    of: find.byKey(ValueKey('submission-$playerId')),
+    matching: finder,
+  );
+
   group('playing host during question', () {
     testWidgets('shows the answer input and submitting calls submit', (
       tester,
@@ -36,20 +41,18 @@ void main() {
       expect(find.byKey(const Key('hostRoomCode')), findsOneWidget);
       expect(find.byKey(const Key('answerField')), findsOneWidget);
       expect(find.text('End question'), findsOneWidget);
-      expect(find.text('Correct answer'), findsNothing);
-      expect(find.byType(SwitchListTile), findsNothing);
+      expect(find.text('CORRECT ANSWER'), findsNothing);
+      expect(find.byType(Switch), findsNothing);
 
       await tester.enterText(find.byKey(const Key('answerField')), 'Canberra');
-      await tester.tap(find.byKey(const Key('wagerIncrement')));
+      tester.widget<Slider>(find.byKey(const Key('wagerSlider'))).onChanged!(6);
       await tester.pump();
       await tester.tap(find.byKey(const Key('submitButton')));
       await tester.pump();
 
       expect(fake.submissions, [(answer: 'Canberra', wager: 6)]);
-      expect(
-        tester.widget<TextField>(find.byKey(const Key('answerField'))).enabled,
-        isFalse,
-      );
+      expect(find.byKey(const Key('ownSubmission')), findsOneWidget);
+      expect(find.byKey(const Key('answerField')), findsNothing);
 
       // Host controls stay available while playing.
       await tester.tap(find.byKey(const Key('hostPauseButton')));
@@ -71,7 +74,9 @@ void main() {
       expect(find.byKey(const Key('answerField')), findsNothing);
       expect(find.text('What is the capital of Australia?'), findsOneWidget);
       expect(find.byKey(const ValueKey('submitted-p_3f9a')), findsOneWidget);
-      expect(find.byType(SwitchListTile), findsNothing);
+      expect(find.text('1 of 1 answered'), findsOneWidget);
+      expect(find.text('PAUSED · 12s'), findsOneWidget);
+      expect(find.byType(Switch), findsNothing);
 
       // Paused question: Resume enabled, Pause disabled.
       await tester.tap(find.byKey(const Key('hostResumeButton')));
@@ -86,15 +91,25 @@ void main() {
     testWidgets('shows the correct answer and all submissions', (tester) async {
       await pumpHost(tester, scoringStateForHost());
 
-      expect(find.text('Correct answer'), findsOneWidget);
-      expect(find.widgetWithText(Chip, 'Canberra'), findsOneWidget);
-      expect(find.text('Sam: canbera'), findsOneWidget);
-      expect(find.text('Alex: Canberra'), findsOneWidget);
-      expect(find.text('Hana (you): Canbra'), findsOneWidget);
+      expect(find.text('CORRECT ANSWER'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('acceptedAnswers')),
+          matching: find.text('Canberra'),
+        ),
+        findsOneWidget,
+      );
+      expect(inRow('p_3f9a', find.text('Sam')), findsOneWidget);
+      expect(inRow('p_3f9a', find.text('canbera')), findsOneWidget);
+      expect(inRow('p_b2c1', find.text('Alex')), findsOneWidget);
+      expect(inRow('p_b2c1', find.text('Canberra')), findsOneWidget);
+      expect(inRow(hostPlayerId, find.text('Hana (you)')), findsOneWidget);
+      expect(inRow(hostPlayerId, find.text('Canbra')), findsOneWidget);
       expect(
         find.byKey(const ValueKey('host-badge-$hostPlayerId')),
         findsOneWidget,
       );
+      expect(find.text('Show standings'), findsOneWidget);
     });
 
     testWidgets('toggling their own submission calls hostOverride', (

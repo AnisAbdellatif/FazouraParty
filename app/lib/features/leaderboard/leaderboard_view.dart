@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models/models.dart';
+import '../../shared/format.dart';
+import '../../shared/theme/fz_theme.dart';
+import '../../shared/widgets/fz.dart';
+import '../../shared/widgets/reveal_summary.dart';
 import '../../shared/widgets/standings.dart';
 
-/// Player view for `scoring` and `leaderboard`.
+/// Player view for `scoring` (answers revealed) and `leaderboard` (standings).
 class LeaderboardView extends StatelessWidget {
   const LeaderboardView({super.key, required this.state});
 
@@ -11,102 +15,147 @@ class LeaderboardView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final submission = state.you.submission;
-    final accepted = state.acceptedAnswers ?? const <String>[];
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text(
-          state.phase == Phase.scoring ? 'Answers revealed' : 'Leaderboard',
-          style: theme.textTheme.headlineSmall,
-        ),
-        if (state.question != null) ...[
-          const SizedBox(height: 12),
-          Text(state.question!.prompt, style: theme.textTheme.titleMedium),
-        ],
-        if (accepted.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text('Answer: ${accepted.join(' / ')}'),
-        ],
-        const SizedBox(height: 12),
-        if (state.you.role == Role.player)
-          Card(
-            key: const Key('ownResult'),
-            child: ListTile(
-              leading: Icon(switch (submission?.correct) {
-                true => Icons.check_circle,
-                false => Icons.cancel,
-                null => Icons.remove_circle_outline,
-              }),
-              title: Text(
-                submission == null
-                    ? 'You did not answer'
-                    : 'You answered: ${submission.answer}',
-              ),
-              subtitle: submission?.delta == null
-                  ? null
-                  : Text(formatDelta(submission!.delta!)),
-            ),
-          ),
-        if (state.question != null) ...[
-          const SizedBox(height: 12),
-          _RevealedSubmissions(state: state),
-        ],
-        const SizedBox(height: 12),
-        Standings(
-          players: state.players,
-          highlightPlayerId: state.you.playerId,
-        ),
-      ],
+    final fz = FzTheme.of(context);
+    final scoring = state.phase == Phase.scoring;
+    final number = (state.questionIndex ?? 0) + 1;
+    final question = state.question;
+    final deltas = deltasFor(state);
+
+    final standings = Standings(
+      players: state.players,
+      highlightPlayerId: state.you.playerId,
+      deltas: deltas,
     );
-  }
-}
+    final answers = question == null
+        ? const SizedBox.shrink()
+        : RevealedSubmissions(state: state);
 
-String formatDelta(int delta) => delta >= 0 ? '+$delta' : '−${-delta}';
-
-/// Everyone's answers for the question that just ended, read-only, in the
-/// order received (PROTOCOL.md §7: revealed to all in scoring/leaderboard).
-class _RevealedSubmissions extends StatelessWidget {
-  const _RevealedSubmissions({required this.state});
-
-  final RoomState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final submissions = state.submissions ?? const <SubmissionView>[];
-    final playersById = {for (final p in state.players) p.id: p};
-    return Card(
-      key: const Key('revealedSubmissions'),
+    return FzBody(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Text(
-              'Everyone\'s answers',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+          FzEyebrow(
+            scoring ? 'Question $number · answers' : 'After question $number',
           ),
-          if (submissions.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Nobody answered'),
+          const SizedBox(height: 12),
+          Text(
+            scoring ? 'Answers revealed' : 'Standings',
+            style: fz.h(34, weight: FontWeight.w900, tracking: -.035),
+          ),
+          const SizedBox(height: 18),
+          if (state.you.playerId != null)
+            _VerdictCard(submission: state.you.submission),
+          if (question != null) ...[
+            const SizedBox(height: 18),
+            RevealSummary(
+              prompt: question.prompt,
+              acceptedAnswers: state.acceptedAnswers ?? const [],
             ),
-          for (final submission in submissions)
-            _SubmissionResultTile(
-              submission: submission,
-              player: playersById[submission.playerId],
-              isYou: submission.playerId == state.you.playerId,
-            ),
+          ],
+          const SizedBox(height: 24),
+          if (scoring) ...[
+            answers,
+            const SizedBox(height: 24),
+            Text('Standings', style: fz.h(17)),
+            const SizedBox(height: 12),
+            standings,
+          ] else ...[
+            standings,
+            const SizedBox(height: 24),
+            answers,
+          ],
         ],
       ),
     );
   }
 }
 
-class _SubmissionResultTile extends StatelessWidget {
-  const _SubmissionResultTile({
+/// Score change per player for the question just scored.
+Map<String, int> deltasFor(RoomState state) => {
+  for (final s in state.submissions ?? const <SubmissionView>[])
+    if (s.delta != null) s.playerId: s.delta!,
+};
+
+class _VerdictCard extends StatelessWidget {
+  const _VerdictCard({required this.submission});
+
+  final OwnSubmission? submission;
+
+  @override
+  Widget build(BuildContext context) {
+    final fz = FzTheme.of(context);
+    final s = submission;
+    final (title, color) = switch (s) {
+      null => ("You didn't answer", FzColors.dim),
+      OwnSubmission(correct: true) => (
+        '${formatDelta(s.delta ?? s.wager)} — nice',
+        FzColors.ok,
+      ),
+      _ => ('Not quite ${formatDelta(s.delta ?? -s.wager)}', FzColors.ac2),
+    };
+    return FzEnter(
+      rise: true,
+      child: FzPanel(
+        key: const Key('ownResult'),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: fz.h(17, color: color)),
+            const SizedBox(height: 7),
+            Text(
+              s == null
+                  ? 'No wager, no change.'
+                  : 'You said "${s.answer}" · wager ${s.wager}',
+              style: fz.m(11, color: FzColors.dim, height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Everyone's answers for the question that just ended, read-only, in the
+/// order received (PROTOCOL.md §7: revealed to all in scoring/leaderboard).
+class RevealedSubmissions extends StatelessWidget {
+  const RevealedSubmissions({super.key, required this.state});
+
+  final RoomState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final fz = FzTheme.of(context);
+    final submissions = state.submissions ?? const <SubmissionView>[];
+    final playersById = {for (final p in state.players) p.id: p};
+    return Column(
+      key: const Key('revealedSubmissions'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text("Everyone's answers", style: fz.h(17)),
+        const SizedBox(height: 12),
+        if (submissions.isEmpty)
+          FzPanel(
+            child: Text(
+              'Nobody answered',
+              style: fz.m(12, color: FzColors.dim),
+            ),
+          ),
+        for (final submission in submissions)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 7),
+            child: _SubmissionResultRow(
+              submission: submission,
+              player: playersById[submission.playerId],
+              isYou: submission.playerId == state.you.playerId,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _SubmissionResultRow extends StatelessWidget {
+  const _SubmissionResultRow({
     required this.submission,
     required this.player,
     required this.isYou,
@@ -118,45 +167,71 @@ class _SubmissionResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final fz = FzTheme.of(context);
     final correct = submission.correct ?? submission.autoCorrect ?? false;
     final delta = submission.delta;
     final name = player?.name ?? submission.playerId;
-    return ListTile(
+    return Container(
       key: ValueKey('result-${submission.playerId}'),
-      dense: true,
-      selected: isYou,
-      leading: Icon(
-        correct ? Icons.check_circle : Icons.cancel,
-        color: correct ? Colors.green : theme.colorScheme.error,
-        semanticLabel: correct ? 'Correct' : 'Incorrect',
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: isYou
+            ? FzColors.ac.withValues(alpha: .14)
+            : const Color(0x0DFBF6EC),
+        borderRadius: BorderRadius.circular(13),
+        border: Border.all(color: isYou ? FzColors.ac : Colors.transparent),
       ),
-      title: Row(
+      child: Row(
         children: [
-          Flexible(
-            child: Text(
-              isYou ? '$name (you)' : name,
-              overflow: TextOverflow.ellipsis,
+          Icon(
+            correct ? Icons.check_circle : Icons.cancel,
+            size: 20,
+            color: correct ? FzColors.ok : FzColors.ac2,
+            semanticLabel: correct ? 'Correct' : 'Incorrect',
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        isYou ? '$name (you)' : name,
+                        overflow: TextOverflow.ellipsis,
+                        style: fz.h(14.5),
+                      ),
+                    ),
+                    if (player?.isHost ?? false) ...[
+                      const SizedBox(width: 6),
+                      HostBadge(
+                        key: ValueKey(
+                          'result-host-badge-${submission.playerId}',
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  [
+                    submission.answer,
+                    'wager ${submission.wager}',
+                    if (submission.overrideVerdict != null) 'corrected by host',
+                  ].join(' · '),
+                  style: fz.m(11, color: FzColors.dim, height: 1.3),
+                ),
+              ],
             ),
           ),
-          if (player?.isHost ?? false) ...[
-            const SizedBox(width: 6),
-            HostBadge(
-              key: ValueKey('result-host-badge-${submission.playerId}'),
+          if (delta != null)
+            Text(
+              formatDelta(delta),
+              style: fz.m(15, color: correct ? FzColors.ok : FzColors.ac2),
             ),
-          ],
         ],
       ),
-      subtitle: Text(
-        [
-          submission.answer,
-          'wager ${submission.wager}',
-          if (submission.overrideVerdict != null) 'corrected by host',
-        ].join(' · '),
-      ),
-      trailing: delta == null
-          ? null
-          : Text(formatDelta(delta), style: theme.textTheme.titleMedium),
     );
   }
 }

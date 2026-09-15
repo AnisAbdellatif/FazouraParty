@@ -52,15 +52,24 @@ void main() {
     await pumpView(tester, scoringStateForSam());
 
     expect(find.text('Answers revealed'), findsOneWidget);
+    expect(find.text('Not quite −7'), findsOneWidget);
     final section = find.byKey(const Key('revealedSubmissions'));
     expect(section, findsOneWidget);
 
     // Order as received.
     final rows = tester
-        .widgetList<ListTile>(
-          find.descendant(of: section, matching: find.byType(ListTile)),
+        .widgetList(
+          find.descendant(
+            of: section,
+            matching: find.byWidgetPredicate((widget) {
+              final key = widget.key;
+              return key is ValueKey<String> &&
+                  key.value.startsWith('result-') &&
+                  !key.value.startsWith('result-host-badge-');
+            }),
+          ),
         )
-        .map((tile) => tile.key)
+        .map((widget) => widget.key)
         .toList();
     expect(rows, const [
       ValueKey('result-p_3f9a'),
@@ -96,7 +105,6 @@ void main() {
 
     // Read-only.
     expect(find.byType(Switch), findsNothing);
-    expect(find.byType(SwitchListTile), findsNothing);
     expect(find.byType(Checkbox), findsNothing);
   });
 
@@ -138,6 +146,18 @@ void main() {
     );
 
     expect(find.text('Nobody answered'), findsOneWidget);
+    expect(find.text("You didn't answer"), findsOneWidget);
     expect(find.byKey(const ValueKey('result-p_3f9a')), findsNothing);
+  });
+
+  testWidgets('leaderboard phase leads with standings', (tester) async {
+    await pumpView(
+      tester,
+      scoringStateForSam().copyWith(phase: Phase.leaderboard),
+    );
+
+    expect(find.text('Standings'), findsOneWidget);
+    expect(find.text('AFTER QUESTION 3'), findsOneWidget);
+    expect(find.byKey(const ValueKey('player-p_3f9a')), findsOneWidget);
   });
 }

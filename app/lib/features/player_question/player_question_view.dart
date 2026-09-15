@@ -4,26 +4,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../shared/describe_error.dart';
+import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/countdown.dart';
+import '../../shared/widgets/fz.dart';
+import '../../shared/widgets/submitted_dots.dart';
 
 const minWager = 1;
 const maxWager = 10;
 const maxAnswerLength = 100;
+const _defaultWager = 5;
 
-/// Answer + wager entry for the current question. Inputs lock once a
-/// submission is sent or the snapshot shows one.
+/// Question stage: prompt, server-clock timer and, for anyone playing, the
+/// answer field, wager slider and "Lock it in". Inputs are replaced by a
+/// locked-in card once a submission is sent or the snapshot shows one.
+///
+/// The host uses it too: [canAnswer] is false for a host who is not playing,
+/// and [hostControls] is pinned to the bottom.
 class PlayerQuestionView extends ConsumerStatefulWidget {
   const PlayerQuestionView({
     super.key,
     required this.state,
-    this.embedded = false,
+    this.canAnswer = true,
+    this.hostControls,
   });
 
   final RoomState state;
-
-  /// When true, renders a non-scrolling column for use inside another list
-  /// (the playing host's dashboard).
-  final bool embedded;
+  final bool canAnswer;
+  final Widget? hostControls;
 
   @override
   ConsumerState<PlayerQuestionView> createState() => _PlayerQuestionViewState();
@@ -31,9 +38,9 @@ class PlayerQuestionView extends ConsumerStatefulWidget {
 
 class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
   final _answerController = TextEditingController();
-  int _wager = 5;
+  int _wager = _defaultWager;
   bool _sending = false;
-  bool _sent = false;
+  ({String answer, int wager})? _sent;
   String? _error;
 
   @override
@@ -41,9 +48,9 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.state.question?.id != widget.state.question?.id) {
       _answerController.clear();
-      _wager = 5;
+      _wager = _defaultWager;
       _sending = false;
-      _sent = false;
+      _sent = null;
       _error = null;
     }
   }
@@ -60,22 +67,25 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
       setState(() => _error = 'Answers must be 1–$maxAnswerLength characters.');
       return;
     }
+    final wager = _wager;
     setState(() {
       _sending = true;
       _error = null;
     });
     try {
-      await ref.read(gameConnectionProvider).submit(answer, _wager);
+      await ref.read(gameConnectionProvider).submit(answer, wager);
       if (!mounted) return;
       setState(() {
         _sending = false;
-        _sent = true;
+        _sent = (answer: answer, wager: wager);
       });
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _sending = false;
-        _sent = error is GameError && error.code == 'already_submitted';
+        if (error is GameError && error.code == 'already_submitted') {
+          _sent = (answer: answer, wager: wager);
+        }
         _error = describeError(error);
       });
     }
@@ -83,123 +93,199 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
 
   @override
   Widget build(BuildContext context) {
+    final fz = FzTheme.of(context);
     final state = widget.state;
     final question = state.question;
     final submission = state.you.submission;
     final paused = state.pausedRemainingMs != null;
-    final locked = _sending || _sent || submission != null;
-    final theme = Theme.of(context);
+    final lockedIn = submission != null
+        ? (answer: submission.answer, wager: submission.wager)
+        : _sent;
+    final answered = state.players.where((p) => p.hasSubmitted).length;
 
-    final children = <Widget>[
-      Row(
+    return FzBody(
+      footer: widget.hostControls,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: Text(
-              'Question ${(state.questionIndex ?? 0) + 1} of '
-              '${state.questionCount}',
-              style: theme.textTheme.titleSmall,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: FzEyebrow(
+                  'Question ${(state.questionIndex ?? 0) + 1} of '
+                  '${state.questionCount}',
+                ),
+              ),
+              SubmittedDots(players: state.players),
+            ],
           ),
+          const SizedBox(height: 14),
           Countdown(
             deadline: state.deadline,
             pausedRemainingMs: state.pausedRemainingMs,
+            timeLimitMs: question?.timeLimitMs,
           ),
+          const SizedBox(height: 30),
+          if (question != null)
+            FzEnter(
+              key: ValueKey('prompt-${question.id}'),
+              rise: true,
+              child: Text(
+                question.prompt,
+                key: const Key('questionPrompt'),
+                style: fz.h(
+                  30,
+                  weight: FontWeight.w900,
+                  height: 1.12,
+                  tracking: -.03,
+                ),
+              ),
+            ),
+          const SizedBox(height: 28),
+          if (!widget.canAnswer)
+            FzPanel(
+              color: Colors.transparent,
+              borderColor: FzColors.line,
+              padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+              child: Text(
+                '$answered of ${state.players.length} answered',
+                key: const Key('answeredCount'),
+                textAlign: TextAlign.center,
+                style: fz.m(12, color: FzColors.dim),
+              ),
+            )
+          else if (lockedIn != null)
+            _LockedIn(answer: lockedIn.answer, wager: lockedIn.wager)
+          else
+            ..._inputs(fz, paused: paused),
         ],
       ),
-      const SizedBox(height: 16),
-      Text(
-        question?.prompt ?? '',
-        key: const Key('questionPrompt'),
-        style: theme.textTheme.headlineSmall,
-      ),
-      const SizedBox(height: 24),
+    );
+  }
+
+  List<Widget> _inputs(FzTheme fz, {required bool paused}) {
+    final busy = _sending;
+    return [
       TextField(
         key: const Key('answerField'),
         controller: _answerController,
-        enabled: !locked,
+        enabled: !busy,
         maxLength: maxAnswerLength,
+        style: fz.h(20, weight: FontWeight.w700),
         decoration: const InputDecoration(
-          labelText: 'Your answer',
-          border: OutlineInputBorder(),
+          hintText: 'Type your answer',
+          counterText: '',
         ),
         textInputAction: TextInputAction.done,
+        onSubmitted: (_) {
+          if (!busy && !paused) _submit();
+        },
       ),
-      const SizedBox(height: 8),
-      Text('Wager', style: theme.textTheme.titleSmall),
+      const SizedBox(height: 22),
       Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          IconButton.outlined(
-            key: const Key('wagerDecrement'),
-            tooltip: 'Lower wager',
-            onPressed: locked || _wager <= minWager
-                ? null
-                : () => setState(() => _wager--),
-            icon: const Icon(Icons.remove),
-          ),
-          SizedBox(
-            width: 72,
-            child: Text(
-              '$_wager',
-              key: const Key('wagerValue'),
-              textAlign: TextAlign.center,
-              style: theme.textTheme.displaySmall,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const FzEyebrow('Wager'),
+                const SizedBox(height: 6),
+                Text(
+                  '+$_wager if right · −$_wager if wrong',
+                  key: const Key('wagerHint'),
+                  style: fz.m(11, color: FzColors.dim),
+                ),
+              ],
             ),
           ),
-          IconButton.outlined(
-            key: const Key('wagerIncrement'),
-            tooltip: 'Raise wager',
-            onPressed: locked || _wager >= maxWager
-                ? null
-                : () => setState(() => _wager++),
-            icon: const Icon(Icons.add),
+          Text(
+            '$_wager',
+            key: const Key('wagerValue'),
+            style: fz.m(40, color: FzColors.ac, height: 1),
           ),
         ],
       ),
-      const Text(
-        'Correct: +wager · Incorrect: −wager',
-        textAlign: TextAlign.center,
+      const SizedBox(height: 4),
+      Slider(
+        key: const Key('wagerSlider'),
+        value: _wager.toDouble(),
+        min: minWager.toDouble(),
+        max: maxWager.toDouble(),
+        divisions: maxWager - minWager,
+        label: '$_wager',
+        onChanged: busy
+            ? null
+            : (value) => setState(() => _wager = value.round()),
       ),
-      const SizedBox(height: 16),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('1 · safe', style: fz.m(10, color: FzColors.faint)),
+            Text('10 · all in', style: fz.m(10, color: FzColors.faint)),
+          ],
+        ),
+      ),
+      const SizedBox(height: 18),
       if (_error != null)
         Padding(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.only(bottom: 10),
           child: Text(
             _error!,
             key: const Key('submitError'),
-            style: TextStyle(color: theme.colorScheme.error),
+            style: fz.m(12, color: FzColors.ac2),
           ),
         ),
-      FilledButton(
+      FzButton(
         key: const Key('submitButton'),
-        onPressed: locked || paused ? null : _submit,
-        child: Text(
-          _sending
-              ? 'Sending…'
-              : paused
-              ? 'Paused'
-              : 'Submit',
+        kind: FzButtonKind.pink,
+        height: 54,
+        label: busy
+            ? 'Sending…'
+            : paused
+            ? 'Paused'
+            : 'Lock it in',
+        onPressed: busy || paused ? null : _submit,
+      ),
+    ];
+  }
+}
+
+class _LockedIn extends StatelessWidget {
+  const _LockedIn({required this.answer, required this.wager});
+
+  final String answer;
+  final int wager;
+
+  @override
+  Widget build(BuildContext context) {
+    final fz = FzTheme.of(context);
+    return FzBlink(
+      key: const Key('ownSubmission'),
+      child: FzPanel(
+        color: Colors.transparent,
+        borderColor: FzColors.line,
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+        child: Column(
+          children: [
+            Text(
+              'locked in — waiting for the room',
+              textAlign: TextAlign.center,
+              style: fz.m(12, color: FzColors.dim),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Your answer: $answer',
+              textAlign: TextAlign.center,
+              style: fz.h(17),
+            ),
+            const SizedBox(height: 4),
+            Text('Wager $wager', style: fz.m(11, color: FzColors.ac)),
+          ],
         ),
       ),
-      if (submission != null) ...[
-        const SizedBox(height: 16),
-        Card(
-          key: const Key('ownSubmission'),
-          child: ListTile(
-            leading: const Icon(Icons.check),
-            title: Text('Your answer: ${submission.answer}'),
-            subtitle: Text('Wager ${submission.wager}'),
-          ),
-        ),
-      ],
-    ];
-
-    if (widget.embedded) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: children,
-      );
-    }
-    return ListView(padding: const EdgeInsets.all(16), children: children);
+    );
   }
 }

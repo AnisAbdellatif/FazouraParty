@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 
+import '../../shared/theme/fz_theme.dart';
+import '../../shared/widgets/fz.dart';
 import '../join/join_screen.dart' show validateDisplayName;
 
 /// Result of [showHostSetupDialog]: [displayName] is null when the host does
 /// not play along.
 typedef HostSetup = ({String? displayName});
 
-/// Asks the host whether to play along and under which name.
-/// Returns null if cancelled.
+/// Bottom sheet asking whether the host plays along and under which name.
+/// Returns null if dismissed.
 Future<HostSetup?> showHostSetupDialog(BuildContext context) {
-  return showDialog<HostSetup>(
+  return showModalBottomSheet<HostSetup>(
     context: context,
+    isScrollControlled: true,
     builder: (_) => const HostSetupDialog(),
   );
 }
@@ -42,48 +45,64 @@ class _HostSetupDialogState extends State<HostSetupDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Host a game'),
-      content: Form(
+    final fz = FzTheme.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        22,
+        0,
+        22,
+        22 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Form(
         key: _formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const FzEyebrow('New party'),
+            const SizedBox(height: 8),
+            Text(
+              'Host tonight',
+              style: fz.h(28, weight: FontWeight.w900, tracking: -.03),
+            ),
+            const SizedBox(height: 12),
             SwitchListTile(
               key: const Key('playAlongSwitch'),
               contentPadding: EdgeInsets.zero,
-              title: const Text('Play along'),
-              subtitle: const Text('Answer questions yourself too'),
+              title: Text('Play along', style: fz.h(16)),
+              subtitle: Text(
+                'Answer questions yourself too',
+                style: fz.m(11.5, color: FzColors.dim),
+              ),
               value: _playAlong,
               onChanged: (value) => setState(() => _playAlong = value),
             ),
+            const SizedBox(height: 8),
             TextFormField(
               key: const Key('hostDisplayNameField'),
               controller: _nameController,
               enabled: _playAlong,
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Your display name',
-                border: OutlineInputBorder(),
-              ),
+              style: fz.h(18, weight: FontWeight.w700),
+              decoration: const InputDecoration(hintText: 'Your display name'),
               textInputAction: TextInputAction.done,
               onFieldSubmitted: (_) => _confirm(),
               validator: _playAlong ? validateDisplayName : null,
             ),
+            const SizedBox(height: 20),
+            FzButton(
+              key: const Key('createRoomButton'),
+              label: 'Create room',
+              onPressed: _confirm,
+            ),
+            const SizedBox(height: 6),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Cancel', style: fz.m(12, color: FzColors.dim)),
+            ),
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          key: const Key('createRoomButton'),
-          onPressed: _confirm,
-          child: const Text('Create room'),
-        ),
-      ],
     );
   }
 }
