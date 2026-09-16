@@ -1,60 +1,68 @@
 name: CI
 
+# Every push and pull request runs both suites and builds the image. Only a push to
+# main pushes that image to ghcr.io and deploys it to the VPS over SSH.
 on:
   push:
     branches: [main]
   pull_request:
 
-# A new push supersedes the run in flight for the same branch.
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
+
+env:
+  # Kept in step with server/mix.exs and app/pubspec.yaml; CI must not drift from
+  # what the Dockerfile builds or what developers run.
+  OTP_VERSION: "29.0.6"
+  ELIXIR_VERSION: "1.20.4"
+  FLUTTER_VERSION: "3.47.2"
 
 jobs:
   server:
-    name: server (Elixir)
-    runs-on: ubuntu-latest
+    name: Server (Elixir)
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: server
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: erlef/setup-beam@v1
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
-          otp-version: "29.0.6"
-          elixir-version: "1.20.4"
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
 
-      # Tests run on SQLite, as they do locally; Postgres only appears in production.
-      - uses: actions/cache@v4
+      # The dialyzer PLT is the slow part; it only changes when deps do.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             server/deps
             server/_build
             server/priv/plts
-          key: mix-${{ runner.os }}-${{ hashFiles('server/mix.lock') }}
-          restore-keys: mix-${{ runner.os }}-
+          key: mix-${{ runner.os }}-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('server/mix.lock') }}
+          restore-keys: mix-${{ runner.os }}-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
 
       - run: mix deps.get
       - run: mix compile --warnings-as-errors
       - run: mix format --check-formatted
       - run: mix deps.unlock --check-unused
       - run: mix credo --strict
+      # Tests run on SQLite, exactly as they do locally; Postgres only exists in prod.
       - run: mix test
       - run: mix dialyzer
 
   app:
-    name: app (Flutter)
-    runs-on: ubuntu-latest
+    name: App (Flutter)
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: app
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
-          flutter-version: "3.47.2"
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 
@@ -63,13 +71,151 @@ jobs:
       - run: flutter analyze
       - run: flutter test
 
-      # The web build is the deliverable, and the service worker it generates is
-      # exercised the same way deploy/deploy.sh expects it to be built.
+      # build_web.dart is the only supported way to build the web app: it is what
+      # hashes the shell into the service worker's cache key (AGENTS.md §5).
       - run: dart run tool/build_web.dart
       - run: node tool/check_service_worker.mjs
 
-      - uses: actions/upload-artifact@v4
+      # The image ships this build, so the image job takes it from here rather than
+      # installing Flutter a second time.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: web
           path: app/build/web
           retention-days: 7
+          if-no-files-found: error
+
+  image:
+    name: Image
+    needs: [server, app]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.name.outputs.image }}
+      tag: ${{ steps.name.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: web
+          path: app/build/web
+
+      - id: name
+        # The commit sha is what gets deployed; `latest` is a convenience alias so
+        # manual compose commands on the VPS find the same image.
+        run: |
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "tag=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+      # A pull request builds but never publishes: it is here to catch a broken
+      # Dockerfile before main does, not to produce an artifact.
+      - id: publish
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_NAME" = main ]; then
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "push=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to ghcr.io
+        if: steps.publish.outputs.push == 'true'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Build the image
+        env:
+          IMAGE: ${{ steps.name.outputs.image }}
+          TAG: ${{ steps.name.outputs.tag }}
+          PUSH: ${{ steps.publish.outputs.push }}
+        # A pull request reads the registry cache but does not write it, so it cannot
+        # poison the cache main builds from.
+        run: |
+          args=(--file deploy/Dockerfile --cache-from "type=registry,ref=$IMAGE:buildcache")
+          if [ "$PUSH" = true ]; then
+            args+=(--cache-to "type=registry,ref=$IMAGE:buildcache,mode=max")
+            args+=(--push --tag "$IMAGE:$TAG" --tag "$IMAGE:latest")
+          else
+            args+=(--output type=cacheonly)
+          fi
+          docker buildx create --use
+          docker buildx build "${args[@]}" .
+
+  deploy:
+    name: Deploy
+    needs: image
+    if: github.event_name == 'push' && github.ref_name == 'main' && vars.DEPLOY_HOST != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+    # Deploys queue rather than race; cancelling one halfway would leave the stack
+    # between two images.
+    concurrency:
+      group: deploy-main
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      packages: read
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER || 'fazoura' }}
+      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
+      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/srv/fazoura' }}
+      # Fail rather than wait for a password or a host key confirmation nobody can type.
+      SSH_OPTIONS: -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        # A secret stored only in another environment arrives empty here, which would
+        # otherwise fail later with an unhelpful ssh error.
+        run: |
+          if [ -z "$SSH_KEY" ] || [ -z "$KNOWN_HOSTS" ]; then
+            echo "::error::DEPLOY_SSH_KEY or DEPLOY_KNOWN_HOSTS is empty in the 'production' environment. See deploy/README.md."
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+
+      - name: Copy the stack definition
+        # Only these two. deploy/.env belongs to the VPS and is never shipped.
+        run: |
+          scp -i ~/.ssh/deploy_key $SSH_OPTIONS -P "$DEPLOY_PORT" \
+            deploy/compose.yaml deploy/Caddyfile \
+            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+
+      - name: Pull, migrate and restart
+        env:
+          IMAGE: ${{ needs.image.outputs.image }}
+          TAG: ${{ needs.image.outputs.tag }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # The registry token goes in through stdin, never on a command line, and the
+        # session logs out again as soon as the image is local. Migrations run with the
+        # new image before the old container stops; Release.setup/0 is idempotent, so a
+        # re-run of a failed deploy is safe.
+        run: |
+          echo "$TOKEN" | ssh -i ~/.ssh/deploy_key $SSH_OPTIONS -p "$DEPLOY_PORT" \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "set -eu
+             cd '$DEPLOY_PATH'
+             docker login ghcr.io --username '$GITHUB_ACTOR' --password-stdin
+             docker pull '$IMAGE:$TAG'
+             docker logout ghcr.io
+             docker tag '$IMAGE:$TAG' '$IMAGE:latest'
+             export APP_IMAGE='$IMAGE' APP_TAG='$TAG'
+             docker compose run --rm --no-TTY app bin/fazoura eval 'Fazoura.Release.setup()'
+             docker compose up --detach --wait --remove-orphans
+             docker image prune --all --force --filter until=336h"
+
+      - name: Smoke check
+        env:
+          URL: https://${{ vars.PUBLIC_HOST || vars.DEPLOY_HOST }}/health
+        run: curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused "$URL"

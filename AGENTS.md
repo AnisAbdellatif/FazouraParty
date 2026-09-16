@@ -60,11 +60,13 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 
 ## 6. Deployment
 
-- One VPS, three containers, described in [deploy/README.md](deploy/README.md): Caddy (TLS, reverse proxy), the server as an OTP release with the built Flutter web app inside it, and Postgres. `deploy/deploy.sh <user@host>` builds the web app locally, ships `server/`, `deploy/` and `app/build/web` over SSH with `tar`, then builds the image and restarts on the VPS. No registry, no CI deploy credentials.
-- Secrets live only in `deploy/.env` **on the VPS**, from [deploy/.env.example](deploy/.env.example). Never ship, commit, or print it.
+- One VPS, three containers, described in [deploy/README.md](deploy/README.md): Caddy (TLS, reverse proxy), the server as an OTP release with the built Flutter web app inside it, and Postgres. The VPS builds nothing and stores no registry credentials.
+- **Deploys happen only in CI** ([.github/workflows/ci.yml](.github/workflows/ci.yml)). Push to `main` → both suites, then the image is pushed to `ghcr.io/<owner>/<repo>` tagged with the commit sha, then the deploy job SSHes in and pulls, migrates and restarts. A pull request runs the same suites and builds the image *without* pushing. Never add a step that deploys from a developer machine — one path, or the two drift.
+- Configuration is GitHub repository variables (`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PORT`, `DEPLOY_PATH`, `PUBLIC_HOST`) and secrets (`DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`). The deploy job is skipped while `DEPLOY_HOST` is unset — that is the off switch. Registry auth is the workflow's own `GITHUB_TOKEN`, handed to the VPS over stdin for one pull and logged out again.
+- Application secrets live only in `deploy/.env` **on the VPS**, from [deploy/.env.example](deploy/.env.example). CI never ships, reads, or prints it.
 - Database work in a release goes through `Fazoura.Release` (`setup/0` = migrate + sync built-ins, both idempotent) — a release has no Mix. A deploy runs it with the new image before the old one stops.
 - The two volumes that cannot be rebuilt are `pgdata` and `uploads`. Any change that moves or renames them needs a migration path in the README.
-- CI is [.github/workflows/ci.yml](.github/workflows/ci.yml): the full server suite (format, credo, test, dialyzer) and the full app suite (format, analyze, test, web build, service-worker harness). Keep both green; CI never deploys.
+- Pin GitHub Actions by commit sha with the version in a trailing comment, and keep the toolchain versions in the workflow's `env` in step with `server/mix.exs` and `app/pubspec.yaml`.
 
 ## 7. Flutter / Riverpod standards
 

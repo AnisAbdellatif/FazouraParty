@@ -49,7 +49,7 @@ ENV MIX_ENV=prod \
     WEB_DIR=/app/web \
     UPLOADS_DIR=/data/uploads
 
-# Question photos outlive the image: docker-compose.yml mounts a volume here, and a
+# Question photos outlive the image: compose.yaml mounts a volume here, and a
 # fresh volume inherits this ownership, so `nobody` can still write to it.
 RUN mkdir -p /data/uploads && chown -R nobody:root /data
 

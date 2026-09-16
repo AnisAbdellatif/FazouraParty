@@ -4,7 +4,7 @@ defmodule Fazoura.Release do
 
       bin/fazoura eval "Fazoura.Release.setup()"
 
-  `deploy/deploy.sh` runs this against the new image before the old one stops.
+  The deploy job runs this with the new image before the old container stops.
   """
 
   @app :fazoura

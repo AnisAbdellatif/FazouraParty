@@ -1,9 +1,12 @@
-# The whole server: Postgres, the app, and Caddy terminating TLS in front of it.
-# Run from the deploy directory on the VPS; `deploy.sh` does that over SSH.
+# The production stack: Postgres, the app, and Caddy terminating TLS in front of it.
 #
-#   docker compose build
+# CI copies this file (and Caddyfile) to the VPS and runs compose there; the image is
+# pulled from ghcr.io, never built on the VPS. APP_IMAGE and APP_TAG come from the
+# deploy job's environment, everything else from the .env beside this file.
+#
+#   export APP_IMAGE=ghcr.io/<owner>/<repo> APP_TAG=<sha>
 #   docker compose run --rm app bin/fazoura eval "Fazoura.Release.setup()"
-#   docker compose up -d
+#   docker compose up --detach --wait --remove-orphans
 
 name: fazoura
 
@@ -26,10 +29,7 @@ services:
       retries: 12
 
   app:
-    build:
-      context: ..
-      dockerfile: deploy/Dockerfile
-    image: fazoura:latest
+    image: ${APP_IMAGE:?set APP_IMAGE, e.g. ghcr.io/owner/repo}:${APP_TAG:-latest}
     restart: unless-stopped
     env_file: .env
     environment:
