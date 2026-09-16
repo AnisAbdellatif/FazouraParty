@@ -28,6 +28,12 @@ if username = System.get_env("ADMIN_USERNAME") do
   config :fazoura, admin: [username: username, password: System.get_env("ADMIN_PASSWORD")]
 end
 
+# Serve the built web app (app/build/web, from `dart run tool/build_web.dart`) at "/".
+# Without it this server is API-only and the app is hosted elsewhere.
+if web_dir = System.get_env("WEB_DIR") do
+  config :fazoura, web_dir: web_dir
+end
+
 if config_env() == :prod do
   # Phase 1 runs without a database; DATABASE_URL becomes required in Phase 2.
   if database_url = System.get_env("DATABASE_URL") do

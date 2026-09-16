@@ -1,12 +1,16 @@
 {
-    "name": "fazoura_party",
-    "short_name": "fazoura_party",
-    "start_url": ".",
+    "name": "Fazoura Party",
+    "short_name": "Fazoura",
+    "description": "A party trivia game: one phone each, one wager each, ten questions of shouting.",
+    "start_url": "/",
+    "scope": "/",
+    "id": "/",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "display_override": ["standalone", "minimal-ui"],
     "orientation": "portrait-primary",
+    "background_color": "#0E0D0C",
+    "theme_color": "#0E0D0C",
+    "categories": ["games", "entertainment"],
     "prefer_related_applications": false,
     "icons": [
         {

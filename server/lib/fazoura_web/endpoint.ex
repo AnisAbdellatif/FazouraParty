@@ -56,6 +56,9 @@ defmodule FazouraWeb.Endpoint do
     from: {:phoenix_live_view, "priv/static"},
     only: ~w(phoenix_live_view.min.js)
 
+  # The Flutter web app (PWA), when this server is also hosting it.
+  plug FazouraWeb.Plugs.WebApp
+
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 

@@ -2,10 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "web-build",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8080", "--bind", "127.0.0.1", "--directory", "app/build/web"],
-      "port": 8080
+      "name": "server",
+      "runtimeExecutable": "mix",
+      "runtimeArgs": [
+        "phx.server"
+      ],
+      "port": 4000,
+      "url": "http://localhost:4000"
     }
   ]
 }

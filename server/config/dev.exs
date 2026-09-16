@@ -6,6 +6,10 @@ config :fazoura, cors_origins: :all
 # Local-only admin credentials; production reads them from the environment.
 config :fazoura, admin: [username: "admin", password: "admin"]
 
+# Serve the web app from the local build, so it shares this server's origin
+# (`dart run tool/build_web.dart` in app/).
+config :fazoura, web_dir: Path.expand("../../app/build/web", __DIR__)
+
 # Local SQLite database file (production uses Postgres).
 config :fazoura, Fazoura.Repo,
   database: Path.expand("../fazoura_dev.db", __DIR__),

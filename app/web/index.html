@@ -1,46 +1,79 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
+  <!-- Replaced by the `--base-href` argument to `flutter build`. -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="description"
+        content="A party trivia game: one phone each, one wager each, ten questions of shouting.">
 
-  <!-- iOS meta tags & icons -->
+  <!-- Installed app / status bar -->
+  <meta name="theme-color" content="#0E0D0C">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="fazoura_party">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Fazoura Party">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>fazoura_party</title>
   <link rel="manifest" href="manifest.json">
+
+  <title>Fazoura Party</title>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #0E0D0C;
+      overscroll-behavior: none;
+    }
+    /* Shown until Flutter paints, so a cold start isn't a white flash. */
+    #splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: .28em;
+      color: #FFC400;
+      font-size: 15px;
+      font-weight: 700;
+    }
+    #splash .bar {
+      width: 52px;
+      height: 4px;
+      background: #FF4D6D;
+    }
+    /* Flutter inserts <flutter-view> once it takes over the page. */
+    body:has(flutter-view) #splash {
+      display: none;
+    }
+  </style>
 </head>
 <body>
-  <!--
-    You can customize the "flutter_bootstrap.js" script.
-    This is useful to provide a custom configuration to the Flutter loader
-    or to give the user feedback during the initialization process.
-
-    For more details:
-    * https://docs.flutter.dev/platform-integration/web/initialization
-  -->
+  <div id="splash">
+    FAZOURA
+    <div class="bar"></div>
+  </div>
+  <script>
+    // Ours is the only registration: tool/build_web.dart writes
+    // flutter_service_worker.js and strips Flutter's deprecated one, because two
+    // workers claiming "/" would keep replacing each other.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker
+          .register('flutter_service_worker.js')
+          .catch((error) => console.warn('Offline caching unavailable:', error));
+      });
+    }
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

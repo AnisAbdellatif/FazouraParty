@@ -18,7 +18,9 @@ config :fazoura,
   uploads_dir: Path.expand("../priv/uploads", __DIR__),
   cors_origins: [],
   # /admin is disabled unless both are set (runtime.exs reads ADMIN_USERNAME/ADMIN_PASSWORD).
-  admin: [username: nil, password: nil]
+  admin: [username: nil, password: nil],
+  # Built Flutter web app to serve at "/"; nil serves the API only (runtime.exs: WEB_DIR).
+  web_dir: nil
 
 # Configure the endpoint
 config :fazoura, FazouraWeb.Endpoint,
