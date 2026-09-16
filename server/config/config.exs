@@ -16,6 +16,10 @@ config :fazoura,
     if(config_env() == :prod, do: Ecto.Adapters.Postgres, else: Ecto.Adapters.SQLite3),
   # Uploaded question photos (served at /uploads). Overridden in runtime.exs for prod.
   uploads_dir: Path.expand("../priv/uploads", __DIR__),
+  # Collects photos no quiz references any more (unpublished, replaced, abandoned).
+  image_sweeper: [enabled: true, interval_ms: :timer.hours(1), grace_seconds: 86_400],
+  # How long shutdown waits for "room closed" to reach live clients.
+  drain_ms: 500,
   cors_origins: [],
   # /admin is disabled unless both are set (runtime.exs reads ADMIN_USERNAME/ADMIN_PASSWORD).
   admin: [username: nil, password: nil],

@@ -144,7 +144,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 'one phone each, one wager each,\n'
                 'ten questions of shouting.',
                 style: fz.m(
-                  13,
+                  15,
                   weight: FontWeight.w400,
                   color: FzColors.dim,
                   height: 1.7,

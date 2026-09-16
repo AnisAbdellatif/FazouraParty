@@ -309,9 +309,15 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 12),
-            Text(
-              "Pick tonight's\nquiz",
-              style: fz.t(31, height: 1.16, tracking: -.03),
+            // One line: narrow phones shrink it rather than wrapping.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Pick tonight's quiz",
+                maxLines: 1,
+                style: fz.t(31, height: 1.16, tracking: -.03),
+              ),
             ),
             const SizedBox(height: 18),
             Row(

@@ -228,6 +228,86 @@ defmodule Fazoura.Quizzes do
     end
   end
 
+  @doc """
+  Deletes uploaded photos nothing points at any more.
+
+  Unpublishing or replacing a quiz leaves its photos on disk, and a publish that never
+  completes leaves behind whatever was uploaded first. An image is collected when no
+  question references its key *and* it is older than `:grace_seconds` (default 24h) —
+  the grace is what keeps a photo that was uploaded a moment ago, for a quiz still being
+  written, from being swept out from under it. Files in the uploads directory with no row
+  at all (a crash between writing the file and inserting the row) go the same way.
+
+  Options: `:grace_seconds`, `:now` (a `DateTime`, for tests).
+  """
+  @spec sweep_images(keyword()) :: %{
+          images: non_neg_integer(),
+          files: non_neg_integer(),
+          bytes: non_neg_integer()
+        }
+  def sweep_images(opts \\ []) do
+    grace = Keyword.get(opts, :grace_seconds, 86_400)
+    cutoff = opts |> Keyword.get(:now, DateTime.utc_now()) |> DateTime.add(-grace, :second)
+
+    orphans = orphan_images(cutoff)
+    for {key, _size} <- orphans, do: delete_upload(key)
+    delete_image_rows(Enum.map(orphans, &elem(&1, 0)))
+
+    strays = stray_files(cutoff)
+    for key <- strays, do: delete_upload(key)
+
+    %{
+      images: length(orphans),
+      files: length(strays),
+      bytes: orphans |> Enum.map(&elem(&1, 1)) |> Enum.sum()
+    }
+  end
+
+  defp orphan_images(cutoff) do
+    Repo.all(
+      from i in Image,
+        as: :image,
+        where: i.inserted_at < ^cutoff,
+        where:
+          not exists(from q in Question, where: q.image_key == parent_as(:image).key, select: 1),
+        select: {i.key, i.byte_size}
+    )
+  end
+
+  # Chunked: every key becomes a bind parameter, and SQLite caps how many there may be.
+  defp delete_image_rows(keys) do
+    keys
+    |> Enum.chunk_every(200)
+    |> Enum.each(&Repo.delete_all(from(i in Image, where: i.key in ^&1)))
+  end
+
+  # Files the database has never heard of. Young ones may be an upload in flight.
+  defp stray_files(cutoff) do
+    case File.ls(Uploads.dir()) do
+      {:ok, names} ->
+        known = MapSet.new(Repo.all(from i in Image, select: i.key))
+
+        Enum.filter(names, fn name ->
+          not MapSet.member?(known, name) and written_before?(name, cutoff)
+        end)
+
+      {:error, _reason} ->
+        []
+    end
+  end
+
+  defp written_before?(name, cutoff) do
+    case File.stat(Path.join(Uploads.dir(), name), time: :posix) do
+      {:ok, %File.Stat{type: :regular, mtime: mtime}} ->
+        DateTime.compare(DateTime.from_unix!(mtime), cutoff) == :lt
+
+      _ ->
+        false
+    end
+  end
+
+  defp delete_upload(key), do: File.rm(Path.join(Uploads.dir(), key))
+
   ## Private (inline) quizzes
 
   @doc """

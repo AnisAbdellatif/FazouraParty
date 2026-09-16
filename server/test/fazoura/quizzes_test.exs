@@ -38,6 +38,22 @@ defmodule Fazoura.QuizzesTest do
 
   defp errors(changeset), do: errors_on(changeset)
 
+  defp photo_quiz(key) do
+    quiz_params(%{
+      "questions" => [
+        question(%{"type" => "text_photo", "image" => %{"key" => key, "alt" => "A still"}})
+      ]
+    })
+  end
+
+  # Sweeping "two days from now" ages everything past the default 24h grace.
+  defp sweep_later(days \\ 2, opts \\ []) do
+    now = DateTime.add(DateTime.utc_now(), days * 86_400, :second)
+    Quizzes.sweep_images(Keyword.put(opts, :now, now))
+  end
+
+  defp uploaded?(key), do: File.exists?(Path.join(Fazoura.Uploads.dir(), key))
+
   describe "create/2" do
     test "stores a custom quiz owned by the key, with cleaned fields" do
       assert {:ok, quiz} = Quizzes.create(quiz_params(), @owner)
@@ -365,6 +381,77 @@ defmodule Fazoura.QuizzesTest do
 
       too_big = @png <> :binary.copy(<<0>>, Fazoura.Uploads.max_bytes())
       assert Quizzes.store_image(too_big, @owner) == {:error, :image_too_large}
+    end
+  end
+
+  describe "sweep_images/1" do
+    # Its own uploads directory, so counts aren't thrown off by other tests' files.
+    setup %{tmp_dir: tmp_dir} do
+      previous = Application.fetch_env!(:fazoura, :uploads_dir)
+      Application.put_env(:fazoura, :uploads_dir, tmp_dir)
+      on_exit(fn -> Application.put_env(:fazoura, :uploads_dir, previous) end)
+    end
+
+    @tag :tmp_dir
+    test "collects an upload no quiz ever used" do
+      {:ok, image} = Quizzes.store_image(@png, @owner)
+
+      assert %{images: 1, files: 0, bytes: bytes} = sweep_later()
+      assert bytes == byte_size(@png)
+      refute uploaded?(image.key)
+      assert Repo.aggregate(Fazoura.Quizzes.Image, :count) == 0
+    end
+
+    @tag :tmp_dir
+    test "keeps an upload a published quiz still points at" do
+      {:ok, image} = Quizzes.store_image(@png, @owner)
+      {:ok, _quiz} = Quizzes.create(photo_quiz(image.key), @owner)
+
+      assert %{images: 0, files: 0} = sweep_later()
+      assert uploaded?(image.key)
+    end
+
+    @tag :tmp_dir
+    test "keeps a fresh upload: its quiz may still be being written" do
+      {:ok, image} = Quizzes.store_image(@png, @owner)
+
+      assert %{images: 0} = Quizzes.sweep_images()
+      assert uploaded?(image.key)
+
+      # The grace is what protects it, not anything about the image itself.
+      assert %{images: 1} = sweep_later(2, grace_seconds: 0)
+      refute uploaded?(image.key)
+    end
+
+    @tag :tmp_dir
+    test "collects the photos of an unpublished quiz" do
+      {:ok, image} = Quizzes.store_image(@png, @owner)
+      {:ok, quiz} = Quizzes.create(photo_quiz(image.key), @owner)
+
+      assert Quizzes.delete(quiz.id, @owner) == :ok
+      assert %{images: 1} = sweep_later()
+      refute uploaded?(image.key)
+    end
+
+    @tag :tmp_dir
+    test "collects the photo a replacement dropped" do
+      {:ok, dropped} = Quizzes.store_image(@png, @owner)
+      {:ok, kept} = Quizzes.store_image(@png, @owner)
+      {:ok, quiz} = Quizzes.create(photo_quiz(dropped.key), @owner)
+
+      assert {:ok, _replaced} = Quizzes.replace(quiz.id, photo_quiz(kept.key), @owner)
+      assert %{images: 1} = sweep_later()
+      refute uploaded?(dropped.key)
+      assert uploaded?(kept.key)
+    end
+
+    @tag :tmp_dir
+    test "removes a file the database never heard of", %{tmp_dir: tmp_dir} do
+      stray = Path.join(tmp_dir, "orphan.png")
+      File.write!(stray, @png)
+
+      assert %{images: 0, files: 1} = sweep_later()
+      refute File.exists?(stray)
     end
   end
 end

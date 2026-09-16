@@ -4,7 +4,9 @@ defmodule Fazoura.Rooms.RoomServer do
 
   Owns the game state, supplies the clock, tracks connected channel processes (by
   monitoring them) and pushes a per-recipient `RoomState` to each after every change.
-  Temporary: if it crashes, the room is gone and clients get `room_not_found`.
+  Temporary: if it crashes, the room is gone and clients get `room_not_found`. Games do
+  not survive a server restart (a v1 non-goal); `Fazoura.Rooms.Drain` at least makes the
+  ending explicit.
   """
 
   use GenServer, restart: :temporary
@@ -105,6 +107,10 @@ defmodule Fazoura.Rooms.RoomServer do
       {:close, reason, state} -> close(state, reason, :noreply)
     end
   end
+
+  # The server is going down (deploy, restart). Say so while the sockets are still
+  # open, so clients show "the party ended" instead of a silent reconnect loop.
+  def handle_info(:shutdown, state), do: close(state, :shutdown, :noreply)
 
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
     case Map.pop(state.conns, pid) do

@@ -5,6 +5,8 @@ defmodule Fazoura.Application do
 
   use Application
 
+  alias Fazoura.Quizzes.ImageSweeper
+
   @impl true
   def start(_type, _args) do
     Fazoura.Metrics.setup()
@@ -19,8 +21,13 @@ defmodule Fazoura.Application do
         {Registry, keys: :unique, name: Fazoura.Rooms.Registry},
         Fazoura.Rooms.Images,
         {DynamicSupervisor, name: Fazoura.Rooms.Supervisor, strategy: :one_for_one},
-        # Start to serve requests, typically the last entry
-        FazouraWeb.Endpoint
+        if(Application.get_env(:fazoura, :start_repo, true),
+          do: ImageSweeper.child_spec_if_enabled()
+        ),
+        FazouraWeb.Endpoint,
+        # Last, so it is the first to stop: it tells live rooms to close while the
+        # endpoint's sockets are still open.
+        Fazoura.Rooms.Drain
       ]
       |> Enum.reject(&is_nil/1)
 

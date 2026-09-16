@@ -34,6 +34,12 @@ if web_dir = System.get_env("WEB_DIR") do
   config :fazoura, web_dir: web_dir
 end
 
+# Uploaded question photos. On a container this must be a mounted volume, or every
+# deploy loses the photos of every published quiz.
+if uploads_dir = System.get_env("UPLOADS_DIR") do
+  config :fazoura, uploads_dir: uploads_dir
+end
+
 if config_env() == :prod do
   # Phase 1 runs without a database; DATABASE_URL becomes required in Phase 2.
   if database_url = System.get_env("DATABASE_URL") do

@@ -37,25 +37,20 @@ class LobbyView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const FzEyebrow('Room code'),
+          const SizedBox(height: 8),
+          // The pill sits on the code's own line, not beside the eyebrow.
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const FzEyebrow('Room code'),
-                    const SizedBox(height: 8),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        state.roomCode,
-                        key: const Key('lobbyRoomCode'),
-                        style: fz.m(40, color: FzColors.ac2, tracking: .14),
-                      ),
-                    ),
-                  ],
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    state.roomCode,
+                    key: const Key('lobbyRoomCode'),
+                    style: fz.m(40, color: FzColors.ac2, tracking: .14),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),

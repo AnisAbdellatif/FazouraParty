@@ -61,6 +61,18 @@ defmodule Fazoura.Rooms do
     |> Enum.sort_by(& &1.code)
   end
 
+  @doc """
+  Tells every live room to close with `shutdown` (PROTOCOL.md §5.2). Called by
+  `Fazoura.Rooms.Drain` while the sockets are still open, so a deploy ends games out
+  loud instead of leaving clients to discover it on a failed rejoin.
+  """
+  @spec shutdown_all() :: non_neg_integer()
+  def shutdown_all do
+    pids = Registry.select(Fazoura.Rooms.Registry, [{{:_, :"$1", :_}, [], [:"$1"]}])
+    for pid <- pids, do: send(pid, :shutdown)
+    length(pids)
+  end
+
   @doc "Forces timer/expiry evaluation now. Used by tests with an injected clock."
   @spec tick(String.t()) :: :ok | {:error, :room_not_found}
   def tick(code), do: call(code, :tick)

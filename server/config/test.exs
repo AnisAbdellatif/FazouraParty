@@ -12,6 +12,10 @@ config :fazoura, Fazoura.Repo,
 
 config :fazoura, uploads_dir: Path.expand("../tmp/test_uploads", __DIR__)
 
+# Sweeping and draining are driven directly by their tests, never on a timer.
+config :fazoura, image_sweeper: [enabled: false]
+config :fazoura, drain_ms: 0
+
 config :fazoura, admin: [username: "admin", password: "test-admin-password"]
 
 # We don't run a server during test. If one is required,
