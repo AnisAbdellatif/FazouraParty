@@ -14,6 +14,11 @@ import 'package:image/image.dart' as img;
 
 const defaultSource = '../design/icons/fazoura.svg';
 
+/// The inverted plate (amber ground, dark wordmark), used wherever the icon
+/// sits on the app's own green: the green-on-green official mark would vanish.
+/// Launcher, browser tab, PWA install and store listings keep [defaultSource].
+const altSource = '../design/icons/fazoura_alt.svg';
+
 /// Optional simplified artwork for sizes where a wordmark turns to mush.
 const smallSource = '../design/icons/fazoura-small.svg';
 const smallUpTo = 64;
@@ -57,8 +62,10 @@ void main(List<String> args) {
   _inkscape = _findInkscape();
 
   final small = File(smallSource).existsSync() ? smallSource : source;
+  final onGreen = File(altSource).existsSync() ? altSource : source;
   final background = _backgroundColor(source);
   stdout.writeln('source $source · background #${_hex(background)}');
+  stdout.writeln('on the app\'s green: $onGreen');
 
   // Web: the PWA manifest's icons, plus the browser tab and iOS home screen.
   _render(source, 192, '$webDir/icons/Icon-192.png');
@@ -78,8 +85,8 @@ void main(List<String> args) {
   _render(source, 180, '$webDir/apple-touch-icon.png');
   _render(small, 32, '$webDir/favicon.png');
 
-  // Shown in the app itself (the home screen wordmark).
-  _render(source, 256, 'assets/icon.png');
+  // Shown inside the app, where the background is the design's green.
+  _render(onGreen, 256, 'assets/icon.png');
 
   // Android: the legacy square icon and the adaptive layers on top of it.
   launcherSizes.forEach((density, size) {

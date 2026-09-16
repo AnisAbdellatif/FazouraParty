@@ -9,8 +9,14 @@ generated locations, they get overwritten.
 Best: one vector.
 
 ```
-design/icons/fazoura.svg
+design/icons/fazoura.svg       the official icon (green plate)
+design/icons/fazoura_alt.svg   the same mark on amber, for green backgrounds
 ```
+
+`fazoura.svg` is the identity: launcher icon, browser tab, PWA install, store
+listing — anywhere the backdrop isn't ours. `fazoura_alt.svg` is used wherever
+the icon sits on the app's own green (the home screen), where the green plate
+would disappear into the background.
 
 No vector? Then the PNGs, largest first — the biggest one is used as the source:
 
@@ -34,6 +40,7 @@ which can't be transparent).
 | `app/android/app/src/main/res/mipmap-*/` | `ic_launcher.png` at 48 / 72 / 96 / 144 / 192 |
 | `app/android/app/src/main/res/mipmap-anydpi-v26/` | adaptive icon XML + 432px foreground |
 | `design/icons/play-store-512.png` | the 512 Google Play wants at upload time |
+| `app/assets/icon.png` | shown inside the app — rendered from `fazoura_alt.svg` |
 
 Web icons are part of the PWA's hashed bundle, so changing the artwork rolls the
 service worker cache key on the next `dart run tool/build_web.dart`.
