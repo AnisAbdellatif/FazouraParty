@@ -16,7 +16,7 @@ defmodule FazouraWeb.Plugs.WebApp do
   # Everything `flutter build web` emits that a browser may ask for.
   @served ~w(
     assets canvaskit icons
-    build-manifest.json favicon.png flutter.js flutter_bootstrap.js
+    apple-touch-icon.png build-manifest.json favicon.png flutter.js flutter_bootstrap.js
     flutter_service_worker.js index.html main.dart.js main.dart.wasm main.dart.mjs
     manifest.json version.json
   )

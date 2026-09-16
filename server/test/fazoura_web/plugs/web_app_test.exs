@@ -8,6 +8,11 @@ defmodule FazouraWeb.Plugs.WebAppTest do
     File.mkdir_p!(Path.join(dir, "canvaskit"))
     File.write!(Path.join(dir, "index.html"), @index)
     File.write!(Path.join(dir, "main.dart.js"), "console.log('app')")
+    File.write!(Path.join(dir, "favicon.png"), "png")
+    File.write!(Path.join(dir, "apple-touch-icon.png"), "png")
+    File.mkdir_p!(Path.join(dir, "icons"))
+    File.write!(Path.join(dir, "icons/Icon-512.png"), "png")
+    File.write!(Path.join(dir, "manifest.json"), ~s({"name": "Fazoura Party"}))
     File.write!(Path.join(dir, "flutter_service_worker.js"), "// sw")
     File.write!(Path.join(dir, "canvaskit/canvaskit.wasm"), "wasm")
 
@@ -31,7 +36,19 @@ defmodule FazouraWeb.Plugs.WebAppTest do
   end
 
   test "serves the bundle with revalidation, never a long-lived cache", %{conn: conn} do
-    for path <- ["/main.dart.js", "/flutter_service_worker.js", "/canvaskit/canvaskit.wasm"] do
+    paths = [
+      "/main.dart.js",
+      "/flutter_service_worker.js",
+      "/canvaskit/canvaskit.wasm",
+      # Everything the installed app asks for, including the icons a browser
+      # fetches by convention rather than from the page.
+      "/manifest.json",
+      "/favicon.png",
+      "/apple-touch-icon.png",
+      "/icons/Icon-512.png"
+    ]
+
+    for path <- paths do
       conn = get(build_conn(), path)
       assert conn.status == 200
       assert get_resp_header(conn, "cache-control") == ["public, max-age=0, must-revalidate"]

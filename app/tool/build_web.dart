@@ -23,6 +23,7 @@ const precacheFiles = <String>[
   'main.dart.js',
   'manifest.json',
   'favicon.png',
+  'apple-touch-icon.png',
   'version.json',
 ];
 
