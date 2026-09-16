@@ -65,7 +65,7 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 - No `BuildContext`-dependent lookups in providers/logic.
 - `dart:io` code (LAN server) must be behind conditional imports so the Web build compiles.
 - Keep guest-facing screens lean (Web first-load time is a known risk).
-- **Visual design source:** `design/FazouraParty.dc.html` (Claude Design prototype; `ios-frame.jsx` is only the preview bezel). Follow its look — palette, Figtree + DM Mono type, spacing, components — but not its game mechanics: gameplay (typed answers, 1–10 wager, 6-char codes, host overrides) comes from `protocol/PROTOCOL.md`. Screens in the design without backend support (pack picker, profile) may exist as clearly-marked mocks.
+- **Visual design source:** `design/FazouraParty.v2.dc.html` (Claude Design prototype; `ios-frame.jsx` is only the preview bezel). v2 palette: deep teal `#0A2422` panels over `#061917`, amber `#FFB000`, pink `#FF2D6F`, green `#4FD39A`, with the amber lattice woven behind every screen. Type: Figtree for body, buttons and question text; DM Mono for labels, codes and numbers; Reem Kufi for screen titles and the Arabic wordmark (`FzTheme.t`). Reuse the `Fz*` widgets rather than restyling ad hoc.
 - Must pass: `dart format --set-exit-if-changed`, `flutter analyze`, `flutter test`.
 
 ## 7. Testing

@@ -17,6 +17,7 @@ class FazouraPartyApp extends StatelessWidget {
     final fonts = FzTheme(
       displayFont: (style) => GoogleFonts.figtree(textStyle: style),
       monoFont: (style) => GoogleFonts.dmMono(textStyle: style),
+      titleFont: (style) => GoogleFonts.reemKufi(textStyle: style),
     );
     return MaterialApp(
       title: 'Fazoura Party',

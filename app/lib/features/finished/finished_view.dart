@@ -111,12 +111,7 @@ class FinishedView extends StatelessWidget {
             child: Text(
               _title,
               key: const Key('winnerTitle'),
-              style: fz.h(
-                40,
-                weight: FontWeight.w900,
-                height: .98,
-                tracking: -.04,
-              ),
+              style: fz.t(36, height: .98, tracking: -.04),
             ),
           ),
           const SizedBox(height: 26),

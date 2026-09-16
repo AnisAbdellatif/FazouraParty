@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/fz_theme.dart';
 
-/// Dark radial glow behind every screen.
+/// Deep teal radial glow with the design's amber lattice woven over it.
 class FzBackground extends StatelessWidget {
   const FzBackground({super.key, required this.child});
 
@@ -19,9 +19,37 @@ class FzBackground extends StatelessWidget {
           stops: [0, 0.68],
         ),
       ),
-      child: child,
+      child: CustomPaint(
+        painter: const _LatticePainter(),
+        isComplex: true,
+        willChange: false,
+        child: child,
+      ),
     );
   }
+}
+
+/// The design's `--lattice`: amber hairlines crossing at 45°, 26px apart.
+class _LatticePainter extends CustomPainter {
+  const _LatticePainter();
+
+  static const _spacing = 26.0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = FzColors.lattice
+      ..strokeWidth = 1.5;
+
+    for (var x = -size.height; x < size.width + size.height; x += _spacing) {
+      canvas
+        ..drawLine(Offset(x, size.height), Offset(x + size.height, 0), paint)
+        ..drawLine(Offset(x, 0), Offset(x + size.height, size.height), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LatticePainter oldDelegate) => false;
 }
 
 /// Phone-width column: scrolling [child] with an optional [footer] pinned to

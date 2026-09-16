@@ -38,10 +38,7 @@ class LeaderboardView extends StatelessWidget {
             scoring ? 'Question $number · answers' : 'After question $number',
           ),
           const SizedBox(height: 12),
-          Text(
-            scoring ? 'Answers revealed' : 'Standings',
-            style: fz.h(34, weight: FontWeight.w900, tracking: -.035),
-          ),
+          Text(scoring ? 'Answers revealed' : 'Standings', style: fz.t(32)),
           const SizedBox(height: 18),
           if (state.you.playerId != null)
             _VerdictCard(submission: state.you.submission),

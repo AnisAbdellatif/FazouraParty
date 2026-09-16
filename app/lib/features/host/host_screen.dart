@@ -222,10 +222,7 @@ class _HostReveal extends StatelessWidget {
             color: scoring ? FzColors.ac2 : FzColors.dim,
           ),
           const SizedBox(height: 12),
-          Text(
-            scoring ? 'Check the answers' : 'Standings',
-            style: fz.h(34, weight: FontWeight.w900, tracking: -.035),
-          ),
+          Text(scoring ? 'Check the answers' : 'Standings', style: fz.t(32)),
           const SizedBox(height: 6),
           Text(
             'Flip any answer the auto-check got wrong. '

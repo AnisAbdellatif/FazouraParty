@@ -78,6 +78,9 @@ void main(List<String> args) {
   _render(source, 180, '$webDir/apple-touch-icon.png');
   _render(small, 32, '$webDir/favicon.png');
 
+  // Shown in the app itself (the home screen wordmark).
+  _render(source, 256, 'assets/icon.png');
+
   // Android: the legacy square icon and the adaptive layers on top of it.
   launcherSizes.forEach((density, size) {
     _render(
@@ -180,22 +183,30 @@ void _renderMaskable(
   stdout.writeln('  ${size}px  $destination  (art ${inner}px, safe zone)');
 }
 
-/// The icon's own background colour, read from a corner of the artwork.
+/// The icon's own background colour, read from the edge of the artwork.
 img.Color _backgroundColor(String svg) {
   final temporary = File('${Directory.systemTemp.path}/fz_bg.png');
   _render(svg, 64, temporary.path);
   final image = img.decodePng(temporary.readAsBytesSync())!;
-  final pixel = image.getPixel(1, 1);
-  temporary.deleteSync();
 
-  // Transparent artwork gets the app's background instead.
-  if (pixel.a < 128) return img.ColorRgba8(0x0E, 0x0D, 0x0C, 0xFF);
-  return img.ColorRgba8(
-    pixel.r.toInt(),
-    pixel.g.toInt(),
-    pixel.b.toInt(),
-    0xFF,
-  );
+  // Edge midpoints first: artwork with rounded corners has transparent corners.
+  const probes = [(32, 4), (4, 32), (32, 60), (1, 1)];
+  for (final (x, y) in probes) {
+    final pixel = image.getPixel(x, y);
+    if (pixel.a >= 128) {
+      temporary.deleteSync();
+      return img.ColorRgba8(
+        pixel.r.toInt(),
+        pixel.g.toInt(),
+        pixel.b.toInt(),
+        0xFF,
+      );
+    }
+  }
+
+  // Fully transparent artwork gets the app's own background.
+  temporary.deleteSync();
+  return img.ColorRgba8(0x0A, 0x24, 0x22, 0xFF);
 }
 
 String _hex(img.Color color) => [color.r, color.g, color.b]

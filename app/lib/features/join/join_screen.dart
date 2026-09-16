@@ -158,12 +158,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
               const SizedBox(height: 12),
               Text(
                 'Enter the\nroom code',
-                style: fz.h(
-                  32,
-                  weight: FontWeight.w900,
-                  height: 1.05,
-                  tracking: -.03,
-                ),
+                style: fz.t(31, height: 1.16, tracking: -.03),
               ),
               const SizedBox(height: 10),
               Text(

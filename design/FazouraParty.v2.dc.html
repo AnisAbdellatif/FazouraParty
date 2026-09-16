@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800;900&family=DM+Mono:wght@400;500&family=Reem+Kufi:wght@500;700&display=swap" rel="stylesheet"><style>
+:root{--ac:#FFB000;--ac2:#FF2D6F;--ink:#FBF6EC;--dim:rgba(251,246,236,0.52);--bg:#0A2422;--panel:rgba(251,246,236,0.06);--line:rgba(251,246,236,0.14);--ok:#4FD39A;--glow:0 0 0 1px rgba(255,176,0,.4),0 10px 34px rgba(255,176,0,.18);--lattice:repeating-linear-gradient(45deg,rgba(255,176,0,.055) 0 1.5px,transparent 1.5px 26px),repeating-linear-gradient(-45deg,rgba(255,176,0,.055) 0 1.5px,transparent 1.5px 26px)}
+body{margin:0;background:#061917;font-family:Figtree,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--ac2);text-decoration:none}a:hover{color:var(--ink)}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@keyframes pop{0%{transform:scale(.92);opacity:0}100%{transform:scale(1);opacity:1}}
+@keyframes rise{0%{transform:translateY(10px);opacity:0}100%{transform:translateY(0);opacity:1}}
+@keyframes blip{0%,100%{opacity:1}50%{opacity:.35}}
+</style></helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;gap:22px;padding:34px 20px 60px;box-sizing:border-box;background:radial-gradient(120% 70% at 50% 0%,#14403A 0%,#061917 68%)">
+
+  <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+    <div style="font:500 10px/1 'DM Mono',monospace;letter-spacing:.22em;text-transform:uppercase;color:rgba(251,246,236,.4)">FazouraParty — interactive prototype</div>
+    <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px">
+      <sc-for list="{{ rail }}" as="r" hint-placeholder-count="8">
+        <div onClick="{{ r.go }}" style="cursor:pointer;padding:6px 11px;border-radius:999px;font:500 10.5px/1 'DM Mono',monospace;letter-spacing:.08em;text-transform:uppercase;border:1px solid {{ r.border }};background:{{ r.bg }};color:{{ r.color }}">{{ r.label }}</div>
+      </sc-for>
+    </div>
+  </div>
+
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="min-height:874px;display:flex;flex-direction:column;background:var(--bg);background-image:var(--lattice);color:var(--ink);padding:60px 22px 40px;box-sizing:border-box">
+
+      <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;display:flex;flex-direction:column">
+          <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:18px">
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <div style="font:700 74px/1 'Reem Kufi',sans-serif;color:var(--ac);text-shadow:0 0 46px rgba(255,176,0,.35)">فزورة</div>
+              <div style="width:78px;height:5px;background:var(--ac2)"></div>
+              <div style="font:900 24px/1 Figtree,sans-serif;letter-spacing:.16em;color:var(--ink)">PARTY</div>
+            </div>
+            <div style="font:400 13px/1.7 'DM Mono',monospace;color:var(--dim);max-width:270px">فزورة  fazoura (n.) — a riddle.<br>three to eight people, one phone each,<br>ten minutes of shouting.</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:11px">
+            <div onClick="{{ goPack }}" style="cursor:pointer;height:60px;border-radius:16px;background:var(--ac);box-shadow:var(--glow);display:flex;align-items:center;justify-content:space-between;padding:0 22px;font:800 18px/1 Figtree,sans-serif;color:#0A2422" style-hover="filter:brightness(1.1)"><span>Start a party</span><span style="font:500 13px/1 'DM Mono',monospace;opacity:.6">host</span></div>
+            <div onClick="{{ goJoin }}" style="cursor:pointer;height:60px;border-radius:16px;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 22px;font:800 18px/1 Figtree,sans-serif" style-hover="border-color:var(--ac2)"><span>Join with a code</span><span style="font:500 13px/1 'DM Mono',monospace;color:var(--dim)">4 letters</span></div>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:14px">
+              <div style="display:flex">
+                <sc-for list="{{ recent }}" as="p" hint-placeholder-count="4">
+                  <div style="width:30px;height:30px;border-radius:999px;margin-right:-8px;border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;font:800 11px/1 Figtree,sans-serif;color:#0A2422;background:{{ p.hue }}">{{ p.initial }}</div>
+                </sc-for>
+              </div>
+              <div style="font:400 11.5px/1.4 'DM Mono',monospace;color:var(--dim);margin-left:8px">Last night: Layla won by 40</div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isJoin }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;display:flex;flex-direction:column">
+          <div onClick="{{ goHome }}" style="cursor:pointer;width:40px;height:40px;border-radius:999px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font:600 17px/1 Figtree,sans-serif;color:var(--dim)">←</div>
+          <div style="margin-top:26px;font:700 33px/1.16 'Reem Kufi',sans-serif;letter-spacing:-.01em;word-spacing:.14em">Enter the<br>room code</div>
+          <div style="margin-top:10px;font:400 12px/1.6 'DM Mono',monospace;color:var(--dim)">The host sees it on their screen.</div>
+          <div style="display:flex;gap:10px;margin-top:30px">
+            <sc-for list="{{ codeBoxes }}" as="b" hint-placeholder-count="4">
+              <div style="flex:1;aspect-ratio:1/1.15;border-radius:14px;display:flex;align-items:center;justify-content:center;font:800 34px/1 'DM Mono',monospace;border:1.5px solid {{ b.border }};background:{{ b.bg }};color:{{ b.color }}">{{ b.ch }}</div>
+            </sc-for>
+          </div>
+          <div style="flex:1"></div>
+          <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px">
+            <sc-for list="{{ keys }}" as="k" hint-placeholder-count="27">
+              <div onClick="{{ k.tap }}" style="cursor:pointer;height:40px;border-radius:9px;background:var(--panel);display:flex;align-items:center;justify-content:center;font:600 15px/1 'DM Mono',monospace;color:var(--ink)" style-active="background:var(--ac)">{{ k.label }}</div>
+            </sc-for>
+          </div>
+          <div onClick="{{ joinRoom }}" style="cursor:pointer;margin-top:14px;height:58px;border-radius:16px;display:flex;align-items:center;justify-content:center;font:800 17px/1 Figtree,sans-serif;background:{{ joinBg }};color:{{ joinColor }}">Join room</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isLobby }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;display:flex;flex-direction:column">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+              <div style="font:500 10px/1 'DM Mono',monospace;letter-spacing:.2em;color:var(--dim)">ROOM CODE</div>
+              <div style="font:900 40px/1 'DM Mono',monospace;letter-spacing:.14em;margin-top:8px;color:var(--ac2)">{{ roomCode }}</div>
+            </div>
+            <div style="cursor:pointer;padding:9px 14px;border-radius:999px;border:1px solid var(--line);font:500 11px/1 'DM Mono',monospace;color:var(--dim)" style-hover="color:var(--ink);border-color:var(--ac2)">Share</div>
+          </div>
+          <div style="margin-top:26px;display:flex;justify-content:space-between;align-items:baseline">
+            <div style="font:800 19px/1 Figtree,sans-serif">In the room</div>
+            <div style="font:500 11.5px/1 'DM Mono',monospace;color:var(--dim)">{{ inRoomLabel }}</div>
+          </div>
+          <div style="margin-top:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <sc-for list="{{ players }}" as="p" hint-placeholder-count="6">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 6px;border-radius:16px;background:var(--panel);animation:pop .25s ease both">
+                <div style="width:46px;height:46px;border-radius:999px;display:flex;align-items:center;justify-content:center;font:800 17px/1 Figtree,sans-serif;color:#0A2422;background:{{ p.hue }}">{{ p.initial }}</div>
+                <div style="font:600 12.5px/1 Figtree,sans-serif">{{ p.name }}</div>
+                <div style="font:500 9.5px/1 'DM Mono',monospace;letter-spacing:.14em;color:{{ p.tagColor }}">{{ p.tag }}</div>
+              </div>
+            </sc-for>
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:14px 6px;border-radius:16px;border:1.5px dashed var(--line);color:var(--dim)">
+              <div style="font:400 22px/1 Figtree,sans-serif">+</div>
+              <div style="font:500 9px/1 'DM Mono',monospace;letter-spacing:.1em">INVITE</div>
+            </div>
+          </div>
+          <div style="flex:1"></div>
+          <div style="padding:16px;border-radius:16px;background:var(--panel);display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font:500 9.5px/1 'DM Mono',monospace;letter-spacing:.16em;color:var(--dim)">TONIGHT</div>
+              <div style="font:800 15px/1.3 Figtree,sans-serif;margin-top:6px">{{ packName }} · 3 rounds</div>
+            </div>
+            <div onClick="{{ goPack }}" style="cursor:pointer;font:500 11px/1 'DM Mono',monospace;color:var(--ac2)">change</div>
+          </div>
+          <div onClick="{{ startRound }}" style="cursor:pointer;margin-top:12px;height:62px;border-radius:16px;background:var(--ac);box-shadow:var(--glow);display:flex;align-items:center;justify-content:center;gap:10px;font:800 18px/1 Figtree,sans-serif;color:#0A2422" style-hover="filter:brightness(1.1)">Start round 1</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPack }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;display:flex;flex-direction:column">
+          <div onClick="{{ goHome }}" style="cursor:pointer;width:40px;height:40px;border-radius:999px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font:600 17px/1 Figtree,sans-serif;color:var(--dim)">←</div>
+          <div style="margin-top:24px;font:700 33px/1.16 'Reem Kufi',sans-serif;letter-spacing:-.01em;word-spacing:.14em">Pick tonight's<br>pack</div>
+          <div style="margin-top:22px;display:flex;flex-direction:column;gap:12px">
+            <sc-for list="{{ packs }}" as="k" hint-placeholder-count="3">
+              <div onClick="{{ k.pick }}" style="cursor:pointer;border-radius:18px;overflow:hidden;border:1.5px solid {{ k.border }};background:var(--panel)">
+                <div style="height:74px;background-image:{{ k.stripe }};display:flex;align-items:flex-end;padding:10px 14px">
+                  <div style="font:500 9px/1 'DM Mono',monospace;letter-spacing:.16em;color:#0A2422;background:rgba(251,246,236,.85);padding:4px 7px;border-radius:4px">{{ k.count }}</div>
+                </div>
+                <div style="padding:14px 16px 16px">
+                  <div style="font:800 19px/1.1 Figtree,sans-serif">{{ k.name }}</div>
+                  <div style="margin-top:6px;font:400 11.5px/1.5 'DM Mono',monospace;color:var(--dim)">{{ k.desc }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="flex:1"></div>
+          <div onClick="{{ goLobby }}" style="cursor:pointer;height:58px;border-radius:16px;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font:800 17px/1 Figtree,sans-serif;color:var(--dim)">Back to lobby</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isQuestion }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;display:flex;flex-direction:column">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font:500 10px/1 'DM Mono',monospace;letter-spacing:.18em;color:var(--dim)">{{ roundLabel }}</div>
+            <div style="display:flex;gap:5px">
+              <sc-for list="{{ players }}" as="p" hint-placeholder-count="6">
+                <div style="width:9px;height:9px;border-radius:999px;background:{{ p.answeredColor }}"></div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="margin-top:14px;display:flex;align-items:center;gap:12px">
+            <div style="flex:1;height:5px;border-radius:999px;background:rgba(251,246,236,.1);overflow:hidden">
+              <div style="height:100%;border-radius:999px;background:{{ timerColor }};width:{{ timerPct }};transition:width .9s linear"></div>
+            </div>
+            <div style="font:500 15px/1 'DM Mono',monospace;width:26px;text-align:right;color:{{ timerColor }}">{{ timeLeft }}</div>
+          </div>
+          <div style="margin-top:30px;display:flex;align-items:center;gap:8px">
+            <div style="padding:5px 10px;border-radius:999px;background:rgba(255,45,111,.14);font:500 9.5px/1 'DM Mono',monospace;letter-spacing:.14em;color:var(--ac2)">{{ category }}</div>
+            <sc-if value="{{ streakOn }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:5px 10px;border-radius:999px;background:rgba(79,211,154,.14);font:500 9.5px/1 'DM Mono',monospace;letter-spacing:.14em;color:var(--ok)">{{ streakLabel }}</div>
+            </sc-if>
+          </div>
+          <div style="margin-top:16px;font:900 31px/1.12 Figtree,sans-serif;letter-spacing:-.03em;text-wrap:pretty">{{ questionText }}</div>
+          <div style="flex:1"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <sc-for list="{{ answers }}" as="a" hint-placeholder-count="4">
+              <div onClick="{{ a.tap }}" style="cursor:pointer;min-height:104px;border-radius:16px;padding:13px 14px;display:flex;flex-direction:column;justify-content:space-between;transition:all .18s ease;border:1.5px solid {{ a.border }};background:{{ a.bg }};color:{{ a.color }};opacity:{{ a.opacity }}">
+                <div style="width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font:500 11px/1 'DM Mono',monospace;background:{{ a.badgeBg }};color:{{ a.badgeColor }}">{{ a.letter }}</div>
+                <div style="font:800 17px/1.15 Figtree,sans-serif;text-wrap:pretty">{{ a.text }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <sc-if value="{{ revealed }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:14px;padding:16px;border-radius:16px;background:var(--panel);display:flex;align-items:center;justify-content:space-between;gap:12px;animation:rise .22s ease both">
+              <div>
+                <div style="font:800 17px/1 Figtree,sans-serif;color:{{ verdictColor }}">{{ verdict }}</div>
+                <div style="margin-top:7px;font:400 11px/1.4 'DM Mono',monospace;color:var(--dim)">{{ alsoRight }}</div>
+              </div>
+              <div onClick="{{ nextQ }}" style="cursor:pointer;flex:none;padding:14px 20px;border-radius:12px;background:var(--ac);box-shadow:var(--glow);font:800 14px/1 Figtree,sans-serif;color:#0A2422">{{ nextLabel }}</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ waiting }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top:14px;padding:18px 16px;border-radius:16px;border:1.5px solid var(--line);font:400 12px/1 'DM Mono',monospace;color:var(--dim);text-align:center;animation:blip 1.1s ease-in-out infinite">locked in — waiting for the room</div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isScores }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;display:flex;flex-direction:column">
+          <div style="font:500 10px/1 'DM Mono',monospace;letter-spacing:.2em;color:var(--dim)">AFTER ROUND {{ roundNo }}</div>
+          <div style="margin-top:12px;font:700 34px/1.14 'Reem Kufi',sans-serif;letter-spacing:-.01em;word-spacing:.14em">Standings</div>
+          <div style="margin-top:22px;display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ board }}" as="p" hint-placeholder-count="6">
+              <div style="display:flex;align-items:center;gap:13px;padding:13px 15px;border-radius:14px;background:{{ p.rowBg }};border:1px solid {{ p.rowBorder }}">
+                <div style="width:20px;font:500 13px/1 'DM Mono',monospace;color:var(--dim)">{{ p.rank }}</div>
+                <div style="width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;font:800 13px/1 Figtree,sans-serif;color:#0A2422;background:{{ p.hue }}">{{ p.initial }}</div>
+                <div style="flex:1;font:800 15px/1 Figtree,sans-serif">{{ p.name }}</div>
+                <div style="font:500 10.5px/1 'DM Mono',monospace;color:{{ p.deltaColor }}">{{ p.delta }}</div>
+                <div style="width:52px;text-align:right;font:800 17px/1 'DM Mono',monospace">{{ p.score }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="flex:1"></div>
+          <div onClick="{{ continueGame }}" style="cursor:pointer;height:62px;border-radius:16px;background:var(--ac);box-shadow:var(--glow);display:flex;align-items:center;justify-content:center;font:800 18px/1 Figtree,sans-serif;color:#0A2422">{{ continueLabel }}</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isPodium }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:10px"><div style="position:relative;width:16px;height:16px;flex:none"><div style="position:absolute;inset:0;background:var(--ac2)"></div><div style="position:absolute;inset:0;background:var(--ac2);transform:rotate(45deg)"></div></div><div style="font:500 10px/1 'DM Mono',monospace;letter-spacing:.2em;color:var(--ac2)">FAZOURA CHAMPION</div></div>
+          <div style="margin-top:12px;font:700 38px/1.08 'Reem Kufi',sans-serif;letter-spacing:-.01em;word-spacing:.14em">{{ winnerName }}<br>takes it</div>
+          <div style="margin-top:26px;display:grid;grid-template-columns:1fr 1.25fr 1fr;gap:10px;align-items:end">
+            <sc-for list="{{ podium }}" as="p" hint-placeholder-count="3">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+                <div style="width:{{ p.size }};height:{{ p.size }};border-radius:999px;display:flex;align-items:center;justify-content:center;font:800 22px/1 Figtree,sans-serif;color:#0A2422;background:{{ p.hue }}">{{ p.initial }}</div>
+                <div style="font:800 13px/1 Figtree,sans-serif">{{ p.name }}</div>
+                <div style="width:100%;height:{{ p.bar }};border-radius:12px 12px 0 0;background:{{ p.barBg }};display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:12px;gap:4px">
+                  <div style="font:800 19px/1 'DM Mono',monospace;color:{{ p.scoreColor }}">{{ p.score }}</div>
+                  <div style="font:500 9px/1 'DM Mono',monospace;letter-spacing:.14em;color:{{ p.rankColor }}">{{ p.rankLabel }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top:22px;display:flex;flex-direction:column;gap:7px">
+            <sc-for list="{{ rest }}" as="p" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:12px;background:var(--panel)">
+                <div style="width:18px;font:500 12px/1 'DM Mono',monospace;color:var(--dim)">{{ p.rank }}</div>
+                <div style="flex:1;font:600 14px/1 Figtree,sans-serif">{{ p.name }}</div>
+                <div style="font:500 13px/1 'DM Mono',monospace;color:var(--dim)">{{ p.score }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="flex:1"></div>
+          <div style="display:flex;gap:10px">
+            <div onClick="{{ playAgain }}" style="cursor:pointer;flex:1;height:60px;border-radius:16px;background:var(--ac);box-shadow:var(--glow);display:flex;align-items:center;justify-content:center;font:800 17px/1 Figtree,sans-serif;color:#0A2422">Rematch</div>
+            <div style="cursor:pointer;flex:none;width:60px;height:60px;border-radius:16px;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font:500 11px/1 'DM Mono',monospace;color:var(--dim)" style-hover="border-color:var(--ac2);color:var(--ink)">↗</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isType }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;display:flex;flex-direction:column">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font:500 10px/1 'DM Mono',monospace;letter-spacing:.18em;color:var(--ac)">LIST ROUND — TYPE THEM ALL</div>
+            <div style="font:500 13px/1 'DM Mono',monospace;color:{{ timerColor }}">{{ timeLeft }}s</div>
+          </div>
+          <div style="margin-top:12px;height:5px;border-radius:999px;background:rgba(251,246,236,.1);overflow:hidden">
+            <div style="height:100%;border-radius:999px;background:{{ timerColor }};width:{{ timerPct }};transition:width .9s linear"></div>
+          </div>
+          <div style="margin-top:26px;font:700 30px/1.2 'Reem Kufi',sans-serif;letter-spacing:-.01em;word-spacing:.14em;text-wrap:pretty">{{ typePrompt }}</div>
+          <div style="margin-top:14px;display:flex;align-items:baseline;gap:8px">
+            <div style="font:900 30px/1 'DM Mono',monospace;color:var(--ac)">{{ foundCount }}</div>
+            <div style="font:500 12px/1 'DM Mono',monospace;color:var(--dim)">of {{ typeTotal }} found</div>
+          </div>
+          <div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:7px;min-height:34px;align-content:flex-start">
+            <sc-for list="{{ found }}" as="f" hint-placeholder-count="3">
+              <div style="padding:8px 12px;border-radius:999px;background:rgba(79,211,154,.15);border:1px solid var(--ok);font:600 12.5px/1 'DM Mono',monospace;color:var(--ok);animation:pop .2s ease both">{{ f.text }}</div>
+            </sc-for>
+          </div>
+          <div style="flex:1"></div>
+          <div style="padding:16px 18px;border-radius:14px;border:1.5px solid {{ inputBorder }};display:flex;align-items:center;gap:3px;animation:{{ inputShake }}">
+            <div style="font:600 20px/1 'DM Mono',monospace;letter-spacing:.06em;text-transform:uppercase">{{ typed }}</div>
+            <div style="width:2px;height:22px;background:var(--ac);animation:blip .9s steps(1) infinite"></div>
+            <div style="flex:1"></div>
+            <div style="font:500 11.5px/1 'DM Mono',monospace;color:{{ hintColor }}">{{ typeHint }}</div>
+          </div>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;gap:5px">
+              <sc-for list="{{ kRow1 }}" as="k" hint-placeholder-count="10">
+                <div onClick="{{ k.tap }}" style="cursor:pointer;flex:1;height:42px;border-radius:8px;background:var(--panel);display:flex;align-items:center;justify-content:center;font:600 15px/1 'DM Mono',monospace" style-active="background:var(--ac);color:#0A2422">{{ k.label }}</div>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:5px;padding:0 18px">
+              <sc-for list="{{ kRow2 }}" as="k" hint-placeholder-count="9">
+                <div onClick="{{ k.tap }}" style="cursor:pointer;flex:1;height:42px;border-radius:8px;background:var(--panel);display:flex;align-items:center;justify-content:center;font:600 15px/1 'DM Mono',monospace" style-active="background:var(--ac);color:#0A2422">{{ k.label }}</div>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:5px">
+              <sc-for list="{{ kRow3 }}" as="k" hint-placeholder-count="7">
+                <div onClick="{{ k.tap }}" style="cursor:pointer;flex:1;height:42px;border-radius:8px;background:var(--panel);display:flex;align-items:center;justify-content:center;font:600 15px/1 'DM Mono',monospace" style-active="background:var(--ac);color:#0A2422">{{ k.label }}</div>
+              </sc-for>
+              <div onClick="{{ backspace }}" style="cursor:pointer;width:58px;height:42px;border-radius:8px;background:rgba(251,246,236,.03);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font:500 14px/1 'DM Mono',monospace;color:var(--dim)">⌫</div>
+            </div>
+            <div onClick="{{ submitWord }}" style="cursor:pointer;height:50px;border-radius:12px;background:var(--ac2);display:flex;align-items:center;justify-content:center;font:800 15px/1 Figtree,sans-serif;letter-spacing:.02em;color:#0A2422">Lock it in</div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isLive }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:8px;height:8px;border-radius:999px;background:var(--ac2);animation:blip 1s ease-in-out infinite"></div>
+            <div style="font:500 10px/1 'DM Mono',monospace;letter-spacing:.2em;color:var(--ac2)">LIVE — ROUND {{ roundNo }}</div>
+          </div>
+          <div style="margin-top:12px;font:700 34px/1.14 'Reem Kufi',sans-serif;letter-spacing:-.01em;word-spacing:.14em">Everyone's<br>still typing</div>
+          <div style="margin-top:24px;display:flex;flex-direction:column;gap:9px">
+            <sc-for list="{{ liveBoard }}" as="p" hint-placeholder-count="6">
+              <div style="position:relative;border-radius:13px;overflow:hidden;background:var(--panel);padding:13px 15px;border:1px solid {{ p.rowBorder }}">
+                <div style="position:absolute;left:0;top:0;bottom:0;width:{{ p.barW }};background:{{ p.barBg }};transition:width .6s ease"></div>
+                <div style="position:relative;display:flex;align-items:center;gap:12px">
+                  <div style="width:30px;height:30px;border-radius:999px;display:flex;align-items:center;justify-content:center;font:800 12px/1 Figtree,sans-serif;color:#0A2422;background:{{ p.hue }}">{{ p.initial }}</div>
+                  <div style="flex:1;font:800 15px/1 Figtree,sans-serif">{{ p.name }}</div>
+                  <div style="font:500 10px/1 'DM Mono',monospace;color:var(--dim)">{{ p.status }}</div>
+                  <div style="width:48px;text-align:right;font:800 16px/1 'DM Mono',monospace;color:{{ p.scoreColor }}">{{ p.score }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="flex:1"></div>
+          <div style="padding:15px;border-radius:14px;border:1.5px solid var(--line);text-align:center;font:400 11.5px/1.5 'DM Mono',monospace;color:var(--dim)">the host's screen shows this too<br>scores settle when the timer hits zero</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isProfile }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="width:62px;height:62px;border-radius:999px;background:var(--ac);display:flex;align-items:center;justify-content:center;font:900 24px/1 Figtree,sans-serif;color:#0A2422;box-shadow:var(--glow)">Y</div>
+            <div>
+              <div style="font:900 26px/1 Figtree,sans-serif;letter-spacing:-.03em">You</div>
+              <div style="margin-top:7px;font:500 11.5px/1 'DM Mono',monospace;color:var(--dim)">@yousra · joined Mar 2026</div>
+            </div>
+          </div>
+          <div style="margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <sc-for list="{{ stats }}" as="s" hint-placeholder-count="4">
+              <div style="padding:16px;border-radius:15px;background:var(--panel)">
+                <div style="font:900 30px/1 'DM Mono',monospace;color:{{ s.color }}">{{ s.value }}</div>
+                <div style="margin-top:8px;font:500 9.5px/1.3 'DM Mono',monospace;letter-spacing:.12em;color:var(--dim)">{{ s.label }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top:22px;font:800 17px/1 Figtree,sans-serif">Recent parties</div>
+          <div style="margin-top:12px;display:flex;flex-direction:column;gap:7px">
+            <sc-for list="{{ history }}" as="h" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:13px;background:var(--panel)">
+                <div style="width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font:800 12px/1 'DM Mono',monospace;background:{{ h.badgeBg }};color:{{ h.badgeColor }}">{{ h.place }}</div>
+                <div style="flex:1">
+                  <div style="font:600 14px/1 Figtree,sans-serif">{{ h.pack }}</div>
+                  <div style="margin-top:5px;font:400 10.5px/1 'DM Mono',monospace;color:var(--dim)">{{ h.meta }}</div>
+                </div>
+                <div style="font:500 13px/1 'DM Mono',monospace;color:var(--dim)">{{ h.score }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="flex:1"></div>
+          <div onClick="{{ goHome }}" style="cursor:pointer;height:58px;border-radius:16px;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;font:800 17px/1 Figtree,sans-serif;color:var(--dim)" style-hover="border-color:var(--ac);color:var(--ink)">Back home</div>
+        </div>
+      </sc-if>
+
+    </div>
+  </x-import>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:[&quot;#FFB000&quot;,&quot;#FF2D6F&quot;],&quot;tsType&quot;:&quot;string[]&quot;,&quot;options&quot;:[[&quot;#FFB000&quot;,&quot;#FF2D6F&quot;],[&quot;#FFB000&quot;,&quot;#B6F53C&quot;],[&quot;#22D3EE&quot;,&quot;#FF2D6F&quot;],[&quot;#FF2D6F&quot;,&quot;#FFB000&quot;]],&quot;section&quot;:&quot;Look&quot;},&quot;roundSeconds&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:15,&quot;min&quot;:5,&quot;max&quot;:30,&quot;step&quot;:1,&quot;unit&quot;:&quot;s&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Game&quot;},&quot;showStreaks&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Game&quot;}}">
+class Component extends DCLogic {
+  state = { screen: 'home', code: '', qi: 0, round: 0, picked: null, revealed: false, t: 15, pack: 0, scores: { you: 0, s: 380, l: 520, k: 300, d: 440, o: 260 }, deltas: {}, streak: 0, typed: '', found: [], miss: false };
+
+  players = [
+    { id: 'you', name: 'You', initial: 'Y', hue: 'oklch(0.8 0.18 300)', tag: 'YOU' },
+    { id: 's', name: 'Sami', initial: 'S', hue: 'oklch(0.8 0.18 340)', tag: 'HOST' },
+    { id: 'l', name: 'Layla', initial: 'L', hue: 'oklch(0.8 0.18 25)', tag: 'READY' },
+    { id: 'k', name: 'Karim', initial: 'K', hue: 'oklch(0.8 0.18 75)', tag: 'READY' },
+    { id: 'd', name: 'Dina', initial: 'D', hue: 'oklch(0.8 0.18 150)', tag: 'READY' },
+    { id: 'o', name: 'Omar', initial: 'O', hue: 'oklch(0.8 0.18 210)', tag: 'READY' }
+  ];
+
+  questions = [
+    { cat: 'GEOGRAPHY', q: 'Which country has the most pyramids?', a: ['Egypt', 'Sudan', 'Mexico', 'Peru'], correct: 1, others: ['Layla', 'Omar'] },
+    { cat: 'FOOD', q: 'Ketchup was originally made from what?', a: ['Tomatoes', 'Mushrooms', 'Fish', 'Plums'], correct: 2, others: ['Dina'] },
+    { cat: 'MUSIC', q: 'Which instrument has 47 strings?', a: ['Sitar', 'Oud', 'Piano', 'Harp'], correct: 3, others: ['Sami', 'Layla', 'Karim'] }
+  ];
+
+  packNames = ['House Rules', 'Deeply Useless Facts', 'Guess the Decade'];
+
+  list = { prompt: 'Name every planet in the solar system', answers: ['MERCURY', 'VENUS', 'EARTH', 'MARS', 'JUPITER', 'SATURN', 'URANUS', 'NEPTUNE'] };
+
+  tapKey = (k) => this.setState(s => ({ typed: s.typed.length < 12 ? s.typed + k : s.typed, miss: false }));
+  backspace = () => this.setState(s => ({ typed: s.typed.slice(0, -1), miss: false }));
+  submitWord = () => {
+    const w = this.state.typed.toUpperCase();
+    if (this.list.answers.indexOf(w) > -1 && this.state.found.indexOf(w) < 0) {
+      this.setState(s => ({
+        found: s.found.concat([w]), typed: '', miss: false,
+        scores: Object.assign({}, s.scores, { you: s.scores.you + 60 })
+      }));
+    } else {
+      this.setState({ miss: true });
+      setTimeout(() => this.setState({ miss: false, typed: '' }), 450);
+    }
+  };
+
+  componentDidMount() {
+    this.paint();
+    this.timer = setInterval(() => {
+      const s = this.state;
+      if (s.screen === 'type') {
+        const t = s.t - 1;
+        if (t <= 0) {
+          this.setState({ t: 0, screen: 'live' });
+          setTimeout(() => this.setState(st => ({ screen: 'scores', round: st.round + 1 })), 2400);
+        } else this.setState({ t });
+        return;
+      }
+      if (s.screen !== 'question' || s.picked !== null) return;
+      const t = s.t - 1;
+      if (t <= 0) this.setState({ t: 0, picked: -1, revealed: true, streak: 0 });
+      else this.setState({ t });
+    }, 1000);
+  }
+  componentDidUpdate() { this.paint(); }
+  componentWillUnmount() { clearInterval(this.timer); }
+
+  paint() {
+    const a = this.props.accent;
+    const pair = Array.isArray(a) ? a : (typeof a === 'string' ? [a, '#FF2D6F'] : ['#FFB000', '#FF2D6F']);
+    const r = document.documentElement.style;
+    r.setProperty('--ac', pair[0] || '#FFB000');
+    r.setProperty('--ac2', pair[1] || pair[0] || '#FF2D6F');
+  }
+
+  secs() { return this.props.roundSeconds ?? 15; }
+  go = (screen) => this.setState({ screen });
+
+  pick = (i) => {
+    if (this.state.picked !== null) return;
+    this.setState({ picked: i });
+    setTimeout(() => {
+      const q = this.questions[this.state.qi];
+      const right = i === q.correct;
+      const gain = right ? 100 + this.state.t * 20 : 0;
+      this.setState(s => ({
+        revealed: true,
+        streak: right ? s.streak + 1 : 0,
+        scores: Object.assign({}, s.scores, { you: s.scores.you + gain }),
+        deltas: Object.assign({}, s.deltas, { you: gain })
+      }));
+    }, 750);
+  };
+
+  nextQ = () => {
+    const qi = this.state.qi;
+    const bump = { s: 140, l: 180, k: 90, d: 160, o: 110 };
+    this.setState(s => ({
+      scores: Object.assign({}, s.scores, Object.keys(bump).reduce((o, k) => (o[k] = s.scores[k] + Math.round(bump[k] * (0.6 + (qi + 1) * 0.2)), o), {})),
+      deltas: Object.assign({}, s.deltas, Object.keys(bump).reduce((o, k) => (o[k] = Math.round(bump[k] * (0.6 + (qi + 1) * 0.2)), o), {})),
+      round: s.round + 1,
+      screen: s.round >= 2 ? 'podium' : 'scores'
+    }));
+  };
+
+  continueGame = () => this.setState(s => (s.round === 1
+    ? { screen: 'type', t: this.secs() * 2, typed: '', found: [], deltas: {} }
+    : { screen: 'question', qi: 1, picked: null, revealed: false, t: this.secs(), deltas: {} }));
+
+  render_answers() {
+    const q = this.questions[this.state.qi];
+    const { picked, revealed } = this.state;
+    const L = ['A', 'B', 'C', 'D'];
+    return q.a.map((text, i) => {
+      let bg = 'rgba(251,246,236,0.06)', border = 'rgba(251,246,236,0.13)', color = '#FBF6EC', opacity = '1';
+      let badgeBg = 'rgba(251,246,236,0.1)', badgeColor = 'rgba(251,246,236,0.6)';
+      if (revealed) {
+        if (i === q.correct) { bg = 'var(--ok)'; border = 'var(--ok)'; color = '#0A2422'; badgeBg = 'rgba(11,7,16,0.2)'; badgeColor = '#0A2422'; }
+        else if (i === picked) { bg = 'rgba(255,45,111,0.1)'; border = 'var(--ac2)'; color = 'var(--ac2)'; opacity = '1'; }
+        else { opacity = '0.35'; }
+      } else if (picked === i) { bg = 'var(--ac)'; border = 'var(--ac)'; color = '#0A2422'; badgeBg = 'rgba(11,7,16,0.2)'; badgeColor = '#0A2422'; }
+      else if (picked !== null) { opacity = '0.35'; }
+      return { letter: L[i], text, bg, border, color, opacity, badgeBg, badgeColor, tap: () => this.pick(i) };
+    });
+  }
+
+  renderVals() {
+    const s = this.state;
+    const q = this.questions[s.qi];
+    const code = 'QIZL';
+    const total = this.secs();
+    const on = (n) => s.screen === n;
+    const rail = ['home', 'join', 'lobby', 'pack', 'question', 'type', 'live', 'scores', 'podium', 'profile'].map(n => ({
+      label: n, go: () => this.setState({ screen: n }),
+      bg: on(n) ? 'var(--ac)' : 'transparent',
+      border: on(n) ? 'var(--ac)' : 'rgba(251,246,236,0.14)',
+      color: on(n) ? '#0A2422' : 'rgba(251,246,236,0.55)'
+    }));
+    const board = this.players.map(p => ({ p, score: s.scores[p.id] })).sort((a, b) => b.score - a.score)
+      .map((r, i) => ({
+        rank: i + 1, name: r.p.name, initial: r.p.initial, hue: r.p.hue, score: r.score,
+        delta: s.deltas[r.p.id] ? '+' + s.deltas[r.p.id] : '—',
+        deltaColor: s.deltas[r.p.id] ? 'var(--ok)' : 'rgba(251,246,236,0.3)',
+        rowBg: r.p.id === 'you' ? 'rgba(255,176,0,0.14)' : 'rgba(251,246,236,0.05)',
+        rowBorder: r.p.id === 'you' ? 'var(--ac)' : 'transparent'
+      }));
+    const pod = [board[1], board[0], board[2]].filter(Boolean).map((r, i) => ({
+      name: r.name, initial: r.initial, hue: r.hue, score: r.score,
+      size: r.rank === 1 ? '68px' : '52px',
+      bar: r.rank === 1 ? '124px' : (r.rank === 2 ? '92px' : '74px'),
+      barBg: r.rank === 1 ? 'var(--ac)' : 'rgba(251,246,236,0.08)',
+      scoreColor: r.rank === 1 ? '#0A2422' : '#FBF6EC',
+      rankColor: r.rank === 1 ? 'rgba(11,7,16,0.6)' : 'rgba(251,246,236,0.45)',
+      rankLabel: r.rank === 1 ? '1ST' : (r.rank === 2 ? '2ND' : '3RD')
+    }));
+    const pct = Math.max(0, Math.min(100, (s.t / total) * 100));
+    const right = s.revealed && s.picked === q.correct;
+    return {
+      rail,
+      isHome: on('home'), isJoin: on('join'), isLobby: on('lobby'), isPack: on('pack'),
+      isQuestion: on('question'), isScores: on('scores'), isPodium: on('podium'),
+      isType: on('type'), isLive: on('live'), isProfile: on('profile'),
+      goHome: () => this.go('home'), goJoin: () => this.setState({ screen: 'join', code: '' }),
+      goLobby: () => this.go('lobby'), goPack: () => this.go('pack'),
+      startRound: () => this.setState({ screen: 'question', qi: 0, picked: null, revealed: false, t: total, scores: { you: 0, s: 380, l: 520, k: 300, d: 440, o: 260 }, deltas: {}, streak: 0 }),
+      playAgain: () => this.setState({ screen: 'lobby', qi: 0, picked: null, revealed: false, t: total }),
+      recent: this.players.slice(1, 5),
+      players: this.players.map(p => ({
+        name: p.name, initial: p.initial, hue: p.hue, tag: p.tag,
+        tagColor: p.tag === 'YOU' ? 'var(--ac)' : (p.tag === 'HOST' ? 'var(--ac2)' : 'rgba(251,246,236,0.7)'),
+        answeredColor: p.id === 'you' ? (s.picked !== null ? 'var(--ok)' : 'rgba(251,246,236,0.18)') : (s.t < total - 4 ? 'var(--ok)' : 'rgba(251,246,236,0.18)')
+      })),
+      roomCode: code, inRoomLabel: this.players.length + ' of 8',
+      packName: this.packNames[s.pack],
+      codeBoxes: [0, 1, 2, 3].map(i => {
+        const ch = s.code[i] || '';
+        return { ch: ch || '·', bg: ch ? 'rgba(255,176,0,0.14)' : 'rgba(251,246,236,0.04)', border: ch ? 'var(--ac)' : 'rgba(251,246,236,0.13)', color: ch ? '#FBF6EC' : 'rgba(251,246,236,0.2)' };
+      }),
+      keys: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').concat(['⌫']).map(k => ({
+        label: k,
+        tap: () => this.setState(st => ({ code: k === '⌫' ? st.code.slice(0, -1) : (st.code.length < 4 ? st.code + k : st.code) }))
+      })),
+      joinRoom: () => { if (s.code.length === 4) this.go('lobby'); },
+      joinBg: s.code.length === 4 ? 'var(--ac)' : 'rgba(251,246,236,0.06)',
+      joinColor: s.code.length === 4 ? '#0A2422' : 'rgba(251,246,236,0.3)',
+      packs: this.packNames.map((name, i) => ({
+        name, count: [42, 120, 64][i] + ' QUESTIONS',
+        desc: ['Written by your group. Inside jokes count.', 'Trivia nobody needs but everyone argues about.', 'One song, four decades, ten seconds.'][i],
+        stripe: ['repeating-linear-gradient(45deg,rgba(10,36,34,.9) 0 2px,transparent 2px 14px),repeating-linear-gradient(-45deg,rgba(10,36,34,.9) 0 2px,transparent 2px 14px),linear-gradient(#FFB000,#FFB000)', 'repeating-linear-gradient(45deg,rgba(10,36,34,.9) 0 2px,transparent 2px 14px),repeating-linear-gradient(-45deg,rgba(10,36,34,.9) 0 2px,transparent 2px 14px),linear-gradient(#FF2D6F,#FF2D6F)', 'repeating-linear-gradient(45deg,rgba(10,36,34,.9) 0 2px,transparent 2px 14px),repeating-linear-gradient(-45deg,rgba(10,36,34,.9) 0 2px,transparent 2px 14px),linear-gradient(#4FD39A,#4FD39A)'][i],
+        border: s.pack === i ? 'var(--ac)' : 'transparent',
+        pick: () => this.setState({ pack: i, screen: 'lobby' })
+      })),
+      roundLabel: 'ROUND ' + (s.round + 1) + ' OF 3',
+      roundNo: s.round + 1,
+      category: q.cat, questionText: q.q,
+      answers: this.render_answers(),
+      timeLeft: s.t, timerPct: pct + '%',
+      timerColor: s.t <= 5 ? 'var(--ac2)' : 'var(--ac)',
+      streakOn: (this.props.showStreaks ?? true) && s.streak > 1,
+      streakLabel: s.streak + ' IN A ROW',
+      revealed: s.revealed, waiting: s.picked !== null && !s.revealed,
+      verdict: s.picked === -1 ? 'Out of time' : (right ? '+' + (s.deltas.you || 0) + ' — nice' : 'Not quite'),
+      verdictColor: right ? 'var(--ok)' : 'var(--ac2)',
+      alsoRight: q.others.join(', ') + ' got it too',
+      nextLabel: s.qi >= this.questions.length - 1 ? 'Finish' : 'Scores',
+      nextQ: this.nextQ,
+      board,
+      continueLabel: s.round === 1 ? 'List round' : 'Round ' + (s.round + 1),
+      continueGame: this.continueGame,
+      podium: pod, rest: board.slice(3),
+      winnerName: board[0] ? board[0].name : '',
+
+      typePrompt: this.list.prompt,
+      typeTotal: this.list.answers.length,
+      foundCount: s.found.length,
+      found: s.found.map(w => ({ text: w })),
+      typed: s.typed,
+      inputBorder: s.miss ? 'var(--ac2)' : (s.typed ? 'var(--ac)' : 'rgba(251,246,236,0.14)'),
+      inputShake: s.miss ? 'shake .22s ease' : 'none',
+      typeHint: s.miss ? 'not on the list' : (s.found.length ? '+60 each' : 'type one, lock it in'),
+      hintColor: s.miss ? 'var(--ac2)' : 'rgba(251,246,236,0.72)',
+      kRow1: 'QWERTYUIOP'.split('').map(k => ({ label: k, tap: () => this.tapKey(k) })),
+      kRow2: 'ASDFGHJKL'.split('').map(k => ({ label: k, tap: () => this.tapKey(k) })),
+      kRow3: 'ZXCVBNM'.split('').map(k => ({ label: k, tap: () => this.tapKey(k) })),
+      backspace: this.backspace,
+      submitWord: this.submitWord,
+
+      liveBoard: board.map(r => ({
+        name: r.name, initial: r.initial, hue: r.hue, score: r.score,
+        rowBorder: r.rowBorder,
+        barW: Math.round((r.score / Math.max(1, board[0].score)) * 100) + '%',
+        barBg: r.rowBorder === 'transparent' ? 'rgba(251,246,236,0.07)' : 'rgba(255,176,0,0.18)',
+        scoreColor: r.rowBorder === 'transparent' ? '#FBF6EC' : 'var(--ac)',
+        status: r.name === 'You' ? s.found.length + ' found' : (r.score > board[0].score * 0.7 ? 'typing…' : 'thinking')
+      })),
+
+      stats: [
+        { value: '34', label: 'PARTIES PLAYED', color: 'var(--ink)' },
+        { value: '9', label: 'FIRST PLACES', color: 'var(--ac)' },
+        { value: '11', label: 'LONGEST STREAK', color: 'var(--ok)' },
+        { value: '72%', label: 'ANSWER ACCURACY', color: 'var(--ink)' }
+      ],
+      history: [
+        { place: '1ST', pack: 'Deeply Useless Facts', meta: 'Sat · 6 players · 3 rounds', score: '1,240', badgeBg: 'var(--ac)', badgeColor: '#0A2422' },
+        { place: '4TH', pack: 'House Rules', meta: 'Thu · 5 players · 3 rounds', score: '760', badgeBg: 'rgba(251,246,236,0.08)', badgeColor: 'rgba(251,246,236,0.5)' },
+        { place: '2ND', pack: 'Guess the Decade', meta: 'Tue · 8 players · 4 rounds', score: '1,090', badgeBg: 'rgba(251,246,236,0.08)', badgeColor: 'rgba(251,246,236,0.5)' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

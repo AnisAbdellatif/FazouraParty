@@ -64,14 +64,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final fz = FzTheme.of(context);
-    TextStyle wordmark() => fz.displayFont(
-      const TextStyle(
-        fontSize: 64,
-        fontWeight: FontWeight.w900,
-        height: .84,
-        letterSpacing: -3.2,
-      ),
-    );
 
     return Scaffold(
       body: FzPage(
@@ -115,46 +107,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ],
         ),
         child: Padding(
-          padding: const EdgeInsets.only(top: 56),
+          padding: const EdgeInsets.only(top: 34),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'FAZOURA',
-                      style: wordmark().copyWith(
-                        color: FzColors.ac,
-                        shadows: [
-                          Shadow(
-                            color: FzColors.ac.withValues(alpha: .45),
-                            blurRadius: 42,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'PARTY',
-                      style: wordmark().copyWith(
-                        foreground: Paint()
-                          ..style = PaintingStyle.stroke
-                          ..strokeWidth = 1.8
-                          ..color = FzColors.ac2,
-                      ),
+              // The app's own icon is the wordmark, so it stands in for the
+              // design's text lockup rather than repeating it.
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: FzColors.ac.withValues(alpha: .22),
+                      blurRadius: 52,
+                      spreadRadius: -6,
                     ),
                   ],
                 ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(30),
+                  child: Image.asset(
+                    'assets/icon.png',
+                    key: const Key('appIcon'),
+                    width: 148,
+                    height: 148,
+                    filterQuality: FilterQuality.medium,
+                    semanticLabel: 'Fazoura Party',
+                  ),
+                ),
               ),
-              const SizedBox(height: 18),
-              Container(width: 52, height: 4, color: FzColors.ac2),
-              const SizedBox(height: 18),
+              const SizedBox(height: 22),
+              Container(width: 78, height: 5, color: FzColors.ac2),
+              const SizedBox(height: 22),
               Text(
-                'fazoura (n.) — a riddle.\n'
+                'فزورة  fazoura (n.) — a riddle.\n'
                 'one phone each, one wager each,\n'
                 'ten questions of shouting.',
                 style: fz.m(

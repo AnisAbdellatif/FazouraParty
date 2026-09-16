@@ -34,10 +34,7 @@ class RoomClosedView extends StatelessWidget {
             children: [
               const FzEyebrow('Room closed', color: FzColors.ac2),
               const SizedBox(height: 12),
-              Text(
-                "That's a wrap",
-                style: fz.h(34, weight: FontWeight.w900, tracking: -.035),
-              ),
+              Text("That's a wrap", style: fz.t(32)),
               const SizedBox(height: 10),
               Text(text, style: fz.m(12.5, color: FzColors.dim, height: 1.6)),
             ],

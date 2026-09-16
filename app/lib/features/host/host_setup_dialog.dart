@@ -61,10 +61,7 @@ class _HostSetupDialogState extends State<HostSetupDialog> {
           children: [
             const FzEyebrow('New party'),
             const SizedBox(height: 8),
-            Text(
-              'Host tonight',
-              style: fz.h(28, weight: FontWeight.w900, tracking: -.03),
-            ),
+            Text('Host tonight', style: fz.t(26)),
             const SizedBox(height: 12),
             SwitchListTile(
               key: const Key('playAlongSwitch'),

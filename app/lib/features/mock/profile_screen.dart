@@ -89,10 +89,7 @@ class ProfileScreen extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'You',
-                      style: fz.h(26, weight: FontWeight.w900, tracking: -.03),
-                    ),
+                    Text('You', style: fz.t(26)),
                     const SizedBox(height: 6),
                     Text(
                       '@you · sample data',
