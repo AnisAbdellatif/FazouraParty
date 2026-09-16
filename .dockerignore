@@ -1,0 +1,13 @@
+# The build context is the repository root; keep it to what deploy/Dockerfile copies.
+*
+!server/mix.exs
+!server/mix.lock
+!server/config
+!server/lib
+!server/priv
+!app/build/web
+
+server/priv/uploads
+server/priv/plts
+server/priv/static/assets
+**/.DS_Store

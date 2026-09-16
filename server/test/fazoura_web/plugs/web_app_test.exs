@@ -1,6 +1,8 @@
 defmodule FazouraWeb.Plugs.WebAppTest do
   use FazouraWeb.ConnCase, async: false
 
+  alias FazouraWeb.Plugs.WebApp
+
   @index "<!DOCTYPE html><html><body>fazoura</body></html>"
 
   setup do
@@ -76,13 +78,13 @@ defmodule FazouraWeb.Plugs.WebAppTest do
     Application.put_env(:fazoura, :web_dir, nil)
 
     assert build_conn() |> get("/") |> response(404)
-    assert FazouraWeb.Plugs.WebApp.dir() == nil
+    assert WebApp.dir() == nil
   end
 
   test "ignores a configured directory that isn't there" do
     Application.put_env(:fazoura, :web_dir, Path.join(System.tmp_dir!(), "not-built"))
 
-    assert FazouraWeb.Plugs.WebApp.dir() == nil
+    assert WebApp.dir() == nil
     assert build_conn() |> get("/") |> response(404)
   end
 end

@@ -58,7 +58,15 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 - **Serving the app**: Phoenix serves the build at `/` from `:web_dir` (`WEB_DIR` in production), with `public, max-age=0, must-revalidate` plus ETags on everything. Never add long-lived HTTP caching: the service worker owns caching, and a stale shell or worker script can't be taken back.
 - **Admin dashboard** follows `protocol/ADMIN.md`: three LiveViews at `/admin` in the Phoenix server (live stats, quiz moderation, suggested tags). Credentials come from `ADMIN_USERNAME` / `ADMIN_PASSWORD`; with either unset every `/admin` request must 404, never reveal that it exists. It is the only HTML the server renders, and its only JavaScript is the LiveView client served from `deps/`.
 
-## 6. Flutter / Riverpod standards
+## 6. Deployment
+
+- One VPS, three containers, described in [deploy/README.md](deploy/README.md): Caddy (TLS, reverse proxy), the server as an OTP release with the built Flutter web app inside it, and Postgres. `deploy/deploy.sh <user@host>` builds the web app locally, ships `server/`, `deploy/` and `app/build/web` over SSH with `tar`, then builds the image and restarts on the VPS. No registry, no CI deploy credentials.
+- Secrets live only in `deploy/.env` **on the VPS**, from [deploy/.env.example](deploy/.env.example). Never ship, commit, or print it.
+- Database work in a release goes through `Fazoura.Release` (`setup/0` = migrate + sync built-ins, both idempotent) — a release has no Mix. A deploy runs it with the new image before the old one stops.
+- The two volumes that cannot be rebuilt are `pgdata` and `uploads`. Any change that moves or renames them needs a migration path in the README.
+- CI is [.github/workflows/ci.yml](.github/workflows/ci.yml): the full server suite (format, credo, test, dialyzer) and the full app suite (format, analyze, test, web build, service-worker harness). Keep both green; CI never deploys.
+
+## 7. Flutter / Riverpod standards
 
 - Feature-first folder structure (`lib/features/<feature>/...`).
 - `riverpod_generator` + `freezed` for immutable state/models.
@@ -69,7 +77,7 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 - **Visual design source:** `design/FazouraParty.v2.dc.html` (Claude Design prototype; `ios-frame.jsx` is only the preview bezel). v2 palette: deep teal `#0A2422` panels over `#061917`, amber `#FFB000`, pink `#FF2D6F`, green `#4FD39A`, with the amber lattice woven behind every screen. Type: Figtree for body, buttons and question text; DM Mono for labels, codes and numbers; Reem Kufi for screen titles and the Arabic wordmark (`FzTheme.t`). Reuse the `Fz*` widgets rather than restyling ad hoc.
 - Must pass: `dart format --set-exit-if-changed`, `flutter analyze`, `flutter test`.
 
-## 7. Testing
+## 8. Testing
 
 - Pure scoring/wager/override/matching logic: unit tests on **both** sides.
 - Protocol contract tests: the same fixtures in `protocol/fixtures/` are replayed against every implementation.
@@ -78,6 +86,6 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 - Don't mark work done if tests fail; report failures honestly.
 - **Agents test the Flutter client on the Web build only** (`flutter test`, `flutter run -d chrome` / `flutter build web`). Never launch or drive the Android emulator — the project owner tests Android manually.
 
-## 8. Open decisions
+## 9. Open decisions
 
 Don't silently decide items listed as open in `project-assessment.md` §10. If work requires one, pick the provisional default recorded in `protocol/PROTOCOL.md` (or ask), and mark it clearly as provisional.

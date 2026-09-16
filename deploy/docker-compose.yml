@@ -1,0 +1,72 @@
+# The whole server: Postgres, the app, and Caddy terminating TLS in front of it.
+# Run from the deploy directory on the VPS; `deploy.sh` does that over SSH.
+#
+#   docker compose build
+#   docker compose run --rm app bin/fazoura eval "Fazoura.Release.setup()"
+#   docker compose up -d
+
+name: fazoura
+
+services:
+  db:
+    image: postgres:18-trixie
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fazoura}
+      POSTGRES_USER: ${POSTGRES_USER:-fazoura}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      # The parent, not .../data: Postgres 18 keeps its cluster in a versioned
+      # subdirectory, and mounting the parent works either way.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fazoura} -d ${POSTGRES_DB:-fazoura}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: fazoura:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-fazoura}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-fazoura}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Published question photos. Losing this loses every photo on every public quiz.
+      - uploads:/data/uploads
+    # Long enough for Rooms.Drain to tell live games the server is going away.
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      FZ_DOMAIN: ${PHX_HOST:?set PHX_HOST in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  pgdata:
+  uploads:
+  caddy_data:
+  caddy_config:

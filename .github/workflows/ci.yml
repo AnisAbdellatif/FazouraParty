@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A new push supersedes the run in flight for the same branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    name: server (Elixir)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: "29.0.6"
+          elixir-version: "1.20.4"
+
+      # Tests run on SQLite, as they do locally; Postgres only appears in production.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            server/deps
+            server/_build
+            server/priv/plts
+          key: mix-${{ runner.os }}-${{ hashFiles('server/mix.lock') }}
+          restore-keys: mix-${{ runner.os }}-
+
+      - run: mix deps.get
+      - run: mix compile --warnings-as-errors
+      - run: mix format --check-formatted
+      - run: mix deps.unlock --check-unused
+      - run: mix credo --strict
+      - run: mix test
+      - run: mix dialyzer
+
+  app:
+    name: app (Flutter)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.2"
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+      - run: dart format --set-exit-if-changed lib test tool
+      - run: flutter analyze
+      - run: flutter test
+
+      # The web build is the deliverable, and the service worker it generates is
+      # exercised the same way deploy/deploy.sh expects it to be built.
+      - run: dart run tool/build_web.dart
+      - run: node tool/check_service_worker.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: app/build/web
+          retention-days: 7

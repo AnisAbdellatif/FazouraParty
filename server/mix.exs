@@ -10,6 +10,7 @@ defmodule Fazoura.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
+      releases: releases(),
       listeners: [Phoenix.CodeReloader],
       dialyzer: [plt_local_path: "priv/plts", plt_core_path: "priv/plts"]
     ]
@@ -57,6 +58,12 @@ defmodule Fazoura.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
+  end
+
+  # What `mix release` builds and `deploy/Dockerfile` ships. Database tasks run
+  # through `Fazoura.Release` because a release has no Mix.
+  defp releases do
+    [fazoura: [include_executables_for: [:unix]]]
   end
 
   # Aliases are shortcuts or tasks specific to the current project.

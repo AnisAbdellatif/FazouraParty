@@ -204,7 +204,8 @@ Host-served web client for LAN browser guests, iOS enablement, performance work 
   - Protocol contract tests — same fixtures replayed against Phoenix and LAN implementations.
   - Phoenix Channel tests for join/submit/next/override flows.
   - Flutter widget tests with mocked providers; one integration test for a full two-player round.
-- **CI/CD (GitHub Actions):** on PR → lint, test, build Android APK + Web bundle + Elixir release; on `main` → build Docker image, push, deploy to VPS via SSH (`docker compose pull && up -d`), run a smoke check against `/health`.
+- **CI (GitHub Actions):** on PR and `main` → both suites (format, lint, test, dialyzer; analyze, test) plus the web bundle and the service-worker harness. Built as [.github/workflows/ci.yml](.github/workflows/ci.yml).
+- **Deploy:** `deploy/deploy.sh <user@host>` — build the web app locally, ship sources over SSH, build the image and restart on the VPS (Caddy + app + Postgres, see [deploy/README.md](deploy/README.md)). Deliberately *not* wired into CI: a solo maintainer deploying by hand needs no registry, no deploy keys in GitHub, and no surprise deploys mid-party.
 
 ---
 

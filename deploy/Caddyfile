@@ -1,0 +1,15 @@
+# Caddy gets the certificate, terminates TLS and proxies everything — including the
+# WebSocket at /socket and /live — to the app container.
+
+{$FZ_DOMAIN} {
+	encode zstd gzip
+
+	# The service worker owns caching (AGENTS.md §5): the app answers with
+	# `max-age=0, must-revalidate` and ETags, and nothing here may extend that.
+	reverse_proxy app:4000 {
+		# Phoenix reads these to know it is behind HTTPS (`force_ssl` in prod.exs).
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-For {remote_host}
+		header_up Host {host}
+	}
+}
