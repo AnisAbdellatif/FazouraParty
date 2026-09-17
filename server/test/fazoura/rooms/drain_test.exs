@@ -11,6 +11,27 @@ defmodule Fazoura.Rooms.DrainTest do
     |> join(FazouraWeb.RoomChannel, "room:" <> code, Map.put(payload, "protocol_version", 4))
   end
 
+  # Rooms live under a DynamicSupervisor, not under the test process, so rooms created
+  # by the async tests in other files are still registered when this file runs. Clear
+  # them, so "nothing live" here means nothing live rather than nothing leaked.
+  defp drain_leaked_rooms do
+    Rooms.shutdown_all()
+    wait_until_no_rooms(50)
+  end
+
+  defp wait_until_no_rooms(0), do: flunk("rooms left by other tests did not stop")
+
+  defp wait_until_no_rooms(attempts) do
+    case Rooms.active() do
+      [] ->
+        :ok
+
+      _still_closing ->
+        Process.sleep(10)
+        wait_until_no_rooms(attempts - 1)
+    end
+  end
+
   test "a shutdown ends live games out loud instead of by silence" do
     {:ok, code, _host_token} = Rooms.create(QuizFixtures.pack())
     {:ok, _reply, socket} = join_room(code, %{"display_name" => "Sam"})
@@ -24,6 +45,8 @@ defmodule Fazoura.Rooms.DrainTest do
   end
 
   test "with nothing live it does nothing" do
+    drain_leaked_rooms()
+
     assert Rooms.active() == []
     assert Drain.terminate(:shutdown, %{drain_ms: 500}) == :ok
   end
