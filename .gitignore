@@ -50,3 +50,6 @@ server/tmp/
 
 # Claude Code local overrides (machine-specific)
 .claude/settings.local.json
+
+# Local decision log for AI agents (AGENTS.md): never committed
+decisions.md
