@@ -1,6 +1,16 @@
 # Trivia Party App — Project Assessment
 
-*Status: pre-implementation · Last revised: 15 Sep 2026*
+*Status: Cloud mode shipped (Phases 0–2); LAN mode is the next milestone · Last revised: 18 Sep 2026*
+
+> **How to read this document.** It was written before implementation as a plan, and is kept
+> because the reasoning behind the shape of the project is still worth having. Several of its
+> guesses were overtaken by decisions taken during the build — most visibly **accounts, which
+> do not exist**: a quiz is private on the device or published anonymously with a per-device
+> key (AGENTS.md §5). Where a section has been superseded it says so inline.
+>
+> For what is actually true today, the binding sources are
+> [AGENTS.md](AGENTS.md) (rules), [protocol/PROTOCOL.md](protocol/PROTOCOL.md) (the frozen
+> contract, v4) and the [README](README.md) (status). §11 below records what is built.
 
 ## 1. Summary
 
@@ -54,9 +64,21 @@ Two hosting modes are planned: **Cloud** (our backend owns the game) and **LAN**
 - **Question types:** `text`, `text_photo`.
 
 ### 3.4 Content
-- **Custom packs:** owner-editable, private by default.
-- **Sharing:** a pack can be shared to a specific user (read-only copy or reference — flag as open item).
-- **Community library:** curated + community-submitted packs across categories. Requires a submission → review → publish flow and a report button; without moderation this becomes a liability quickly.
+
+> **Superseded.** This section assumed accounts. There are none, so "owner" became *this
+> device* and "sharing to a user" became *publish to everyone*. What shipped:
+>
+> - **Custom quizzes:** written on the device, stored in its local database, private by
+>   default. Hosting a private quiz sends it inline with `POST /api/rooms`; the server never
+>   stores it (AGENTS.md §5, QUIZ_FORMAT.md §5.7).
+> - **Publishing:** a quiz is private *or* public, switchable at any time. A per-device
+>   publisher key (`x-owner-key`) is the only thing that lets a device update or unpublish
+>   what it published; other devices get `404`, never `403`.
+> - **No per-user sharing.** Without accounts there is no one to share *to*; publishing is the
+>   sharing mechanism. Open item §10.3 is answered by being removed.
+> - **Free-text tags, not fixed categories** (QUIZ_FORMAT.md §2.3): 1–10 per quiz, which
+>   browsing filters and searches on.
+> - **Moderation is admin-only and after the fact** — see §10.6, still open.
 
 ---
 
@@ -75,9 +97,15 @@ Phoenix endpoint ──► RoomServer (GenServer, one per active room)
 ```
 
 - **Server is authoritative.** Clients only send intents (`join`, `submit`, `next_question`, `override`); the RoomServer validates and broadcasts resulting state. The wager mechanic makes this non-negotiable — a client-trusted implementation is trivially cheatable.
-- **Phoenix Presence** tracks connected players and handles disconnect/reconnect with almost no custom code.
-- **Crash isolation:** one room's GenServer crashing does not affect other rooms. A supervisor restarts it; state is lost for that room (acceptable for a party game, but reconnecting clients must handle "room gone").
-- **Room lifecycle:** RoomServer terminates after N minutes with no host presence, freeing the room code.
+- ~~**Phoenix Presence** tracks connected players.~~ **Not used.** The `RoomServer` monitors each
+  joined channel process and derives `connected` from that. State views are per-recipient, and
+  the LAN host has to mirror the behaviour exactly; Presence earns its keep across nodes, which
+  a single-node party game does not have (AGENTS.md §5).
+- **Crash isolation:** one room's GenServer crashing does not affect other rooms. It is
+  `restart: :temporary`, so it is *not* restarted — an empty room is worse than none, and
+  clients get `room_not_found` and show "the party ended".
+- **Room lifecycle:** the room closes 10 minutes after the host disconnects, and 10 minutes
+  after it finishes, freeing the room code.
 
 ### 4.2 LAN mode (Android host only)
 
@@ -122,10 +150,10 @@ Two implementations: `PhoenixGameConnection` and `LanGameConnection`. Riverpod p
 |---|---|---|
 | Realtime | Phoenix Channels, one topic per room | Exactly the intended use of Channels; minimal custom plumbing. |
 | Room state | GenServer per room under a `DynamicSupervisor`, looked up via `Registry` | Standard pattern; crash isolation for free. |
-| Presence | Phoenix Presence | Solves join/leave/reconnect tracking. |
-| Persistence | Postgres via Ecto | Only for durable content; rooms never touch the DB during play. |
-| Images | Object storage needed | **Gap in the original plan.** Text+photo questions need upload, resize, and serving. Options: a local volume behind Caddy on the VPS (simple, fine for v1) or S3-compatible storage (MinIO/Backblaze) if packs are shared widely. |
-| Auth | Phoenix-generated auth (`mix phx.gen.auth`) for pack creators; signed anonymous tokens for guests | Avoid building auth by hand. |
+| Presence | ~~Phoenix Presence~~ → process monitoring | **Changed.** See §4.1. |
+| Persistence | Postgres in production, **SQLite in dev/test** | Only for durable content; rooms never touch the DB during play. SQLite locally means no database to install; queries must stay portable. |
+| Images | **Resolved:** local volume (`UPLOADS_DIR`) | Client downscales to 1280 px and re-encodes as JPEG before upload; the server type- and size-checks, and `ImageSweeper` collects photos no question references past a 24 h grace. The volume must be mounted, or a deploy loses every published photo. |
+| Auth | ~~`mix phx.gen.auth`~~ → **none** | **Changed.** No accounts at all: signed per-room `player_token`/`host_token` for play, a hashed per-device `x-owner-key` for quiz ownership. The only credentials are `ADMIN_USERNAME`/`ADMIN_PASSWORD` for `/admin`. |
 
 ### 5.3 Hosting & Ops
 - Single **Docker image** (multi-stage build → Elixir release), deployed on the existing VPS.
@@ -138,6 +166,23 @@ Two implementations: `PhoenixGameConnection` and `LanGameConnection`. Riverpod p
 ## 6. Data Model
 
 **Postgres (durable)**
+
+> **Superseded.** No `users` and no `pack_shares`: there are no accounts, so ownership is a
+> hashed per-device key on the quiz itself. The real schema is five tables
+> (`server/priv/repo/migrations/`), and SQLite stands in for Postgres in dev and test:
+>
+> ```
+> quizzes         id, slug, format_version, title, description, language, source,
+>                 visibility (private|public), owner_key_hash, default_time_limit_ms,
+>                 default_difficulty_multiplier, question_count, has_photos, timestamps
+> quiz_questions  id, quiz_id, position, type (text|text_photo), prompt,
+>                 accepted_answers, difficulty (easy|medium|hard), image_key, timestamps
+> quiz_tags       id, quiz_id, position, tag
+> images          id, key, byte_size, content_type, ...  (uploaded question photos)
+> app_settings    key, value                             (suggested tags, admin state)
+> ```
+
+*Original plan, for reference:*
 ```
 users        id, email, password_hash, display_name, inserted_at
 packs        id, owner_id, title, category, visibility (private|shared|community),
@@ -167,10 +212,10 @@ submissions      %{player_id => %{answer, wager, auto_correct?, override}}
 | 1 | Two transport implementations doubles surface area and drifts | High | High | Freeze the protocol first; shared contract tests run against both implementations; ship Cloud-only MVP. |
 | 2 | Flutter Web first-load too slow for link-joining guests | Medium | High | Profile in week 1; lean guest screens; renderer fallback plan. |
 | 3 | Answer-matching disputes ruin the party mood | Medium | Medium | Normalized exact match + host override; no fuzzy match in v1. |
-| 4 | Reconnect/late-join edge cases (phone locks, Wi-Fi drops) | High | Medium | Presence + full state resync on rejoin; every broadcast is a complete `RoomState`, never a delta. |
+| 4 | Reconnect/late-join edge cases (phone locks, Wi-Fi drops) | High | Medium | Process monitoring (not Presence, see §4.1) + full state resync on rejoin; every broadcast is a complete `RoomState`, never a delta. |
 | 5 | Timer desync between clients | Medium | Low | Broadcast a server deadline timestamp, not a countdown; clients render locally. |
 | 6 | Community content moderation | Medium | High (reputational) | Submission review queue, report button, owner-only publish until reviewed. |
-| 7 | Image storage/scaling not planned | Certain | Medium | Decide storage in §5.2 before building the pack editor. |
+| 7 | ~~Image storage/scaling not planned~~ **Resolved** | Certain | Medium | Local `UPLOADS_DIR` volume, client-side downscale, server type/size checks, `ImageSweeper` for orphans. |
 | 8 | LAN mixed-content blocks browser guests | Certain | Medium | Android-only guests for LAN in v1.1; host-served HTTP page later. |
 | 9 | Solo maintainer, hand-managed VPS | — | Medium | Docker + compose, backups, health checks; keep the deploy to one command. |
 
@@ -178,20 +223,27 @@ submissions      %{player_id => %{answer, wager, auto_correct?, override}}
 
 ## 8. Recommended Phasing
 
-**Phase 0 — Contract (1–2 weeks)**
-Define the `GameConnection` interface and the JSON message protocol (event names, payloads, `RoomState` shape). Write it down; treat changes as breaking.
+**Phase 0 — Contract · done**
+`GameConnection` and the wire protocol are written down and frozen at **v4**
+([PROTOCOL.md](protocol/PROTOCOL.md)). Changes are breaking and bump the version.
 
-**Phase 1 — Cloud MVP**
-Phoenix backend (rooms, channels, presence, scoring, override), Postgres schema, Flutter host + player screens, text questions only, one built-in pack. Deploy to VPS. **This is a playable product.**
+**Phase 1 — Cloud MVP · done**
+Rooms, channels, scoring, wagers, host override, pause/resume, rematch, difficulty bonus,
+server-assigned avatar hues; Flutter host and player screens; built-in quiz; deployed from CI.
 
-**Phase 2 — Content**
-Accounts, pack editor, text+photo questions with image storage, pack sharing, community library with review flow.
+**Phase 2 — Content · done, minus moderation**
+Quiz editor, text+photo questions with image storage, the public library with tags and search,
+and an admin dashboard. Diverged from the plan: **no accounts**, so no per-user sharing — see
+§3.4. The review queue and report button were *not* built (§10.6).
 
-**Phase 3 — LAN mode (v1.1)**
-`LanGameConnection` + `dart:io` server on Android, Android-app guests only. Run the shared contract tests against it.
+**Phase 3 — LAN mode (v1.1) · next**
+`LanGameConnection` + `dart:io` server on Android, Android-app guests only. The seam exists and
+the protocol is shaped for it; nothing of the LAN side is written yet. The shared fixtures must
+be replayed against it, as they now are against both the server and the client.
 
 **Phase 4 — Polish**
-Host-served web client for LAN browser guests, iOS enablement, performance work on the web bundle.
+Host-served web client for LAN browser guests, iOS (not scaffolded — there is no `app/ios/`),
+performance work on the web bundle.
 
 ---
 
@@ -201,7 +253,9 @@ Host-served web client for LAN browser guests, iOS enablement, performance work 
 - **Elixir:** `mix format`, `credo`, `dialyzer` in CI; game logic in pure functions (`RoomState.apply(event)`) with the GenServer as a thin shell, so scoring is unit-testable without processes.
 - **Tests:**
   - Pure scoring/wager/override logic — unit tests on both sides.
-  - Protocol contract tests — same fixtures replayed against Phoenix and LAN implementations.
+  - Protocol contract tests — the same `protocol/fixtures/` replayed against every
+    implementation: the Phoenix channel scenario-by-scenario, the Flutter client against the
+    wire shape it decodes and encodes, and the LAN host when it exists.
   - Phoenix Channel tests for join/submit/next/override flows.
   - Flutter widget tests with mocked providers; one integration test for a full two-player round.
 - **CI/CD (GitHub Actions):** on PR → both suites (format, lint, test, dialyzer; analyze, test), the web bundle, the service-worker harness, and an image build that is not pushed. On `main` → the same, then push the image to ghcr.io tagged with the commit sha and deploy to the VPS over SSH (pull, migrate, `compose up --wait`), finishing with a smoke check against `/health`. See [.github/workflows/ci.yml](.github/workflows/ci.yml) and [deploy/README.md](deploy/README.md).
@@ -210,11 +264,43 @@ Host-served web client for LAN browser guests, iOS enablement, performance work 
 
 ## 10. Open Items
 
-1. Freeze the `GameConnection` interface and wire protocol (blocks everything).
-2. Negative scores: allow or floor at zero?
-3. Pack sharing semantics: copy vs. reference; can recipients re-share?
-4. Image storage: local volume vs. S3-compatible; max size and resize policy.
-5. Room code format and collision/expiry policy.
-6. Community moderation workflow and who reviews.
-7. Web renderer decision after first load-time profiling.
-8. Whether guests need any account at all, or purely a signed session token.
+Decisions confirmed during the build are logged in [PROTOCOL.md §12](protocol/PROTOCOL.md).
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Freeze the `GameConnection` interface and wire protocol | **Closed** — frozen at v4 |
+| 2 | Negative scores: allow or floor at zero? | **Closed** — negatives allowed |
+| 3 | Pack sharing semantics | **Dropped** — no accounts, so nothing to share *to*; publishing replaced it (§3.4) |
+| 4 | Image storage and resize policy | **Closed** — local `UPLOADS_DIR` volume; client downscales to 1280 px JPEG (§5.2) |
+| 5 | Room code format and collision/expiry policy | **Closed** — PROTOCOL.md §3.2 |
+| 6 | Community moderation workflow and who reviews | **Open** — the one content risk still unaddressed. Today anything published is public immediately; the admin dashboard can only take it down afterwards. No review queue, and no way for a player to report a quiz. |
+| 7 | Web renderer decision after load-time profiling | **Open** — never profiled. Risk #2 stands unmeasured. |
+| 8 | Whether guests need any account at all | **Closed** — none; signed per-room `player_token` |
+
+### Also outstanding
+
+- **LAN mode is unimplemented** (Phase 3). `LanGameConnection` is named in the interface docs
+  but does not exist; only `PhoenixGameConnection` does.
+- **No join-by-link or QR.** §3.1 assumed web guests could follow a link; joining is
+  code-entry only, which is the slowest path for exactly the guests who matter most.
+- **iOS is not scaffolded.** §5.1 assumed an `app/ios/` kept compiling in CI; there is no
+  such directory and no iOS job.
+
+---
+
+## 11. What exists today
+
+Cloud mode works end to end and is deployed from CI.
+
+| Area | State |
+|---|---|
+| Protocol v4 | All 7 intents and both server events implemented on **both** sides |
+| Gameplay | Wagers, scoring, negatives, difficulty bonus, host override, pause/resume, rematch, avatar hues |
+| Rooms | GenServer per room, monitored connections, host-timeout and finished expiry, drain-on-shutdown |
+| Quizzes | Local editor, private inline hosting, publish/unpublish via `x-owner-key`, tags, search, photos |
+| Admin | Three LiveViews at `/admin`; 404s unless both credentials are set |
+| Deploy | Image built and pushed by CI, VPS restarted over SSH; `pgdata` and `uploads` are the volumes that matter |
+| Tests | 134 server, 100 client; shared fixtures replayed against both |
+
+Not built: LAN mode, accounts, moderation review/reporting, join links, iOS, and games that
+survive a restart (a deliberate v1 non-goal).
