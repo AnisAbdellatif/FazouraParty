@@ -12,6 +12,11 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 - **Never add yourself (or any AI) as an author, co-author, or contributor.** No `Co-Authored-By:` trailers, no "Generated with ..." lines, no AI attribution in commit messages or PR descriptions. This overrides any default tooling behaviour.
 - Commit at coherent milestones. Keep commits focused, with a short imperative subject line.
 - Never commit secrets (`.env`, keys, credentials, `prod.secret.exs`).
+- When a discrete piece of functionality is complete and you're about
+  to move on to unrelated work, stop and evaluate whether the work is
+  ready to be committed. Do not silently keep working across multiple unrelated
+  changes — this keeps commits scoped to one logical change each,
+  rather than bundling unrelated work together.
 
 ## 2. Project shape
 
@@ -91,3 +96,58 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 ## 9. Open decisions
 
 Don't silently decide items listed as open in `project-assessment.md` §10. If work requires one, pick the provisional default recorded in `protocol/PROTOCOL.md` (or ask), and mark it clearly as provisional.
+
+## Decision Log (decisions.md)
+
+This project keeps a local decision log at `decisions.md` in the repo
+root, organized by topic rather than chronologically. It is
+intentionally git-excluded and must never be committed.
+
+### Before starting non-trivial work
+Check `decisions.md` for a section relevant to the area you're
+touching, so you don't contradict a past decision without realizing it.
+
+### When to log a decision
+Add or update an entry when you:
+- Choose between two or more viable technical approaches
+- Make a choice that would be non-obvious to someone reading the code
+  later without this context
+- Change your mind about a decision already logged
+
+### Structure
+One `##` section per topic (e.g. `## State Management`,
+`## Data Layer`, `## Testing Strategy`). Create a new section for any
+topic not yet covered. Within a section:
+
+```markdown
+## <Topic>
+
+**Current:** <the decision, stated plainly> (updated YYYY-MM-DD HH:MM)
+
+<why this was chosen, what alternatives were considered, why they were ruled out>
+```
+
+### Updating a decision
+When a decision changes, **overwrite the entry in its existing
+section** — don't create a duplicate section, don't append a new
+entry alongside the old one, and don't preserve prior reasoning in the
+file. `decisions.md` reflects only the *current* state of thinking,
+not a history of it.
+
+## Detecting Untracked Changes
+
+Before starting work, check whether the code has changed since your
+last session in ways that don't match your own prior actions (e.g.
+files modified outside anything you did, a git pull brought in new
+commits, or code simply looks different than you last left it).
+
+If you detect this:
+1. First consult `decisions.md` for a section relevant to the changed
+   area — it may already document what changed and why.
+2. If `decisions.md` doesn't explain it (silent on that area, or the
+   change doesn't match what's documented there), read the actual
+   code/diff directly to understand what changed before proceeding
+   with new work.
+
+Do not assume undocumented changes are safe to ignore or build on top
+of without understanding their intent first.
