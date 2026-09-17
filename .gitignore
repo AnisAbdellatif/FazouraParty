@@ -47,3 +47,6 @@ server/*.db-wal
 server/*.db-journal
 server/priv/uploads/
 server/tmp/
+
+# Claude Code local overrides (machine-specific)
+.claude/settings.local.json

@@ -1,0 +1,33 @@
+# Pinned action SHAs never drift on their own, and a lockfile nobody bumps rots quietly.
+# Monthly and grouped, so this stays a chore rather than a stream of noise.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: mix
+    directory: /server
+    schedule:
+      interval: monthly
+    groups:
+      hex:
+        patterns: ["*"]
+
+  - package-ecosystem: pub
+    directory: /app
+    schedule:
+      interval: monthly
+    groups:
+      pub:
+        patterns: ["*"]
+
+  # The Elixir and Debian base images in deploy/Dockerfile are date-pinned.
+  - package-ecosystem: docker
+    directory: /deploy
+    schedule:
+      interval: monthly

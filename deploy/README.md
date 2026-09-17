@@ -91,6 +91,15 @@ Repository or `production`-environment **secrets**:
 No registry secret is needed: the workflow's own `GITHUB_TOKEN` pushes to ghcr.io and
 is what the VPS logs in with for the one pull.
 
+The repository is public, so the pull request builds run on untrusted code — but they
+cannot reach any of this. `pull_request` runs get a read-only token and no access to
+secrets or to the `production` environment, and the deploy job only ever runs on a
+`push` to `main`. A fork can propose a change to the workflow; it cannot run one.
+
+The image package on ghcr.io starts private even for a public repository. Leave it that
+way — the deploy authenticates regardless — or make it public if you want `docker pull`
+to work without a login.
+
 The deploy job targets the `production` environment, so adding a required reviewer
 there turns every deploy into an approval — worth it once other people are playing.
 
