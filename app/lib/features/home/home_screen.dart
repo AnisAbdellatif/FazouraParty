@@ -8,7 +8,6 @@ import '../../shared/widgets/fz.dart';
 import '../host/host_screen.dart';
 import '../host/host_setup_dialog.dart';
 import '../join/join_screen.dart';
-import '../mock/profile_screen.dart';
 import '../quizzes/quiz_browser_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -67,19 +66,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       body: FzPage(
-        header: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            FzCircleButton(
-              key: const Key('profileButton'),
-              icon: Icons.person_outline,
-              tooltip: 'Profile (preview)',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const ProfileScreen()),
-              ),
-            ),
-          ],
-        ),
+        // No profile entry point: there are no accounts and no game history
+        // (AGENTS.md §2), so features/mock/profile_screen.dart would show
+        // invented numbers. It stays as the Phase 2 design reference.
         footer: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

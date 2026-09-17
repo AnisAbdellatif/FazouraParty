@@ -1,5 +1,10 @@
 // MOCK: there are no accounts or game history yet (Phase 2). Every value on
 // this screen is sample data from design/FazouraParty.dc.html.
+//
+// Deliberately unreachable: nothing routes here, because shipping invented
+// stats to a real player is worse than having no profile at all. Kept as the
+// design reference for when game history exists. Wire it up only once every
+// number on it is real.
 
 import 'package:flutter/material.dart';
 
