@@ -34,6 +34,27 @@ class PhoenixGameConnection implements GameConnection {
     'host_token': hostToken,
   };
 
+  /// Intent payloads (PROTOCOL.md §4.2). Kept as statics so the contract test
+  /// can hold them to `protocol/fixtures` without opening a socket; the intent
+  /// methods below are their only production callers.
+  static Map<String, dynamic> submitPayload(String answer, int wager) => {
+    'answer': answer,
+    'wager': wager,
+  };
+
+  static Map<String, dynamic> overridePayload(String playerId, bool correct) =>
+      {'player_id': playerId, 'correct': correct};
+
+  static Map<String, dynamic> configurePayload({
+    required int questionCount,
+    required int timeLimitMs,
+    required bool difficultyMultiplier,
+  }) => {
+    'question_count': questionCount,
+    'time_limit_ms': timeLimitMs,
+    'difficulty_multiplier': difficultyMultiplier,
+  };
+
   /// HTTP(S) base URL of the server, e.g. `http://localhost:4000`.
   final String baseUrl;
 
@@ -121,7 +142,7 @@ class PhoenixGameConnection implements GameConnection {
 
   @override
   Future<void> submit(String answer, int wager) =>
-      _push('submit', {'answer': answer, 'wager': wager});
+      _push('submit', submitPayload(answer, wager));
 
   @override
   Future<void> hostNext() => _push('host_next', const {});
@@ -134,18 +155,21 @@ class PhoenixGameConnection implements GameConnection {
 
   @override
   Future<void> hostOverride(String playerId, bool correct) =>
-      _push('host_override', {'player_id': playerId, 'correct': correct});
+      _push('host_override', overridePayload(playerId, correct));
 
   @override
   Future<void> hostConfigure({
     required int questionCount,
     required int timeLimitMs,
     required bool difficultyMultiplier,
-  }) => _push('host_configure', {
-    'question_count': questionCount,
-    'time_limit_ms': timeLimitMs,
-    'difficulty_multiplier': difficultyMultiplier,
-  });
+  }) => _push(
+    'host_configure',
+    configurePayload(
+      questionCount: questionCount,
+      timeLimitMs: timeLimitMs,
+      difficultyMultiplier: difficultyMultiplier,
+    ),
+  );
 
   @override
   Future<void> hostRematch() => _push('host_rematch', const {});

@@ -8,20 +8,35 @@ part of 'config_providers.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Server base URL. Override at build time with
-/// `--dart-define=SERVER_URL=https://example.com`.
+/// Server base URL.
+///
+/// On the web the app is normally served by the same Phoenix server that runs
+/// the API, so its own origin is the right answer and nothing needs configuring
+/// per deployment. Override with
+/// `--dart-define=SERVER_URL=https://example.com` when the app is hosted
+/// somewhere else (or for the Android build, which falls back to localhost).
 
 @ProviderFor(serverBaseUrl)
 final serverBaseUrlProvider = ServerBaseUrlProvider._();
 
-/// Server base URL. Override at build time with
-/// `--dart-define=SERVER_URL=https://example.com`.
+/// Server base URL.
+///
+/// On the web the app is normally served by the same Phoenix server that runs
+/// the API, so its own origin is the right answer and nothing needs configuring
+/// per deployment. Override with
+/// `--dart-define=SERVER_URL=https://example.com` when the app is hosted
+/// somewhere else (or for the Android build, which falls back to localhost).
 
 final class ServerBaseUrlProvider
     extends $FunctionalProvider<String, String, String>
     with $Provider<String> {
-  /// Server base URL. Override at build time with
-  /// `--dart-define=SERVER_URL=https://example.com`.
+  /// Server base URL.
+  ///
+  /// On the web the app is normally served by the same Phoenix server that runs
+  /// the API, so its own origin is the right answer and nothing needs configuring
+  /// per deployment. Override with
+  /// `--dart-define=SERVER_URL=https://example.com` when the app is hosted
+  /// somewhere else (or for the Android build, which falls back to localhost).
   ServerBaseUrlProvider._()
     : super(
         from: null,
@@ -55,7 +70,7 @@ final class ServerBaseUrlProvider
   }
 }
 
-String _$serverBaseUrlHash() => r'ba334ce848d391b04a097c08aa2e02875a729eb6';
+String _$serverBaseUrlHash() => r'2340d2fe0afca439c30433ad62d788c5c655646f';
 
 @ProviderFor(clock)
 final clockProvider = ClockProvider._();
