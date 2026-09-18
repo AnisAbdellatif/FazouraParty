@@ -46,6 +46,11 @@ void main() {
     matching: finder,
   );
 
+  Finder inStanding(String playerId, Finder finder) => find.descendant(
+    of: find.byKey(ValueKey('player-$playerId')),
+    matching: finder,
+  );
+
   testWidgets('player in scoring sees everyone\'s answers read-only', (
     tester,
   ) async {
@@ -134,7 +139,7 @@ void main() {
     );
   });
 
-  testWidgets('shows "Nobody answered" when submissions is empty', (
+  testWidgets('when nobody answered, every player is listed with 0', (
     tester,
   ) async {
     await pumpView(
@@ -142,12 +147,35 @@ void main() {
       scoringStateForSam().copyWith(
         you: const You(role: Role.player, playerId: 'p_3f9a'),
         submissions: const [],
+        players: [
+          for (final p in scoringStateForSam().players)
+            p.copyWith(hasSubmitted: false),
+        ],
+      ),
+    );
+
+    // A question everyone let pass is still a roll call of the room, not a
+    // blank panel: each player gets a row saying their score didn't move.
+    expect(find.byKey(const ValueKey('result-p_3f9a')), findsNothing);
+    expect(find.byKey(const ValueKey('no-answer-p_3f9a')), findsOneWidget);
+    expect(find.byKey(const ValueKey('no-answer-p_b2c1')), findsOneWidget);
+    expect(find.text('No answer'), findsNWidgets(3));
+    expect(find.text('0'), findsNWidgets(3));
+    expect(find.text('Nobody answered'), findsNothing);
+    expect(find.text("You didn't answer"), findsOneWidget);
+  });
+
+  testWidgets('"Nobody answered" is only for an empty room', (tester) async {
+    await pumpView(
+      tester,
+      scoringStateForSam().copyWith(
+        you: const You(role: Role.player, playerId: 'p_3f9a'),
+        submissions: const [],
+        players: const [],
       ),
     );
 
     expect(find.text('Nobody answered'), findsOneWidget);
-    expect(find.text("You didn't answer"), findsOneWidget);
-    expect(find.byKey(const ValueKey('result-p_3f9a')), findsNothing);
   });
 
   testWidgets('leaderboard phase leads with standings', (tester) async {
@@ -159,5 +187,74 @@ void main() {
     expect(find.text('Standings'), findsOneWidget);
     expect(find.text('AFTER QUESTION 3'), findsOneWidget);
     expect(find.byKey(const ValueKey('player-p_3f9a')), findsOneWidget);
+  });
+
+  group('scoring answers a different question from leaderboard', () {
+    testWidgets('scoring shows what the question changed, not the totals', (
+      tester,
+    ) async {
+      await pumpView(tester, scoringStateForSam());
+
+      // Each answer carries its own gain or loss...
+      expect(inRow('p_3f9a', find.text('−7')), findsOneWidget);
+      expect(inRow('p_b2c1', find.text('+4')), findsOneWidget);
+
+      // ...and no running totals, so the host's "Show standings" has something
+      // left to reveal.
+      expect(find.byKey(const ValueKey('player-p_3f9a')), findsNothing);
+      expect(find.text('Standings'), findsNothing);
+    });
+
+    testWidgets('a player who skipped sits alongside those who answered', (
+      tester,
+    ) async {
+      final base = scoringStateForSam();
+      await pumpView(
+        tester,
+        base.copyWith(
+          // Alex let this one go: no submission entry, has_submitted false.
+          players: [
+            for (final p in base.players)
+              p.id == 'p_b2c1' ? p.copyWith(hasSubmitted: false) : p,
+          ],
+          submissions: [
+            for (final s in base.submissions!)
+              if (s.playerId != 'p_b2c1') s,
+          ],
+        ),
+      );
+
+      expect(find.byKey(const ValueKey('result-p_3f9a')), findsOneWidget);
+      expect(find.byKey(const ValueKey('result-p_b2c1')), findsNothing);
+      expect(find.byKey(const ValueKey('no-answer-p_b2c1')), findsOneWidget);
+
+      // Zero, explicitly, so "your score didn't move" reads differently from
+      // "you weren't in the room".
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('no-answer-p_b2c1')),
+          matching: find.text('0'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('leaderboard adds the totals those changes produced', (
+      tester,
+    ) async {
+      await pumpView(
+        tester,
+        scoringStateForSam().copyWith(phase: Phase.leaderboard),
+      );
+
+      // Sam's score is -7 and his change was −7; the standing row shows both.
+      expect(inStanding('p_3f9a', find.text('-7')), findsOneWidget);
+      expect(inStanding('p_3f9a', find.text('−7')), findsOneWidget);
+      expect(inStanding('p_b2c1', find.text('4')), findsOneWidget);
+      expect(inStanding('p_b2c1', find.text('+4')), findsOneWidget);
+
+      // The answers are still available, below the standings.
+      expect(find.byKey(const Key('revealedSubmissions')), findsOneWidget);
+    });
   });
 }

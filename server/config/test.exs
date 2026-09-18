@@ -16,6 +16,11 @@ config :fazoura, uploads_dir: Path.expand("../tmp/test_uploads", __DIR__)
 config :fazoura, image_sweeper: [enabled: false]
 config :fazoura, drain_ms: 0
 
+# Off by default: counters are per-IP and every test shares 127.0.0.1, so a suite that
+# grows would start tripping the limit rather than testing what it meant to. The
+# rate-limit tests turn it on for themselves.
+config :fazoura, rate_limit_enabled: false
+
 config :fazoura, admin: [username: "admin", password: "test-admin-password"]
 
 # We don't run a server during test. If one is required,

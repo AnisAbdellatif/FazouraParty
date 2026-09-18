@@ -37,7 +37,6 @@ Future<QuizChoice?> showQuizBrowser(BuildContext context) {
   return Navigator.of(context).push<QuizChoice>(
     MaterialPageRoute(
       builder: (_) => QuizBrowserScreen(
-        onCreate: (context) => showQuizEditor(context),
         onEdit: (context, quiz) => showQuizEditor(context, existing: quiz),
       ),
     ),
@@ -79,11 +78,16 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
   bool _loading = false;
   String? _error;
   int _request = 0;
+  int _localRequest = 0;
+  final Set<String> _savedPublicIds = {};
+  final Map<String, int> _savedPublicVersions = {};
+  final Set<String> _savingPublicIds = {};
 
   @override
   void initState() {
     super.initState();
     _loadPublic(reset: true);
+    _loadLocal();
     _loadTags();
   }
 
@@ -125,20 +129,36 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
   }
 
   Future<void> _loadLocal() async {
-    final request = ++_request;
+    final request = ++_localRequest;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final quizzes = await ref.read(quizLibraryProvider).list();
-      if (!mounted || request != _request) return;
+      if (!mounted || request != _localRequest) return;
       setState(() {
         _local = quizzes;
+        _savedPublicIds
+          ..clear()
+          ..addAll(
+            quizzes
+                .where((quiz) => !quiz.isPublished)
+                .map((quiz) => quiz.quiz.id)
+                .whereType<String>(),
+          );
+        _savedPublicVersions
+          ..clear()
+          ..addEntries(
+            quizzes
+                .where((quiz) => !quiz.isPublished)
+                .where((quiz) => quiz.quiz.id != null)
+                .map((quiz) => MapEntry(quiz.quiz.id!, quiz.quiz.versionRank)),
+          );
         _loading = false;
       });
     } catch (error) {
-      if (!mounted || request != _request) return;
+      if (!mounted || request != _localRequest) return;
       setState(() {
         _loading = false;
         _error = describeError(error);
@@ -274,6 +294,39 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
     }
   }
 
+  Future<void> _saveOffline(QuizDocument quiz) async {
+    final id = quiz.hostId;
+    final savedVersion = _savedPublicVersions[id];
+    if (_savingPublicIds.contains(id) ||
+        (savedVersion != null && savedVersion >= quiz.versionRank)) {
+      return;
+    }
+    setState(() => _savingPublicIds.add(id));
+    try {
+      await ref.read(quizLibraryProvider).saveCommunityQuiz(quiz);
+      if (!mounted) return;
+      setState(() {
+        _savingPublicIds.remove(id);
+        _savedPublicIds.add(id);
+        _savedPublicVersions[id] = quiz.versionRank;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            savedVersion == null
+                ? 'Saved for offline play.'
+                : 'Updated the offline quiz.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _savingPublicIds.remove(id));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(describeError(error))));
+    }
+  }
+
   Future<void> _edit(LocalQuiz quiz) async {
     await widget.onEdit?.call(context, quiz);
     if (mounted) await _loadLocal();
@@ -295,14 +348,6 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
               onPressed: () => Navigator.of(context).maybePop(),
             ),
             const Spacer(),
-            if (widget.onCreate != null)
-              FzPill(
-                key: const Key('createQuizButton'),
-                label: 'New quiz',
-                icon: Icons.add,
-                color: FzColors.ac,
-                onPressed: _create,
-              ),
           ],
         ),
         child: Column(
@@ -405,6 +450,42 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
                     cardId: quiz.hostId,
                     onTap: () =>
                         Navigator.of(context).pop(PublicQuizChoice(quiz)),
+                    actions: [
+                      FzPill(
+                        key: ValueKey('saveOffline-${quiz.hostId}'),
+                        label:
+                            _savedPublicIds.contains(quiz.hostId) &&
+                                (_savedPublicVersions[quiz.hostId] ?? 0) <
+                                    quiz.versionRank
+                            ? 'Update offline'
+                            : _savedPublicIds.contains(quiz.hostId)
+                            ? 'Saved offline'
+                            : 'Save offline',
+                        icon:
+                            _savedPublicIds.contains(quiz.hostId) &&
+                                (_savedPublicVersions[quiz.hostId] ?? 0) <
+                                    quiz.versionRank
+                            ? Icons.sync
+                            : _savedPublicIds.contains(quiz.hostId)
+                            ? Icons.offline_pin
+                            : Icons.download_outlined,
+                        color:
+                            _savedPublicIds.contains(quiz.hostId) &&
+                                (_savedPublicVersions[quiz.hostId] ?? 0) <
+                                    quiz.versionRank
+                            ? FzColors.ac
+                            : _savedPublicIds.contains(quiz.hostId)
+                            ? FzColors.ok
+                            : FzColors.ac,
+                        onPressed:
+                            (_savedPublicIds.contains(quiz.hostId) &&
+                                    (_savedPublicVersions[quiz.hostId] ?? 0) >=
+                                        quiz.versionRank) ||
+                                _savingPublicIds.contains(quiz.hostId)
+                            ? null
+                            : () => _saveOffline(quiz),
+                      ),
+                    ],
                     tags: [
                       if (quiz.isBuiltin)
                         const FzTag('Built-in', color: FzColors.ok),
@@ -555,6 +636,7 @@ class _QuizCard extends StatelessWidget {
     final count = quiz.questionCount;
     final meta = [
       ...quiz.tags.take(3),
+      'Version ${quiz.version}',
       if (quiz.hasPhotos) 'Photos',
       if (quiz.defaultSettings.difficultyMultiplier) 'Difficulty bonus',
     ].join(' · ');

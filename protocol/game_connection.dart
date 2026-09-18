@@ -36,17 +36,29 @@ abstract interface class GameConnection {
     required int questionCount,
     required int timeLimitMs,
     required bool difficultyMultiplier,
+    List<String> difficulties = const ['easy', 'medium', 'hard'],
   });
+
+  /// Lobby only: selects or replaces the quiz for this game.
+  Future<void> hostSelectQuiz({String? quizId, Object? inlineQuiz});
 
   /// Finished only: new game in the same room (§6.3).
   Future<void> hostRematch();
+
+  /// Hands the host role to a connected player (§3.4). The room issues them a
+  /// new `host_token`; this client becomes an ordinary player.
+  Future<void> hostTransfer(String playerId);
+
+  /// Ends the room for everyone (§3.4). Without this a host who simply leaves
+  /// passes the role on instead.
+  Future<void> hostClose();
 
   Future<void> leave();
 }
 
 enum ConnectionStatus { connecting, connected, reconnecting, disconnected }
 
-enum RoomClosedReason { hostTimeout, finished, shutdown, notFound }
+enum RoomClosedReason { empty, closed, finished, shutdown, notFound }
 
 /// Placeholders — the real, freezed models live in the app.
 abstract class RoomState {}

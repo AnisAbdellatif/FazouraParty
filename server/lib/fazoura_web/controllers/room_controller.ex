@@ -6,6 +6,13 @@ defmodule FazouraWeb.RoomController do
 
   action_fallback FazouraWeb.FallbackController
 
+  def create(conn, params) when map_size(params) == 0 do
+    with {:ok, room_code, host_token} <-
+           Rooms.create(%Fazoura.Game.Pack{id: "unselected", title: "", questions: []}) do
+      created(conn, room_code, host_token)
+    end
+  end
+
   # POST /api/rooms (PROTOCOL.md §3.1, QUIZ_FORMAT.md §5.7): either a private quiz sent
   # inline as `quiz`, or a stored one by `quiz_id` (`pack_id` is the legacy name).
   def create(conn, %{"quiz" => %{} = document}) do

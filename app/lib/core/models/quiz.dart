@@ -3,6 +3,12 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'quiz.freezed.dart';
 part 'quiz.g.dart';
 
+String quizVersionFromJson(Object? value) {
+  if (value is num) return '${value.toInt()}.0';
+  if (value is String && value.isNotEmpty) return value;
+  return '1.0';
+}
+
 /// Quiz JSON document (protocol/QUIZ_FORMAT.md §2). Listing endpoints omit
 /// [questions]; they are only present for the quiz's owner.
 @freezed
@@ -11,6 +17,7 @@ abstract class QuizDocument with _$QuizDocument {
 
   const factory QuizDocument({
     @Default(1) int formatVersion,
+    @JsonKey(fromJson: quizVersionFromJson) @Default('1.0') String version,
     String? id,
     String? slug,
     required String title,
@@ -36,6 +43,14 @@ abstract class QuizDocument with _$QuizDocument {
 
   /// Id to send when hosting: the uuid, or the slug for built-ins.
   String get hostId => id ?? slug ?? '';
+
+  /// Numeric ordering for the `<major>.<minor>` content revision.
+  int get versionRank {
+    final parts = version.split('.');
+    final major = int.tryParse(parts.first) ?? 0;
+    final minor = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
+    return major * 1000000 + minor;
+  }
 
   /// Body for publishing (§5.3): photos by uploaded key only.
   QuizDocument forPublishing() =>

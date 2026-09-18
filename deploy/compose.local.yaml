@@ -1,0 +1,93 @@
+# The production stack, runnable on a developer machine.
+#
+# An *override* rather than a copy: it is applied on top of compose.yaml, so the
+# app and database services being tested are the real ones. Only what cannot work
+# locally is changed — no TLS, no registry, no .env.
+#
+#   cd deploy
+#   scripts/ci.sh app                 # the image ships app/build/web, so build it first
+#   docker compose --env-file local.env -f compose.yaml -f compose.local.yaml up --build --wait
+#   docker compose --env-file local.env -f compose.yaml -f compose.local.yaml \
+#     run --rm app bin/fazoura eval 'Fazoura.Release.setup()'
+#
+# Then the whole game is at http://localhost:4000 — API, WebSocket and client on one
+# origin, as in production.
+#
+# local.env only exists to satisfy the `${VAR:?}` guards in compose.yaml, which are
+# there so a *production* deploy fails loudly rather than starting half-configured.
+# Compose interpolates those before this override is merged, so they must be set
+# even though everything they feed is replaced below.
+#
+# Differences from production, each of which is the reason this file exists:
+#
+#   * The image is **built from this checkout** instead of pulled from ghcr.io, so
+#     what runs is the code in your working tree.
+#   * **Caddy is not started.** It exists to terminate TLS for a public domain and
+#     would try to get a real certificate for it. The app's port is published
+#     directly instead, which is why this is plain http and PHX_HOST is localhost.
+#   * Secrets are **throwaway literals** rather than deploy/.env, which belongs to
+#     the VPS and is never in this repo.
+#   * Volumes are **not** the production ones: a local pgdata/uploads pair, so
+#     `docker compose down -v` here can never touch anything that matters.
+
+name: fazoura-local
+
+services:
+  db:
+    environment:
+      POSTGRES_PASSWORD: local-development-only
+    volumes:
+      # Named separately from production's `pgdata`, so tearing this down is safe.
+      - !reset []
+      - local_pgdata:/var/lib/postgresql
+    # Handy for `psql`; harmless because the password above guards nothing real.
+    ports:
+      - "127.0.0.1:5433:5432"
+
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        FORCE_SSL: "false"
+    image: fazoura:local
+    # compose.yaml reads deploy/.env, which only exists on the VPS.
+    env_file: !reset []
+    environment:
+      DATABASE_URL: postgres://fazoura:local-development-only@db:5432/fazoura
+      SECRET_KEY_BASE: local-development-only-secret-key-base-at-least-64-bytes-long-xxxxxx
+      # Absolute URLs (photo links) are built from this, so it must match how the
+      # browser reaches the app. It must stay `localhost`: prod.exs turns on
+      # force_ssl with `localhost` and `127.0.0.1` excluded, so any other value
+      # here would redirect every plain-http request to https, which nothing
+      # terminates without Caddy.
+      #
+      # Photo URLs are still written as https://localhost/... — absolute URLs come
+      # from the endpoint's :url config, which production fixes to https. Fetch
+      # them from http://localhost:4000 instead; everything else behaves normally.
+      PHX_HOST: localhost
+      # The dashboard is worth having locally; production sets real credentials.
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: admin
+      # Rate limiting counts per client IP. There is no proxy here, so the socket
+      # address is the honest answer and X-Forwarded-For must not be trusted.
+      TRUST_PROXY: "false"
+      # `flutter run -d chrome` serves the client from a random localhost port, so
+      # its requests are cross-origin and the browser would drop the responses
+      # without this. Production needs no such allowance: the app is served from
+      # the same origin as the API. `:all` is safe *here* because the stack is
+      # loopback-only, and is exactly what config/dev.exs already does.
+      CORS_ORIGINS: "*"
+    ports:
+      - "4000:4000"
+    volumes:
+      - !reset []
+      - local_uploads:/data/uploads
+
+  # Caddy would try to obtain a certificate for a domain that does not exist here.
+  caddy:
+    profiles: ["never"]
+
+volumes:
+  local_pgdata:
+  local_uploads:

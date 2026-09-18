@@ -64,7 +64,7 @@ defmodule FazouraWeb.Admin.QuizzesLive do
     end
   end
 
-  # "title can't be blank · questions must be a list of 1 to 100 questions"
+  # "title can't be blank · questions must be a list of 1 to 1024 questions"
   defp errors(changeset) do
     changeset
     |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
@@ -124,7 +124,7 @@ defmodule FazouraWeb.Admin.QuizzesLive do
                 class="danger"
                 phx-click="delete"
                 phx-value-id={quiz.id}
-                data-confirm={~s(Delete "#{quiz.title}" for everyone? This can't be undone.)}
+                phx-confirm={~s(Delete "#{quiz.title}" for everyone? This can't be undone.)}
               >
                 Delete
               </button>

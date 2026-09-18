@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
-  test('createRoom posts quiz_id and parses the 201 reply', () async {
+  test('createRoom creates an empty room before quiz selection', () async {
     late http.Request captured;
     final api = RoomApi(
       baseUrl: 'http://localhost:4000',
@@ -24,7 +24,7 @@ void main() {
 
     expect(captured.method, 'POST');
     expect(captured.url.toString(), 'http://localhost:4000/api/rooms');
-    expect(jsonDecode(captured.body), {'quiz_id': 'general-knowledge'});
+    expect(jsonDecode(captured.body), isEmpty);
     expect(created, const CreatedRoom(roomCode: 'K7QX2M', hostToken: 'signed'));
   });
 

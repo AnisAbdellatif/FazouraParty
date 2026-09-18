@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/lan/lan_host.dart' show defaultLanPort;
 import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
+import '../../core/providers/lan_providers.dart';
 import '../../core/providers/player_tokens.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/theme/fz_theme.dart';
@@ -34,6 +36,29 @@ String? validateDisplayName(String? input) {
   if (name.characters.length > 20) return 'Use at most 20 characters';
   return null;
 }
+
+/// Default port a LAN host listens on, so a guest types an address, not a URL.
+const _lanPort = defaultLanPort;
+
+/// Turns what a guest types for a LAN host into a base URL, or null if it
+/// cannot be one. Accepts `192.168.1.20`, `192.168.1.20:4040` and a full
+/// `http://192.168.1.20:4040`, because all three are things people will type.
+String? lanBaseUrl(String? input) {
+  final text = (input ?? '').trim();
+  if (text.isEmpty) return null;
+
+  final withScheme = text.contains('://') ? text : 'http://$text';
+  final uri = Uri.tryParse(withScheme);
+  if (uri == null || uri.host.isEmpty) return null;
+  // Only plain http: a LAN host has no certificate, and wss:// to a bare IP
+  // cannot work (assessment §4.2).
+  if (uri.scheme != 'http') return null;
+
+  return 'http://${uri.host}:${uri.hasPort ? uri.port : _lanPort}';
+}
+
+String? validateLanAddress(String? input) =>
+    lanBaseUrl(input) == null ? "That doesn't look like a host address" : null;
 
 /// Keeps only letters and digits, upper-cased, at most [roomCodeLength].
 /// Pasting " k7qx-2m " yields "K7QX2M".
@@ -66,8 +91,10 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
   final _formKey = GlobalKey<FormState>();
   final _codeController = TextEditingController();
   final _nameController = TextEditingController();
+  final _lanController = TextEditingController();
   final _codeFocus = FocusNode();
   bool _joining = false;
+  bool _overLan = false;
   String? _error;
 
   @override
@@ -75,6 +102,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
     super.initState();
     _codeController.addListener(_onChanged);
     _nameController.addListener(_onChanged);
+    _lanController.addListener(_onChanged);
   }
 
   void _onChanged() => setState(() {});
@@ -83,13 +111,15 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
   void dispose() {
     _codeController.dispose();
     _nameController.dispose();
+    _lanController.dispose();
     _codeFocus.dispose();
     super.dispose();
   }
 
   bool get _ready =>
       validateRoomCode(_codeController.text) == null &&
-      _nameController.text.trim().isNotEmpty;
+      _nameController.text.trim().isNotEmpty &&
+      (!_overLan || lanBaseUrl(_lanController.text) != null);
 
   Future<void> _join() async {
     if (_joining || !_ready) return;
@@ -102,6 +132,14 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
       _joining = true;
       _error = null;
     });
+    // Point the session at the right host *before* the connection is built:
+    // gameConnectionProvider reads the target when it constructs.
+    final target = ref.read(currentGameTargetProvider.notifier);
+    if (_overLan) {
+      target.useLan(lanBaseUrl(_lanController.text)!);
+    } else {
+      target.useCloud();
+    }
     ref.invalidate(gameConnectionProvider);
     try {
       final result = await ref
@@ -186,6 +224,39 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
                 onFieldSubmitted: (_) => _join(),
                 validator: validateDisplayName,
               ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                key: const Key('joinOverLanSwitch'),
+                contentPadding: EdgeInsets.zero,
+                title: Text('Host is on this Wi-Fi', style: fz.h(16)),
+                subtitle: Text(
+                  'For a party with no internet.',
+                  style: fz.m(11.5, color: FzColors.dim),
+                ),
+                value: _overLan,
+                onChanged: _joining
+                    ? null
+                    : (value) => setState(() => _overLan = value),
+              ),
+              if (_overLan) ...[
+                const SizedBox(height: 10),
+                TextFormField(
+                  key: const Key('lanAddressField'),
+                  controller: _lanController,
+                  enabled: !_joining,
+                  style: fz.h(18, weight: FontWeight.w700),
+                  keyboardType: TextInputType.url,
+                  autocorrect: false,
+                  decoration: InputDecoration(
+                    hintText: '192.168.1.20',
+                    helperText: 'The address on the host\u2019s screen',
+                    helperStyle: fz.m(11, color: FzColors.dim),
+                  ),
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _join(),
+                  validator: _overLan ? validateLanAddress : null,
+                ),
+              ],
               if (_error != null) ...[
                 const SizedBox(height: 16),
                 Text(

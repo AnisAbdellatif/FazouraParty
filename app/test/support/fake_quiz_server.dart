@@ -147,6 +147,19 @@ class FakeQuizServer {
       });
     }
 
+    final downloadId = RegExp(r'^/api/quizzes/(.+)/download$')
+        .firstMatch(path)
+        ?.group(1);
+    if (request.method == 'GET' && downloadId != null) {
+      final index = quizzes.indexWhere((q) => q.id == downloadId);
+      if (index < 0) return _json({'code': 'quiz_not_found'}, 404);
+      return _json(quizzes[index].toJson());
+    }
+
+    if (request.method == 'GET' && path.startsWith('/uploads/')) {
+      return http.Response.bytes([0xFF, 0xD8, 0xFF, 0xE0], 200);
+    }
+
     if (request.method != 'GET' && failWrites) {
       return _json({'code': 'boom', 'message': 'Server is down'}, 503);
     }

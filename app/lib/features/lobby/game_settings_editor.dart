@@ -32,6 +32,7 @@ class _GameSettingsEditorState extends ConsumerState<GameSettingsEditor> {
   late int _count = widget.settings.questionCount;
   late int _timeMs = widget.settings.timeLimitMs;
   late bool _bonus = widget.settings.difficultyMultiplier;
+  late List<String> _difficulties = [...widget.settings.difficulties];
   bool _dragging = false;
 
   @override
@@ -46,16 +47,27 @@ class _GameSettingsEditorState extends ConsumerState<GameSettingsEditor> {
     _count = widget.settings.questionCount;
     _timeMs = widget.settings.timeLimitMs;
     _bonus = widget.settings.difficultyMultiplier;
+    _difficulties = [...widget.settings.difficulties];
   }
 
-  Future<void> _send({int? count, int? timeMs, bool? bonus}) async {
-    final nextCount = count ?? _count;
+  Future<void> _send({
+    int? count,
+    int? timeMs,
+    bool? bonus,
+    List<String>? difficulties,
+  }) async {
+    final nextDifficulties = difficulties ?? _difficulties;
+    final nextMax = nextDifficulties == _difficulties
+        ? widget.settings.maxQuestionCount
+        : widget.settings.maxQuestionCount;
+    final nextCount = (count ?? _count).clamp(1, nextMax);
     final nextTime = timeMs ?? _timeMs;
     final nextBonus = bonus ?? _bonus;
     setState(() {
       _count = nextCount;
       _timeMs = nextTime;
       _bonus = nextBonus;
+      _difficulties = [...nextDifficulties];
     });
     final messenger = ScaffoldMessenger.of(context);
     try {
@@ -65,6 +77,7 @@ class _GameSettingsEditorState extends ConsumerState<GameSettingsEditor> {
             questionCount: nextCount,
             timeLimitMs: nextTime,
             difficultyMultiplier: nextBonus,
+            difficulties: nextDifficulties,
           );
     } catch (error) {
       messenger.showSnackBar(SnackBar(content: Text(describeError(error))));
@@ -159,6 +172,34 @@ class _GameSettingsEditorState extends ConsumerState<GameSettingsEditor> {
             ],
           ),
           const SizedBox(height: 14),
+          if (widget.settings.availableDifficulties.length > 1) ...[
+            Text('Question difficulties', style: fz.h(15)),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+              children: [
+                for (final difficulty in widget.settings.availableDifficulties)
+                  ChoiceChip(
+                    label: Text(
+                      difficulty[0].toUpperCase() + difficulty.substring(1),
+                    ),
+                    selected: _difficulties.contains(difficulty),
+                    onSelected: (selected) {
+                      if (!selected && _difficulties.length == 1) return;
+                      final next = [..._difficulties];
+                      if (selected) {
+                        next.add(difficulty);
+                      } else {
+                        next.remove(difficulty);
+                      }
+                      _send(difficulties: next);
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+          ],
           const Divider(height: 1),
           const SizedBox(height: 12),
           // A plain row rather than SwitchListTile: list tiles inside the

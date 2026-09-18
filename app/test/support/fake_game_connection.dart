@@ -22,6 +22,8 @@ class FakeGameConnection implements GameConnection {
   final List<({String answer, int wager})> submissions = [];
   final List<({String playerId, bool correct})> overrides = [];
   int nextCalls = 0;
+  final List<String> transfers = [];
+  int closeCalls = 0;
   int pauseCalls = 0;
   int resumeCalls = 0;
   int leaveCalls = 0;
@@ -105,6 +107,7 @@ class FakeGameConnection implements GameConnection {
 
   final List<({int questionCount, int timeLimitMs, bool difficultyMultiplier})>
   configures = [];
+  final List<({String? quizId, QuizDocument? inlineQuiz})> quizSelections = [];
   int rematchCalls = 0;
 
   @override
@@ -112,6 +115,7 @@ class FakeGameConnection implements GameConnection {
     required int questionCount,
     required int timeLimitMs,
     required bool difficultyMultiplier,
+    List<String> difficulties = const ['easy', 'medium', 'hard'],
   }) async {
     configures.add((
       questionCount: questionCount,
@@ -122,7 +126,28 @@ class FakeGameConnection implements GameConnection {
   }
 
   @override
+  Future<void> hostSelectQuiz({
+    String? quizId,
+    QuizDocument? inlineQuiz,
+  }) async {
+    quizSelections.add((quizId: quizId, inlineQuiz: inlineQuiz));
+    if (intentError != null) throw intentError!;
+  }
+
+  @override
   Future<void> hostRematch() async => rematchCalls++;
+
+  @override
+  Future<void> hostTransfer(String playerId) async {
+    if (intentError != null) throw intentError!;
+    transfers.add(playerId);
+  }
+
+  @override
+  Future<void> hostClose() async {
+    if (intentError != null) throw intentError!;
+    closeCalls += 1;
+  }
 
   @override
   Future<void> leave() async => leaveCalls++;

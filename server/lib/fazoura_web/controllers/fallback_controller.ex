@@ -36,6 +36,33 @@ defmodule FazouraWeb.FallbackController do
     do:
       error(conn, :request_entity_too_large, "image_too_large", "Images must be 2 MB or smaller.")
 
+  def call(conn, {:error, :quiz_too_large}),
+    do:
+      error(
+        conn,
+        :request_entity_too_large,
+        "quiz_too_large",
+        "That quiz's photos are too large to host: #{div(Fazoura.Quizzes.max_inline_bytes(), 1024 * 1024)} MB in total at most."
+      )
+
+  def call(conn, {:error, :too_many_rooms}),
+    do:
+      error(
+        conn,
+        :service_unavailable,
+        "too_many_rooms",
+        "Too many games are running right now. Try again in a few minutes."
+      )
+
+  def call(conn, {:error, :rate_limited}),
+    do:
+      error(
+        conn,
+        :too_many_requests,
+        "rate_limited",
+        "Too many requests from this device. Wait a moment and try again."
+      )
+
   def call(conn, {:error, :unsupported_image}),
     do:
       error(conn, :unsupported_media_type, "unsupported_image", "Use a JPEG, PNG or WebP image.")

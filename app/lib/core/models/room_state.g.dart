@@ -75,6 +75,16 @@ _GameSettings _$GameSettingsFromJson(Map<String, dynamic> json) =>
       timeLimitMs: (json['time_limit_ms'] as num).toInt(),
       maxQuestionCount: (json['max_question_count'] as num).toInt(),
       difficultyMultiplier: json['difficulty_multiplier'] as bool? ?? false,
+      difficulties:
+          (json['difficulties'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const <String>['easy', 'medium', 'hard'],
+      availableDifficulties:
+          (json['available_difficulties'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const <String>['easy', 'medium', 'hard'],
       minTimeLimitMs: (json['min_time_limit_ms'] as num?)?.toInt() ?? 10000,
       maxTimeLimitMs: (json['max_time_limit_ms'] as num?)?.toInt() ?? 120000,
     );
@@ -85,6 +95,8 @@ Map<String, dynamic> _$GameSettingsToJson(_GameSettings instance) =>
       'time_limit_ms': instance.timeLimitMs,
       'max_question_count': instance.maxQuestionCount,
       'difficulty_multiplier': instance.difficultyMultiplier,
+      'difficulties': instance.difficulties,
+      'available_difficulties': instance.availableDifficulties,
       'min_time_limit_ms': instance.minTimeLimitMs,
       'max_time_limit_ms': instance.maxTimeLimitMs,
     };
@@ -139,6 +151,7 @@ Map<String, dynamic> _$PlayerSummaryToJson(_PlayerSummary instance) =>
 _You _$YouFromJson(Map<String, dynamic> json) => _You(
   role: $enumDecode(_$RoleEnumMap, json['role']),
   playerId: json['player_id'] as String?,
+  hostToken: json['host_token'] as String?,
   submission: json['submission'] == null
       ? null
       : OwnSubmission.fromJson(json['submission'] as Map<String, dynamic>),
@@ -147,6 +160,7 @@ _You _$YouFromJson(Map<String, dynamic> json) => _You(
 Map<String, dynamic> _$YouToJson(_You instance) => <String, dynamic>{
   'role': _$RoleEnumMap[instance.role]!,
   'player_id': instance.playerId,
+  'host_token': instance.hostToken,
   'submission': instance.submission?.toJson(),
 };
 

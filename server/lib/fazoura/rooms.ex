@@ -11,16 +11,40 @@ defmodule Fazoura.Rooms do
   @code_alphabet ~c"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
   @code_length 6
 
+  # Rooms are free to create and live in memory for up to ten minutes without anyone
+  # joining, so an unbounded count is a way to exhaust the node's memory. This is far
+  # above any real party's needs and only bites a flood.
+  @max_rooms 500
+
   @doc """
   Starts a room for `pack`. Options: `:now` (0-arity fun returning epoch ms, for tests),
   `:mode` (`:cloud` | `:lan`), `:image_keys` (private-quiz photos in
   `Fazoura.Rooms.Images`, freed when the room exits).
   """
-  @spec create(Pack.t(), keyword()) :: {:ok, String.t(), String.t()} | {:error, :empty_pack}
+  @spec create(Pack.t(), keyword()) ::
+          {:ok, String.t(), String.t()} | {:error, :empty_pack | :too_many_rooms}
   def create(pack, opts \\ [])
-  def create(%Pack{questions: []}, _opts), do: {:error, :empty_pack}
+
+  def create(%Pack{questions: []} = pack, _opts) when pack.id != "unselected",
+    do: {:error, :empty_pack}
 
   def create(%Pack{} = pack, opts) do
+    if count() >= max_rooms() do
+      {:error, :too_many_rooms}
+    else
+      start_room(pack, opts)
+    end
+  end
+
+  @doc "How many rooms are live on this node."
+  @spec count() :: non_neg_integer()
+  def count, do: Registry.count(Fazoura.Rooms.Registry)
+
+  @doc "The most rooms this node will run at once."
+  @spec max_rooms() :: pos_integer()
+  def max_rooms, do: Application.get_env(:fazoura, :max_rooms, @max_rooms)
+
+  defp start_room(%Pack{} = pack, opts) do
     {image_keys, server_opts} = Keyword.pop(opts, :image_keys, [])
     code = generate_code()
     spec = {RoomServer, Keyword.merge(server_opts, code: code, pack: pack)}
@@ -31,8 +55,9 @@ defmodule Fazoura.Rooms do
         Metrics.increment(:rooms_created)
         {:ok, code, RoomServer.host_token(code)}
 
+      # A code collision, not a capacity problem: retry without re-checking the cap.
       {:error, {:already_started, _pid}} ->
-        create(pack, opts)
+        start_room(pack, opts)
     end
   end
 

@@ -13,10 +13,12 @@ defmodule Fazoura.Quizzes.Quiz do
   # Stored quizzes are public; inline (private) quizzes are never stored.
   @visibilities ~w(public private)
   @max_tags 10
+  @max_questions 1024
 
   schema "quizzes" do
     field :slug, :string
     field :format_version, :integer, default: @format_version
+    field :version, :string, default: "1.0"
     field :title, :string
     field :description, :string
     field :language, :string, default: "en"
@@ -39,6 +41,7 @@ defmodule Fazoura.Quizzes.Quiz do
   def format_version, do: @format_version
   def visibilities, do: @visibilities
   def max_tags, do: @max_tags
+  def max_questions, do: @max_questions
 
   @doc """
   `params` use the JSON document shape. Replaces all tags and questions, so the quiz must
@@ -51,6 +54,7 @@ defmodule Fazoura.Quizzes.Quiz do
     quiz
     |> cast(params, [
       :format_version,
+      :version,
       :title,
       :description,
       :language,
@@ -60,6 +64,11 @@ defmodule Fazoura.Quizzes.Quiz do
     |> update_change(:title, &String.trim/1)
     |> validate_required([:format_version, :title])
     |> validate_number(:format_version, equal_to: @format_version)
+    |> validate_change(:version, fn :version, version ->
+      if Regex.match?(~r/^\d+\.\d+$/, version),
+        do: [],
+        else: [version: "must use the <major>.<minor> format"]
+    end)
     |> validate_length(:title, min: 1, max: 80)
     |> validate_length(:description, max: 280)
     |> validate_length(:language, min: 2, max: 10)
@@ -115,9 +124,14 @@ defmodule Fazoura.Quizzes.Quiz do
     changeset
     |> put_assoc(:questions, question_changesets)
     |> then(fn changeset ->
-      if length(questions) in 1..100,
+      if length(questions) in 1..@max_questions,
         do: changeset,
-        else: add_error(changeset, :questions, "must be a list of 1 to 100 questions")
+        else:
+          add_error(
+            changeset,
+            :questions,
+            "must be a list of 1 to #{@max_questions} questions"
+          )
     end)
     |> put_change(:question_count, length(questions))
     |> put_change(
@@ -127,7 +141,7 @@ defmodule Fazoura.Quizzes.Quiz do
   end
 
   defp put_questions(changeset, _questions),
-    do: add_error(changeset, :questions, "must be a list of 1 to 100 questions")
+    do: add_error(changeset, :questions, "must be a list of 1 to #{@max_questions} questions")
 
   # The document nests suggested room settings under `default_settings`.
   defp normalize(%{} = params) do

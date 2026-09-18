@@ -3,54 +3,235 @@
   "pack": {
     "title": "Fixture Pack",
     "questions": [
-      {"id": "q1", "type": "text", "prompt": "2 + 2?", "accepted_answers": ["4", "four"], "time_limit_ms": 20000},
-      {"id": "q2", "type": "text", "prompt": "Colour of the sky?", "accepted_answers": ["blue"], "time_limit_ms": 20000}
+      {
+        "id": "q1",
+        "type": "text",
+        "prompt": "2 + 2?",
+        "accepted_answers": [
+          "4",
+          "four"
+        ],
+        "time_limit_ms": 20000
+      },
+      {
+        "id": "q2",
+        "type": "text",
+        "prompt": "Colour of the sky?",
+        "accepted_answers": [
+          "blue"
+        ],
+        "time_limit_ms": 20000
+      }
     ]
   },
   "steps": [
-    {"actor": "host", "join": {"protocol_version": 4, "host_token": "$host_token"}, "expect": {"status": "ok"}},
-    {"actor": "sam", "join": {"protocol_version": 4, "display_name": "Sam"}, "expect": {"status": "ok"}},
-
-    {"actor": "old", "join": {"protocol_version": 3, "display_name": "Old"},
-     "expect": {"status": "error", "response": {"code": "unsupported_protocol_version"}}},
-
-    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
-    {"actor": "sam", "push": "submit", "payload": {"answer": "Four", "wager": 10}, "expect": {"status": "ok"}},
-
-    {"actor": "sam", "disconnect": true},
-    {"actor": "host", "expect_state": {"players": [{"name": "Sam", "connected": false, "has_submitted": true}]}},
-
-    {"actor": "host", "push": "host_pause", "payload": {}, "expect": {"status": "ok"}},
-    {"actor": "host", "expect_state": {"phase": "question", "deadline": null, "paused_remaining_ms": 20000}},
-    {"actor": "host", "push": "host_pause", "payload": {},
-     "expect": {"status": "error", "response": {"code": "paused"}}},
-
-    {"advance_clock_ms": 60000},
-    {"actor": "host", "expect_state": {"phase": "question"}},
-
-    {"actor": "sam", "join": {"protocol_version": 4, "player_token": "$player_token:sam"},
-     "expect": {"status": "ok", "response": {"role": "player", "player_id": "$player_id:sam"}}},
-    {"actor": "sam", "expect_state": {
-      "phase": "question",
-      "paused_remaining_ms": 20000,
-      "you": {"player_id": "$player_id:sam", "submission": {"answer": "Four", "wager": 10}}
-    }},
-
-    {"actor": "host", "push": "host_resume", "payload": {}, "expect": {"status": "ok"}},
-    {"advance_clock_ms": 20000},
-    {"actor": "sam", "expect_state": {
-      "phase": "scoring",
-      "players": [{"name": "Sam", "score": 10, "connected": true}]
-    }},
-
-    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
-    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
-    {"actor": "sam", "expect_state": {"phase": "question", "question_index": 1, "you": {"submission": null}}},
-
-    {"actor": "late", "join": {"protocol_version": 4, "display_name": "Late"}, "expect": {"status": "ok"}},
-    {"actor": "late", "expect_state": {
-      "phase": "question",
-      "players": [{"name": "Sam", "score": 10}, {"name": "Late", "score": 0}]
-    }}
+    {
+      "actor": "host",
+      "join": {
+        "protocol_version": 7,
+        "host_token": "$host_token"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "join": {
+        "protocol_version": 7,
+        "display_name": "Sam"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "old",
+      "join": {
+        "protocol_version": 3,
+        "display_name": "Old"
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "unsupported_protocol_version"
+        }
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "push": "submit",
+      "payload": {
+        "answer": "Four",
+        "wager": 10
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "disconnect": true
+    },
+    {
+      "actor": "host",
+      "expect_state": {
+        "players": [
+          {
+            "name": "Sam",
+            "connected": false,
+            "has_submitted": true
+          }
+        ]
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_pause",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "expect_state": {
+        "phase": "question",
+        "deadline": null,
+        "paused_remaining_ms": 20000
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_pause",
+      "payload": {},
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "paused"
+        }
+      }
+    },
+    {
+      "advance_clock_ms": 60000
+    },
+    {
+      "actor": "host",
+      "expect_state": {
+        "phase": "question"
+      }
+    },
+    {
+      "actor": "sam",
+      "join": {
+        "protocol_version": 7,
+        "player_token": "$player_token:sam"
+      },
+      "expect": {
+        "status": "ok",
+        "response": {
+          "role": "player",
+          "player_id": "$player_id:sam"
+        }
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "question",
+        "paused_remaining_ms": 20000,
+        "you": {
+          "player_id": "$player_id:sam",
+          "submission": {
+            "answer": "Four",
+            "wager": 10
+          }
+        }
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_resume",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "advance_clock_ms": 20000
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "scoring",
+        "players": [
+          {
+            "name": "Sam",
+            "score": 10,
+            "connected": true
+          }
+        ]
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "question",
+        "question_index": 1,
+        "you": {
+          "submission": null
+        }
+      }
+    },
+    {
+      "actor": "late",
+      "join": {
+        "protocol_version": 7,
+        "display_name": "Late"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "late",
+      "expect_state": {
+        "phase": "question",
+        "players": [
+          {
+            "name": "Sam",
+            "score": 10
+          },
+          {
+            "name": "Late",
+            "score": 0
+          }
+        ]
+      }
+    }
   ]
 }

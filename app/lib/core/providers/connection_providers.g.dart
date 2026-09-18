@@ -53,6 +53,9 @@ String _$roomApiHash() => r'109d81f03bbf5e3bf01da99bc2c8c12121f85da8';
 /// The connection for the current room session. This is the only place that
 /// names a concrete transport; everything else depends on [GameConnection].
 ///
+/// Which one it builds follows [currentGameTargetProvider], so a LAN game and a
+/// cloud game are the same code path above this line (PROTOCOL.md §10).
+///
 /// Invalidate it to start a fresh session (disposal leaves the room).
 
 @ProviderFor(gameConnection)
@@ -61,6 +64,9 @@ final gameConnectionProvider = GameConnectionProvider._();
 /// The connection for the current room session. This is the only place that
 /// names a concrete transport; everything else depends on [GameConnection].
 ///
+/// Which one it builds follows [currentGameTargetProvider], so a LAN game and a
+/// cloud game are the same code path above this line (PROTOCOL.md §10).
+///
 /// Invalidate it to start a fresh session (disposal leaves the room).
 
 final class GameConnectionProvider
@@ -68,6 +74,9 @@ final class GameConnectionProvider
     with $Provider<GameConnection> {
   /// The connection for the current room session. This is the only place that
   /// names a concrete transport; everything else depends on [GameConnection].
+  ///
+  /// Which one it builds follows [currentGameTargetProvider], so a LAN game and a
+  /// cloud game are the same code path above this line (PROTOCOL.md §10).
   ///
   /// Invalidate it to start a fresh session (disposal leaves the room).
   GameConnectionProvider._()
@@ -103,7 +112,7 @@ final class GameConnectionProvider
   }
 }
 
-String _$gameConnectionHash() => r'143ac3cd498d7d33fe07d35356d3497e80eb188e';
+String _$gameConnectionHash() => r'74d5ace15f98dded9bf11412b173dafe3eab99f8';
 
 @ProviderFor(roomState)
 final roomStateProvider = RoomStateProvider._();

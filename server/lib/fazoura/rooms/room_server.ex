@@ -11,9 +11,13 @@ defmodule Fazoura.Rooms.RoomServer do
 
   use GenServer, restart: :temporary
 
-  alias Fazoura.Game
+  alias Fazoura.{Game, Quizzes}
+  alias Fazoura.Rooms.Images
 
-  @host_timeout_ms :timer.minutes(10)
+  # A room with nobody in it is over; the delay only exists so a lone host who
+  # blips doesn't lose it, and so a new room has time for its first join
+  # (PROTOCOL.md §3.4).
+  @empty_ttl_ms :timer.seconds(30)
   @finished_ttl_ms :timer.minutes(10)
   @token_max_age_s 86_400
 
@@ -22,8 +26,16 @@ defmodule Fazoura.Rooms.RoomServer do
     GenServer.start_link(__MODULE__, opts, name: {:via, Registry, {Fazoura.Rooms.Registry, code}})
   end
 
-  @spec host_token(String.t()) :: String.t()
-  def host_token(code), do: Phoenix.Token.sign(FazouraWeb.Endpoint, "host", code)
+  @doc """
+  The host token for generation `generation` of `code`.
+
+  The generation is what makes a transfer stick: it increments on every change of
+  host, so a token minted for an earlier holder no longer verifies and a demoted
+  host cannot rejoin as host (§3.3).
+  """
+  @spec host_token(String.t(), non_neg_integer()) :: String.t()
+  def host_token(code, generation \\ 0),
+    do: Phoenix.Token.sign(FazouraWeb.Endpoint, "host", {code, generation})
 
   ## Callbacks
 
@@ -31,13 +43,29 @@ defmodule Fazoura.Rooms.RoomServer do
   def init(opts) do
     now = Keyword.get(opts, :now, fn -> System.os_time(:millisecond) end)
     code = Keyword.fetch!(opts, :code)
-    game = Game.new(code, Keyword.fetch!(opts, :pack), mode: Keyword.get(opts, :mode, :cloud))
+
+    game =
+      Game.new(code, Keyword.fetch!(opts, :pack),
+        mode: Keyword.get(opts, :mode, :cloud),
+        shuffle_questions?: Keyword.get(opts, :shuffle_questions?, true)
+      )
 
     state = %{
       game: game,
       now: now,
       conns: %{},
-      host_absent_since: now.(),
+      # Which host_token is currently valid; bumped on every change of host.
+      generation: 0,
+      # Whether the connection that authenticated with the host token is still
+      # the holder. False once the role has moved to a player (PROTOCOL.md §3.4);
+      # `demoted_player_id` is then the player that connection still plays as,
+      # or nil if the host was never playing.
+      held_by_host_conn?: true,
+      demoted_player_id: nil,
+      # Players owed a fresh host_token in their next snapshot, by player id (or
+      # `:host` for a host who isn't playing). Cleared once delivered.
+      pending_tokens: %{},
+      empty_since: now.(),
       finished_at: nil,
       timer: nil
     }
@@ -47,7 +75,7 @@ defmodule Fazoura.Rooms.RoomServer do
 
   @impl true
   def handle_call({:join, pid, params}, _from, state) do
-    case authenticate(state.game, params) do
+    case authenticate(state.game, state.generation, params) do
       {:ok, actor, reply, game} ->
         state = state |> put_game(game) |> add_conn(pid, actor) |> broadcast() |> schedule()
         {:reply, {:ok, reply, self()}, state}
@@ -59,17 +87,8 @@ defmodule Fazoura.Rooms.RoomServer do
 
   def handle_call({:intent, pid, intent}, _from, state) do
     case Map.fetch(state.conns, pid) do
-      {:ok, actor} ->
-        now = state.now.()
-        ticked = Game.tick(state.game, now)
-
-        case Game.handle(ticked, actor, intent, now) do
-          {:ok, game} -> {:reply, :ok, update_game(state, game)}
-          {:error, _code} = error -> {:reply, error, update_game(state, ticked)}
-        end
-
-      :error ->
-        {:reply, {:error, :invalid_token}, state}
+      {:ok, actor} -> handle_intent(state, actor, intent)
+      :error -> {:reply, {:error, :invalid_token}, state}
     end
   end
 
@@ -87,7 +106,7 @@ defmodule Fazoura.Rooms.RoomServer do
       question_number: game.question_index && game.question_index + 1,
       question_count: game.settings.question_count,
       game_number: game.game_number,
-      host_present: state.host_absent_since == nil
+      host_present: Enum.any?(Map.values(state.conns), &(&1 == :host))
     }
 
     {:reply, summary, state}
@@ -119,11 +138,99 @@ defmodule Fazoura.Rooms.RoomServer do
     end
   end
 
+  # The host connection that handed the role away keeps its socket, its player id
+  # and its score, but loses its powers — so it acts as that player from now on,
+  # and host intents get `not_host` like anyone else's (PROTOCOL.md §3.4).
+  defp handle_intent(%{held_by_host_conn?: false} = state, :host, intent) do
+    case state.demoted_player_id do
+      nil -> {:reply, {:error, :not_host}, state}
+      id -> handle_intent(state, {:player, id}, intent)
+    end
+  end
+
+  defp handle_intent(state, :host, {:select_quiz, payload}),
+    do: select_quiz_intent(state, payload)
+
+  defp handle_intent(state, {:player, id}, {:select_quiz, payload})
+       when id == state.game.host_player_id,
+       do: select_quiz_intent(state, payload)
+
+  # Ending the room is the shell's business, not the game's: there is no state
+  # to advance, only sockets to tell (PROTOCOL.md §3.4).
+  defp handle_intent(state, :host, :close),
+    do: close(state, :closed, {:reply, :ok})
+
+  defp handle_intent(state, {:player, _id}, :close),
+    do: {:reply, {:error, :not_host}, state}
+
+  # Transfer needs both halves: the game moves the role, the shell mints the new
+  # token. It also needs the connection list, which the game does not have.
+  defp handle_intent(state, :host, {:transfer, payload} = intent) do
+    with {:ok, id} <- fetch_player_id(payload),
+         :ok <- require_connected(state, id),
+         # Validates the move; grant_host is what actually applies it, so that it
+         # can see who the outgoing host was before the state changes.
+         {:ok, _game} <- Game.handle(state.game, :host, intent, state.now.()) do
+      state = state |> grant_host(id) |> broadcast() |> schedule()
+      {:reply, :ok, state}
+    else
+      {:error, _code} = error -> {:reply, error, state}
+    end
+  end
+
+  defp handle_intent(state, actor, intent) do
+    now = state.now.()
+    ticked = Game.tick(state.game, now)
+
+    case Game.handle(ticked, actor, intent, now) do
+      {:ok, game} -> {:reply, :ok, update_game(state, game)}
+      {:error, _code} = error -> {:reply, error, update_game(state, ticked)}
+    end
+  end
+
+  defp select_quiz_intent(state, payload) do
+    with {:ok, pack, image_keys} <- resolve_quiz(payload),
+         {:ok, game} <- Game.handle(state.game, :host, {:select_quiz, pack}, state.now.()) do
+      :ok = Images.attach(image_keys, self())
+      {:reply, :ok, update_game(state, game)}
+    else
+      {:error, _code} = error -> {:reply, error, state}
+    end
+  end
+
+  defp resolve_quiz(%{"quiz_id" => id}) when is_binary(id) do
+    case Quizzes.fetch(id) do
+      {:ok, quiz} -> {:ok, Quizzes.to_pack(quiz), []}
+      _ -> {:error, :quiz_not_found}
+    end
+  end
+
+  defp resolve_quiz(%{"quiz" => %{} = document}) do
+    case Quizzes.inline_pack(document) do
+      {:ok, pack, image_keys} -> {:ok, pack, image_keys}
+      _ -> {:error, :invalid_quiz}
+    end
+  end
+
+  defp resolve_quiz(_payload), do: {:error, :invalid_quiz}
+
+  defp fetch_player_id(%{"player_id" => id}) when is_binary(id), do: {:ok, id}
+  defp fetch_player_id(_payload), do: {:error, :invalid_payload}
+
+  # Handing the role to someone who has left would leave the room hostless, which
+  # is the very thing promotion exists to prevent.
+  defp require_connected(state, id) do
+    if id in connected_player_ids(state), do: :ok, else: {:error, :not_connected}
+  end
+
   ## Connections
 
-  defp authenticate(game, %{"host_token" => token} = params) when is_binary(token) do
+  defp authenticate(game, generation, %{"host_token" => token} = params)
+       when is_binary(token) do
     case Phoenix.Token.verify(FazouraWeb.Endpoint, "host", token, max_age: @token_max_age_s) do
-      {:ok, code} when code == game.room_code ->
+      # Only the current generation: a token from before a transfer is as good
+      # as forged, or a demoted host could take the room back (§3.3).
+      {:ok, {code, ^generation}} when code == game.room_code ->
         with {:ok, game} <- maybe_add_host_player(game, params["display_name"]) do
           {:ok, :host, %{role: "host", player_id: game.host_player_id, player_token: nil}, game}
         end
@@ -133,7 +240,7 @@ defmodule Fazoura.Rooms.RoomServer do
     end
   end
 
-  defp authenticate(game, %{"player_token" => token}) when is_binary(token) do
+  defp authenticate(game, _generation, %{"player_token" => token}) when is_binary(token) do
     case Phoenix.Token.verify(FazouraWeb.Endpoint, "player", token, max_age: @token_max_age_s) do
       {:ok, {code, id}} when code == game.room_code ->
         if Game.player?(game, id),
@@ -145,7 +252,7 @@ defmodule Fazoura.Rooms.RoomServer do
     end
   end
 
-  defp authenticate(game, params) do
+  defp authenticate(game, _generation, params) do
     id = new_player_id()
 
     hue = Game.pick_avatar_hue(game)
@@ -168,11 +275,11 @@ defmodule Fazoura.Rooms.RoomServer do
 
   defp add_conn(state, pid, actor) do
     Process.monitor(pid)
-    state = %{state | conns: Map.put(state.conns, pid, actor)}
+    state = %{state | conns: Map.put(state.conns, pid, actor), empty_since: nil}
 
     case actor do
       :host ->
-        %{state | host_absent_since: nil, game: set_host_connected(state.game, true)}
+        %{state | game: set_host_connected(state.game, true)}
 
       {:player, id} ->
         %{state | game: Game.set_connected(state.game, id, true)}
@@ -183,19 +290,64 @@ defmodule Fazoura.Rooms.RoomServer do
     do: Game.set_connected(game, game.host_player_id, connected?)
 
   defp remove_conn(state, actor) do
+    # Another socket may still be acting as the same player, in which case
+    # nothing has really left.
     if actor in Map.values(state.conns) do
       state
     else
-      case actor do
-        :host ->
-          %{state | host_absent_since: state.now.()}
-          |> update_game(set_host_connected(state.game, false))
-          |> schedule()
-
-        {:player, id} ->
-          update_game(state, Game.set_connected(state.game, id, false))
-      end
+      state
+      |> mark_disconnected(actor)
+      |> maybe_promote(actor)
+      |> mark_empty_if_deserted()
+      |> broadcast()
+      |> schedule()
     end
+  end
+
+  defp maybe_promote(state, :host), do: promote_host(state)
+  defp maybe_promote(state, {:player, _id}), do: state
+
+  defp mark_disconnected(state, :host),
+    do: put_game(state, set_host_connected(state.game, false))
+
+  defp mark_disconnected(state, {:player, id}),
+    do: put_game(state, Game.set_connected(state.game, id, false))
+
+  # The host's connection is gone: rather than leave the room hostless until it
+  # times out, hand the role to someone who is still here (PROTOCOL.md §3.4).
+  # Random, because there is no better signal — the previous host chose not to
+  # pick one, or could not.
+  defp promote_host(state) do
+    case connected_player_ids(state) do
+      [] -> state
+      ids -> grant_host(state, Enum.random(ids))
+    end
+  end
+
+  # Moves the role to `player_id` and mints them a token. The generation bump is
+  # what retires every token issued before this point.
+  defp grant_host(state, player_id) do
+    generation = state.generation + 1
+
+    %{
+      state
+      | game: %{state.game | host_player_id: player_id},
+        generation: generation,
+        held_by_host_conn?: false,
+        demoted_player_id: state.demoted_player_id || state.game.host_player_id,
+        pending_tokens:
+          Map.put(state.pending_tokens, player_id, host_token(state.game.room_code, generation))
+    }
+  end
+
+  defp connected_player_ids(state) do
+    for {_pid, {:player, id}} <- state.conns, uniq: true, do: id
+  end
+
+  defp mark_empty_if_deserted(state) do
+    if state.conns == %{},
+      do: %{state | empty_since: state.now.()},
+      else: state
   end
 
   ## State changes
@@ -220,11 +372,34 @@ defmodule Fazoura.Rooms.RoomServer do
     now = state.now.()
 
     for {pid, actor} <- state.conns do
-      send(pid, {:room_state, Game.view(state.game, actor, now)})
+      view =
+        state.game
+        |> Game.view(recipient(state, actor), now)
+        |> put_host_token(state, actor)
+
+      send(pid, {:room_state, view})
     end
 
-    state
+    # Delivered once: the token is only news to the client that just received it.
+    %{state | pending_tokens: %{}}
   end
+
+  # A connection that authenticated as host may no longer hold the role: after a
+  # transfer it is an ordinary client, and must be told so (PROTOCOL.md §3.4).
+  # `held_by_host_conn?` is the room's record of whether the host connection is
+  # still the holder, which the game state cannot express on its own.
+  defp recipient(%{held_by_host_conn?: true}, :host), do: {:host, true}
+  defp recipient(%{demoted_player_id: nil}, :host), do: {:host, false}
+  defp recipient(%{demoted_player_id: id}, :host), do: {:player, id}
+  defp recipient(_state, {:player, _id} = actor), do: actor
+
+  # A new host_token reaches exactly one recipient — the player who now holds the
+  # role — and only in the snapshot right after they got it (PROTOCOL.md §5.1).
+  defp put_host_token(view, state, {:player, id}) do
+    put_in(view, [:you, :host_token], Map.get(state.pending_tokens, id))
+  end
+
+  defp put_host_token(view, _state, :host), do: put_in(view, [:you, :host_token], nil)
 
   ## Timers
 
@@ -233,7 +408,7 @@ defmodule Fazoura.Rooms.RoomServer do
     state = update_game(state, Game.tick(state.game, now))
 
     cond do
-      expired?(state.host_absent_since, @host_timeout_ms, now) -> {:close, :host_timeout, state}
+      expired?(state.empty_since, @empty_ttl_ms, now) -> {:close, :empty, state}
       expired?(state.finished_at, @finished_ttl_ms, now) -> {:close, :finished, state}
       true -> {:ok, schedule(state)}
     end
@@ -248,7 +423,7 @@ defmodule Fazoura.Rooms.RoomServer do
     due =
       [
         Game.deadline(state.game),
-        state.host_absent_since && state.host_absent_since + @host_timeout_ms,
+        state.empty_since && state.empty_since + @empty_ttl_ms,
         state.finished_at && state.finished_at + @finished_ttl_ms
       ]
       |> Enum.reject(&is_nil/1)

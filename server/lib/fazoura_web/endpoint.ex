@@ -1,14 +1,18 @@
 defmodule FazouraWeb.Endpoint do
   use Phoenix.Endpoint, otp_app: :fazoura
 
-  # The session will be stored in the cookie and signed,
-  # this means its contents can be read but not tampered with.
-  # Set :encryption_salt if you would also like to encrypt it.
+  # The session is signed *and* encrypted: it only ever carries the admin flag, but a
+  # signed-only cookie is readable by anyone holding it, and there is no reason to
+  # publish even that. `secure` keeps it off plaintext connections in production, where
+  # the endpoint is HTTPS-only (`force_ssl` in prod.exs).
   @session_options [
     store: :cookie,
     key: "_fazoura_key",
     signing_salt: "b7CtClpQ",
-    same_site: "Lax"
+    encryption_salt: "kRv2mQ8x",
+    same_site: "Lax",
+    secure: Application.compile_env(:fazoura, :secure_cookies, false),
+    http_only: true
   ]
 
   socket "/socket", FazouraWeb.UserSocket,
@@ -56,16 +60,29 @@ defmodule FazouraWeb.Endpoint do
     from: {:phoenix_live_view, "priv/static"},
     only: ~w(phoenix_live_view.min.js)
 
+  plug Plug.Static,
+    at: "/assets",
+    from: {:fazoura, "priv"},
+    only: ~w(admin.js)
+
   # The Flutter web app (PWA), when this server is also hosting it.
   plug FazouraWeb.Plugs.WebApp
 
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
+  # Only room creation carries a whole private quiz with base64 photos
+  # (QUIZ_FORMAT.md §5.7); everywhere else a body that large is either a mistake or an
+  # attempt to make the server buffer megabytes for free, so the general limit is small
+  # and the large one is scoped to the single route that needs it.
+  plug FazouraWeb.Plugs.BodyLimit,
+    default: 1_000_000,
+    routes: %{["api", "rooms"] => 32_000_000, ["api", "images"] => 4_000_000}
+
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
-    # Private quizzes arrive inline with base64 photos (QUIZ_FORMAT.md §5.7).
+    # The per-route limit above is what actually bounds a body; this is the ceiling.
     length: 32_000_000,
     json_decoder: Phoenix.json_library()
 

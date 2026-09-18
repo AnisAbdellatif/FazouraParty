@@ -47,6 +47,14 @@ defmodule FazouraWeb.QuizController do
     end
   end
 
+  # An explicit download is the opt-in answer leak required to play a
+  # community quiz offline. Normal browsing remains summary-only.
+  def download(conn, %{"id" => id}) do
+    with {:ok, quiz} <- Quizzes.fetch(id) do
+      json(conn, Quizzes.to_document(quiz, owner?: true))
+    end
+  end
+
   def create(conn, _params) do
     with {:ok, quiz} <- Quizzes.create(conn.body_params, owner_key(conn)) do
       conn |> put_status(:created) |> render_owned(quiz)

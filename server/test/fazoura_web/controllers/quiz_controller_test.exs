@@ -59,12 +59,14 @@ defmodule FazouraWeb.QuizControllerTest do
     %{"quizzes" => listed, "next_offset" => nil} =
       conn |> as(@other) |> get(~p"/api/quizzes") |> json_response(200)
 
-    assert Enum.map(listed, & &1["title"]) == ["General Knowledge", "Open Quiz"]
+    assert Enum.map(listed, & &1["title"]) |> MapSet.new() ==
+             MapSet.new(["General Knowledge", "Capital Cities of the World", "Open Quiz"])
+
     refute Enum.any?(listed, &Map.has_key?(&1, "questions"))
     assert Enum.all?(listed, &(&1["is_owner"] == false))
 
     %{"quizzes" => mine} = conn |> as(@owner) |> get(~p"/api/quizzes") |> json_response(200)
-    assert Enum.map(mine, & &1["is_owner"]) == [false, true]
+    assert Enum.count(mine, & &1["is_owner"]) == 1
 
     %{"quizzes" => [%{"title" => "Open Quiz"}]} =
       conn |> get(~p"/api/quizzes?q=open&limit=5") |> json_response(200)
@@ -112,6 +114,23 @@ defmodule FazouraWeb.QuizControllerTest do
 
     assert %{"code" => "quiz_not_found"} =
              conn |> get(~p"/api/quizzes/nope") |> json_response(404)
+  end
+
+  test "explicit offline download returns answers to any client", %{conn: conn} do
+    %{"id" => id} = create!(conn)
+
+    assert %{"questions" => [%{"accepted_answers" => ["Steven Spielberg", "Spielberg"]}]} =
+             conn
+             |> as(@other)
+             |> get(~p"/api/quizzes/#{id}/download")
+             |> json_response(200)
+
+    assert %{"questions" => questions} =
+             conn
+             |> get(~p"/api/quizzes/general-knowledge/download")
+             |> json_response(200)
+
+    assert length(questions) == 20
   end
 
   test "publisher updates and unpublishes", %{conn: conn} do

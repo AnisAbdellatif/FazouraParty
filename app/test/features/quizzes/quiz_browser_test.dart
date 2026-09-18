@@ -92,6 +92,26 @@ void main() {
     expect((picked! as PublicQuizChoice).quiz.id, 'mv');
   });
 
+  testWidgets('saves a public quiz for offline play', (tester) async {
+    await openBrowser(
+      tester,
+      public: [
+        quiz('mv', 'Movie Night').copyWith(
+          questions: const [
+            QuizQuestion(prompt: 'Who?', acceptedAnswers: ['A']),
+          ],
+        ),
+      ],
+    );
+
+    await tapKey(tester, const ValueKey('saveOffline-mv'));
+
+    expect(find.text('Saved offline'), findsOneWidget);
+    expect(find.textContaining('VERSION 1.0'), findsOneWidget);
+    await tapKey(tester, const Key('quizScopeMine'));
+    expect(find.text('Movie Night'), findsOneWidget);
+  });
+
   testWidgets('filters the public list by tag', (tester) async {
     await openBrowser(
       tester,

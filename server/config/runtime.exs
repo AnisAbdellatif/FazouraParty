@@ -41,7 +41,9 @@ if uploads_dir = System.get_env("UPLOADS_DIR") do
 end
 
 if config_env() == :prod do
-  # Phase 1 runs without a database; DATABASE_URL becomes required in Phase 2.
+  # The quiz library needs a database. It stays optional here only so the release can be
+  # started for a one-off `eval` without one; compose.yaml always sets it, and without it
+  # every /api/quizzes request will fail.
   if database_url = System.get_env("DATABASE_URL") do
     maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
@@ -54,8 +56,22 @@ if config_env() == :prod do
       socket_options: maybe_ipv6
   end
 
+  # A comma-separated allowlist, or `*` to allow any origin. `*` exists for a local
+  # stack where the client is served by `flutter run` on a random port; in a real
+  # deployment the app shares the API's origin and this stays empty.
+  cors = System.get_env("CORS_ORIGINS", "") |> String.trim()
+
   config :fazoura,
-    cors_origins: System.get_env("CORS_ORIGINS", "") |> String.split(",", trim: true)
+    cors_origins: if(cors == "*", do: :all, else: String.split(cors, ",", trim: true))
+
+  # In production the app only ever sees Caddy's address, so per-IP rate limiting would
+  # put every player in one bucket and let one flood lock out the whole party. Caddy sets
+  # X-Forwarded-For itself (deploy/Caddyfile), and only its last entry — the one the proxy
+  # appended — is trusted, so a client cannot spoof its way into a fresh bucket.
+  #
+  # TRUST_PROXY=false turns this off for a deployment that exposes Phoenix directly,
+  # where the header would be entirely client-written.
+  config :fazoura, trust_forwarded_for: System.get_env("TRUST_PROXY", "true") != "false"
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

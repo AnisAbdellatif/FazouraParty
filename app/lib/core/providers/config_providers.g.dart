@@ -16,7 +16,7 @@ part of 'config_providers.dart';
 /// `--dart-define=SERVER_URL=https://example.com` when the app is hosted
 /// somewhere else (or for the Android build, which falls back to localhost).
 
-@ProviderFor(serverBaseUrl)
+@ProviderFor(ServerBaseUrl)
 final serverBaseUrlProvider = ServerBaseUrlProvider._();
 
 /// Server base URL.
@@ -26,10 +26,8 @@ final serverBaseUrlProvider = ServerBaseUrlProvider._();
 /// per deployment. Override with
 /// `--dart-define=SERVER_URL=https://example.com` when the app is hosted
 /// somewhere else (or for the Android build, which falls back to localhost).
-
 final class ServerBaseUrlProvider
-    extends $FunctionalProvider<String, String, String>
-    with $Provider<String> {
+    extends $NotifierProvider<ServerBaseUrl, String> {
   /// Server base URL.
   ///
   /// On the web the app is normally served by the same Phoenix server that runs
@@ -53,13 +51,7 @@ final class ServerBaseUrlProvider
 
   @$internal
   @override
-  $ProviderElement<String> $createElement($ProviderPointer pointer) =>
-      $ProviderElement(pointer);
-
-  @override
-  String create(Ref ref) {
-    return serverBaseUrl(ref);
-  }
+  ServerBaseUrl create() => ServerBaseUrl();
 
   /// {@macro riverpod.override_with_value}
   Override overrideWithValue(String value) {
@@ -70,7 +62,33 @@ final class ServerBaseUrlProvider
   }
 }
 
-String _$serverBaseUrlHash() => r'2340d2fe0afca439c30433ad62d788c5c655646f';
+String _$serverBaseUrlHash() => r'2d6fe955c44b47dbb81b86fdfd4f410cce5b592f';
+
+/// Server base URL.
+///
+/// On the web the app is normally served by the same Phoenix server that runs
+/// the API, so its own origin is the right answer and nothing needs configuring
+/// per deployment. Override with
+/// `--dart-define=SERVER_URL=https://example.com` when the app is hosted
+/// somewhere else (or for the Android build, which falls back to localhost).
+
+abstract class _$ServerBaseUrl extends $Notifier<String> {
+  String build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<String, String>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<String, String>,
+              String,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
 
 @ProviderFor(clock)
 final clockProvider = ClockProvider._();

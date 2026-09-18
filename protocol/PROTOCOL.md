@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `4`** · Status: **FROZEN** (changes are breaking — see AGENTS.md §3)
+**Protocol version: `7`** · Status: **FROZEN** (changes are breaking — see AGENTS.md §3)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -49,7 +49,11 @@ Pushes from the host (§5) have `ref = null`.
 
 ### 3.1 Room creation
 
-**Cloud:** `POST /api/rooms` with body `{"quiz_id": "<uuid or built-in slug>"}` for a stored
+**Cloud:** `POST /api/rooms` with an empty body to create the room before choosing a quiz.
+The host selects a quiz in the lobby with `host_select_quiz`. For backwards compatibility,
+the endpoint also accepts a quiz body and snapshots it immediately.
+
+The legacy body may be `{"quiz_id": "<uuid or built-in slug>"}` for a stored
 (public) quiz (`pack_id` is accepted as a legacy alias), or `{"quiz": <quiz document>}` for a
 private quiz kept on the host's device, sent inline with base64 photos and never stored
 (QUIZ_FORMAT.md §4, §5.7). The room snapshots the quiz and starts with its
@@ -72,16 +76,38 @@ photos), `422 {"code": "empty_pack"}`. HTTP error bodies carry `code` and `messa
 - 6 characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no `I`, `O`, `0`, `1`).
 - Clients upper-case user input and strip spaces before joining.
 - Unique among live rooms; freed when the room terminates.
-- A room terminates after **10 minutes without a connected host**, or 10 minutes after
+- A room terminates when it is **empty for 30 seconds** (§3.4), or 10 minutes after
   reaching `finished`.
 
 ### 3.3 Tokens *(provisional — open item §10.8: guests have no account)*
 
-- `host_token` — issued at room creation; proves host role for that room.
+- `host_token` — issued at room creation; proves host role for that room. **Only the
+  current one works:** every transfer or promotion (§3.4) issues a new token and the
+  previous one is refused with `invalid_token`, so a former host cannot take the room back.
 - `player_token` — issued on a player's first join; lets that player reclaim the same
-  `player_id` and score after a disconnect.
+  `player_id` and score after a disconnect. Unaffected by host changes.
 - Tokens are opaque, signed by the host implementation, and scoped to one room.
   Clients store them per room code and must discard them when the room is gone.
+
+### 3.4 The host role
+
+Exactly one connection holds the host role, and the room keeps it filled while anyone is
+still there:
+
+- **Transfer.** The host may hand the role to any connected player with `host_transfer`
+  (§4.2). The room issues that player a new `host_token`, delivered in their next `state`
+  as `you.host_token` (§5.1) — it is sent only to the player who now holds it.
+- **Promotion.** If the host's connection drops and does not return, a connected player is
+  promoted at random and issued a new token the same way. A room therefore never sits
+  hostless while players remain.
+- **Handover is immediate.** A host who transfers deliberately loses the role at once. A
+  host who merely disconnects is replaced only if someone else is connected.
+- **Empty rooms end.** With nobody connected the room closes after **30 seconds**, with
+  `room_closed: empty`. The delay is what lets a lone host survive a brief network drop,
+  and gives a freshly created room time for its first join.
+
+A host that is also playing keeps its `player_id`, score and submissions when it loses the
+role; it simply becomes an ordinary player.
 
 ## 4. Client → host
 
@@ -149,8 +175,11 @@ Join error codes: `unsupported_protocol_version`, `room_not_found`, `invalid_tok
 | `host_pause` | host | `{}` | `question` (not paused) | Freezes the timer |
 | `host_resume` | host | `{}` | `question` (paused) | Restarts the timer |
 | `host_override` | host | `{"player_id": string, "correct": bool}` | `scoring`, `leaderboard` | Sets the verdict on that player's submission for the **current** question, including the host's own |
-| `host_configure` | host | `{"question_count": int, "time_limit_ms": int, "difficulty_multiplier": bool}` | `lobby` | Sets the game settings (§6.2). All three fields are required and replace the current values |
+| `host_configure` | host | `{"question_count": int, "time_limit_ms": int, "difficulty_multiplier": bool, "difficulties": ["easy"\|"medium"\|"hard", ...]}` | `lobby` | Sets the game settings (§6.2). The difficulty list must be non-empty and selects the questions eligible for the round |
+| `host_select_quiz` | host | `{"quiz_id": string}` or `{"quiz": object}` | `lobby` | Selects or replaces the quiz; resets lobby settings to that quiz's defaults |
 | `host_rematch` | host | `{}` | `finished` | Starts a new game in the same room (§6.3) |
+| `host_transfer` | host | `{"player_id": string}` | any | Hands the host role to a connected player (§3.4) |
+| `host_close` | host | `{}` | any | Ends the room now: every client gets `room_closed: closed` |
 
 Successful intents reply `{"status": "ok", "response": {}}` and — if state changed — trigger a
 `state` push to every connected client.
@@ -165,8 +194,9 @@ Intent error codes: `invalid_phase`, `not_host`, `not_player`, `invalid_answer`,
 `already_submitted`, `unknown_player`, `no_submission`, `paused`, `not_paused`,
 `invalid_settings` (question count outside 1..`max_question_count`, time limit outside
 `min_time_limit_ms`..`max_time_limit_ms`, or any field missing or of the wrong type),
-`invalid_payload` (unknown event, or a payload with missing/mistyped fields not covered by a
-more specific code).
+`not_connected` (`host_transfer` naming a player who is not currently connected, or the
+host itself), `invalid_payload` (unknown event, or a payload with missing/mistyped fields
+not covered by a more specific code).
 
 Every error `response` is `{"code": string, "message": string}`. `message` is human-readable
 English for logs/fallback UI; clients must branch on `code` only.
@@ -203,6 +233,7 @@ it per socket rather than broadcasting one identical payload.
     "question_count": 10,
     "time_limit_ms": 30000,
     "difficulty_multiplier": false,
+    "difficulties": ["easy", "medium", "hard"],
     "max_question_count": 10,
     "min_time_limit_ms": 10000,
     "max_time_limit_ms": 120000
@@ -228,6 +259,7 @@ it per socket rather than broadcasting one identical payload.
   "you": {
     "role": "player",
     "player_id": "p_3f9a",
+    "host_token": null,
     "submission": {"answer": "Canberra", "wager": 7, "correct": null, "delta": null}
   },
 
@@ -244,7 +276,7 @@ it per socket rather than broadcasting one identical payload.
 | `pack_title` | string | Always present |
 | `question_count` | int | Questions in the current game; always equals `settings.question_count` |
 | `game_number` | int | 1 for the first game in the room, +1 on every rematch. Question ids repeat across games, so clients key per-question UI state on (`game_number`, `question_index`) |
-| `settings` | object | Always present. `question_count`, `time_limit_ms` (applied to every question, overriding the pack), `difficulty_multiplier` (bool), plus the bounds `max_question_count` (min(pack size, 20)), `min_time_limit_ms`, `max_time_limit_ms` |
+| `settings` | object | Always present. `question_count`, `time_limit_ms` (applied to every question, overriding the pack), `difficulty_multiplier` (bool), `difficulties` (selected question difficulties), `available_difficulties` (difficulty values present in the pack), plus the bounds `max_question_count` (number of questions matching the selected difficulties), `min_time_limit_ms`, `max_time_limit_ms` |
 | `question_index` | int \| null | 0-based; `null` in `lobby` |
 | `question` | object \| null | `null` in `lobby` and `finished` |
 | `question.type` | `"text"` \| `"text_photo"` | `image_url` is non-null only for `text_photo` |
@@ -256,8 +288,9 @@ it per socket rather than broadcasting one identical payload.
 | `players[].avatar_hue` | int | 0–359. Picked at random by the host implementation when the player is added, kept as far as possible from hues already in the room; stable for the player's lifetime so every client shows the same colour |
 | `question.difficulty` | `"easy"` \| `"medium"` \| `"hard"` | From the pack; `"easy"` when the pack doesn't say |
 | `question.multiplier` | int | Points multiplier for this question: `1` when `settings.difficulty_multiplier` is off, else easy `1`, medium `2`, hard `3` (§9) |
-| `you` | object | The recipient's own view: `role` (`"host"` \| `"player"`), `player_id`, `submission` |
+| `you` | object | The recipient's own view: `role` (`"host"` \| `"player"`), `player_id`, `host_token`, `submission` |
 | `you.player_id` | string \| null | `null` only for a host who is not playing |
+| `you.host_token` | string \| null | Non-null **only** in the snapshot that follows a transfer or promotion, and only to the recipient who now holds the role (§3.4). The client replaces its stored token with it; every other client sees `null` |
 | `you.submission` | object \| null | Recipient's own submission for the current question; `correct`/`delta` are `null` until `scoring` |
 | `submissions` | array \| null | §7 |
 
@@ -279,9 +312,19 @@ All seven fields are always present and non-null except `override`. Entries are 
 
 ### 5.2 `room_closed`
 
-Payload `{"reason": "host_timeout" | "finished" | "shutdown"}`. Sent before the host terminates
-the room; the client must then drop its tokens for that room. A client that reconnects to a room
-that no longer exists gets `room_not_found` on join — it must handle that identically.
+Payload `{"reason": "empty" | "closed" | "finished" | "shutdown"}`. Sent before the host
+terminates the room; the client must then drop its tokens for that room. A client that reconnects
+to a room that no longer exists gets `room_not_found` on join — it must handle that identically.
+
+| Reason | Meaning |
+|---|---|
+| `empty` | Nobody was connected for 30 seconds (§3.4) |
+| `closed` | The host ended the room with `host_close` |
+| `finished` | 10 minutes passed after the game finished |
+| `shutdown` | The host implementation is stopping (a deploy) |
+
+`host_timeout` was removed in v5: a room whose host leaves now promotes someone rather than
+waiting to die (§3.4).
 
 ## 6. Phase machine
 
@@ -314,7 +357,7 @@ recomputed as: `score -= old_delta; score += new_delta`. Setting an override equ
 
 ### 6.2 Game settings
 
-- At most **20** questions per game: `max_question_count` = min(pack size, 20).
+- The maximum number of questions per game is the selected pack size: `max_question_count` = pack size.
 - Defaults when the room is created: `question_count` = `max_question_count`,
   `difficulty_multiplier` = `false`, `time_limit_ms` = the
   first question's limit clamped to 10 000–120 000 ms.
@@ -376,6 +419,8 @@ Punctuation is **not** stripped. Test cases: [`fixtures/normalize.json`](fixture
 
 Clients depend only on `GameConnection` ([`game_connection.dart`](game_connection.dart)). The
 Cloud and LAN implementations differ only in the socket URL and how the room is created.
+At the start of each round, the selected pack is shuffled once; all players then see
+that same shuffled order for the round.
 
 ## 11. Fixtures
 
@@ -417,6 +462,7 @@ Confirmed by the project owner on 2026-09-15.
 | 8. Guest accounts | None; signed per-room `player_token` |
 | Host participation (added in v2) | Host may play; no early access to answers; may override own submission |
 | Game settings & rematch (added in v3) | Host sets question count (1..pack) and per-question time (10–120 s) in the lobby; host-triggered rematch keeps the room and players, resets scores, continues through the pack |
-| Avatars, 20 questions, difficulty bonus (added in v4) | Server-assigned random avatar hues; up to 20 questions per game; optional difficulty multiplier easy ×1 / medium ×2 / hard ×3, off by default |
+| Avatars, pack-sized rounds, difficulty bonus (added in v4) | Server-assigned random avatar hues; up to the selected pack size per game; optional difficulty multiplier easy ×1 / medium ×2 / hard ×3, off by default |
+| Host role (added in v5) | Transferable to a connected player, and passed on automatically if the host drops; each change issues a fresh `host_token` and invalidates the old one; a room with nobody in it ends after 30 s rather than lingering for the old 10-minute host timeout |
 
 Changing any of these is a protocol version bump.

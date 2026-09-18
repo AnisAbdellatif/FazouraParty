@@ -20,7 +20,7 @@ class RoomApi {
   /// private quiz sent whole with its photos (QUIZ_FORMAT.md §5.7).
   /// Throws [GameError] (e.g. `quiz_not_found`) on failure.
   Future<CreatedRoom> createRoom({
-    String quizId = builtInPackId,
+    String? quizId,
     QuizDocument? inlineQuiz,
   }) async {
     final base = baseUrl.endsWith('/')
@@ -28,6 +28,8 @@ class RoomApi {
         : baseUrl;
     final body = inlineQuiz != null
         ? {'quiz': inlineQuiz.forInlineRoom().toJson()}
+        : quizId == null
+        ? <String, dynamic>{}
         : {'quiz_id': quizId};
     final http.Response response;
     try {

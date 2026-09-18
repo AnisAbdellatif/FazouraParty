@@ -52,18 +52,33 @@ The server also serves the built web app at `/`, so building it once
 
 ### Checks
 
-Everything CI runs, runnable locally:
+Everything CI runs, runnable locally — literally, since CI calls this script too:
 
 ```bash
-cd server && mix precommit                      # format, credo, test
-cd app && flutter analyze && flutter test
-cd app && node tool/check_service_worker.mjs    # after dart run tool/build_web.dart
+scripts/ci.sh                 # server + app + Docker image
+scripts/ci.sh server          # compile, format, credo, test, dialyzer
+scripts/ci.sh app             # format, analyze, test, web build, service worker
+scripts/ci.sh image           # build the production image
+
+SKIP_DIALYZER=1 scripts/ci.sh server   # skip the slow first PLT build
+```
+
+It warns if your Elixir, OTP or Flutter differs from the versions CI pins, since
+results can then differ from CI's. For a quicker inner loop, `cd server && mix precommit`
+is the same checks without dialyzer.
+
+To run the production image itself — the real container, Postgres and all, without
+Caddy or TLS — see [deploy/README.md](deploy/README.md#running-the-stack-locally):
+
+```bash
+scripts/ci.sh up      # everything on http://localhost:4000
+scripts/ci.sh down
 ```
 
 ## Quizzes
 
 A quiz is a JSON document ([`protocol/QUIZ_FORMAT.md`](protocol/QUIZ_FORMAT.md)) with
-1–10 free-text tags and up to 100 questions, each optionally carrying a photo.
+1–10 free-text tags and up to 1024 questions, each optionally carrying a photo.
 
 There are **no accounts**. A quiz you write is *private* by default: it stays in your
 device's local database and is sent to the server inline each time you host it, never
@@ -88,3 +103,6 @@ Not built: iOS, accounts, and games that survive a server restart.
 
 [MIT](LICENSE). The quiz content in `server/priv/quizzes/` is covered by the same
 licence; the Fazoura Party name and the icon artwork in `design/icons/` are not.
+
+The bundled fonts in `app/assets/fonts/` — Figtree, DM Mono and Reem Kufi — are used
+under the SIL Open Font License, which is included beside them.

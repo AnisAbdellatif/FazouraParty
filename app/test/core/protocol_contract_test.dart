@@ -84,6 +84,7 @@ void main() {
         'host_resume',
         'host_override',
         'host_configure',
+        'host_select_quiz',
         'host_rematch',
       });
     });
@@ -373,7 +374,18 @@ Map<String, dynamic>? _encodeIntent(
         questionCount: payload['question_count'] as int,
         timeLimitMs: payload['time_limit_ms'] as int,
         difficultyMultiplier: multiplier,
+        difficulties: (payload['difficulties'] as List).cast<String>(),
       );
+    case 'host_select_quiz':
+      final quizId = payload['quiz_id'];
+      if (quizId is String) {
+        return PhoenixGameConnection.selectQuizPayload(quizId: quizId);
+      }
+      final quiz = payload['quiz'];
+      if (quiz is! Map<String, dynamic>) return null;
+      // The fixture uses a minimal custom document; production adds its
+      // canonical inline-room fields before sending it.
+      return null;
     case 'host_next':
     case 'host_pause':
     case 'host_resume':

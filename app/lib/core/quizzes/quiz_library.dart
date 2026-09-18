@@ -55,6 +55,44 @@ class QuizLibrary {
     return saved;
   }
 
+  /// Downloads a public quiz and all of its photos, then stores it privately
+  /// on this device so it can be hosted without a network connection.
+  Future<LocalQuiz> saveCommunityQuiz(QuizDocument summary) async {
+    final full = await api.download(summary.hostId);
+    final questions = <QuizQuestion>[];
+    for (final question in full.questions ?? const <QuizQuestion>[]) {
+      final image = question.image;
+      if (question.hasPhoto && image?.url != null && image?.data == null) {
+        final bytes = await api.downloadImage(image!.url!);
+        questions.add(
+          question.copyWith(
+            image: image.copyWith(
+              data: base64Encode(bytes),
+              key: null,
+              url: null,
+            ),
+          ),
+        );
+      } else {
+        questions.add(question);
+      }
+    }
+    final existing = (await list()).where(
+      (local) => local.quiz.id == summary.id && !local.isPublished,
+    );
+    final saved = LocalQuiz(
+      localId: existing.isEmpty ? newLocalId() : existing.first.localId,
+      quiz: full.copyWith(
+        id: full.id ?? summary.id,
+        visibility: 'private',
+        isOwner: false,
+        questions: questions,
+      ),
+    );
+    await store.put(saved);
+    return saved;
+  }
+
   Future<LocalQuiz> setPublic(LocalQuiz quiz, bool public) => save(
     quiz.copyWith(
       quiz: quiz.quiz.copyWith(visibility: public ? 'public' : 'private'),

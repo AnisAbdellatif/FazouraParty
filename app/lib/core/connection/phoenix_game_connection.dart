@@ -20,7 +20,7 @@ class PhoenixGameConnection implements GameConnection {
     PhoenixSocket Function(String endpoint)? socketFactory,
   }) : _socketFactory = socketFactory ?? PhoenixSocket.new;
 
-  static const int protocolVersion = 4;
+  static const int protocolVersion = 7;
 
   /// `phx_join` payload (PROTOCOL.md §4.1).
   static Map<String, dynamic> joinPayload({
@@ -45,15 +45,31 @@ class PhoenixGameConnection implements GameConnection {
   static Map<String, dynamic> overridePayload(String playerId, bool correct) =>
       {'player_id': playerId, 'correct': correct};
 
+  static Map<String, dynamic> transferPayload(String playerId) => {
+    'player_id': playerId,
+  };
+
   static Map<String, dynamic> configurePayload({
     required int questionCount,
     required int timeLimitMs,
     required bool difficultyMultiplier,
+    List<String> difficulties = const ['easy', 'medium', 'hard'],
   }) => {
     'question_count': questionCount,
     'time_limit_ms': timeLimitMs,
     'difficulty_multiplier': difficultyMultiplier,
+    'difficulties': difficulties,
   };
+
+  static Map<String, dynamic> selectQuizPayload({
+    String? quizId,
+    QuizDocument? inlineQuiz,
+  }) {
+    if (inlineQuiz != null) {
+      return {'quiz': inlineQuiz.forInlineRoom().toJson()};
+    }
+    return {'quiz_id': quizId};
+  }
 
   /// HTTP(S) base URL of the server, e.g. `http://localhost:4000`.
   final String baseUrl;
@@ -162,17 +178,37 @@ class PhoenixGameConnection implements GameConnection {
     required int questionCount,
     required int timeLimitMs,
     required bool difficultyMultiplier,
+    List<String> difficulties = const ['easy', 'medium', 'hard'],
   }) => _push(
     'host_configure',
     configurePayload(
       questionCount: questionCount,
       timeLimitMs: timeLimitMs,
       difficultyMultiplier: difficultyMultiplier,
+      difficulties: difficulties,
     ),
   );
 
   @override
+  Future<void> hostSelectQuiz({String? quizId, QuizDocument? inlineQuiz}) {
+    if (quizId == null && inlineQuiz == null) {
+      throw ArgumentError('quizId or inlineQuiz is required');
+    }
+    return _push(
+      'host_select_quiz',
+      selectQuizPayload(quizId: quizId, inlineQuiz: inlineQuiz),
+    );
+  }
+
+  @override
   Future<void> hostRematch() => _push('host_rematch', const {});
+
+  @override
+  Future<void> hostTransfer(String playerId) =>
+      _push('host_transfer', transferPayload(playerId));
+
+  @override
+  Future<void> hostClose() => _push('host_close', const {});
 
   @override
   Future<void> leave() async {
@@ -370,7 +406,8 @@ class PhoenixGameConnection implements GameConnection {
   }
 
   static RoomClosedReason _reasonFrom(Object? reason) => switch (reason) {
-    'host_timeout' => RoomClosedReason.hostTimeout,
+    'empty' => RoomClosedReason.empty,
+    'closed' => RoomClosedReason.closed,
     'finished' => RoomClosedReason.finished,
     _ => RoomClosedReason.shutdown,
   };

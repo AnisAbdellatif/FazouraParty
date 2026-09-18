@@ -9,6 +9,9 @@ part of 'quiz.dart';
 _QuizDocument _$QuizDocumentFromJson(Map<String, dynamic> json) =>
     _QuizDocument(
       formatVersion: (json['format_version'] as num?)?.toInt() ?? 1,
+      version: json['version'] == null
+          ? '1.0'
+          : quizVersionFromJson(json['version']),
       id: json['id'] as String?,
       slug: json['slug'] as String?,
       title: json['title'] as String,
@@ -41,6 +44,7 @@ _QuizDocument _$QuizDocumentFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$QuizDocumentToJson(_QuizDocument instance) =>
     <String, dynamic>{
       'format_version': instance.formatVersion,
+      'version': instance.version,
       'id': instance.id,
       'slug': instance.slug,
       'title': instance.title,

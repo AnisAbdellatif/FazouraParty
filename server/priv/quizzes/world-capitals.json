@@ -1,0 +1,1790 @@
+{
+  "format_version": 1,
+  "title": "Capital Cities of the World",
+  "description": "One question about the capital city of each of the 195 countries commonly recognized by the United Nations, including the two observer states.",
+  "language": "en",
+  "tags": [
+    "geography",
+    "world",
+    "capitals"
+  ],
+  "default_settings": {
+    "time_limit_ms": 30000,
+    "difficulty_multiplier": false
+  },
+  "questions": [
+    {
+      "type": "text",
+      "prompt": "What is the capital of Afghanistan?",
+      "accepted_answers": [
+        "Kabul"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Albania?",
+      "accepted_answers": [
+        "Tirana"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Algeria?",
+      "accepted_answers": [
+        "Algiers"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Andorra?",
+      "accepted_answers": [
+        "Andorra la Vella"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Angola?",
+      "accepted_answers": [
+        "Luanda"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Antigua and Barbuda?",
+      "accepted_answers": [
+        "Saint John's"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Argentina?",
+      "accepted_answers": [
+        "Buenos Aires"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Armenia?",
+      "accepted_answers": [
+        "Yerevan"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Australia?",
+      "accepted_answers": [
+        "Canberra"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Austria?",
+      "accepted_answers": [
+        "Vienna"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Azerbaijan?",
+      "accepted_answers": [
+        "Baku"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Bahamas?",
+      "accepted_answers": [
+        "Nassau"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Bahrain?",
+      "accepted_answers": [
+        "Manama"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Bangladesh?",
+      "accepted_answers": [
+        "Dhaka"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Barbados?",
+      "accepted_answers": [
+        "Bridgetown"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Belarus?",
+      "accepted_answers": [
+        "Minsk"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Belgium?",
+      "accepted_answers": [
+        "Brussels"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Belize?",
+      "accepted_answers": [
+        "Belmopan"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Benin?",
+      "accepted_answers": [
+        "Porto-Novo",
+        "Porto Novo",
+        "Cotonou"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Bhutan?",
+      "accepted_answers": [
+        "Thimphu"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Bolivia?",
+      "accepted_answers": [
+        "Sucre",
+        "La Paz"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Bosnia and Herzegovina?",
+      "accepted_answers": [
+        "Sarajevo"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Botswana?",
+      "accepted_answers": [
+        "Gaborone"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Brazil?",
+      "accepted_answers": [
+        "Brasília"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Brunei?",
+      "accepted_answers": [
+        "Bandar Seri Begawan"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Bulgaria?",
+      "accepted_answers": [
+        "Sofia"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Burkina Faso?",
+      "accepted_answers": [
+        "Ouagadougou"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Burundi?",
+      "accepted_answers": [
+        "Gitega",
+        "Bujumbura"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Cabo Verde?",
+      "accepted_answers": [
+        "Praia"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Cambodia?",
+      "accepted_answers": [
+        "Phnom Penh"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Cameroon?",
+      "accepted_answers": [
+        "Yaoundé"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Canada?",
+      "accepted_answers": [
+        "Ottawa"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Central African Republic?",
+      "accepted_answers": [
+        "Bangui"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Chad?",
+      "accepted_answers": [
+        "N'Djamena"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Chile?",
+      "accepted_answers": [
+        "Santiago"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of China?",
+      "accepted_answers": [
+        "Beijing"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Colombia?",
+      "accepted_answers": [
+        "Bogotá"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Comoros?",
+      "accepted_answers": [
+        "Moroni"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Republic of the Congo?",
+      "accepted_answers": [
+        "Brazzaville"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Costa Rica?",
+      "accepted_answers": [
+        "San José"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Côte d'Ivoire?",
+      "accepted_answers": [
+        "Yamoussoukro"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Croatia?",
+      "accepted_answers": [
+        "Zagreb"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Cuba?",
+      "accepted_answers": [
+        "Havana"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Cyprus?",
+      "accepted_answers": [
+        "Nicosia"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Czechia?",
+      "accepted_answers": [
+        "Prague"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Democratic Republic of the Congo?",
+      "accepted_answers": [
+        "Kinshasa"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Denmark?",
+      "accepted_answers": [
+        "Copenhagen"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Djibouti?",
+      "accepted_answers": [
+        "Djibouti"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Dominica?",
+      "accepted_answers": [
+        "Roseau"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Dominican Republic?",
+      "accepted_answers": [
+        "Santo Domingo"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Ecuador?",
+      "accepted_answers": [
+        "Quito"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Egypt?",
+      "accepted_answers": [
+        "Cairo"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of El Salvador?",
+      "accepted_answers": [
+        "San Salvador"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Equatorial Guinea?",
+      "accepted_answers": [
+        "Malabo"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Eritrea?",
+      "accepted_answers": [
+        "Asmara"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Estonia?",
+      "accepted_answers": [
+        "Tallinn"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Eswatini?",
+      "accepted_answers": [
+        "Mbabane",
+        "Lobamba"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Ethiopia?",
+      "accepted_answers": [
+        "Addis Ababa"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Fiji?",
+      "accepted_answers": [
+        "Suva"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Finland?",
+      "accepted_answers": [
+        "Helsinki"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of France?",
+      "accepted_answers": [
+        "Paris"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Gabon?",
+      "accepted_answers": [
+        "Libreville"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Gambia?",
+      "accepted_answers": [
+        "Banjul"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Georgia?",
+      "accepted_answers": [
+        "Tbilisi"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Germany?",
+      "accepted_answers": [
+        "Berlin"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Ghana?",
+      "accepted_answers": [
+        "Accra"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Greece?",
+      "accepted_answers": [
+        "Athens"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Grenada?",
+      "accepted_answers": [
+        "St. George's"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Guatemala?",
+      "accepted_answers": [
+        "Guatemala City"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Guinea?",
+      "accepted_answers": [
+        "Conakry"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Guinea-Bissau?",
+      "accepted_answers": [
+        "Bissau"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Guyana?",
+      "accepted_answers": [
+        "Georgetown"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Haiti?",
+      "accepted_answers": [
+        "Port-au-Prince"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Honduras?",
+      "accepted_answers": [
+        "Tegucigalpa"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Hungary?",
+      "accepted_answers": [
+        "Budapest"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Iceland?",
+      "accepted_answers": [
+        "Reykjavík"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of India?",
+      "accepted_answers": [
+        "New Delhi"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Indonesia?",
+      "accepted_answers": [
+        "Jakarta",
+        "Nusantara"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Iran?",
+      "accepted_answers": [
+        "Tehran"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Iraq?",
+      "accepted_answers": [
+        "Baghdad"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Ireland?",
+      "accepted_answers": [
+        "Dublin"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Israel?",
+      "accepted_answers": [
+        "Jerusalem"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Italy?",
+      "accepted_answers": [
+        "Rome"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Jamaica?",
+      "accepted_answers": [
+        "Kingston"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Japan?",
+      "accepted_answers": [
+        "Tokyo"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Jordan?",
+      "accepted_answers": [
+        "Amman"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Kazakhstan?",
+      "accepted_answers": [
+        "Astana"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Kenya?",
+      "accepted_answers": [
+        "Nairobi"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Kiribati?",
+      "accepted_answers": [
+        "South Tarawa"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Kuwait?",
+      "accepted_answers": [
+        "Kuwait City"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Kyrgyzstan?",
+      "accepted_answers": [
+        "Bishkek"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Laos?",
+      "accepted_answers": [
+        "Vientiane"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Latvia?",
+      "accepted_answers": [
+        "Riga"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Lebanon?",
+      "accepted_answers": [
+        "Beirut"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Lesotho?",
+      "accepted_answers": [
+        "Maseru"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Liberia?",
+      "accepted_answers": [
+        "Monrovia"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Libya?",
+      "accepted_answers": [
+        "Tripoli"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Liechtenstein?",
+      "accepted_answers": [
+        "Vaduz"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Lithuania?",
+      "accepted_answers": [
+        "Vilnius"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Luxembourg?",
+      "accepted_answers": [
+        "Luxembourg"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Madagascar?",
+      "accepted_answers": [
+        "Antananarivo"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Malawi?",
+      "accepted_answers": [
+        "Lilongwe"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Malaysia?",
+      "accepted_answers": [
+        "Kuala Lumpur",
+        "Putrajaya"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Maldives?",
+      "accepted_answers": [
+        "Malé"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Mali?",
+      "accepted_answers": [
+        "Bamako"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Malta?",
+      "accepted_answers": [
+        "Valletta"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Marshall Islands?",
+      "accepted_answers": [
+        "Majuro"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Mauritania?",
+      "accepted_answers": [
+        "Nouakchott"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Mauritius?",
+      "accepted_answers": [
+        "Port Louis"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Mexico?",
+      "accepted_answers": [
+        "Mexico City"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Micronesia?",
+      "accepted_answers": [
+        "Palikir"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Moldova?",
+      "accepted_answers": [
+        "Chișinău"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Monaco?",
+      "accepted_answers": [
+        "Monaco"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Mongolia?",
+      "accepted_answers": [
+        "Ulaanbaatar"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Montenegro?",
+      "accepted_answers": [
+        "Podgorica"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Morocco?",
+      "accepted_answers": [
+        "Rabat"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Mozambique?",
+      "accepted_answers": [
+        "Maputo"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Myanmar?",
+      "accepted_answers": [
+        "Naypyidaw"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Namibia?",
+      "accepted_answers": [
+        "Windhoek"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Nauru?",
+      "accepted_answers": [
+        "Yaren"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Nepal?",
+      "accepted_answers": [
+        "Kathmandu"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Netherlands?",
+      "accepted_answers": [
+        "Amsterdam",
+        "The Hague"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of New Zealand?",
+      "accepted_answers": [
+        "Wellington"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Nicaragua?",
+      "accepted_answers": [
+        "Managua"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Niger?",
+      "accepted_answers": [
+        "Niamey"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Nigeria?",
+      "accepted_answers": [
+        "Abuja"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of North Korea?",
+      "accepted_answers": [
+        "Pyongyang"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of North Macedonia?",
+      "accepted_answers": [
+        "Skopje"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Norway?",
+      "accepted_answers": [
+        "Oslo"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Oman?",
+      "accepted_answers": [
+        "Muscat"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Pakistan?",
+      "accepted_answers": [
+        "Islamabad"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Palau?",
+      "accepted_answers": [
+        "Ngerulmud"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Palestine?",
+      "accepted_answers": [
+        "Ramallah",
+        "East Jerusalem",
+        "Jerusalem"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Panama?",
+      "accepted_answers": [
+        "Panama City"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Papua New Guinea?",
+      "accepted_answers": [
+        "Port Moresby"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Paraguay?",
+      "accepted_answers": [
+        "Asunción"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Peru?",
+      "accepted_answers": [
+        "Lima"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Philippines?",
+      "accepted_answers": [
+        "Manila"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Poland?",
+      "accepted_answers": [
+        "Warsaw"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Portugal?",
+      "accepted_answers": [
+        "Lisbon"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Qatar?",
+      "accepted_answers": [
+        "Doha"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Romania?",
+      "accepted_answers": [
+        "Bucharest"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Russia?",
+      "accepted_answers": [
+        "Moscow"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Rwanda?",
+      "accepted_answers": [
+        "Kigali"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Saint Kitts and Nevis?",
+      "accepted_answers": [
+        "Basseterre"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Saint Lucia?",
+      "accepted_answers": [
+        "Castries"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Saint Vincent and the Grenadines?",
+      "accepted_answers": [
+        "Kingstown"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Samoa?",
+      "accepted_answers": [
+        "Apia"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of San Marino?",
+      "accepted_answers": [
+        "San Marino"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of São Tomé and Príncipe?",
+      "accepted_answers": [
+        "São Tomé"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Saudi Arabia?",
+      "accepted_answers": [
+        "Riyadh"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Senegal?",
+      "accepted_answers": [
+        "Dakar"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Serbia?",
+      "accepted_answers": [
+        "Belgrade"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Seychelles?",
+      "accepted_answers": [
+        "Victoria"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Sierra Leone?",
+      "accepted_answers": [
+        "Freetown"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Singapore?",
+      "accepted_answers": [
+        "Singapore"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Slovakia?",
+      "accepted_answers": [
+        "Bratislava"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Slovenia?",
+      "accepted_answers": [
+        "Ljubljana"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Solomon Islands?",
+      "accepted_answers": [
+        "Honiara"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Somalia?",
+      "accepted_answers": [
+        "Mogadishu"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of South Africa?",
+      "accepted_answers": [
+        "Pretoria",
+        "Cape Town",
+        "Bloemfontein"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of South Korea?",
+      "accepted_answers": [
+        "Seoul"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of South Sudan?",
+      "accepted_answers": [
+        "Juba"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Spain?",
+      "accepted_answers": [
+        "Madrid"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Sri Lanka?",
+      "accepted_answers": [
+        "Sri Jayawardenepura Kotte",
+        "Colombo"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Sudan?",
+      "accepted_answers": [
+        "Khartoum"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Suriname?",
+      "accepted_answers": [
+        "Paramaribo"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Sweden?",
+      "accepted_answers": [
+        "Stockholm"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Switzerland?",
+      "accepted_answers": [
+        "Bern"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Syria?",
+      "accepted_answers": [
+        "Damascus"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Tajikistan?",
+      "accepted_answers": [
+        "Dushanbe"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Tanzania?",
+      "accepted_answers": [
+        "Dodoma"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Thailand?",
+      "accepted_answers": [
+        "Bangkok"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Timor-Leste?",
+      "accepted_answers": [
+        "Dili"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Togo?",
+      "accepted_answers": [
+        "Lomé"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Tonga?",
+      "accepted_answers": [
+        "Nuku'alofa"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Trinidad and Tobago?",
+      "accepted_answers": [
+        "Port of Spain"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Tunisia?",
+      "accepted_answers": [
+        "Tunis"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Türkiye?",
+      "accepted_answers": [
+        "Ankara"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Turkmenistan?",
+      "accepted_answers": [
+        "Ashgabat"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Tuvalu?",
+      "accepted_answers": [
+        "Funafuti"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Uganda?",
+      "accepted_answers": [
+        "Kampala"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Ukraine?",
+      "accepted_answers": [
+        "Kyiv"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of United Arab Emirates?",
+      "accepted_answers": [
+        "Abu Dhabi"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of United Kingdom?",
+      "accepted_answers": [
+        "London"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of United States?",
+      "accepted_answers": [
+        "Washington, D.C.",
+        "Washington DC",
+        "Washington"
+      ],
+      "difficulty": "easy",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Uruguay?",
+      "accepted_answers": [
+        "Montevideo"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Uzbekistan?",
+      "accepted_answers": [
+        "Tashkent"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Vanuatu?",
+      "accepted_answers": [
+        "Port Vila"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Vatican City?",
+      "accepted_answers": [
+        "Vatican City"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Venezuela?",
+      "accepted_answers": [
+        "Caracas"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Vietnam?",
+      "accepted_answers": [
+        "Hanoi"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Yemen?",
+      "accepted_answers": [
+        "Sana'a",
+        "Sanaa",
+        "Aden"
+      ],
+      "difficulty": "hard",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Zambia?",
+      "accepted_answers": [
+        "Lusaka"
+      ],
+      "difficulty": "medium",
+      "image": null
+    },
+    {
+      "type": "text",
+      "prompt": "What is the capital of Zimbabwe?",
+      "accepted_answers": [
+        "Harare"
+      ],
+      "difficulty": "medium",
+      "image": null
+    }
+  ],
+  "version": "1.0"
+}

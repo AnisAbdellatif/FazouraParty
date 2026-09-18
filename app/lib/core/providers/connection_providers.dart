@@ -4,10 +4,12 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../api/room_api.dart';
 import '../connection/game_connection.dart';
+import '../connection/lan_game_connection.dart';
 import '../connection/phoenix_game_connection.dart';
 import '../models/models.dart';
 import '../time/server_clock.dart';
 import 'config_providers.dart';
+import 'lan_providers.dart';
 
 part 'connection_providers.g.dart';
 
@@ -21,12 +23,18 @@ RoomApi roomApi(Ref ref) {
 /// The connection for the current room session. This is the only place that
 /// names a concrete transport; everything else depends on [GameConnection].
 ///
+/// Which one it builds follows [currentGameTargetProvider], so a LAN game and a
+/// cloud game are the same code path above this line (PROTOCOL.md §10).
+///
 /// Invalidate it to start a fresh session (disposal leaves the room).
 @Riverpod(keepAlive: true)
 GameConnection gameConnection(Ref ref) {
-  final connection = PhoenixGameConnection(
-    baseUrl: ref.watch(serverBaseUrlProvider),
-  );
+  final connection = switch (ref.watch(currentGameTargetProvider)) {
+    CloudTarget() => PhoenixGameConnection(
+      baseUrl: ref.watch(serverBaseUrlProvider),
+    ),
+    LanTarget(:final baseUrl) => LanGameConnection(baseUrl: baseUrl),
+  };
   ref.onDispose(() => unawaited(connection.leave()));
   return connection;
 }

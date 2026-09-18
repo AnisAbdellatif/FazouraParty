@@ -10,27 +10,37 @@ on:
 permissions:
   contents: read
 
-env:
-  # Kept in step with server/mix.exs and app/pubspec.yaml; CI must not drift from
-  # what the Dockerfile builds or what developers run.
-  OTP_VERSION: "29.0.6"
-  ELIXIR_VERSION: "1.20.4"
-  FLUTTER_VERSION: "3.47.2"
-
 jobs:
+  # The checks themselves live in scripts/ci.sh, which is also what a developer runs
+  # locally. Repeating the step list here is what lets the two drift, so this workflow
+  # only installs toolchains, caches, and calls the script (AGENTS.md §6).
+  versions:
+    name: Toolchain versions
+    runs-on: ubuntu-24.04
+    outputs:
+      otp: ${{ steps.read.outputs.otp }}
+      elixir: ${{ steps.read.outputs.elixir }}
+      flutter: ${{ steps.read.outputs.flutter }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # scripts/ci.sh is the single place the pins are written.
+      - id: read
+        run: |
+          sed -n 's/^\([A-Z_]*\)_VERSION="\(.*\)"$/\L\1\E=\2/p' scripts/ci.sh >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
   server:
     name: Server (Elixir)
+    needs: versions
     runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: server
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
         with:
-          otp-version: ${{ env.OTP_VERSION }}
-          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ needs.versions.outputs.otp }}
+          elixir-version: ${{ needs.versions.outputs.elixir }}
 
       # The dialyzer PLT is the slow part; it only changes when deps do.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -39,42 +49,25 @@ jobs:
             server/deps
             server/_build
             server/priv/plts
-          key: mix-${{ runner.os }}-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('server/mix.lock') }}
-          restore-keys: mix-${{ runner.os }}-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
+          key: mix-${{ runner.os }}-${{ needs.versions.outputs.elixir }}-${{ needs.versions.outputs.otp }}-${{ hashFiles('server/mix.lock') }}
+          restore-keys: mix-${{ runner.os }}-${{ needs.versions.outputs.elixir }}-${{ needs.versions.outputs.otp }}-
 
-      - run: mix deps.get
-      - run: mix compile --warnings-as-errors
-      - run: mix format --check-formatted
-      - run: mix deps.unlock --check-unused
-      - run: mix credo --strict
-      # Tests run on SQLite, exactly as they do locally; Postgres only exists in prod.
-      - run: mix test
-      - run: mix dialyzer
+      - run: scripts/ci.sh server
 
   app:
     name: App (Flutter)
+    needs: versions
     runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: app
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
+          flutter-version: ${{ needs.versions.outputs.flutter }}
           channel: stable
           cache: true
 
-      - run: flutter pub get
-      - run: dart format --set-exit-if-changed lib test tool
-      - run: flutter analyze
-      - run: flutter test
-
-      # build_web.dart is the only supported way to build the web app: it is what
-      # hashes the shell into the service worker's cache key (AGENTS.md §5).
-      - run: dart run tool/build_web.dart
-      - run: node tool/check_service_worker.mjs
+      - run: scripts/ci.sh app
 
       # The image ships this build, so the image job takes it from here rather than
       # installing Flutter a second time.
@@ -131,6 +124,10 @@ jobs:
           IMAGE: ${{ steps.name.outputs.image }}
           TAG: ${{ steps.name.outputs.tag }}
           PUSH: ${{ steps.publish.outputs.push }}
+        # Not scripts/ci.sh: the registry cache and the push are CI's own, and a
+        # developer machine has neither. `scripts/ci.sh image` builds the same
+        # Dockerfile with the same context, which is the part worth checking locally.
+        #
         # A pull request reads the registry cache but does not write it, so it cannot
         # poison the cache main builds from.
         run: |

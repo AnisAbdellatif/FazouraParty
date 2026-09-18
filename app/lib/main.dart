@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'features/home/home_screen.dart';
 import 'shared/theme/fz_theme.dart';
@@ -14,17 +13,15 @@ class FazouraPartyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fonts = FzTheme(
-      displayFont: (style) => GoogleFonts.figtree(textStyle: style),
-      monoFont: (style) => GoogleFonts.dmMono(textStyle: style),
-      titleFont: (style) => GoogleFonts.reemKufi(textStyle: style),
-    );
     return MaterialApp(
       title: 'Fazoura Party',
       debugShowCheckedModeBanner: false,
+      // The fonts are bundled (pubspec `fonts:`), so FzTheme's own family names
+      // are the real thing rather than a fallback: nothing is fetched at
+      // runtime, and the design survives a party with no internet.
       theme: buildFzTheme(
-        fz: fonts,
-        applyTextFont: GoogleFonts.figtreeTextTheme,
+        fz: FzTheme.fallback,
+        applyTextFont: (base) => base.apply(fontFamily: 'Figtree'),
       ),
       home: const HomeScreen(),
     );

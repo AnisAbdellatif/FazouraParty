@@ -2,11 +2,10 @@ import 'dart:convert';
 
 import 'package:fazoura_party/core/models/models.dart';
 
-/// The `state` example from PROTOCOL.md §5.1, updated to protocol v2
-/// (`protocol_version: 2`, `players[].is_host`).
+/// The `state` example from PROTOCOL.md §5.1.
 const roomStateExampleJson = '''
 {
-  "protocol_version": 4,
+  "protocol_version": 7,
   "room_code": "K7QX2M",
   "mode": "cloud",
   "phase": "question",
@@ -20,6 +19,8 @@ const roomStateExampleJson = '''
     "question_count": 10,
     "time_limit_ms": 30000,
     "difficulty_multiplier": false,
+    "difficulties": ["easy", "medium", "hard"],
+    "available_difficulties": ["easy", "medium", "hard"],
     "max_question_count": 10,
     "min_time_limit_ms": 10000,
     "max_time_limit_ms": 120000
@@ -45,6 +46,7 @@ const roomStateExampleJson = '''
   "you": {
     "role": "player",
     "player_id": "p_3f9a",
+    "host_token": null,
     "submission": {"answer": "Canberra", "wager": 7, "correct": null, "delta": null}
   },
 
@@ -99,6 +101,17 @@ RoomState questionStateForHost({required bool playing}) {
     deadline: now + const Duration(minutes: 10).inMilliseconds,
     players: playing ? const [_sam, _hana] : const [_sam],
     you: You(role: Role.host, playerId: playing ? hostPlayerId : null),
+  );
+}
+
+RoomState lobbyStateWithQuiz() {
+  return exampleRoomState().copyWith(
+    phase: Phase.lobby,
+    questionIndex: null,
+    question: null,
+    deadline: null,
+    acceptedAnswers: null,
+    submissions: null,
   );
 }
 

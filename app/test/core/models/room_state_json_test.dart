@@ -12,7 +12,7 @@ void main() {
     test('parses the spec example', () {
       final state = RoomState.fromJson(json);
 
-      expect(state.protocolVersion, 4);
+      expect(state.protocolVersion, 7);
       expect(state.roomCode, 'K7QX2M');
       expect(state.mode, Mode.cloud);
       expect(state.phase, Phase.question);

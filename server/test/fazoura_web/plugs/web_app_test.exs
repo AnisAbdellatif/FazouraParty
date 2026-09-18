@@ -70,7 +70,8 @@ defmodule FazouraWeb.Plugs.WebAppTest do
   test "leaves the API, uploads and unknown paths alone", %{conn: conn} do
     Fazoura.Quizzes.sync_builtin!()
 
-    assert %{"quizzes" => [_]} = conn |> get(~p"/api/quizzes") |> json_response(200)
+    assert %{"quizzes" => quizzes} = conn |> get(~p"/api/quizzes") |> json_response(200)
+    assert quizzes != []
     assert build_conn() |> get("/nope.txt") |> response(404)
   end
 

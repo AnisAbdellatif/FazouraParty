@@ -1,25 +1,109 @@
 {
   "normalize": [
-    {"input": "Canberra", "output": "canberra"},
-    {"input": "  Canberra  ", "output": "canberra"},
-    {"input": "New   York\tCity", "output": "new york city"},
-    {"input": "São Paulo", "output": "sao paulo"},
-    {"input": "Zürich", "output": "zurich"},
-    {"input": "Crème Brûlée", "output": "creme brulee"},
-    {"input": "ÉCOLE", "output": "ecole"},
-    {"input": "Beyoncé", "output": "beyonce"},
-    {"input": "U.S.A.", "output": "u.s.a."},
-    {"input": "rock-n-roll", "output": "rock-n-roll"},
-    {"input": "\n Line\nBreak \n", "output": "line break"}
+    {
+      "input": "Canberra",
+      "output": "canberra"
+    },
+    {
+      "input": "  Canberra  ",
+      "output": "canberra"
+    },
+    {
+      "input": "New   York\tCity",
+      "output": "new york city"
+    },
+    {
+      "input": "São Paulo",
+      "output": "sao paulo"
+    },
+    {
+      "input": "Zürich",
+      "output": "zurich"
+    },
+    {
+      "input": "Crème Brûlée",
+      "output": "creme brulee"
+    },
+    {
+      "input": "ÉCOLE",
+      "output": "ecole"
+    },
+    {
+      "input": "Beyoncé",
+      "output": "beyonce"
+    },
+    {
+      "input": "U.S.A.",
+      "output": "u.s.a."
+    },
+    {
+      "input": "rock-n-roll",
+      "output": "rock-n-roll"
+    },
+    {
+      "input": "\n Line\nBreak \n",
+      "output": "line break"
+    }
   ],
   "match": [
-    {"answer": "canberra", "accepted": ["Canberra"], "correct": true},
-    {"answer": "CANBERRA ", "accepted": ["Canberra"], "correct": true},
-    {"answer": "canbera", "accepted": ["Canberra"], "correct": false},
-    {"answer": "Sao Paulo", "accepted": ["São Paulo"], "correct": true},
-    {"answer": "NYC", "accepted": ["New York", "New York City", "NYC"], "correct": true},
-    {"answer": "New York  City", "accepted": ["New York", "New York City"], "correct": true},
-    {"answer": "USA", "accepted": ["U.S.A."], "correct": false},
-    {"answer": "the beatles", "accepted": ["Beatles"], "correct": false}
+    {
+      "answer": "canberra",
+      "accepted": [
+        "Canberra"
+      ],
+      "correct": true
+    },
+    {
+      "answer": "CANBERRA ",
+      "accepted": [
+        "Canberra"
+      ],
+      "correct": true
+    },
+    {
+      "answer": "canbera",
+      "accepted": [
+        "Canberra"
+      ],
+      "correct": false
+    },
+    {
+      "answer": "Sao Paulo",
+      "accepted": [
+        "São Paulo"
+      ],
+      "correct": true
+    },
+    {
+      "answer": "NYC",
+      "accepted": [
+        "New York",
+        "New York City",
+        "NYC"
+      ],
+      "correct": true
+    },
+    {
+      "answer": "New York  City",
+      "accepted": [
+        "New York",
+        "New York City"
+      ],
+      "correct": true
+    },
+    {
+      "answer": "USA",
+      "accepted": [
+        "U.S.A."
+      ],
+      "correct": false
+    },
+    {
+      "answer": "the beatles",
+      "accepted": [
+        "Beatles"
+      ],
+      "correct": false
+    }
   ]
 }

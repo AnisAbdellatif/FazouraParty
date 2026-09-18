@@ -18,6 +18,7 @@ defmodule Fazoura.Application do
         if(Application.get_env(:fazoura, :start_repo, true), do: Fazoura.Repo),
         {DNSCluster, query: Application.get_env(:fazoura, :dns_cluster_query) || :ignore},
         {Phoenix.PubSub, name: Fazoura.PubSub},
+        Fazoura.RateLimit,
         {Registry, keys: :unique, name: Fazoura.Rooms.Registry},
         Fazoura.Rooms.Images,
         {DynamicSupervisor, name: Fazoura.Rooms.Supervisor, strategy: :one_for_one},

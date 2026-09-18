@@ -32,6 +32,11 @@ void main() {
     matching: finder,
   );
 
+  Finder inStanding(String playerId, Finder finder) => find.descendant(
+    of: find.byKey(ValueKey('player-$playerId')),
+    matching: finder,
+  );
+
   group('playing host during question', () {
     testWidgets('shows the answer input and submitting calls submit', (
       tester,
@@ -103,6 +108,22 @@ void main() {
       await tester.pump();
       expect(fake.rematchCalls, 1);
     });
+
+    testWidgets('can reselect the quiz while waiting in the lobby', (
+      tester,
+    ) async {
+      await pumpHost(tester, lobbyStateWithQuiz());
+
+      expect(find.byKey(const Key('reselectQuizButton')), findsOneWidget);
+      final button = find.byKey(const Key('reselectQuizButton'));
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(
+        find.text("Pick tonight's quiz", skipOffstage: false),
+        findsOneWidget,
+      );
+    });
   });
 
   group('host during scoring', () {
@@ -124,10 +145,89 @@ void main() {
       expect(inRow(hostPlayerId, find.text('Hana (you)')), findsOneWidget);
       expect(inRow(hostPlayerId, find.text('Canbra')), findsOneWidget);
       expect(
-        find.byKey(const ValueKey('host-badge-$hostPlayerId')),
+        find.byKey(const ValueKey('submission-host-badge-$hostPlayerId')),
         findsOneWidget,
       );
       expect(find.text('Show standings'), findsOneWidget);
+    });
+
+    testWidgets('shows what the question cost, not the running totals', (
+      tester,
+    ) async {
+      await pumpHost(tester, scoringStateForHost());
+
+      // Every submission carries its own change for this question...
+      expect(inRow('p_3f9a', find.text('−7')), findsOneWidget);
+      expect(inRow('p_b2c1', find.text('+4')), findsOneWidget);
+      expect(inRow(hostPlayerId, find.text('−2')), findsOneWidget);
+
+      // ...and the cumulative standings are held back, or "Show standings"
+      // would advance to a screen the host is already looking at.
+      expect(find.text('Standings'), findsNothing);
+      expect(find.byKey(const ValueKey('player-p_3f9a')), findsNothing);
+    });
+
+    testWidgets('a player who skipped is listed with 0, not correctable', (
+      tester,
+    ) async {
+      final base = scoringStateForHost();
+      await pumpHost(
+        tester,
+        base.copyWith(
+          players: [
+            for (final p in base.players)
+              p.id == 'p_b2c1' ? p.copyWith(hasSubmitted: false) : p,
+          ],
+          submissions: [
+            for (final s in base.submissions!)
+              if (s.playerId != 'p_b2c1') s,
+          ],
+        ),
+      );
+
+      expect(find.byKey(const ValueKey('submission-p_b2c1')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('no-submission-p_b2c1')),
+        findsOneWidget,
+      );
+
+      // There is nothing to flip: the server answers `no_submission`
+      // (PROTOCOL.md §6.1), so the row must not offer an override at all.
+      // Asserted by behaviour rather than by widget type — a tappable ancestor
+      // wrapping the row would not be a descendant of its key, so looking for
+      // an InkWell under it proves nothing.
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('no-submission-p_b2c1')),
+          matching: find.byType(Switch),
+        ),
+        findsNothing,
+      );
+
+      // Two answered, so exactly two rows are correctable.
+      expect(find.byType(Switch), findsNWidgets(2));
+
+      // Tapping the row does nothing at all.
+      await tester.tap(find.byKey(const ValueKey('no-submission-p_b2c1')));
+      await tester.pumpAndSettle();
+      expect(fake.overrides, isEmpty);
+
+      // And the row really is inert. Counted by key rather than by type: the
+      // screen has other InkWells (the footer button), and a tappable ancestor
+      // wrapping this row would not be a descendant of its key.
+      final tappableRows = tester
+          .widgetList<InkWell>(find.byType(InkWell))
+          .where((ink) => ink.onTap != null)
+          .map((ink) => ink.key)
+          .whereType<ValueKey<String>>()
+          .map((key) => key.value)
+          .toList();
+
+      expect(
+        tappableRows,
+        unorderedEquals(['submission-p_3f9a', 'submission-$hostPlayerId']),
+        reason: 'only the two real submissions should be correctable',
+      );
     });
 
     testWidgets('toggling their own submission calls hostOverride', (
@@ -144,6 +244,30 @@ void main() {
         (playerId: hostPlayerId, correct: true),
         (playerId: 'p_b2c1', correct: false),
       ]);
+    });
+  });
+
+  group('host during leaderboard', () {
+    testWidgets('advancing from scoring reveals the running totals', (
+      tester,
+    ) async {
+      await pumpHost(
+        tester,
+        scoringStateForHost().copyWith(phase: Phase.leaderboard),
+      );
+
+      // The screen "Show standings" leads to: a row per player carrying the
+      // running total, with the change that produced it beside it.
+      expect(find.byKey(const ValueKey('player-p_3f9a')), findsOneWidget);
+      expect(find.byKey(const ValueKey('player-p_b2c1')), findsOneWidget);
+
+      // Sam's total is -7 (a plain hyphen, straight from the score) and his
+      // change is −7 (formatDelta's true minus) — two different things that
+      // happen to coincide on the first question.
+      expect(inStanding('p_3f9a', find.text('-7')), findsOneWidget);
+      expect(inStanding('p_3f9a', find.text('−7')), findsOneWidget);
+      expect(inStanding('p_b2c1', find.text('4')), findsOneWidget);
+      expect(inStanding('p_b2c1', find.text('+4')), findsOneWidget);
     });
   });
 }

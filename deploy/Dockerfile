@@ -8,8 +8,10 @@
 
 ARG ELIXIR_IMAGE=hexpm/elixir:1.20.4-erlang-29.0.6-debian-trixie-20260824-slim
 ARG RUNNER_IMAGE=debian:trixie-20260824-slim
+ARG FORCE_SSL=true
 
 FROM ${ELIXIR_IMAGE} AS builder
+ARG FORCE_SSL=true
 
 RUN apt-get update -y \
   && apt-get install -y --no-install-recommends build-essential git \
@@ -17,6 +19,7 @@ RUN apt-get update -y \
 
 WORKDIR /src
 ENV MIX_ENV=prod
+ENV FORCE_SSL=${FORCE_SSL}
 
 RUN mix local.hex --force && mix local.rebar --force
 

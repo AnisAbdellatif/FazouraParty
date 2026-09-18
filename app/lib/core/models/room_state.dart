@@ -50,6 +50,9 @@ abstract class GameSettings with _$GameSettings {
 
     /// Harder questions score wager × 2 (medium) or × 3 (hard) (protocol v4).
     @Default(false) bool difficultyMultiplier,
+    @Default(<String>['easy', 'medium', 'hard']) List<String> difficulties,
+    @Default(<String>['easy', 'medium', 'hard'])
+    List<String> availableDifficulties,
     @Default(10000) int minTimeLimitMs,
     @Default(120000) int maxTimeLimitMs,
   }) = _GameSettings;
@@ -105,6 +108,11 @@ abstract class You with _$You {
   const factory You({
     required Role role,
     String? playerId,
+
+    /// Present only in the snapshot right after this client was given the host
+    /// role (PROTOCOL.md §5.1), and only to that client. Replace the stored
+    /// token with it: the previous one has stopped working.
+    String? hostToken,
     OwnSubmission? submission,
   }) = _You;
 

@@ -4,6 +4,8 @@ defmodule Fazoura.Uploads do
   (protocol/QUIZ_FORMAT.md §5.6). The type is detected from the file content.
   """
 
+  alias Fazoura.Uploads.Header
+
   @max_bytes 2 * 1024 * 1024
 
   @spec max_bytes() :: pos_integer()
@@ -27,22 +29,38 @@ defmodule Fazoura.Uploads do
 
   def detect(_binary), do: :error
 
-  @doc "Validates and writes the image; returns its new key."
+  @doc """
+  Validates and writes the image; returns its new key.
+
+  The type comes from the magic bytes and the header must then be structurally sound
+  (`Fazoura.Uploads.Header`), so a file that merely starts like an image is refused
+  before anything is written.
+  """
   @spec store(binary()) ::
           {:ok, %{key: String.t(), content_type: String.t(), byte_size: non_neg_integer()}}
           | {:error, :image_too_large | :unsupported_image}
   def store(binary) when byte_size(binary) > @max_bytes, do: {:error, :image_too_large}
 
   def store(binary) when is_binary(binary) do
-    case detect(binary) do
-      {:ok, content_type, ext} ->
-        key = Base.encode16(:crypto.strong_rand_bytes(12), case: :lower) <> "." <> ext
-        File.mkdir_p!(dir())
-        File.write!(Path.join(dir(), key), binary)
-        {:ok, %{key: key, content_type: content_type, byte_size: byte_size(binary)}}
+    with {:ok, content_type, ext} <- validate(binary) do
+      key = Base.encode16(:crypto.strong_rand_bytes(12), case: :lower) <> "." <> ext
+      File.mkdir_p!(dir())
+      File.write!(Path.join(dir(), key), binary)
+      {:ok, %{key: key, content_type: content_type, byte_size: byte_size(binary)}}
+    end
+  end
 
-      :error ->
-        {:error, :unsupported_image}
+  @doc """
+  The content type and extension of a binary that is an image we accept, both by its
+  magic bytes and by its header being well-formed and sanely sized.
+  """
+  @spec validate(binary()) :: {:ok, String.t(), String.t()} | {:error, :unsupported_image}
+  def validate(binary) do
+    with {:ok, content_type, ext} <- detect(binary),
+         true <- Header.valid?(binary) do
+      {:ok, content_type, ext}
+    else
+      _ -> {:error, :unsupported_image}
     end
   end
 end

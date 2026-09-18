@@ -18,7 +18,18 @@ defmodule Fazoura.Quizzes do
 
   @uuid ~r/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i
 
+  # A private quiz's photos live in memory for as long as its room does, so the total
+  # a single room can pin is capped as well as each photo (`Uploads.max_bytes/0`).
+  # 8 MB is a 20-question quiz with a photo on every question at a realistic size,
+  # while keeping a server's worth of rooms in the hundreds of MB rather than the GBs.
+  @max_inline_bytes 8 * 1024 * 1024
+
   @type owner_key :: String.t() | nil
+
+  @doc "Largest total of inline photo bytes one room may hold (QUIZ_FORMAT.md §5.7)."
+  @spec max_inline_bytes() :: pos_integer()
+  def max_inline_bytes,
+    do: Application.get_env(:fazoura, :max_inline_bytes, @max_inline_bytes)
 
   ## Listing and reading
 
@@ -172,6 +183,8 @@ defmodule Fazoura.Quizzes do
   defp replace_children!(quiz, params) do
     Repo.delete_all(from(q in Question, where: q.quiz_id == ^quiz.id))
     Repo.delete_all(from(t in Tag, where: t.quiz_id == ^quiz.id))
+
+    params = Map.put(params, "version", increment_version(quiz.version))
 
     case %{quiz | questions: [], quiz_tags: []} |> Quiz.changeset(params) |> Repo.update() do
       {:ok, updated} -> updated
@@ -331,21 +344,32 @@ defmodule Fazoura.Quizzes do
   end
 
   defp extract_inline_images(%{"questions" => questions} = params) when is_list(questions) do
-    result =
-      Enum.reduce_while(questions, {:ok, [], []}, fn question, {:ok, acc, images} ->
-        case inline_image(question) do
-          {:ok, question, nil} -> {:cont, {:ok, [question | acc], images}}
-          {:ok, question, image} -> {:cont, {:ok, [question | acc], [image | images]}}
-          error -> {:halt, error}
-        end
-      end)
+    result = Enum.reduce_while(questions, {:ok, [], [], 0}, &take_inline_image/2)
 
-    with {:ok, questions, images} <- result do
+    with {:ok, questions, images, _bytes} <- result do
       {:ok, Map.put(params, "questions", Enum.reverse(questions)), Enum.reverse(images)}
     end
   end
 
   defp extract_inline_images(params), do: {:ok, params, []}
+
+  defp take_inline_image(question, {:ok, acc, images, bytes}) do
+    case inline_image(question) do
+      {:ok, question, nil} -> {:cont, {:ok, [question | acc], images, bytes}}
+      {:ok, question, image} -> keep_image(question, image, acc, images, bytes)
+      error -> {:halt, error}
+    end
+  end
+
+  # Every photo is already under the per-image cap, but a room holds all of them in
+  # memory for its whole life, so the total is what has to be bounded as well.
+  defp keep_image(question, {_key, _type, binary} = image, acc, images, bytes) do
+    bytes = bytes + byte_size(binary)
+
+    if bytes > max_inline_bytes(),
+      do: {:halt, {:error, :quiz_too_large}},
+      else: {:cont, {:ok, [question | acc], [image | images], bytes}}
+  end
 
   # Stored image keys mean nothing for an inline quiz, so only `data` counts.
   defp inline_image(%{"image" => %{"data" => data} = image} = question) when is_binary(data) do
@@ -374,12 +398,9 @@ defmodule Fazoura.Quizzes do
       else: {:ok, binary}
   end
 
-  defp detect_image(binary) do
-    case Uploads.detect(binary) do
-      {:ok, content_type, ext} -> {:ok, content_type, ext}
-      :error -> {:error, :unsupported_image}
-    end
-  end
+  # Same check as a stored upload: magic bytes *and* a well-formed header, so a private
+  # quiz cannot smuggle in what a published one cannot.
+  defp detect_image(binary), do: Uploads.validate(binary)
 
   ## Documents (JSON shape, QUIZ_FORMAT.md §2)
 
@@ -393,6 +414,7 @@ defmodule Fazoura.Quizzes do
 
     document = %{
       format_version: quiz.format_version,
+      version: quiz.version,
       id: quiz.id,
       slug: quiz.slug,
       title: quiz.title,
@@ -492,5 +514,10 @@ defmodule Fazoura.Quizzes do
       end
 
     quiz |> Quiz.changeset(params) |> Repo.insert_or_update!()
+  end
+
+  defp increment_version(version) do
+    [major, minor] = version |> String.split(".", parts: 2) |> Enum.map(&String.to_integer/1)
+    "#{major}.#{minor + 1}"
   end
 end

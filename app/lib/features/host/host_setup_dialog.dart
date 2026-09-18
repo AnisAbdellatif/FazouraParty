@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../core/lan/lan_host.dart' show lanHostingSupported;
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
 import '../join/join_screen.dart' show validateDisplayName;
 
 /// Result of [showHostSetupDialog]: [displayName] is null when the host does
-/// not play along.
-typedef HostSetup = ({String? displayName});
+/// not play along, and [overLan] hosts the room on this device instead of the
+/// cloud server.
+typedef HostSetup = ({String? displayName, bool overLan});
 
 /// Bottom sheet asking whether the host plays along and under which name.
 /// Returns null if dismissed.
@@ -29,6 +31,7 @@ class _HostSetupDialogState extends State<HostSetupDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   bool _playAlong = true;
+  bool _overLan = false;
 
   @override
   void dispose() {
@@ -40,6 +43,7 @@ class _HostSetupDialogState extends State<HostSetupDialog> {
     if (_playAlong && !(_formKey.currentState?.validate() ?? false)) return;
     Navigator.of(context).pop<HostSetup>((
       displayName: _playAlong ? _nameController.text.trim() : null,
+      overLan: _overLan,
     ));
   }
 
@@ -86,6 +90,21 @@ class _HostSetupDialogState extends State<HostSetupDialog> {
               onFieldSubmitted: (_) => _confirm(),
               validator: _playAlong ? validateDisplayName : null,
             ),
+            // Hidden on Web, where a browser cannot open a listening socket.
+            if (lanHostingSupported) ...[
+              const SizedBox(height: 8),
+              SwitchListTile(
+                key: const Key('overLanSwitch'),
+                contentPadding: EdgeInsets.zero,
+                title: Text('Host on this Wi-Fi', style: fz.h(16)),
+                subtitle: Text(
+                  'No internet needed. Guests join from the same network.',
+                  style: fz.m(11.5, color: FzColors.dim),
+                ),
+                value: _overLan,
+                onChanged: (value) => setState(() => _overLan = value),
+              ),
+            ],
             const SizedBox(height: 20),
             FzButton(
               key: const Key('createRoomButton'),

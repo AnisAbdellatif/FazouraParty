@@ -1,18 +1,17 @@
-defmodule Fazoura.Repo.Migrations.CreateQuizzes do
+defmodule Fazoura.Repo.Migrations.CreateSchema do
   use Ecto.Migration
 
-  # Portable across SQLite (dev/test) and Postgres (prod): string enums, no
-  # Postgres-only SQL, and no defaults on array columns (set in changesets).
+  # This is the consolidated initial schema. Keep it portable across SQLite
+  # (development/test) and Postgres (production).
   def change do
     create table(:quizzes, primary_key: false) do
       add :id, :binary_id, primary_key: true
       add :slug, :string
       add :format_version, :integer, null: false, default: 1
+      add :version, :string, null: false, default: "1.0"
       add :title, :string, null: false
       add :description, :text
       add :language, :string, null: false, default: "en"
-      add :category, :string, null: false, default: "general"
-      add :tags, {:array, :string}, null: false
       add :source, :string, null: false
       add :visibility, :string, null: false
       add :owner_key_hash, :string
@@ -30,9 +29,7 @@ defmodule Fazoura.Repo.Migrations.CreateQuizzes do
 
     create table(:quiz_questions, primary_key: false) do
       add :id, :binary_id, primary_key: true
-
       add :quiz_id, references(:quizzes, type: :binary_id, on_delete: :delete_all), null: false
-
       add :position, :integer, null: false
       add :type, :string, null: false
       add :prompt, :text, null: false
@@ -59,5 +56,24 @@ defmodule Fazoura.Repo.Migrations.CreateQuizzes do
     end
 
     create unique_index(:images, [:key])
+
+    create table(:quiz_tags, primary_key: false) do
+      add :id, :binary_id, primary_key: true
+      add :quiz_id, references(:quizzes, type: :binary_id, on_delete: :delete_all), null: false
+      add :tag, :string, null: false
+      add :position, :integer, null: false
+
+      timestamps(type: :utc_datetime, updated_at: false)
+    end
+
+    create unique_index(:quiz_tags, [:quiz_id, :tag])
+    create index(:quiz_tags, [:tag])
+
+    create table(:app_settings, primary_key: false) do
+      add :key, :string, primary_key: true
+      add :value, :text, null: false
+
+      timestamps(type: :utc_datetime)
+    end
   end
 end

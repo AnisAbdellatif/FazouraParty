@@ -32,8 +32,9 @@ typedef FontApplier = TextStyle Function(TextStyle style);
 /// Fonts for the design: Figtree for body and buttons, DM Mono for labels,
 /// codes and numbers, Reem Kufi for display headings and the Arabic wordmark.
 ///
-/// The app wires in Google Fonts; widget tests fall back to [fallback], so
-/// nothing is fetched over the network.
+/// All three are bundled with the app (pubspec `fonts:`) and referenced by
+/// family name, so nothing is ever fetched over the network — the design holds
+/// on a LAN with no internet, and no page load waits on a third party.
 @immutable
 class FzTheme extends ThemeExtension<FzTheme> {
   const FzTheme({
@@ -46,17 +47,31 @@ class FzTheme extends ThemeExtension<FzTheme> {
   final FontApplier monoFont;
   final FontApplier titleFont;
 
-  static TextStyle _figtree(TextStyle style) =>
-      style.copyWith(fontFamily: 'Figtree');
+  /// Latin fonts fall back to Reem Kufi for anything they lack — in practice
+  /// the Arabic wordmark, which appears inside otherwise-Latin strings. Without
+  /// a bundled fallback that covers it, Flutter Web downloads Noto Sans Arabic
+  /// from fonts.gstatic.com on first paint, which is both a third-party request
+  /// and a blank wordmark at a party with no internet. Reem Kufi is an Arabic
+  /// typeface and already ships with the app.
+  static const _arabicFallback = ['Reem Kufi'];
+
+  static TextStyle _figtree(TextStyle style) => style.copyWith(
+    fontFamily: 'Figtree',
+    fontFamilyFallback: _arabicFallback,
+  );
 
   static TextStyle _dmMono(TextStyle style) => style.copyWith(
     fontFamily: 'DM Mono',
-    fontFamilyFallback: const ['monospace'],
+    fontFamilyFallback: const ['Reem Kufi', 'monospace'],
   );
 
   static TextStyle _reemKufi(TextStyle style) =>
       style.copyWith(fontFamily: 'Reem Kufi');
 
+  /// The design's fonts, by the family names the bundled files declare.
+  /// Named `fallback` because it is also what a widget test gets when no theme
+  /// extension is installed; since the fonts were bundled it is the real thing
+  /// in both cases.
   static const fallback = FzTheme(
     displayFont: _figtree,
     monoFont: _dmMono,

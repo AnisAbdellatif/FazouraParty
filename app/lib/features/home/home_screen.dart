@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
+import '../../core/providers/lan_providers.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
 import '../host/host_screen.dart';
 import '../host/host_setup_dialog.dart';
 import '../join/join_screen.dart';
-import '../quizzes/quiz_browser_screen.dart';
+import '../quizzes/quiz_editor_screen.dart';
+import '../settings/settings_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -21,21 +24,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _creating = false;
 
   Future<void> _hostGame() async {
-    final choice = await showQuizBrowser(context);
-    if (choice == null || !mounted) return;
     final setup = await showHostSetupDialog(context);
     if (setup == null || !mounted) return;
     setState(() => _creating = true);
     try {
-      final api = ref.read(roomApiProvider);
-      final created = await switch (choice) {
-        PublicQuizChoice(:final quiz) => api.createRoom(quizId: quiz.hostId),
-        LocalQuizChoice(:final quiz)
-            when quiz.isPublished && quiz.wantsPublic =>
-          api.createRoom(quizId: quiz.publishedId!),
-        // Private quizzes are sent whole each time (QUIZ_FORMAT.md §5.7).
-        LocalQuizChoice(:final quiz) => api.createRoom(inlineQuiz: quiz.quiz),
-      };
+      final created = setup.overLan
+          ? await _createLanRoom()
+          : await ref.read(roomApiProvider).createRoom();
       ref.invalidate(gameConnectionProvider);
       await ref
           .read(gameConnectionProvider)
@@ -53,11 +48,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     } catch (error) {
       ref.invalidate(gameConnectionProvider);
+      // A LAN room whose host never joined would keep a port open and a party
+      // running that nobody is in.
+      await ref.read(hostedLanRoomProvider.notifier).stop();
       if (!mounted) return;
       setState(() => _creating = false);
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(describeError(error))));
     }
+  }
+
+  /// Starts a room on this device. No HTTP call: the host holds the whole game
+  /// in process and hands out the same room code and host token shape as the
+  /// cloud server (PROTOCOL.md §3.1).
+  Future<CreatedRoom> _createLanRoom() async {
+    final host = await ref.read(hostedLanRoomProvider.notifier).start();
+    return CreatedRoom(roomCode: host.roomCode, hostToken: host.hostToken);
   }
 
   @override
@@ -90,6 +96,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   : () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
                         builder: (_) => const JoinScreen(),
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 11),
+            FzButton(
+              key: const Key('createQuizButton'),
+              label: 'Create a quiz',
+              trailing: 'offline',
+              kind: FzButtonKind.outline,
+              onPressed: _creating ? null : () => showQuizEditor(context),
+            ),
+            const SizedBox(height: 11),
+            FzButton(
+              key: const Key('settingsButton'),
+              label: 'Settings',
+              trailing: 'app',
+              kind: FzButtonKind.outline,
+              onPressed: _creating
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const SettingsScreen(),
                       ),
                     ),
             ),

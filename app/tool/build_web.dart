@@ -53,6 +53,11 @@ Future<void> main(List<String> args) async {
       'build',
       'web',
       '--release',
+      // Serve CanvasKit from our own origin instead of gstatic.com. A LAN party
+      // has no internet, and a guest whose browser can't reach Google gets a
+      // blank screen rather than a degraded one. It also removes a third-party
+      // dependency from every cloud page load.
+      '--no-web-resources-cdn',
     ], runInShell: true);
     stdout.write(result.stdout);
     if (result.exitCode != 0) {

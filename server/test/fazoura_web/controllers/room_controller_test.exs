@@ -4,7 +4,8 @@ defmodule FazouraWeb.RoomControllerTest do
   alias Fazoura.{QuizFixtures, Quizzes}
   alias Fazoura.Rooms.Images
 
-  @png <<0x89, "PNG", 0x0D, 0x0A, 0x1A, 0x0A, "fake image body">>
+  # A real 1x1 PNG: uploads are validated structurally, not just by magic bytes.
+  @png QuizFixtures.png()
 
   setup do
     Quizzes.sync_builtin!()
@@ -59,10 +60,12 @@ defmodule FazouraWeb.RoomControllerTest do
     test "creates a room without storing the quiz; photos live as long as the room", %{
       conn: conn
     } do
+      quiz_count = Fazoura.Repo.aggregate(Fazoura.Quizzes.Quiz, :count)
+
       %{"room_code" => code} =
         conn |> post(~p"/api/rooms", %{quiz: inline_quiz()}) |> json_response(201)
 
-      assert Fazoura.Repo.aggregate(Fazoura.Quizzes.Quiz, :count) == 1
+      assert Fazoura.Repo.aggregate(Fazoura.Quizzes.Quiz, :count) == quiz_count
 
       [{pid, _}] = Registry.lookup(Fazoura.Rooms.Registry, code)
       %{game: game} = :sys.get_state(pid)

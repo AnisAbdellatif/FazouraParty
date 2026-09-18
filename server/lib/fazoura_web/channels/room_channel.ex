@@ -26,7 +26,12 @@ defmodule FazouraWeb.RoomChannel do
     paused: "The timer is paused.",
     not_paused: "The timer isn't paused.",
     invalid_payload: "Malformed request.",
-    invalid_settings: "Choose 1 question up to the pack size, and 10–120 seconds per question."
+    invalid_settings: "Choose 1 question up to the pack size, and 10–120 seconds per question.",
+    quiz_required: "Choose a quiz before starting the game.",
+    empty_pack: "That quiz has no playable questions.",
+    invalid_quiz: "That quiz could not be loaded.",
+    quiz_not_found: "That quiz is gone or no longer shared with you.",
+    not_connected: "That player isn't connected right now."
   }
 
   @impl true
@@ -78,7 +83,10 @@ defmodule FazouraWeb.RoomChannel do
   defp to_intent("host_resume", _payload), do: {:ok, :resume}
   defp to_intent("host_override", payload), do: {:ok, {:override, payload}}
   defp to_intent("host_configure", payload), do: {:ok, {:configure, payload}}
+  defp to_intent("host_select_quiz", payload), do: {:ok, {:select_quiz, payload}}
   defp to_intent("host_rematch", _payload), do: {:ok, :rematch}
+  defp to_intent("host_transfer", payload), do: {:ok, {:transfer, payload}}
+  defp to_intent("host_close", _payload), do: {:ok, :close}
   defp to_intent(_event, _payload), do: {:error, :invalid_payload}
 
   defp error(code), do: %{code: Atom.to_string(code), message: Map.fetch!(@error_messages, code)}

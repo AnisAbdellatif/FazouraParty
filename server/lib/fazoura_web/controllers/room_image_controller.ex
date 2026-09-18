@@ -6,11 +6,13 @@ defmodule FazouraWeb.RoomImageController do
   import FazouraWeb.ApiHelpers, only: [error: 4]
 
   alias Fazoura.Rooms.Images
+  alias FazouraWeb.Plugs.UserContent
 
   def show(conn, %{"key" => key}) do
     case Images.fetch(key) do
       {:ok, content_type, binary} ->
         conn
+        |> UserContent.protect()
         |> put_resp_content_type(content_type, nil)
         |> put_resp_header("cache-control", "private, max-age=3600")
         |> send_resp(200, binary)

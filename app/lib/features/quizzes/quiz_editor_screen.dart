@@ -18,7 +18,7 @@ const maxQuizTitleLength = 80;
 const maxQuizDescriptionLength = 280;
 const maxPromptLength = 280;
 const maxAnswers = 10;
-const maxQuestions = 100;
+const maxQuestions = 1024;
 const defaultTimeChoicesSeconds = [10, 15, 20, 30, 45, 60, 90, 120];
 const difficulties = ['easy', 'medium', 'hard'];
 

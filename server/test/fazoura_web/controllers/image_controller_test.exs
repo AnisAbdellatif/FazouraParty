@@ -3,7 +3,8 @@ defmodule FazouraWeb.ImageControllerTest do
 
   alias Fazoura.QuizFixtures
 
-  @png <<0x89, "PNG", 0x0D, 0x0A, 0x1A, 0x0A, "fake image body">>
+  # A real 1x1 PNG: uploads are validated structurally, not just by magic bytes.
+  @png QuizFixtures.png()
 
   defp upload(binary, filename) do
     path = Path.join(System.tmp_dir!(), "fazoura-upload-#{System.unique_integer([:positive])}")

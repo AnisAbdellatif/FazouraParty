@@ -2,13 +2,15 @@ defmodule Fazoura.QuizzesTest do
   # SQLite's sandbox does not support concurrent tests.
   use Fazoura.DataCase, async: false
 
+  alias Fazoura.QuizFixtures
   alias Fazoura.Quizzes
   alias Fazoura.Quizzes.Quiz
   alias Fazoura.Rooms.Images
 
   @owner "owner-key-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   @other "other-key-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-  @png <<0x89, "PNG", 0x0D, 0x0A, 0x1A, 0x0A, "fake image body">>
+  # A real 1x1 PNG: uploads are validated structurally, not just by magic bytes.
+  @png QuizFixtures.png()
 
   defp question(attrs \\ %{}) do
     Map.merge(
@@ -91,7 +93,25 @@ defmodule Fazoura.QuizzesTest do
       assert %{questions: _} = errors(cs)
 
       assert {:error, cs} = Quizzes.create(quiz_params(%{"questions" => nil}), @owner)
-      assert %{questions: ["must be a list of 1 to 100 questions"]} = errors(cs)
+      assert %{questions: ["must be a list of 1 to 1024 questions"]} = errors(cs)
+
+      accepted =
+        for index <- 1..1024 do
+          question(%{"prompt" => "Question #{index}"})
+        end
+
+      assert {:ok, quiz} =
+               Quizzes.create(quiz_params(%{"questions" => accepted}), @owner)
+
+      assert quiz.question_count == 1024
+
+      assert {:error, cs} =
+               Quizzes.create(
+                 quiz_params(%{"questions" => [question() | accepted]}),
+                 @owner
+               )
+
+      assert %{questions: ["must be a list of 1 to 1024 questions"]} = errors(cs)
 
       # A real upload, so the image-ownership check passes and validation runs.
       {:ok, image} = Quizzes.store_image(@png, @owner)
@@ -164,7 +184,8 @@ defmodule Fazoura.QuizzesTest do
 
   describe "listing and reading" do
     setup do
-      [builtin] = Quizzes.sync_builtin!()
+      builtin = Enum.find(Quizzes.sync_builtin!(), &(&1.slug == "general-knowledge"))
+      assert builtin != nil
       {:ok, movies} = Quizzes.create(quiz_params(), @owner)
 
       {:ok, science} =
@@ -178,10 +199,14 @@ defmodule Fazoura.QuizzesTest do
 
     test "lists published quizzes, built-ins first, newest next", ctx do
       assert {:ok, quizzes, nil} = Quizzes.list()
-      assert hd(quizzes).id == ctx.builtin.id
+      assert hd(quizzes).source == "builtin"
+      assert ctx.builtin.id in Enum.map(quizzes, & &1.id)
 
-      assert quizzes |> tl() |> Enum.map(& &1.id) |> Enum.sort() ==
-               Enum.sort([ctx.movies.id, ctx.science.id])
+      assert [ctx.movies.id, ctx.science.id] |> Enum.sort() ==
+               quizzes
+               |> Enum.filter(&(&1.source == "custom"))
+               |> Enum.map(& &1.id)
+               |> Enum.sort()
     end
 
     test "search by title or tag, tag filter and paging", ctx do
@@ -193,8 +218,9 @@ defmodule Fazoura.QuizzesTest do
       assert movies_id == ctx.movies.id
       assert {:ok, [], nil} = Quizzes.list(tag: "nobody uses this")
       assert {:ok, [first], 1} = Quizzes.list(limit: 1)
-      assert first.id == ctx.builtin.id
-      assert {:ok, [_, _], nil} = Quizzes.list(limit: 5, offset: 1)
+      assert first.source == "builtin"
+      assert {:ok, quizzes_after_first, nil} = Quizzes.list(limit: 5, offset: 1)
+      assert length(quizzes_after_first) == 3
     end
 
     test "popular_tags counts the tags public quizzes use" do
@@ -243,6 +269,7 @@ defmodule Fazoura.QuizzesTest do
       assert {:ok, updated} = Quizzes.replace(quiz.id, params, @owner)
       updated = Repo.preload(updated, :questions, force: true)
       assert {updated.title, updated.question_count} == {"Renamed", 1}
+      assert updated.version == "1.1"
       assert Enum.map(updated.questions, & &1.prompt) == ["Only one"]
 
       assert {:error, %Ecto.Changeset{}} =
@@ -253,7 +280,8 @@ defmodule Fazoura.QuizzesTest do
     end
 
     test "publisher unpublishes; built-ins can't be changed through the API", %{quiz: quiz} do
-      [builtin] = Quizzes.sync_builtin!()
+      builtin = Enum.find(Quizzes.sync_builtin!(), &(&1.slug == "general-knowledge"))
+      assert builtin != nil
       assert {:error, :quiz_not_found} = Quizzes.delete(builtin.id, @owner)
       assert {:error, :quiz_not_found} = Quizzes.delete(quiz.id, @other)
       assert :ok = Quizzes.delete(quiz.id, @owner)
@@ -319,10 +347,10 @@ defmodule Fazoura.QuizzesTest do
 
   describe "built-ins and packs" do
     test "sync_builtin! is idempotent and loads the 20-question General Knowledge quiz" do
-      [first] = Quizzes.sync_builtin!()
-      [again] = Quizzes.sync_builtin!()
+      first = Enum.find(Quizzes.sync_builtin!(), &(&1.slug == "general-knowledge"))
+      again = Enum.find(Quizzes.sync_builtin!(), &(&1.slug == "general-knowledge"))
       assert first.id == again.id
-      assert Repo.aggregate(Quiz, :count) == 1
+      assert Repo.aggregate(Quiz, :count) == 2
 
       {:ok, quiz} = Quizzes.fetch("general-knowledge")
       assert {quiz.source, quiz.visibility, quiz.question_count} == {"builtin", "public", 20}
@@ -359,7 +387,9 @@ defmodule Fazoura.QuizzesTest do
       assert game.settings == %{
                question_count: 2,
                time_limit_ms: 20_000,
-               difficulty_multiplier: true
+               difficulty_multiplier: true,
+               difficulties: ["medium"],
+               available_difficulties: ["medium"]
              }
     end
   end
@@ -371,12 +401,17 @@ defmodule Fazoura.QuizzesTest do
       assert File.exists?(Path.join(Fazoura.Uploads.dir(), key))
 
       assert {:ok, %{content_type: "image/jpeg"}} =
-               Quizzes.store_image(<<0xFF, 0xD8, 0xFF, 0xE0, "jpeg">>, @owner)
+               Quizzes.store_image(QuizFixtures.jpeg(), @owner)
 
       assert {:ok, %{content_type: "image/webp"}} =
-               Quizzes.store_image(<<"RIFF", 0, 0, 0, 0, "WEBPVP8 ">>, @owner)
+               Quizzes.store_image(QuizFixtures.webp(), @owner)
 
       assert Quizzes.store_image("GIF89a...", @owner) == {:error, :unsupported_image}
+
+      # Magic bytes alone are no longer enough: the header must be well-formed too.
+      assert Quizzes.store_image(<<0xFF, 0xD8, 0xFF, 0xE0, "jpeg">>, @owner) ==
+               {:error, :unsupported_image}
+
       assert Quizzes.store_image(@png, nil) == {:error, :owner_key_required}
 
       too_big = @png <> :binary.copy(<<0>>, Fazoura.Uploads.max_bytes())

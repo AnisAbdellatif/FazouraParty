@@ -14,18 +14,25 @@ class LobbyView extends StatelessWidget {
     required this.state,
     this.footer,
     this.settingsEditor,
+    this.lanAddress,
   });
 
   final RoomState state;
   final Widget? footer;
   final Widget? settingsEditor;
 
+  /// `<ip>:<port>` of this device when hosting over LAN. Guests need it as well
+  /// as the code, because there is no server for them to look the room up on.
+  final String? lanAddress;
+
   Future<void> _share(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
-    await Clipboard.setData(ClipboardData(text: state.roomCode));
-    messenger.showSnackBar(
-      SnackBar(content: Text('Room code ${state.roomCode} copied')),
-    );
+    final address = lanAddress;
+    final text = address == null
+        ? state.roomCode
+        : '${state.roomCode} at $address';
+    await Clipboard.setData(ClipboardData(text: text));
+    messenger.showSnackBar(SnackBar(content: Text('Copied $text')));
   }
 
   @override
@@ -62,6 +69,21 @@ class LobbyView extends StatelessWidget {
               ),
             ],
           ),
+          if (lanAddress case final address?) ...[
+            const SizedBox(height: 14),
+            const FzEyebrow('On this Wi-Fi'),
+            const SizedBox(height: 6),
+            Text(
+              address,
+              key: const Key('lobbyLanAddress'),
+              style: fz.m(17, color: FzColors.ac),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Guests turn on “Host is on this Wi-Fi” and enter this.',
+              style: fz.m(11, color: FzColors.dim, height: 1.5),
+            ),
+          ],
           const SizedBox(height: 26),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -84,15 +106,17 @@ class LobbyView extends StatelessWidget {
                     const FzEyebrow('Tonight', size: 9.5),
                     const SizedBox(height: 6),
                     Text(
-                      [
-                        state.packTitle ?? 'Trivia',
-                        '${state.questionCount} '
-                            '${state.questionCount == 1 ? 'question' : 'questions'}',
-                        if (state.settings != null)
-                          '${state.settings!.timeLimitMs ~/ 1000}s each',
-                        if (state.settings?.difficultyMultiplier ?? false)
-                          'difficulty bonus',
-                      ].join(' · '),
+                      state.packTitle == null
+                          ? 'The host is choosing a quiz…'
+                          : [
+                              state.packTitle!,
+                              '${state.questionCount} '
+                                  '${state.questionCount == 1 ? 'question' : 'questions'}',
+                              if (state.settings != null)
+                                '${state.settings!.timeLimitMs ~/ 1000}s each',
+                              if (state.settings?.difficultyMultiplier ?? false)
+                                'difficulty bonus',
+                            ].join(' · '),
                       key: const Key('lobbyGameSummary'),
                       style: fz.h(15, height: 1.3),
                     ),

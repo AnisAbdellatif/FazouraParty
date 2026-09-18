@@ -33,7 +33,12 @@ defmodule FazouraWeb.ProtocolScenariosTest do
   defp run_scenario(scenario) do
     {:ok, clock} = Agent.start_link(fn -> @clock_start end)
     pack = Pack.from_map(scenario["pack"])
-    {:ok, code, host_token} = Rooms.create(pack, now: fn -> Agent.get(clock, & &1) end)
+
+    {:ok, code, host_token} =
+      Rooms.create(pack,
+        now: fn -> Agent.get(clock, & &1) end,
+        shuffle_questions?: false
+      )
 
     ctx = %{code: code, clock: clock, actors: %{}, vars: %{"$host_token" => host_token}}
 

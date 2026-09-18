@@ -18,8 +18,10 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
    field, or adding a required one, bumps `format_version` and needs a migration path.
 3. **Room-safe.** Rooms snapshot a quiz when created (PROTOCOL.md §6.2), so editing a quiz
    never affects a running game.
-4. **No answer leaks.** Accepted answers are only sent to the device that published the
-   quiz, never to people browsing public quizzes (they may end up playing it).
+4. **No accidental answer leaks.** Accepted answers are omitted from public listings and
+   ordinary quiz reads. A user who explicitly saves a public quiz for offline play opts in
+   to receiving its full document, including accepted answers, so the device can host it
+   without the server.
 5. **No accounts.** A quiz is either *private* (kept on the device that made it and sent
    to the server only for the lifetime of a room) or *public* (published to the server
    database for everyone). A per-device secret lets the publishing device update or
@@ -30,6 +32,7 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 ```json
 {
   "format_version": 1,
+  "version": "1.0",
   "id": "3f0c2a5e-6b1e-4f0a-9d8e-2b7c1e4a9f10",
   "slug": null,
   "title": "Movie Night",
@@ -81,6 +84,7 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 | Field | Type | Rules |
 |---|---|---|
 | `format_version` | int | Required on input; currently `1` |
+| `version` | string | Content revision in `<major>.<minor>` format, starting at `"1.0"`; the minor version increments whenever a published quiz is replaced. Clients use it to detect stale offline copies |
 | `id` | uuid string | Server-assigned; ignored on create |
 | `slug` | string \| null | Stable human id for built-in quizzes (`general-knowledge`); `null` for custom |
 | `title` | string | Required, 1–80 characters (trimmed) |
@@ -94,7 +98,7 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 | `question_count` | int | Output only |
 | `has_photos` | bool | Output only: at least one `text_photo` question |
 | `created_at`, `updated_at` | ISO 8601 UTC | Output only |
-| `questions` | Question[] | Required on create/replace: 1–100 questions, in play order |
+| `questions` | Question[] | Required on create/replace: 1–1024 questions, in play order |
 
 ### 2.2 Question fields
 
@@ -136,7 +140,7 @@ changesets), arrays via Ecto's `{:array, :string}`.
 
 ```
 quizzes
-  id uuid PK · slug string UNIQUE NULL · format_version int
+  id uuid PK · slug string UNIQUE NULL · format_version int · version string
   title string · description text NULL · language string
   source string · visibility string · owner_key_hash string NULL (sha256 hex)
   default_time_limit_ms int · default_difficulty_multiplier bool
@@ -185,8 +189,9 @@ images
 - Each app install generates a random **publisher key** (≥ 32 URL-safe characters) once
   and keeps it on the device. It is not an account: it is sent as the `x-owner-key` HTTP
   header and only proves "this device published it". The server stores
-  `sha256(publisher_key)`. Only that key can read a published quiz's accepted answers,
-  replace it or unpublish it. Built-in quizzes cannot be changed through the API.
+  `sha256(publisher_key)`. Only that key can replace or unpublish a published quiz.
+  Built-in quizzes cannot be changed through the API. An explicit offline download is
+  available to any client because offline hosting requires the accepted answers.
 - Requests for a quiz that doesn't exist, or to change one someone else published, get
   `404 quiz_not_found`, never `403`.
 
@@ -225,6 +230,13 @@ server can't be reached.
 `:id` is the uuid or a built-in slug. Returns the document **without** `questions`, or
 **with** them for the publisher.
 
+### 5.3a `GET /api/quizzes/:id/download`
+
+Explicitly downloads a public quiz for offline use. Returns the full document, including
+accepted answers and remote image URLs. The client should download those images too and
+store the resulting document privately on the device. This endpoint is intentionally an
+opt-in answer disclosure: without the answers, the device could not host the quiz offline.
+
 ### 5.4 `POST /api/quizzes` (publish)
 
 Header `x-owner-key` required. Body: a quiz document (server-assigned and output-only
@@ -235,7 +247,7 @@ fields ignored; photos by `key`). `201` with the full document. `422 invalid_qui
 ### 5.5 `PUT /api/quizzes/:id`
 
 Publisher only. Replaces the quiz, including all tags and questions (question ids are
-re-issued). `200` with the full document.
+re-issued), and increments `version`. `200` with the full document.
 
 ### 5.6 `DELETE /api/quizzes/:id` (unpublish)
 

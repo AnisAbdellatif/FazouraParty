@@ -195,7 +195,9 @@ defmodule Fazoura.GameTest do
       assert game.settings == %{
                question_count: 3,
                time_limit_ms: 10_000,
-               difficulty_multiplier: false
+               difficulty_multiplier: false,
+               difficulties: ["easy"],
+               available_difficulties: ["easy"]
              }
 
       view = Game.view(game, :host, @t0)
@@ -205,6 +207,8 @@ defmodule Fazoura.GameTest do
                question_count: 3,
                time_limit_ms: 10_000,
                difficulty_multiplier: false,
+               difficulties: ["easy"],
+               available_difficulties: ["easy"],
                max_question_count: 3,
                min_time_limit_ms: 10_000,
                max_time_limit_ms: 120_000
@@ -242,13 +246,13 @@ defmodule Fazoura.GameTest do
     end
   end
 
-  describe "question cap and difficulty bonus" do
-    test "at most 20 questions per game, even with a bigger pack" do
+  describe "question count and difficulty bonus" do
+    test "the round can use the full pack size" do
       game = game_with_players(["sam"], 25)
-      assert game.settings.question_count == 20
-      assert Game.view(game, :host, @t0).settings.max_question_count == 20
-      assert configure(game, 21, 30_000) == {:error, :invalid_settings}
-      assert {:ok, _} = configure(game, 20, 30_000)
+      assert game.settings.question_count == 25
+      assert Game.view(game, :host, @t0).settings.max_question_count == 25
+      assert configure(game, 26, 30_000) == {:error, :invalid_settings}
+      assert {:ok, _} = configure(game, 25, 30_000)
     end
 
     for c <- ProtocolFixtures.load!("scoring.json")["multiplier"] do
@@ -308,7 +312,7 @@ defmodule Fazoura.GameTest do
   end
 
   describe "rematch" do
-    test "resets scores, keeps players and settings, and continues through the pack" do
+    test "resets scores and returns to quiz selection in the same room" do
       game = game_with_players(["sam", "alex"], 3)
 
       game = game |> configure(2, 10_000) |> ok!()
@@ -324,14 +328,13 @@ defmodule Fazoura.GameTest do
       assert {game.phase, game.game_number, game.question_index} == {:lobby, 2, nil}
       assert Enum.map(game.players, fn {_, p} -> p.score end) == [0, 0]
       assert map_size(game.players) == 2
-      assert game.settings.question_count == 2
+      assert game.settings.question_count == 0
+      assert game.pack.questions == []
       assert host(game, :rematch) == {:error, :invalid_phase}
 
-      # Offset 2 in a 3-question pack: q3, then wraps to q1.
+      {:ok, game} = Game.select_quiz(game, pack(3))
       game = game |> host(:next) |> ok!()
-      assert Game.view(game, :host, @t0).question.id == "q3"
-      game = game |> host(:next) |> ok!() |> host(:next) |> ok!() |> host(:next) |> ok!()
-      assert Game.view(game, :host, @t0).question.id == "q1"
+      assert Game.view(game, :host, @t0).question.id in ["q1", "q2", "q3"]
       assert Game.view(game, :host, @t0).game_number == 2
     end
   end
@@ -357,7 +360,7 @@ defmodule Fazoura.GameTest do
       host_view = Game.view(game, :host, @t0)
       assert host_view.accepted_answers == nil
       assert host_view.submissions == nil
-      assert host_view.you == %{role: "host", player_id: nil, submission: nil}
+      assert host_view.you == %{role: "host", player_id: nil, host_token: nil, submission: nil}
 
       scored = game |> host(:next) |> ok!() |> Game.view({:player, "alex"}, @t0)
       assert scored.accepted_answers == ["Right"]
@@ -381,6 +384,7 @@ defmodule Fazoura.GameTest do
       assert during.you == %{
                role: "host",
                player_id: "hana",
+               host_token: nil,
                submission: %{answer: "Rigth", wager: 6, correct: nil, delta: nil}
              }
 

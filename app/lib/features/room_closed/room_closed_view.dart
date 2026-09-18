@@ -14,7 +14,8 @@ class RoomClosedView extends StatelessWidget {
   Widget build(BuildContext context) {
     final fz = FzTheme.of(context);
     final text = switch (reason) {
-      RoomClosedReason.hostTimeout => 'The host has been away for too long.',
+      RoomClosedReason.empty => 'Everyone left, so the room closed.',
+      RoomClosedReason.closed => 'The host ended the party.',
       RoomClosedReason.finished => 'The game is over.',
       RoomClosedReason.shutdown => 'The server closed the room.',
       RoomClosedReason.notFound => 'This room no longer exists.',

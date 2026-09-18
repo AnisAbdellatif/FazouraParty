@@ -69,6 +69,10 @@ defmodule FazouraWeb.AdminLiveTest do
       assert render(view) =~ "is now a preset"
       assert {:ok, %{source: "builtin"}} = Quizzes.fetch(quiz.id)
 
+      view |> element("#quiz-#{quiz.id} button[phx-click=toggle_preset]") |> render_click()
+      assert render(view) =~ "is a community quiz again"
+      assert {:ok, %{source: "custom", slug: nil}} = Quizzes.fetch(quiz.id)
+
       view |> element("#quiz-#{quiz.id} button.danger") |> render_click()
       assert render(view) =~ "Deleted"
       assert Quizzes.fetch(quiz.id) == {:error, :quiz_not_found}

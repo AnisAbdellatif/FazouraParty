@@ -9,8 +9,7 @@ defmodule Fazoura.Game do
 
   alias Fazoura.Game.{Answer, Pack}
 
-  @protocol_version 4
-  @max_question_count 20
+  @protocol_version 7
   # Points = wager × multiplier when the difficulty bonus is on (PROTOCOL.md §9).
   @multipliers %{"easy" => 1, "medium" => 2, "hard" => 3}
   @min_time_limit_ms 10_000
@@ -21,17 +20,20 @@ defmodule Fazoura.Game do
   @max_answer_length 100
   @min_wager 1
   @max_wager 10
+  @difficulties ~w(easy medium hard)
 
   @type phase :: :lobby | :question | :scoring | :leaderboard | :finished
   @type actor :: :host | {:player, String.t()}
   @type intent ::
           {:submit, map()}
+          | {:select_quiz, Pack.t()}
           | :next
           | :pause
           | :resume
           | {:override, map()}
           | {:configure, map()}
           | :rematch
+          | {:transfer, map()}
   @type error :: {:error, atom()}
 
   @type player :: %{
@@ -58,12 +60,15 @@ defmodule Fazoura.Game do
           paused_remaining_ms: non_neg_integer() | nil,
           host_player_id: String.t() | nil,
           settings: %{
-            question_count: pos_integer(),
+            question_count: non_neg_integer(),
             time_limit_ms: pos_integer(),
-            difficulty_multiplier: boolean()
+            difficulty_multiplier: boolean(),
+            difficulties: [String.t()]
           },
           game_number: pos_integer(),
           question_offset: non_neg_integer(),
+          question_order: [non_neg_integer()],
+          shuffle_questions?: boolean(),
           players: %{String.t() => player()},
           submissions: %{String.t() => submission()}
         }
@@ -74,8 +79,10 @@ defmodule Fazoura.Game do
     :pack,
     :settings,
     game_number: 1,
-    # Index into the pack where the current game starts; advances on rematch.
+    # Offset into the shuffled order for the current game.
     question_offset: 0,
+    question_order: [],
+    shuffle_questions?: true,
     mode: :cloud,
     phase: :lobby,
     question_index: nil,
@@ -95,9 +102,35 @@ defmodule Fazoura.Game do
       room_code: room_code,
       pack: pack,
       mode: Keyword.get(opts, :mode, :cloud),
-      settings: default_settings(pack)
+      settings: default_settings(pack),
+      question_order:
+        shuffled_order(
+          question_indices(pack, default_settings(pack).difficulties),
+          Keyword.get(opts, :shuffle_questions?, true)
+        ),
+      shuffle_questions?: Keyword.get(opts, :shuffle_questions?, true)
     }
   end
+
+  @doc "Selects the quiz for a lobby, replacing any previous selection."
+  @spec select_quiz(t(), Pack.t()) :: {:ok, t()} | error()
+  def select_quiz(%__MODULE__{phase: :lobby} = game, %Pack{questions: questions} = pack)
+      when questions != [] do
+    {:ok,
+     %{
+       game
+       | pack: pack,
+         settings: default_settings(pack),
+         question_offset: 0,
+         question_order:
+           shuffled_order(
+             question_indices(pack, default_settings(pack).difficulties),
+             game.shuffle_questions?
+           )
+     }}
+  end
+
+  def select_quiz(_game, _pack), do: {:error, :empty_pack}
 
   # Whole pack, at the first question's time limit (clamped to the allowed range).
   defp default_settings(pack) do
@@ -109,9 +142,11 @@ defmodule Fazoura.Game do
       end
 
     %{
-      question_count: min(length(pack.questions), @max_question_count),
+      question_count: length(pack.questions),
       time_limit_ms: time |> max(@min_time_limit_ms) |> min(@max_time_limit_ms),
-      difficulty_multiplier: pack.default_difficulty_multiplier
+      difficulty_multiplier: pack.default_difficulty_multiplier,
+      difficulties: difficulties(pack),
+      available_difficulties: difficulties(pack)
     }
   end
 
@@ -207,6 +242,12 @@ defmodule Fazoura.Game do
     end
   end
 
+  # A player who has been promoted (PROTOCOL.md §3.4) holds the role even though
+  # their connection authenticated as a player, so host intents are theirs to
+  # send. Checked before the catch-all below, which refuses everyone else.
+  def handle(game, {:player, id}, intent, now) when id == :erlang.map_get(:host_player_id, game),
+    do: handle(game, :host, intent, now)
+
   def handle(_game, {:player, _id}, _host_intent, _now), do: {:error, :not_host}
   def handle(%{host_player_id: nil}, :host, {:submit, _payload}, _now), do: {:error, :not_player}
 
@@ -215,11 +256,22 @@ defmodule Fazoura.Game do
 
   def handle(game, :host, :next, now) do
     case game.phase do
-      :lobby -> {:ok, start_question(game, 0, now)}
-      :question -> {:ok, score_question(game)}
-      :scoring -> {:ok, %{game | phase: :leaderboard}}
-      :leaderboard -> {:ok, after_leaderboard(game, now)}
-      :finished -> {:error, :invalid_phase}
+      :lobby ->
+        if game.pack.questions == [],
+          do: {:error, :quiz_required},
+          else: {:ok, start_question(game, 0, now)}
+
+      :question ->
+        {:ok, score_question(game)}
+
+      :scoring ->
+        {:ok, %{game | phase: :leaderboard}}
+
+      :leaderboard ->
+        {:ok, after_leaderboard(game, now)}
+
+      :finished ->
+        {:error, :invalid_phase}
     end
   end
 
@@ -259,27 +311,54 @@ defmodule Fazoura.Game do
   def handle(game, :host, {:configure, payload}, _now) do
     with :ok <- require_phase(game, [:lobby]),
          {:ok, settings} <- validate_settings(game, payload) do
-      {:ok, %{game | settings: settings}}
+      {:ok,
+       %{
+         game
+         | settings: settings,
+           question_offset: 0,
+           question_order:
+             shuffled_order(
+               question_indices(game.pack, settings.difficulties),
+               game.shuffle_questions?
+             )
+       }}
     end
   end
 
   def handle(game, :host, :rematch, _now) do
     with :ok <- require_phase(game, [:finished]) do
       players = Map.new(game.players, fn {id, player} -> {id, %{player | score: 0}} end)
-      offset = rem(game.question_offset + game.settings.question_count, pack_size(game))
+      pack = empty_pack()
 
       {:ok,
        %{
          game
-         | phase: :lobby,
+         | pack: pack,
+           phase: :lobby,
            question_index: nil,
            deadline: nil,
            paused_remaining_ms: nil,
            submissions: %{},
            players: players,
            game_number: game.game_number + 1,
-           question_offset: offset
+           question_offset: 0,
+           question_order: [],
+           settings: default_settings(pack)
        }}
+    end
+  end
+
+  def handle(game, :host, {:select_quiz, %Pack{} = pack}, _now),
+    do: select_quiz(game, pack)
+
+  # Handing the role over is allowed in any phase: a host who has to leave
+  # mid-question should not have to end the game to do it (PROTOCOL.md §3.4).
+  # The room shell owns tokens and connections, so it decides who is eligible;
+  # this only moves the role within the game state.
+  def handle(game, :host, {:transfer, payload}, _now) do
+    with {:ok, id} <- validate_transfer(payload),
+         :ok <- require_player(game, id) do
+      {:ok, %{game | host_player_id: id}}
     end
   end
 
@@ -389,23 +468,82 @@ defmodule Fazoura.Game do
 
   defp validate_override(_payload), do: {:error, :invalid_payload}
 
+  defp validate_transfer(%{"player_id" => id}) when is_binary(id), do: {:ok, id}
+  defp validate_transfer(_payload), do: {:error, :invalid_payload}
+
+  defp validate_settings(game, %{
+         "question_count" => count,
+         "time_limit_ms" => time,
+         "difficulty_multiplier" => bonus,
+         "difficulties" => selected
+       })
+       when is_integer(count) and is_integer(time) and is_boolean(bonus) and is_list(selected) do
+    selected = Enum.uniq(selected)
+
+    eligible_count = max_question_count(game, selected)
+
+    if selected != [] and
+         Enum.all?(selected, &(&1 in @difficulties)) and
+         Enum.all?(selected, &(&1 in game.settings.available_difficulties)) and
+         count >= 1 and eligible_count >= 1 and
+         (count <= eligible_count or selected != game.settings.difficulties) and
+         time in @min_time_limit_ms..@max_time_limit_ms,
+       do:
+         {:ok,
+          %{
+            question_count: min(count, eligible_count),
+            time_limit_ms: time,
+            difficulty_multiplier: bonus,
+            difficulties: selected,
+            available_difficulties: game.settings.available_difficulties
+          }},
+       else: {:error, :invalid_settings}
+  end
+
   defp validate_settings(game, %{
          "question_count" => count,
          "time_limit_ms" => time,
          "difficulty_multiplier" => bonus
        })
        when is_integer(count) and is_integer(time) and is_boolean(bonus) do
-    if count in 1..max_question_count(game) and
-         time in @min_time_limit_ms..@max_time_limit_ms,
-       do: {:ok, %{question_count: count, time_limit_ms: time, difficulty_multiplier: bonus}},
-       else: {:error, :invalid_settings}
+    if count <= max_question_count(game) do
+      validate_settings(game, %{
+        "question_count" => count,
+        "time_limit_ms" => time,
+        "difficulty_multiplier" => bonus,
+        "difficulties" => game.settings.difficulties
+      })
+    else
+      {:error, :invalid_settings}
+    end
   end
 
   defp validate_settings(_game, _payload), do: {:error, :invalid_settings}
 
-  defp pack_size(game), do: length(game.pack.questions)
+  defp max_question_count(game), do: max_question_count(game, game.settings.difficulties)
 
-  defp max_question_count(game), do: min(pack_size(game), @max_question_count)
+  defp max_question_count(game, difficulties),
+    do: length(question_indices(game.pack, difficulties))
+
+  defp empty_pack, do: %Pack{id: "unselected", title: "", questions: []}
+
+  defp shuffled_order([], _shuffle?), do: []
+  defp shuffled_order(indices, false), do: indices
+  defp shuffled_order(indices, true), do: Enum.shuffle(indices)
+
+  defp difficulties(pack) do
+    @difficulties
+    |> Enum.filter(fn difficulty ->
+      Enum.any?(pack.questions, &(&1.difficulty == difficulty))
+    end)
+  end
+
+  defp question_indices(pack, difficulties) do
+    pack.questions
+    |> Enum.with_index()
+    |> Enum.filter(fn {question, _index} -> question.difficulty in difficulties end)
+    |> Enum.map(fn {_question, index} -> index end)
+  end
 
   ## Views (PROTOCOL.md §5.1, §7)
 
@@ -422,7 +560,7 @@ defmodule Fazoura.Game do
       mode: Atom.to_string(game.mode),
       phase: Atom.to_string(game.phase),
       server_time: now,
-      pack_title: game.pack.title,
+      pack_title: if(game.pack.questions == [], do: nil, else: game.pack.title),
       question_index: game.question_index,
       question_count: game.settings.question_count,
       game_number: game.game_number,
@@ -431,6 +569,8 @@ defmodule Fazoura.Game do
         time_limit_ms: game.settings.time_limit_ms,
         difficulty_multiplier: game.settings.difficulty_multiplier,
         max_question_count: max_question_count(game),
+        difficulties: game.settings.difficulties,
+        available_difficulties: game.settings.available_difficulties,
         min_time_limit_ms: @min_time_limit_ms,
         max_time_limit_ms: @max_time_limit_ms
       },
@@ -446,7 +586,8 @@ defmodule Fazoura.Game do
 
   # The pack is played from `question_offset`, wrapping around, at the host's time limit.
   defp current_question(game) do
-    index = rem(game.question_offset + game.question_index, pack_size(game))
+    order_index = rem(game.question_offset + game.question_index, length(game.question_order))
+    index = Enum.at(game.question_order, order_index)
     %{Enum.at(game.pack.questions, index) | time_limit_ms: game.settings.time_limit_ms}
   end
 
@@ -491,16 +632,43 @@ defmodule Fazoura.Game do
     end
   end
 
-  defp you_view(game, :host, question),
-    do: %{you_view(game, {:player, game.host_player_id}, question) | role: "host"}
+  # `role` reports who holds the host role *now*, not how this connection
+  # authenticated. The two differ after a transfer or promotion (PROTOCOL.md
+  # §3.4): a promoted player is still connected as a player, and a demoted host
+  # is still connected as the host. Either way the client has to be told the
+  # truth, or the new host never learns it is in charge and the old one keeps
+  # showing controls it can no longer use.
+  #
+  # `{:host, holder?}` is how the room shell says whether the connection that
+  # authenticated as host still holds the role; the game state alone cannot tell,
+  # because `host_player_id: nil` means both "the host isn't playing" and "the
+  # role has moved to someone else".
+  defp you_view(game, :host, question), do: you_view(game, {:host, true}, question)
+
+  defp you_view(game, {:host, holder?}, question) do
+    %{
+      do_you_view(game, game.host_player_id, question)
+      | role: if(holder?, do: "host", else: "player")
+    }
+  end
 
   defp you_view(game, {:player, id}, question) do
+    %{
+      do_you_view(game, id, question)
+      | role: if(game.host_player_id == id, do: "host", else: "player")
+    }
+  end
+
+  defp do_you_view(game, id, question) do
     submission = question && game.submissions[id]
     scored? = game.phase in [:scoring, :leaderboard]
 
     %{
       role: "player",
       player_id: id,
+      # Filled in by the room shell for the one recipient who has just been given
+      # the role (PROTOCOL.md §5.1); the game itself has no tokens.
+      host_token: nil,
       submission:
         submission &&
           %{

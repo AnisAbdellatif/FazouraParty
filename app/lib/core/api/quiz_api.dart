@@ -46,6 +46,30 @@ class QuizApi {
   Future<QuizDocument> get(String id) async =>
       QuizDocument.fromJson(await _send('GET', '/api/quizzes/$id'));
 
+  /// Explicitly downloads the full quiz for offline use. Unlike [get], this
+  /// includes accepted answers for community quizzes.
+  Future<QuizDocument> download(String id) async =>
+      QuizDocument.fromJson(await _send('GET', '/api/quizzes/$id/download'));
+
+  Future<List<int>> downloadImage(String url) async {
+    final http.Response response;
+    try {
+      response = await _client.get(
+        Uri.parse(url),
+        headers: {'accept': 'image/*'},
+      );
+    } on Object {
+      throw _unreachable;
+    }
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw GameError(
+        code: 'image_download_failed',
+        message: 'Could not download a quiz image.',
+      );
+    }
+    return response.bodyBytes;
+  }
+
   /// Tags public quizzes use (most used first) and the quick picks an admin
   /// maintains on the server (§5.2).
   Future<QuizTags> tags({int limit = 30}) async {

@@ -12,7 +12,11 @@ defmodule FazouraWeb.RoomChannelTest do
 
   defp join_room(code, payload) do
     socket(FazouraWeb.UserSocket, nil, %{})
-    |> join(FazouraWeb.RoomChannel, "room:" <> code, Map.put(payload, "protocol_version", 4))
+    |> join(
+      FazouraWeb.RoomChannel,
+      "room:" <> code,
+      Map.put(payload, "protocol_version", Fazoura.Game.protocol_version())
+    )
   end
 
   test "joining pushes a full state snapshot", %{code: code} do
@@ -53,17 +57,32 @@ defmodule FazouraWeb.RoomChannelTest do
     assert {:error, %{code: "room_not_found"}} = join_room(code, %{"display_name" => "Late"})
   end
 
-  test "room closes after the host has been absent for 10 minutes" do
+  test "a room nobody is in closes after 30 seconds" do
     {:ok, clock} = Agent.start_link(fn -> 0 end)
     pack = QuizFixtures.pack()
     {:ok, code, _host_token} = Rooms.create(pack, now: fn -> Agent.get(clock, & &1) end)
+    [{room, _}] = Registry.lookup(Fazoura.Rooms.Registry, code)
 
     {:ok, _, socket} = join_room(code, %{"display_name" => "Sam"})
     Process.unlink(socket.channel_pid)
 
+    # Occupied, so time passing means nothing: the old host-absence timeout is gone.
     Agent.update(clock, &(&1 + :timer.minutes(10)))
     :ok = Rooms.tick(code)
+    assert Process.alive?(room)
 
-    assert_push "room_closed", %{reason: "host_timeout"}
+    # Sam leaves and the room is deserted. Our :DOWN says nothing about the
+    # room's, so tick once to be sure it has noticed before the clock moves on.
+    ref = Process.monitor(socket.channel_pid)
+    Process.exit(socket.channel_pid, :kill)
+    assert_receive {:DOWN, ^ref, _, _, _}
+    :ok = Rooms.tick(code)
+
+    Agent.update(clock, &(&1 + :timer.seconds(30)))
+    room_ref = Process.monitor(room)
+    :ok = Rooms.tick(code)
+
+    # The process stopping is the fact; the Registry entry clears just after.
+    assert_receive {:DOWN, ^room_ref, :process, ^room, :normal}
   end
 end

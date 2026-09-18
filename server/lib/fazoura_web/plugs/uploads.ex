@@ -7,6 +7,8 @@ defmodule FazouraWeb.Plugs.Uploads do
 
   @behaviour Plug
 
+  alias FazouraWeb.Plugs.UserContent
+
   @impl true
   def init(opts), do: opts
 
@@ -20,7 +22,9 @@ defmodule FazouraWeb.Plugs.Uploads do
         cache_control_for_etags: "public, max-age=31536000, immutable"
       )
 
-    Plug.Static.call(conn, static)
+    conn
+    |> UserContent.protect()
+    |> Plug.Static.call(static)
   end
 
   def call(conn, _opts), do: conn

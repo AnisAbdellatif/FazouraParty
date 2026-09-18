@@ -39,6 +39,16 @@ void main() {
     );
   });
 
+  test('reads older integer quiz versions from local storage', () {
+    final quiz = QuizDocument.fromJson({
+      'version': 1,
+      'title': 'Legacy',
+      'tags': ['general'],
+    });
+
+    expect(quiz.version, '1.0');
+  });
+
   test('private quizzes are only saved on the device', () async {
     final saved = await library.save(photoQuiz());
 
@@ -124,6 +134,49 @@ void main() {
     final stored = await store.get('local-1');
     expect(stored?.quiz.title, 'Quiz');
     expect(stored?.wantsPublic, isTrue);
+  });
+
+  test('downloads a community quiz as a private offline copy', () async {
+    final community = quiz('community-1', 'Community Night', count: 1).copyWith(
+      questions: const [
+        QuizQuestion(prompt: 'First?', acceptedAnswers: ['1']),
+      ],
+    );
+    server.quizzes.add(community);
+
+    final saved = await library.saveCommunityQuiz(community);
+
+    expect(saved.quiz.visibility, 'private');
+    expect(saved.quiz.questions!.single.acceptedAnswers, ['1']);
+    expect(saved.publishedId, isNull);
+    expect(
+      server.lastWith('GET', '/api/quizzes/community-1/download'),
+      isNotNull,
+    );
+    expect((await store.list()).single.localId, saved.localId);
+  });
+
+  test('downloads community quiz photos into the offline copy', () async {
+    final community = quiz('community-photo', 'Picture Night').copyWith(
+      questions: const [
+        QuizQuestion(
+          type: QuizQuestion.typePhoto,
+          prompt: 'What is this?',
+          acceptedAnswers: ['A'],
+          image: QuizImage(
+            url: 'http://localhost:4000/uploads/photo.jpg',
+            alt: 'A photo',
+          ),
+        ),
+      ],
+    );
+    server.quizzes.add(community);
+
+    final saved = await library.saveCommunityQuiz(community);
+
+    expect(saved.quiz.questions!.single.image!.data, isNotNull);
+    expect(saved.quiz.questions!.single.image!.url, isNull);
+    expect(server.lastWith('GET', '/uploads/photo.jpg'), isNotNull);
   });
 
   test('forInlineRoom sends photo data; forPublishing sends keys', () {

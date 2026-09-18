@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$QuizDocument {
 
- int get formatVersion; String? get id; String? get slug; String get title; String? get description; String get language; List<String> get tags; String get source; String get visibility; bool get isOwner; QuizDefaultSettings get defaultSettings; int get questionCount; bool get hasPhotos; DateTime? get createdAt; DateTime? get updatedAt; List<QuizQuestion>? get questions;
+ int get formatVersion;@JsonKey(fromJson: quizVersionFromJson) String get version; String? get id; String? get slug; String get title; String? get description; String get language; List<String> get tags; String get source; String get visibility; bool get isOwner; QuizDefaultSettings get defaultSettings; int get questionCount; bool get hasPhotos; DateTime? get createdAt; DateTime? get updatedAt; List<QuizQuestion>? get questions;
 /// Create a copy of QuizDocument
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,20 +30,20 @@ $QuizDocumentCopyWith<QuizDocument> get copyWith => _$QuizDocumentCopyWithImpl<Q
 @override
 bool operator ==(Object other) {
   final _this = this as QuizDocument;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is QuizDocument&&(identical(other.formatVersion, _this.formatVersion) || other.formatVersion == _this.formatVersion)&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.slug, _this.slug) || other.slug == _this.slug)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.description, _this.description) || other.description == _this.description)&&(identical(other.language, _this.language) || other.language == _this.language)&&const DeepCollectionEquality().equals(other.tags, _this.tags)&&(identical(other.source, _this.source) || other.source == _this.source)&&(identical(other.visibility, _this.visibility) || other.visibility == _this.visibility)&&(identical(other.isOwner, _this.isOwner) || other.isOwner == _this.isOwner)&&(identical(other.defaultSettings, _this.defaultSettings) || other.defaultSettings == _this.defaultSettings)&&(identical(other.questionCount, _this.questionCount) || other.questionCount == _this.questionCount)&&(identical(other.hasPhotos, _this.hasPhotos) || other.hasPhotos == _this.hasPhotos)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&const DeepCollectionEquality().equals(other.questions, _this.questions));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is QuizDocument&&(identical(other.formatVersion, _this.formatVersion) || other.formatVersion == _this.formatVersion)&&(identical(other.version, _this.version) || other.version == _this.version)&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.slug, _this.slug) || other.slug == _this.slug)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.description, _this.description) || other.description == _this.description)&&(identical(other.language, _this.language) || other.language == _this.language)&&const DeepCollectionEquality().equals(other.tags, _this.tags)&&(identical(other.source, _this.source) || other.source == _this.source)&&(identical(other.visibility, _this.visibility) || other.visibility == _this.visibility)&&(identical(other.isOwner, _this.isOwner) || other.isOwner == _this.isOwner)&&(identical(other.defaultSettings, _this.defaultSettings) || other.defaultSettings == _this.defaultSettings)&&(identical(other.questionCount, _this.questionCount) || other.questionCount == _this.questionCount)&&(identical(other.hasPhotos, _this.hasPhotos) || other.hasPhotos == _this.hasPhotos)&&(identical(other.createdAt, _this.createdAt) || other.createdAt == _this.createdAt)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&const DeepCollectionEquality().equals(other.questions, _this.questions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as QuizDocument;
-  return Object.hash(runtimeType,_this.formatVersion,_this.id,_this.slug,_this.title,_this.description,_this.language,const DeepCollectionEquality().hash(_this.tags),_this.source,_this.visibility,_this.isOwner,_this.defaultSettings,_this.questionCount,_this.hasPhotos,_this.createdAt,_this.updatedAt,const DeepCollectionEquality().hash(_this.questions));
+  return Object.hash(runtimeType,_this.formatVersion,_this.version,_this.id,_this.slug,_this.title,_this.description,_this.language,const DeepCollectionEquality().hash(_this.tags),_this.source,_this.visibility,_this.isOwner,_this.defaultSettings,_this.questionCount,_this.hasPhotos,_this.createdAt,_this.updatedAt,const DeepCollectionEquality().hash(_this.questions));
 }
 
 @override
 String toString() {
   final _this = this as QuizDocument;
-  return 'QuizDocument(formatVersion: ${_this.formatVersion}, id: ${_this.id}, slug: ${_this.slug}, title: ${_this.title}, description: ${_this.description}, language: ${_this.language}, tags: ${_this.tags}, source: ${_this.source}, visibility: ${_this.visibility}, isOwner: ${_this.isOwner}, defaultSettings: ${_this.defaultSettings}, questionCount: ${_this.questionCount}, hasPhotos: ${_this.hasPhotos}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, questions: ${_this.questions})';
+  return 'QuizDocument(formatVersion: ${_this.formatVersion}, version: ${_this.version}, id: ${_this.id}, slug: ${_this.slug}, title: ${_this.title}, description: ${_this.description}, language: ${_this.language}, tags: ${_this.tags}, source: ${_this.source}, visibility: ${_this.visibility}, isOwner: ${_this.isOwner}, defaultSettings: ${_this.defaultSettings}, questionCount: ${_this.questionCount}, hasPhotos: ${_this.hasPhotos}, createdAt: ${_this.createdAt}, updatedAt: ${_this.updatedAt}, questions: ${_this.questions})';
 }
 
 
@@ -54,7 +54,7 @@ abstract mixin class $QuizDocumentCopyWith<$Res>  {
   factory $QuizDocumentCopyWith(QuizDocument value, $Res Function(QuizDocument) _then) = _$QuizDocumentCopyWithImpl;
 @useResult
 $Res call({
- int formatVersion, String? id, String? slug, String title, String? description, String language, List<String> tags, String source, String visibility, bool isOwner, QuizDefaultSettings defaultSettings, int questionCount, bool hasPhotos, DateTime? createdAt, DateTime? updatedAt, List<QuizQuestion>? questions
+ int formatVersion,@JsonKey(fromJson: quizVersionFromJson) String version, String? id, String? slug, String title, String? description, String language, List<String> tags, String source, String visibility, bool isOwner, QuizDefaultSettings defaultSettings, int questionCount, bool hasPhotos, DateTime? createdAt, DateTime? updatedAt, List<QuizQuestion>? questions
 });
 
 
@@ -71,10 +71,11 @@ class _$QuizDocumentCopyWithImpl<$Res>
 
 /// Create a copy of QuizDocument
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? formatVersion = null,Object? id = freezed,Object? slug = freezed,Object? title = null,Object? description = freezed,Object? language = null,Object? tags = null,Object? source = null,Object? visibility = null,Object? isOwner = null,Object? defaultSettings = null,Object? questionCount = null,Object? hasPhotos = null,Object? createdAt = freezed,Object? updatedAt = freezed,Object? questions = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? formatVersion = null,Object? version = null,Object? id = freezed,Object? slug = freezed,Object? title = null,Object? description = freezed,Object? language = null,Object? tags = null,Object? source = null,Object? visibility = null,Object? isOwner = null,Object? defaultSettings = null,Object? questionCount = null,Object? hasPhotos = null,Object? createdAt = freezed,Object? updatedAt = freezed,Object? questions = freezed,}) {
   return _then(QuizDocument(
 formatVersion: null == formatVersion ? _self.formatVersion : formatVersion // ignore: cast_nullable_to_non_nullable
-as int,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as int,version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
+as String,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String?,slug: freezed == slug ? _self.slug : slug // ignore: cast_nullable_to_non_nullable
 as String?,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
@@ -183,10 +184,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int formatVersion,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int formatVersion, @JsonKey(fromJson: quizVersionFromJson)  String version,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _QuizDocument() when $default != null:
-return $default(_that.formatVersion,_that.id,_that.slug,_that.title,_that.description,_that.language,_that.tags,_that.source,_that.visibility,_that.isOwner,_that.defaultSettings,_that.questionCount,_that.hasPhotos,_that.createdAt,_that.updatedAt,_that.questions);case _:
+return $default(_that.formatVersion,_that.version,_that.id,_that.slug,_that.title,_that.description,_that.language,_that.tags,_that.source,_that.visibility,_that.isOwner,_that.defaultSettings,_that.questionCount,_that.hasPhotos,_that.createdAt,_that.updatedAt,_that.questions);case _:
   return orElse();
 
 }
@@ -204,10 +205,10 @@ return $default(_that.formatVersion,_that.id,_that.slug,_that.title,_that.descri
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int formatVersion,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int formatVersion, @JsonKey(fromJson: quizVersionFromJson)  String version,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)  $default,) {final _that = this;
 switch (_that) {
 case _QuizDocument():
-return $default(_that.formatVersion,_that.id,_that.slug,_that.title,_that.description,_that.language,_that.tags,_that.source,_that.visibility,_that.isOwner,_that.defaultSettings,_that.questionCount,_that.hasPhotos,_that.createdAt,_that.updatedAt,_that.questions);case _:
+return $default(_that.formatVersion,_that.version,_that.id,_that.slug,_that.title,_that.description,_that.language,_that.tags,_that.source,_that.visibility,_that.isOwner,_that.defaultSettings,_that.questionCount,_that.hasPhotos,_that.createdAt,_that.updatedAt,_that.questions);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -224,10 +225,10 @@ return $default(_that.formatVersion,_that.id,_that.slug,_that.title,_that.descri
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int formatVersion,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int formatVersion, @JsonKey(fromJson: quizVersionFromJson)  String version,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)?  $default,) {final _that = this;
 switch (_that) {
 case _QuizDocument() when $default != null:
-return $default(_that.formatVersion,_that.id,_that.slug,_that.title,_that.description,_that.language,_that.tags,_that.source,_that.visibility,_that.isOwner,_that.defaultSettings,_that.questionCount,_that.hasPhotos,_that.createdAt,_that.updatedAt,_that.questions);case _:
+return $default(_that.formatVersion,_that.version,_that.id,_that.slug,_that.title,_that.description,_that.language,_that.tags,_that.source,_that.visibility,_that.isOwner,_that.defaultSettings,_that.questionCount,_that.hasPhotos,_that.createdAt,_that.updatedAt,_that.questions);case _:
   return null;
 
 }
@@ -239,10 +240,11 @@ return $default(_that.formatVersion,_that.id,_that.slug,_that.title,_that.descri
 @JsonSerializable()
 
 class _QuizDocument extends QuizDocument {
-  const _QuizDocument({this.formatVersion = 1, this.id, this.slug, required this.title, this.description, this.language = 'en',  List<String> tags = const <String>[], this.source = 'custom', this.visibility = 'private', this.isOwner = false, this.defaultSettings = const QuizDefaultSettings(), this.questionCount = 0, this.hasPhotos = false, this.createdAt, this.updatedAt,  List<QuizQuestion>? questions}): _tags = tags,_questions = questions,super._();
+  const _QuizDocument({this.formatVersion = 1, @JsonKey(fromJson: quizVersionFromJson) this.version = '1.0', this.id, this.slug, required this.title, this.description, this.language = 'en',  List<String> tags = const <String>[], this.source = 'custom', this.visibility = 'private', this.isOwner = false, this.defaultSettings = const QuizDefaultSettings(), this.questionCount = 0, this.hasPhotos = false, this.createdAt, this.updatedAt,  List<QuizQuestion>? questions}): _tags = tags,_questions = questions,super._();
   factory _QuizDocument.fromJson(Map<String, dynamic> json) => _$QuizDocumentFromJson(json);
 
 @override@JsonKey() final  int formatVersion;
+@override@JsonKey(fromJson: quizVersionFromJson) final  String version;
 @override final  String? id;
 @override final  String? slug;
 @override final  String title;
@@ -286,18 +288,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _QuizDocument&&(identical(other.formatVersion, formatVersion) || other.formatVersion == formatVersion)&&(identical(other.id, id) || other.id == id)&&(identical(other.slug, slug) || other.slug == slug)&&(identical(other.title, title) || other.title == title)&&(identical(other.description, description) || other.description == description)&&(identical(other.language, language) || other.language == language)&&const DeepCollectionEquality().equals(other.tags, _tags)&&(identical(other.source, source) || other.source == source)&&(identical(other.visibility, visibility) || other.visibility == visibility)&&(identical(other.isOwner, isOwner) || other.isOwner == isOwner)&&(identical(other.defaultSettings, defaultSettings) || other.defaultSettings == defaultSettings)&&(identical(other.questionCount, questionCount) || other.questionCount == questionCount)&&(identical(other.hasPhotos, hasPhotos) || other.hasPhotos == hasPhotos)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&const DeepCollectionEquality().equals(other.questions, _questions));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _QuizDocument&&(identical(other.formatVersion, formatVersion) || other.formatVersion == formatVersion)&&(identical(other.version, version) || other.version == version)&&(identical(other.id, id) || other.id == id)&&(identical(other.slug, slug) || other.slug == slug)&&(identical(other.title, title) || other.title == title)&&(identical(other.description, description) || other.description == description)&&(identical(other.language, language) || other.language == language)&&const DeepCollectionEquality().equals(other.tags, _tags)&&(identical(other.source, source) || other.source == source)&&(identical(other.visibility, visibility) || other.visibility == visibility)&&(identical(other.isOwner, isOwner) || other.isOwner == isOwner)&&(identical(other.defaultSettings, defaultSettings) || other.defaultSettings == defaultSettings)&&(identical(other.questionCount, questionCount) || other.questionCount == questionCount)&&(identical(other.hasPhotos, hasPhotos) || other.hasPhotos == hasPhotos)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&const DeepCollectionEquality().equals(other.questions, _questions));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,formatVersion,id,slug,title,description,language,const DeepCollectionEquality().hash(_tags),source,visibility,isOwner,defaultSettings,questionCount,hasPhotos,createdAt,updatedAt,const DeepCollectionEquality().hash(_questions));
+    return Object.hash(runtimeType,formatVersion,version,id,slug,title,description,language,const DeepCollectionEquality().hash(_tags),source,visibility,isOwner,defaultSettings,questionCount,hasPhotos,createdAt,updatedAt,const DeepCollectionEquality().hash(_questions));
 }
 
 @override
 String toString() {
-    return 'QuizDocument(formatVersion: $formatVersion, id: $id, slug: $slug, title: $title, description: $description, language: $language, tags: $tags, source: $source, visibility: $visibility, isOwner: $isOwner, defaultSettings: $defaultSettings, questionCount: $questionCount, hasPhotos: $hasPhotos, createdAt: $createdAt, updatedAt: $updatedAt, questions: $questions)';
+    return 'QuizDocument(formatVersion: $formatVersion, version: $version, id: $id, slug: $slug, title: $title, description: $description, language: $language, tags: $tags, source: $source, visibility: $visibility, isOwner: $isOwner, defaultSettings: $defaultSettings, questionCount: $questionCount, hasPhotos: $hasPhotos, createdAt: $createdAt, updatedAt: $updatedAt, questions: $questions)';
 }
 
 
@@ -308,7 +310,7 @@ abstract mixin class _$QuizDocumentCopyWith<$Res> implements $QuizDocumentCopyWi
   factory _$QuizDocumentCopyWith(_QuizDocument value, $Res Function(_QuizDocument) _then) = __$QuizDocumentCopyWithImpl;
 @override @useResult
 $Res call({
- int formatVersion, String? id, String? slug, String title, String? description, String language, List<String> tags, String source, String visibility, bool isOwner, QuizDefaultSettings defaultSettings, int questionCount, bool hasPhotos, DateTime? createdAt, DateTime? updatedAt, List<QuizQuestion>? questions
+ int formatVersion,@JsonKey(fromJson: quizVersionFromJson) String version, String? id, String? slug, String title, String? description, String language, List<String> tags, String source, String visibility, bool isOwner, QuizDefaultSettings defaultSettings, int questionCount, bool hasPhotos, DateTime? createdAt, DateTime? updatedAt, List<QuizQuestion>? questions
 });
 
 
@@ -325,10 +327,11 @@ class __$QuizDocumentCopyWithImpl<$Res>
 
 /// Create a copy of QuizDocument
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? formatVersion = null,Object? id = freezed,Object? slug = freezed,Object? title = null,Object? description = freezed,Object? language = null,Object? tags = null,Object? source = null,Object? visibility = null,Object? isOwner = null,Object? defaultSettings = null,Object? questionCount = null,Object? hasPhotos = null,Object? createdAt = freezed,Object? updatedAt = freezed,Object? questions = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? formatVersion = null,Object? version = null,Object? id = freezed,Object? slug = freezed,Object? title = null,Object? description = freezed,Object? language = null,Object? tags = null,Object? source = null,Object? visibility = null,Object? isOwner = null,Object? defaultSettings = null,Object? questionCount = null,Object? hasPhotos = null,Object? createdAt = freezed,Object? updatedAt = freezed,Object? questions = freezed,}) {
   return _then(_QuizDocument(
 formatVersion: null == formatVersion ? _self.formatVersion : formatVersion // ignore: cast_nullable_to_non_nullable
-as int,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as int,version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
+as String,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String?,slug: freezed == slug ? _self.slug : slug // ignore: cast_nullable_to_non_nullable
 as String?,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable

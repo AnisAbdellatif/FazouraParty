@@ -5,6 +5,21 @@ defmodule FazouraWeb.Router do
     plug :accepts, ["json"]
   end
 
+  # Writes cost the server memory, disk or database rows and need no account, so they
+  # are metered per IP. Reads are cheap and bounded already (`Quizzes.list/1` clamps
+  # its own limit), so they stay unmetered.
+  pipeline :create_room do
+    plug FazouraWeb.Plugs.RateLimit, bucket: :rooms, limit: 20, window_ms: 60_000
+  end
+
+  pipeline :upload do
+    plug FazouraWeb.Plugs.RateLimit, bucket: :images, limit: 60, window_ms: 60_000
+  end
+
+  pipeline :publish do
+    plug FazouraWeb.Plugs.RateLimit, bucket: :quizzes, limit: 30, window_ms: 60_000
+  end
+
   # The admin dashboard is the only HTML this server serves.
   pipeline :admin do
     plug :accepts, ["html"]
@@ -33,19 +48,32 @@ defmodule FazouraWeb.Router do
   end
 
   scope "/api", FazouraWeb do
-    pipe_through :api
+    pipe_through [:api, :create_room]
 
     post "/rooms", RoomController, :create
+  end
 
-    get "/quizzes", QuizController, :index
+  scope "/api", FazouraWeb do
+    pipe_through [:api, :publish]
+
     post "/quizzes", QuizController, :create
-    get "/quizzes/:id", QuizController, :show
     put "/quizzes/:id", QuizController, :update
     delete "/quizzes/:id", QuizController, :delete
+  end
 
-    get "/tags", QuizController, :tags
+  scope "/api", FazouraWeb do
+    pipe_through [:api, :upload]
 
     post "/images", ImageController, :create
+  end
+
+  scope "/api", FazouraWeb do
+    pipe_through :api
+
+    get "/quizzes", QuizController, :index
+    get "/quizzes/:id/download", QuizController, :download
+    get "/quizzes/:id", QuizController, :show
+    get "/tags", QuizController, :tags
   end
 
   # Images are fetched with image Accept headers, so no JSON content negotiation.

@@ -3,88 +3,334 @@
   "pack": {
     "title": "Fixture Pack",
     "questions": [
-      {"id": "q1", "type": "text", "prompt": "Capital of Australia?", "accepted_answers": ["Canberra"], "time_limit_ms": 30000}
+      {
+        "id": "q1",
+        "type": "text",
+        "prompt": "Capital of Australia?",
+        "accepted_answers": [
+          "Canberra"
+        ],
+        "time_limit_ms": 30000
+      }
     ]
   },
   "steps": [
-    {"actor": "host", "join": {"protocol_version": 4, "host_token": "$host_token"},
-     "expect": {"status": "ok", "response": {"role": "host", "player_id": null}}},
-
-    {"actor": "sam", "join": {"protocol_version": 4, "display_name": "Sam"},
-     "expect": {"status": "ok", "response": {"role": "player"}}},
-    {"actor": "alex", "join": {"protocol_version": 4, "display_name": "alex"},
-     "expect": {"status": "ok", "response": {"role": "player"}}},
-    {"actor": "dup", "join": {"protocol_version": 4, "display_name": "SAM"},
-     "expect": {"status": "error", "response": {"code": "name_taken"}}},
-
-    {"actor": "sam", "push": "submit", "payload": {"answer": "x", "wager": 5},
-     "expect": {"status": "error", "response": {"code": "invalid_phase"}}},
-    {"actor": "sam", "push": "host_next", "payload": {},
-     "expect": {"status": "error", "response": {"code": "not_host"}}},
-
-    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
-
-    {"actor": "host", "expect_state": {"players": [
-      {"name": "alex", "connected": true, "has_submitted": false, "is_host": false},
-      {"name": "Sam", "connected": true, "has_submitted": false, "is_host": false}
-    ]}},
-
-    {"actor": "sam", "expect_state": {
-      "phase": "question", "question_index": 0, "question_count": 1,
-      "question": {"id": "q1", "prompt": "Capital of Australia?"},
-      "accepted_answers": null, "submissions": null
-    }},
-    {"actor": "host", "expect_state": {
-      "phase": "question", "accepted_answers": null, "submissions": null,
-      "you": {"role": "host", "player_id": null, "submission": null}
-    }},
-
-    {"actor": "host", "push": "submit", "payload": {"answer": "Canberra", "wager": 10},
-     "expect": {"status": "error", "response": {"code": "not_player"}}},
-
-    {"actor": "sam", "push": "submit", "payload": {"answer": "Canberra", "wager": 11},
-     "expect": {"status": "error", "response": {"code": "invalid_wager"}}},
-    {"actor": "sam", "push": "submit", "payload": {"answer": "  canberra ", "wager": 7},
-     "expect": {"status": "ok"}},
-    {"actor": "sam", "push": "submit", "payload": {"answer": "Sydney", "wager": 1},
-     "expect": {"status": "error", "response": {"code": "already_submitted"}}},
-    {"actor": "alex", "push": "submit", "payload": {"answer": "Canbera", "wager": 4},
-     "expect": {"status": "ok"}},
-
-    {"actor": "alex", "expect_state": {
-      "you": {"submission": {"answer": "Canbera", "wager": 4, "correct": null, "delta": null}},
-      "submissions": null
-    }},
-
-    {"advance_clock_ms": 30000},
-
-    {"actor": "sam", "expect_state": {
-      "phase": "scoring",
-      "accepted_answers": ["Canberra"],
-      "players": [
-        {"name": "Sam", "score": 7, "has_submitted": true},
-        {"name": "alex", "score": -4, "has_submitted": true}
-      ]
-    }},
-    {"actor": "host", "expect_state": {"phase": "scoring", "accepted_answers": ["Canberra"]}},
-
-    {"actor": "host", "push": "host_override", "payload": {"player_id": "$player_id:alex", "correct": true},
-     "expect": {"status": "ok"}},
-    {"actor": "alex", "expect_state": {
-      "players": [
-        {"name": "Sam", "score": 7},
-        {"name": "alex", "score": 4}
-      ],
-      "you": {"submission": {"correct": true, "delta": 4}}
-    }},
-
-    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
-    {"actor": "host", "expect_state": {"phase": "leaderboard"}},
-    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
-    {"actor": "sam", "expect_state": {
-      "phase": "finished", "question": null, "accepted_answers": null, "submissions": null
-    }},
-    {"actor": "host", "push": "host_next", "payload": {},
-     "expect": {"status": "error", "response": {"code": "invalid_phase"}}}
+    {
+      "actor": "host",
+      "join": {
+        "protocol_version": 7,
+        "host_token": "$host_token"
+      },
+      "expect": {
+        "status": "ok",
+        "response": {
+          "role": "host",
+          "player_id": null
+        }
+      }
+    },
+    {
+      "actor": "sam",
+      "join": {
+        "protocol_version": 7,
+        "display_name": "Sam"
+      },
+      "expect": {
+        "status": "ok",
+        "response": {
+          "role": "player"
+        }
+      }
+    },
+    {
+      "actor": "alex",
+      "join": {
+        "protocol_version": 7,
+        "display_name": "alex"
+      },
+      "expect": {
+        "status": "ok",
+        "response": {
+          "role": "player"
+        }
+      }
+    },
+    {
+      "actor": "dup",
+      "join": {
+        "protocol_version": 7,
+        "display_name": "SAM"
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "name_taken"
+        }
+      }
+    },
+    {
+      "actor": "sam",
+      "push": "submit",
+      "payload": {
+        "answer": "x",
+        "wager": 5
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "invalid_phase"
+        }
+      }
+    },
+    {
+      "actor": "sam",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "not_host"
+        }
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "expect_state": {
+        "players": [
+          {
+            "name": "alex",
+            "connected": true,
+            "has_submitted": false,
+            "is_host": false
+          },
+          {
+            "name": "Sam",
+            "connected": true,
+            "has_submitted": false,
+            "is_host": false
+          }
+        ]
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "question",
+        "question_index": 0,
+        "question_count": 1,
+        "question": {
+          "id": "q1",
+          "prompt": "Capital of Australia?"
+        },
+        "accepted_answers": null,
+        "submissions": null
+      }
+    },
+    {
+      "actor": "host",
+      "expect_state": {
+        "phase": "question",
+        "accepted_answers": null,
+        "submissions": null,
+        "you": {
+          "role": "host",
+          "player_id": null,
+          "submission": null
+        }
+      }
+    },
+    {
+      "actor": "host",
+      "push": "submit",
+      "payload": {
+        "answer": "Canberra",
+        "wager": 10
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "not_player"
+        }
+      }
+    },
+    {
+      "actor": "sam",
+      "push": "submit",
+      "payload": {
+        "answer": "Canberra",
+        "wager": 11
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "invalid_wager"
+        }
+      }
+    },
+    {
+      "actor": "sam",
+      "push": "submit",
+      "payload": {
+        "answer": "  canberra ",
+        "wager": 7
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "push": "submit",
+      "payload": {
+        "answer": "Sydney",
+        "wager": 1
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "already_submitted"
+        }
+      }
+    },
+    {
+      "actor": "alex",
+      "push": "submit",
+      "payload": {
+        "answer": "Canbera",
+        "wager": 4
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "alex",
+      "expect_state": {
+        "you": {
+          "submission": {
+            "answer": "Canbera",
+            "wager": 4,
+            "correct": null,
+            "delta": null
+          }
+        },
+        "submissions": null
+      }
+    },
+    {
+      "advance_clock_ms": 30000
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "scoring",
+        "accepted_answers": [
+          "Canberra"
+        ],
+        "players": [
+          {
+            "name": "Sam",
+            "score": 7,
+            "has_submitted": true
+          },
+          {
+            "name": "alex",
+            "score": -4,
+            "has_submitted": true
+          }
+        ]
+      }
+    },
+    {
+      "actor": "host",
+      "expect_state": {
+        "phase": "scoring",
+        "accepted_answers": [
+          "Canberra"
+        ]
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_override",
+      "payload": {
+        "player_id": "$player_id:alex",
+        "correct": true
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "alex",
+      "expect_state": {
+        "players": [
+          {
+            "name": "Sam",
+            "score": 7
+          },
+          {
+            "name": "alex",
+            "score": 4
+          }
+        ],
+        "you": {
+          "submission": {
+            "correct": true,
+            "delta": 4
+          }
+        }
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "expect_state": {
+        "phase": "leaderboard"
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "finished",
+        "question": null,
+        "accepted_answers": null,
+        "submissions": null
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "invalid_phase"
+        }
+      }
+    }
   ]
 }

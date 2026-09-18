@@ -14,6 +14,8 @@ String describeError(Object error) {
     'invalid_phase' => 'That is not allowed right now.',
     'invalid_settings' =>
       'Pick 1 question up to the pack size, and 10–120 seconds per question.',
+    'quiz_required' => 'Choose a quiz before starting the game.',
+    'empty_pack' => 'That quiz has no playable questions.',
     'already_submitted' => 'You already answered this question.',
     'invalid_answer' => 'Answers must be 1–100 characters.',
     'invalid_wager' => 'Wager must be between 1 and 10.',

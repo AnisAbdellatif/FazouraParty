@@ -151,10 +151,43 @@ ssh fazoura@<host> 'cd /srv/fazoura && docker compose exec -T app tar -cz -C /da
 Both matter: a quiz whose photos are gone renders as a broken question. Photos that
 nothing references any more are collected after a day (`Fazoura.Quizzes.ImageSweeper`).
 
+## Running the stack locally
+
+The same image and the same `compose.yaml`, with [compose.local.yaml](compose.local.yaml)
+over the top: the image is built from your checkout instead of pulled, Caddy is left out
+(it would try to get a real certificate), and the data volumes are separate ones, so
+tearing this down can never touch production's.
+
+```bash
+scripts/ci.sh app     # the image ships app/build/web, so build it first
+scripts/ci.sh up      # build, start, migrate, seed, health-check
+scripts/ci.sh down    # stop and delete its data
+```
+
+Everything is then on <http://localhost:4000> — client, API and WebSocket on one origin,
+as in production — with the dashboard at `/admin` (`admin` / `admin`) and Postgres on
+`localhost:5433`.
+
+To point a client you're working on at it, instead of the bundled build:
+
+```bash
+cd app && flutter run -d chrome --dart-define=SERVER_URL=http://localhost:4000
+```
+
+That client is served from a random port, so it is cross-origin: the local stack sets
+`CORS_ORIGINS=*` for exactly this, which production never does because the app shares
+the API's origin. Phoenix's WebSocket `check_origin` allows any `localhost` by default,
+so gameplay works too.
+
+One wrinkle: absolute photo URLs come back as `https://localhost/...`, because
+production fixes the endpoint's scheme to https. Fetch them from
+`http://localhost:4000` instead; nothing else behaves differently.
+
 ## Building the image by hand
 
-Only for debugging the Dockerfile — a deploy should always come from CI. The build
-context is the repository root, and `app/build/web` must already exist:
+`scripts/ci.sh image` is the same build. Only for debugging the Dockerfile directly —
+a deploy should always come from CI. The context is the repository root, and
+`app/build/web` must already exist:
 
 ```bash
 cd app && dart run tool/build_web.dart && cd ..

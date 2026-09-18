@@ -8,7 +8,11 @@ defmodule Fazoura.Rooms.DrainTest do
 
   defp join_room(code, payload) do
     socket(FazouraWeb.UserSocket, nil, %{})
-    |> join(FazouraWeb.RoomChannel, "room:" <> code, Map.put(payload, "protocol_version", 4))
+    |> join(
+      FazouraWeb.RoomChannel,
+      "room:" <> code,
+      Map.put(payload, "protocol_version", Fazoura.Game.protocol_version())
+    )
   end
 
   # Rooms live under a DynamicSupervisor, not under the test process, so rooms created
