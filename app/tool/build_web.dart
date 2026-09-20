@@ -30,6 +30,13 @@ const precacheFiles = <String>[
 /// Directories precached in full (fonts, shaders, manifests, icons).
 const precacheDirs = <String>['assets', 'icons'];
 
+/// Deferred chunks (`main.dart.js_1.part.js`), which dart2js emits for the
+/// screens imported `deferred as` — hosting, the quiz browser, the editor and
+/// settings. Precached but *not* counted as part of a cold load: booting never
+/// fetches them, which is the point of splitting them out, but a host who has
+/// never opened the editor online should still find it there at a LAN party.
+const deferredPartSuffix = '.part.js';
+
 /// Big or browser-specific files: cached on first use instead of up front.
 const runtimeDirs = <String>['canvaskit'];
 
@@ -132,6 +139,9 @@ int inlineColdBytes(Directory root) {
   final renderer = File('${root.path}/canvaskit/chromium/canvaskit.wasm');
   final bytes =
       precacheHashes(root).keys
+          // Deferred chunks are precached but never on the boot path, so
+          // counting them would leave the ring short when Flutter takes over.
+          .where((path) => !path.endsWith(deferredPartSuffix))
           .map((path) => File('${root.path}/$path').lengthSync())
           .fold<int>(0, (sum, length) => sum + length) +
       (renderer.existsSync() ? renderer.lengthSync() : 0);
@@ -202,6 +212,12 @@ Map<String, String> precacheHashes(Directory root) {
     for (final path in precacheFiles)
       if (File('${root.path}/$path').existsSync()) path,
   ];
+
+  for (final entry in root.listSync()) {
+    if (entry is File && entry.path.endsWith(deferredPartSuffix)) {
+      paths.add(entry.uri.pathSegments.last);
+    }
+  }
 
   for (final dir in precacheDirs) {
     final directory = Directory('${root.path}/$dir');

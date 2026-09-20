@@ -174,6 +174,45 @@ void main() {
     expect(source, contains('fonts.gstatic.com'));
   });
 
+  group('deferred chunks', () {
+    setUp(() {
+      write('main.dart.js_1.part.js', 'the quiz editor and its photo pipeline');
+      write('main.dart.js_2.part.js', 'the browser');
+    });
+
+    test('are precached, so a screen still opens with no network', () {
+      final hashes = precacheHashes(root);
+
+      // Splitting them out is about booting faster, not about leaving a host
+      // at a LAN party unable to open the editor.
+      expect(hashes.keys, contains('main.dart.js_1.part.js'));
+      expect(hashes.keys, contains('main.dart.js_2.part.js'));
+    });
+
+    test('change the cache key like anything else a client holds', () {
+      final before = bundleVersion(precacheHashes(root));
+
+      write('main.dart.js_1.part.js', 'the quiz editor, rebuilt');
+
+      expect(bundleVersion(precacheHashes(root)), isNot(before));
+    });
+
+    test('are left out of the cold-load total', () {
+      write('index.html', "<script>Number('$coldBytesToken')</script>");
+
+      final withParts = inlineColdBytes(root);
+
+      File('${root.path}/main.dart.js_1.part.js').deleteSync();
+      File('${root.path}/main.dart.js_2.part.js').deleteSync();
+      write('index.html', "<script>Number('$coldBytesToken')</script>");
+      final withoutParts = inlineColdBytes(root);
+
+      // Booting never fetches them, so counting them would leave the ring
+      // short of where it should be when Flutter takes the page.
+      expect(withParts, withoutParts);
+    });
+  });
+
   group('the splash screen progress ring', () {
     test('learns how big a cold load is', () {
       write('index.html', "<script>Number('$coldBytesToken')</script>");

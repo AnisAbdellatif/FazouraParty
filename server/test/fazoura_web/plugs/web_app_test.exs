@@ -17,6 +17,7 @@ defmodule FazouraWeb.Plugs.WebAppTest do
     File.write!(Path.join(dir, "manifest.json"), ~s({"name": "Fazoura Party"}))
     File.write!(Path.join(dir, "flutter_service_worker.js"), "// sw")
     File.write!(Path.join(dir, "canvaskit/canvaskit.wasm"), "wasm")
+    File.write!(Path.join(dir, "main.dart.js_1.part.js"), "// the quiz editor")
 
     previous = Application.get_env(:fazoura, :web_dir)
     Application.put_env(:fazoura, :web_dir, dir)
@@ -27,6 +28,26 @@ defmodule FazouraWeb.Plugs.WebAppTest do
     end)
 
     %{dir: dir}
+  end
+
+  test "serves the deferred chunks the app splits out", %{conn: conn} do
+    # `:only` matches a whole first segment and these carry a number, so they
+    # need the prefix list. A 404 here takes the screen that was split out and
+    # the service worker with it: one failure inside `cache.addAll` rejects the
+    # whole install, and then nothing works offline either.
+    conn = get(conn, "/main.dart.js_1.part.js")
+
+    assert response(conn, 200) == "// the quiz editor"
+    assert get_resp_header(conn, "cache-control") == ["public, max-age=0, must-revalidate"]
+  end
+
+  test "still refuses what the build never emits", %{conn: conn, dir: dir} do
+    File.write!(Path.join(dir, "secrets.env"), "nope")
+    File.write!(Path.join(dir, "notes.txt"), "nope")
+
+    assert get(conn, "/secrets.env").status == 404
+    assert get(conn, "/notes.txt").status == 404
+    assert get(conn, "/../mix.exs").status == 404
   end
 
   test "serves the app shell at the root", %{conn: conn} do

@@ -11,26 +11,12 @@ import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
 import '../../shared/widgets/fz_choice.dart';
 import '../../shared/widgets/stripe_header.dart';
-import 'quiz_editor_screen.dart';
+import 'quiz_choice.dart';
+// The editor carries the photo pipeline and `package:image`; browsing does
+// not need either until someone opens it.
+import 'quiz_editor_screen.dart' deferred as editor;
 
-/// What the host picked in the browser.
-sealed class QuizChoice {
-  const QuizChoice();
-}
-
-/// A quiz stored on the server (built-in or published), hosted by id.
-final class PublicQuizChoice extends QuizChoice {
-  const PublicQuizChoice(this.quiz);
-
-  final QuizDocument quiz;
-}
-
-/// One of this device's quizzes.
-final class LocalQuizChoice extends QuizChoice {
-  const LocalQuizChoice(this.quiz);
-
-  final LocalQuiz quiz;
-}
+export 'quiz_choice.dart';
 
 /// Most quizzes one round may draw from (PROTOCOL.md §6.4).
 const maxSelectedQuizzes = 10;
@@ -41,7 +27,11 @@ Future<List<QuizChoice>?> showQuizBrowser(BuildContext context) {
   return Navigator.of(context).push<List<QuizChoice>>(
     MaterialPageRoute(
       builder: (_) => QuizBrowserScreen(
-        onEdit: (context, quiz) => showQuizEditor(context, existing: quiz),
+        onEdit: (context, quiz) async {
+          await editor.loadLibrary();
+          if (!context.mounted) return null;
+          return editor.showQuizEditor(context, existing: quiz);
+        },
       ),
     ),
   );

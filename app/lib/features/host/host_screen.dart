@@ -24,7 +24,11 @@ import '../lobby/game_settings_editor.dart';
 import 'host_exit_dialog.dart';
 import '../lobby/lobby_view.dart';
 import '../player_question/player_question_view.dart';
-import '../quizzes/quiz_browser_screen.dart';
+import '../quizzes/quiz_choice.dart';
+// The browser drags in the editor, the photo pipeline and `package:image`
+// behind it, and none of that is needed to run a game. Its types live in
+// quiz_choice.dart so that handling a selection does not pull it in.
+import '../quizzes/quiz_browser_screen.dart' deferred as browser;
 import '../room_closed/room_closed_view.dart';
 
 class HostScreen extends ConsumerWidget {
@@ -201,7 +205,9 @@ class _HostPhase extends ConsumerWidget {
     WidgetRef ref,
     Future<void> Function(Future<void> Function() intent) run,
   ) async {
-    final choices = await showQuizBrowser(context);
+    await browser.loadLibrary();
+    if (!context.mounted) return;
+    final choices = await browser.showQuizBrowser(context);
     if (!context.mounted || choices == null || choices.isEmpty) return;
     final isLan = ref.read(hostedLanRoomProvider) != null;
 

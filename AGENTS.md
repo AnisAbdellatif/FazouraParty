@@ -83,7 +83,7 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 - Providers depend on the `GameConnection` abstraction only — never on a concrete transport.
 - No `BuildContext`-dependent lookups in providers/logic.
 - `dart:io` code (LAN server) must be behind conditional imports so the Web build compiles.
-- Keep guest-facing screens lean (Web first-load time is a known risk).
+- Keep guest-facing screens lean (Web first-load time is a known risk). Hosting, the quiz browser, the editor and settings are imported `deferred as` so a guest never downloads them; a deferred library's types cannot be named by the library that imports it, which is why `QuizChoice` lives in `quiz_choice.dart`. New chunks must stay servable — `FazouraWeb.Plugs.WebApp` matches them by prefix, and a 404 there stops the service worker installing at all.
 - **Visual design source:** `design/FazouraParty.v2.dc.html` (Claude Design prototype; `ios-frame.jsx` is only the preview bezel). v2 palette: deep teal `#0A2422` panels over `#061917`, amber `#FFB000`, pink `#FF2D6F`, green `#4FD39A`, with the amber lattice woven behind every screen. Type: Figtree for body, buttons and question text; DM Mono for labels, codes and numbers; Reem Kufi for screen titles and the Arabic wordmark (`FzTheme.t`). Reuse the `Fz*` widgets rather than restyling ad hoc.
 - Must pass: `dart format --set-exit-if-changed`, `flutter analyze`, `flutter test`.
 

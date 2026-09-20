@@ -21,6 +21,13 @@ defmodule FazouraWeb.Plugs.WebApp do
     manifest.json version.json
   )
 
+  # The deferred chunks dart2js emits for the screens a guest never opens
+  # (`main.dart.js_1.part.js`). Their names carry a number, so they cannot be
+  # listed: `:only` matches a whole first segment, `:only_matching` a prefix.
+  # Without this they 404, which takes the screens *and* the service worker
+  # with them — one 404 inside `cache.addAll` rejects the whole install.
+  @served_prefixes ~w(main.dart.js_)
+
   @cache_control "public, max-age=0, must-revalidate"
 
   @impl true
@@ -52,6 +59,7 @@ defmodule FazouraWeb.Plugs.WebApp do
         at: "/",
         from: dir,
         only: @served,
+        only_matching: @served_prefixes,
         cache_control_for_etags: @cache_control,
         cache_control_for_vsn_requests: @cache_control
       )

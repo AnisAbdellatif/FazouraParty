@@ -8,11 +8,16 @@ import '../../core/providers/room_tokens.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
-import '../host/host_screen.dart';
 import '../host/host_setup_dialog.dart';
 import '../join/join_screen.dart';
-import '../quizzes/quiz_editor_screen.dart';
-import '../settings/settings_screen.dart';
+
+// Everything a guest following a link never opens. Joining a game is the one
+// path that has to be quick, and hosting, writing a quiz and settings between
+// them account for most of the bundle — the editor alone carries the photo
+// pipeline and `package:image`.
+import '../host/host_screen.dart' deferred as host_screen;
+import '../quizzes/quiz_editor_screen.dart' deferred as editor;
+import '../settings/settings_screen.dart' deferred as settings;
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -32,6 +37,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final created = setup.overLan
           ? await _createLanRoom()
           : await ref.read(roomApiProvider).createRoom();
+      await host_screen.loadLibrary();
       ref.invalidate(gameConnectionProvider);
       // Remembered before the join, not after: a host who closes the tab on
       // the lobby still has a room, and this is the only way back to it — the
@@ -52,7 +58,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       setState(() => _creating = false);
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => HostScreen(roomCode: created.roomCode),
+          builder: (_) => host_screen.HostScreen(roomCode: created.roomCode),
         ),
       );
     } catch (error) {
@@ -67,12 +73,29 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  Future<void> _openSettings() async {
+    await settings.loadLibrary();
+    if (!mounted) return;
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => settings.SettingsScreen()));
+  }
+
+  /// Opens the quiz editor, which is a chunk of its own: the photo pipeline
+  /// and `package:image` live behind it.
+  Future<void> _createQuiz() async {
+    await editor.loadLibrary();
+    if (!mounted) return;
+    await editor.showQuizEditor(context);
+  }
+
   /// Takes back a room this device is still the host of. The room may have
   /// ended while the app was away, in which case the host is told and the
   /// tokens are forgotten (§4.1).
   Future<void> _resumeHosting(RoomToken room) async {
     setState(() => _creating = true);
     try {
+      await host_screen.loadLibrary();
       ref.read(currentGameTargetProvider.notifier).useCloud();
       ref.invalidate(gameConnectionProvider);
       await ref
@@ -82,7 +105,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       setState(() => _creating = false);
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => HostScreen(roomCode: room.code),
+          builder: (_) => host_screen.HostScreen(roomCode: room.code),
         ),
       );
     } catch (error) {
@@ -161,7 +184,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               label: 'Create a quiz',
               trailing: 'offline',
               kind: FzButtonKind.outline,
-              onPressed: _creating ? null : () => showQuizEditor(context),
+              onPressed: _creating ? null : _createQuiz,
             ),
             const SizedBox(height: 11),
             FzButton(
@@ -169,13 +192,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               label: 'Settings',
               trailing: 'app',
               kind: FzButtonKind.outline,
-              onPressed: _creating
-                  ? null
-                  : () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const SettingsScreen(),
-                      ),
-                    ),
+              onPressed: _creating ? null : _openSettings,
             ),
           ],
         ),
