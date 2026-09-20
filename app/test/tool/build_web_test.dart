@@ -73,6 +73,93 @@ void main() {
     expect(bundleVersion(precacheHashes(root)), changed);
   });
 
+  group('trimming renderers the build can never load', () {
+    void writeRenderers(String manifestRenderer) {
+      write(
+        'flutter_bootstrap.js',
+        '_flutter.loader.load({builds: ['
+            '{"compileTarget":"dart2js","renderer":"$manifestRenderer",'
+            '"mainJsPath":"main.dart.js"}]});',
+      );
+      for (final name in ['canvaskit', 'skwasm', 'skwasm_heavy', 'wimp']) {
+        write('canvaskit/$name.js', 'js');
+        write('canvaskit/$name.wasm', 'wasm bytes');
+        write('canvaskit/$name.js.symbols', 'symbols, never fetched');
+      }
+      write('canvaskit/chromium/canvaskit.js', 'js');
+      write('canvaskit/chromium/canvaskit.wasm', 'wasm bytes');
+    }
+
+    bool kept(String path) => File('${root.path}/$path').existsSync();
+
+    test('keeps every variant of the renderer this build uses', () {
+      writeRenderers('canvaskit');
+
+      trimUnreachable(root);
+
+      // Firefox and Safari take the full build, Chrome and Edge the chromium
+      // one: dropping either would break a browser we cannot test here.
+      expect(kept('canvaskit/canvaskit.wasm'), isTrue);
+      expect(kept('canvaskit/chromium/canvaskit.wasm'), isTrue);
+    });
+
+    test('drops the renderers the loader can never reach', () {
+      writeRenderers('canvaskit');
+
+      final saved = trimUnreachable(root);
+
+      expect(kept('canvaskit/skwasm.wasm'), isFalse);
+      expect(kept('canvaskit/skwasm_heavy.wasm'), isFalse);
+      expect(kept('canvaskit/wimp.wasm'), isFalse);
+      expect(saved, greaterThan(0));
+    });
+
+    test('drops the symbol files no running app fetches', () {
+      writeRenderers('canvaskit');
+
+      trimUnreachable(root);
+
+      expect(kept('canvaskit/canvaskit.js.symbols'), isFalse);
+    });
+
+    test('follows the manifest rather than a hardcoded renderer', () {
+      // The guard that matters: a Flutter upgrade that switches renderers must
+      // not delete the one in use.
+      writeRenderers('skwasm');
+
+      trimUnreachable(root);
+
+      expect(kept('canvaskit/skwasm.wasm'), isTrue);
+      expect(kept('canvaskit/canvaskit.wasm'), isFalse);
+      expect(kept('canvaskit/chromium/canvaskit.wasm'), isFalse);
+    });
+
+    test('keeps everything when the manifest cannot be read', () {
+      write('flutter_bootstrap.js', 'a shape this tool does not understand');
+      for (final name in ['canvaskit', 'skwasm']) {
+        write('canvaskit/$name.wasm', 'wasm bytes');
+        write('canvaskit/$name.js.symbols', 'symbols');
+      }
+
+      trimUnreachable(root);
+
+      expect(kept('canvaskit/canvaskit.wasm'), isTrue);
+      expect(kept('canvaskit/skwasm.wasm'), isTrue);
+      expect(
+        kept('canvaskit/skwasm.js.symbols'),
+        isFalse,
+        reason: 'still dead',
+      );
+    });
+
+    test('a second run has nothing left to do', () {
+      writeRenderers('canvaskit');
+
+      expect(trimUnreachable(root), greaterThan(0));
+      expect(trimUnreachable(root), 0);
+    });
+  });
+
   test('the worker carries the key, the file list and the bypasses', () {
     final hashes = precacheHashes(root);
     final version = bundleVersion(hashes);

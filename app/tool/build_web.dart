@@ -33,6 +33,20 @@ const precacheDirs = <String>['assets', 'icons'];
 /// Big or browser-specific files: cached on first use instead of up front.
 const runtimeDirs = <String>['canvaskit'];
 
+/// Which renderer each family under `canvaskit/` belongs to. `flutter build
+/// web` drops every renderer into that directory and chooses one at run time,
+/// but the choice is bounded by the build manifest inside
+/// `flutter_bootstrap.js`: a build compiled for `canvaskit` never takes the
+/// skwasm path, so those files can only ever cost image size and deploy time.
+const rendererFamilies = <String, String>{
+  'canvaskit': 'canvaskit',
+  'chromium': 'canvaskit',
+  'webparagraph': 'canvaskit',
+  'skwasm': 'skwasm',
+  'skwasm_heavy': 'skwasm',
+  'wimp': 'skwasm',
+};
+
 /// Never precached: fetched only when someone opens the licence page.
 const precacheExclude = <String>{'assets/NOTICES'};
 
@@ -71,6 +85,8 @@ Future<void> main(List<String> args) async {
     exit(1);
   }
 
+  final trimmed = trimUnreachable(root);
+
   final hashes = precacheHashes(root);
   final version = bundleVersion(hashes);
   final bytes = hashes.keys
@@ -88,9 +104,66 @@ Future<void> main(List<String> args) async {
 
   stdout.writeln(
     'cache key $version · ${hashes.length} precached files · '
-    '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB',
+    '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB'
+    '${trimmed == 0 ? '' : ' · trimmed ${(trimmed / 1024 / 1024).toStringAsFixed(1)} MB'}',
   );
 }
+
+/// Removes what this build can never serve, and returns the bytes saved.
+///
+/// Two kinds of dead weight: renderers for a compile target this build is not,
+/// and the `.symbols` files beside every renderer, which exist to symbolicate
+/// stack traces offline and are never fetched by a running app.
+///
+/// The renderer to keep is read from the manifest rather than hardcoded, so a
+/// Flutter upgrade that switches renderers cannot quietly delete the one in
+/// use. If the manifest cannot be read, only the symbols go.
+int trimUnreachable(Directory root) {
+  final canvaskit = Directory('${root.path}/canvaskit');
+  if (!canvaskit.existsSync()) return 0;
+
+  final renderers = buildRenderers(File('${root.path}/flutter_bootstrap.js'));
+  if (renderers.isEmpty) {
+    stderr.writeln(
+      'build_web: no renderer in the build manifest — keeping every renderer. '
+      'If Flutter changed the manifest, teach buildRenderers about it.',
+    );
+  }
+
+  var saved = 0;
+  // Deepest first, so a directory is empty by the time it is removed.
+  for (final entry in canvaskit.listSync(recursive: true).reversed) {
+    if (!entry.existsSync()) continue;
+    final name = entry.uri.pathSegments.lastWhere((part) => part.isNotEmpty);
+    final family = rendererFamilies[name.split('.').first];
+    final unreachable =
+        renderers.isNotEmpty && family != null && !renderers.contains(family);
+
+    if (entry is File && (unreachable || name.endsWith('.symbols'))) {
+      saved += entry.lengthSync();
+      entry.deleteSync();
+    } else if (entry is Directory && unreachable) {
+      saved += directoryBytes(entry);
+      entry.deleteSync(recursive: true);
+    }
+  }
+  return saved;
+}
+
+/// Renderers the built app can load, from the manifest `flutter build web`
+/// writes into the bootstrap (`{"compileTarget":..,"renderer":"canvaskit",..}`).
+Set<String> buildRenderers(File bootstrap) {
+  if (!bootstrap.existsSync()) return const {};
+  return RegExp(r'"renderer"\s*:\s*"(\w+)"')
+      .allMatches(bootstrap.readAsStringSync())
+      .map((match) => match.group(1)!)
+      .toSet();
+}
+
+int directoryBytes(Directory dir) => dir
+    .listSync(recursive: true)
+    .whereType<File>()
+    .fold<int>(0, (sum, file) => sum + file.lengthSync());
 
 /// SHA-256 of every precached file, keyed by its path relative to the build.
 Map<String, String> precacheHashes(Directory root) {
