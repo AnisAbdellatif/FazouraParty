@@ -51,6 +51,55 @@
       height: 4px;
       background: #FF4D6D;
     }
+    /* A cold load is a few megabytes, most of it the renderer, so the wait is
+       long enough on mobile data to need saying how long is left. */
+    #splash-ring {
+      position: relative;
+      width: 72px;
+      height: 72px;
+      margin-top: 4px;
+    }
+    #splash-ring svg {
+      width: 100%;
+      height: 100%;
+      /* Start the arc at twelve o'clock, then turn the whole ring so it reads
+         as alive even while a single large file is in flight. */
+      transform: rotate(-90deg);
+      animation: splash-spin 2.4s linear infinite;
+    }
+    #splash-ring .track {
+      fill: none;
+      stroke: #FFC400;
+      stroke-opacity: .16;
+      stroke-width: 3;
+    }
+    #splash-ring .arc {
+      fill: none;
+      stroke: #FF4D6D;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-dasharray: 131.95;
+      stroke-dashoffset: 131.95;
+      transition: stroke-dashoffset .25s linear;
+    }
+    /* Counter-rotate so the number stays upright while the ring turns. */
+    #splash-pct {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      letter-spacing: .08em;
+      font-variant-numeric: tabular-nums;
+    }
+    @keyframes splash-spin {
+      to { transform: rotate(270deg); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #splash-ring svg { animation: none; }
+      #splash-ring .arc { transition: none; }
+    }
     /* Flutter inserts <flutter-view> once it takes over the page. */
     body:has(flutter-view) #splash {
       display: none;
@@ -61,8 +110,117 @@
   <div id="splash">
     FAZOURA
     <div class="bar"></div>
+    <div id="splash-ring" role="progressbar" aria-label="Loading Fazoura Party"
+         aria-valuemin="0" aria-valuemax="100">
+      <svg viewBox="0 0 48 48" aria-hidden="true">
+        <circle class="track" cx="24" cy="24" r="21"></circle>
+        <circle class="arc" cx="24" cy="24" r="21"></circle>
+      </svg>
+      <span id="splash-pct"></span>
+    </div>
   </div>
   <script>
+    // How far along the download is, for the ring above. A cold load is a few
+    // megabytes and most of it is one file, so without this the splash sits
+    // there saying nothing for the whole of a slow connection.
+    //
+    // `tool/build_web.dart` inlines the expected byte total; if it hasn't (an
+    // unprocessed build) the ring still spins, just without a number.
+    window.__fzProgress = (() => {
+      const total = Number('__FZ_COLD_BYTES__') || 0;
+      const arc = document.querySelector('#splash-ring .arc');
+      const label = document.getElementById('splash-pct');
+      const ring = document.getElementById('splash-ring');
+      const circumference = 2 * Math.PI * 21;
+      let loaded = 0;
+      let shown = -1;
+
+      function render() {
+        if (!total) return;
+        // Never go backwards, and never claim to be finished: Flutter taking
+        // over the page is what ends this, not arithmetic.
+        const value = Math.max(shown, Math.min(99, Math.floor((loaded / total) * 100)));
+        if (value === shown) return;
+        shown = value;
+        label.textContent = value + '%';
+        arc.style.strokeDashoffset = String(circumference * (1 - value / 100));
+        ring.setAttribute('aria-valuenow', String(value));
+      }
+
+      return {
+        add(bytes) {
+          loaded += bytes;
+          render();
+        },
+        // Set from a test or the console to see the ring at a given value.
+        preview(value) {
+          shown = -1;
+          loaded = (total || 1) * (value / 100);
+          if (!total) {
+            label.textContent = value + '%';
+            arc.style.strokeDashoffset = String(circumference * (1 - value / 100));
+          }
+          render();
+        },
+      };
+    })();
+
+    // Counted off a clone, so the response Flutter gets is the one fetch
+    // returned. Replacing the body would put a hand-built stream in front of
+    // `WebAssembly.compileStreaming`, which is not a risk worth taking to draw
+    // a progress ring.
+    (() => {
+      const progress = window.__fzProgress;
+      const native = window.fetch;
+      if (typeof native !== 'function' || !window.ReadableStream) return;
+
+      window.__fzStreamed = new Set();
+
+      async function count(response) {
+        const reader = response.body.getReader();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) return;
+          progress.add(value.byteLength);
+        }
+      }
+
+      window.fetch = function (...args) {
+        return native.apply(this, args).then((response) => {
+          try {
+            const url = new URL(response.url || String(args[0]), location.href);
+            if (response.ok && response.body && url.origin === location.origin) {
+              window.__fzStreamed.add(url.href);
+              count(response.clone()).catch(() => {});
+            }
+          } catch (error) {
+            // Counting is decoration; never let it cost a response.
+          }
+          return response;
+        });
+      };
+    })();
+
+    // Everything the page loads some other way — `main.dart.js` arrives on a
+    // script tag, which no fetch wrapper can see. Resource entries only land
+    // when a file is finished, so these move the ring in steps while the
+    // streamed ones move it smoothly.
+    (() => {
+      const progress = window.__fzProgress;
+      if (!window.PerformanceObserver) return;
+      const counted = new Set();
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          if (counted.has(entry.name)) continue;
+          if (window.__fzStreamed && window.__fzStreamed.has(entry.name)) continue;
+          counted.add(entry.name);
+          // Decoded, to match the bytes read off a stream and the file sizes
+          // the build measured; `encodedBodySize` would be the compressed ones.
+          progress.add(entry.decodedBodySize || 0);
+        }
+      }).observe({ type: 'resource', buffered: true });
+    })();
+
     // Ours is the only registration: tool/build_web.dart writes
     // flutter_service_worker.js and strips Flutter's deprecated one, because two
     // workers claiming "/" would keep replacing each other.

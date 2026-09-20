@@ -47,6 +47,9 @@ const rendererFamilies = <String, String>{
   'wimp': 'skwasm',
 };
 
+/// Replaced in the built `index.html` with the size of a cold load.
+const coldBytesToken = '__FZ_COLD_BYTES__';
+
 /// Never precached: fetched only when someone opens the licence page.
 const precacheExclude = <String>{'assets/NOTICES'};
 
@@ -87,6 +90,10 @@ Future<void> main(List<String> args) async {
 
   final trimmed = trimUnreachable(root);
 
+  // Both rewrite files the cache key covers, so they run before it is taken.
+  disableFlutterWorker(File('${root.path}/flutter_bootstrap.js'));
+  final cold = inlineColdBytes(root);
+
   final hashes = precacheHashes(root);
   final version = bundleVersion(hashes);
   final bytes = hashes.keys
@@ -96,8 +103,6 @@ Future<void> main(List<String> args) async {
   File('${root.path}/flutter_service_worker.js')
       .writeAsStringSync(serviceWorkerSource(version, hashes.keys.toList()));
 
-  disableFlutterWorker(File('${root.path}/flutter_bootstrap.js'));
-
   File('${root.path}/build-manifest.json').writeAsStringSync(
     '${const JsonEncoder.withIndent('  ').convert({'version': version, 'generated_at': DateTime.now().toUtc().toIso8601String(), 'precache_bytes': bytes, 'precache': hashes})}\n',
   );
@@ -105,8 +110,34 @@ Future<void> main(List<String> args) async {
   stdout.writeln(
     'cache key $version · ${hashes.length} precached files · '
     '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB'
-    '${trimmed == 0 ? '' : ' · trimmed ${(trimmed / 1024 / 1024).toStringAsFixed(1)} MB'}',
+    '${trimmed == 0 ? '' : ' · trimmed ${(trimmed / 1024 / 1024).toStringAsFixed(1)} MB'}'
+    '${cold == 0 ? '' : ' · cold load ~${(cold / 1024 / 1024).toStringAsFixed(1)} MB'}',
   );
+}
+
+/// Tells the splash screen how many bytes a cold load is worth, so its ring can
+/// show a percentage, and returns that number.
+///
+/// An estimate by nature: it is the precached bundle plus one renderer, and
+/// which renderer a browser picks is the browser's business. The splash clamps
+/// at 99% and waits for Flutter, so being a little out shows as the ring
+/// finishing slightly early or late rather than as a wrong number.
+int inlineColdBytes(Directory root) {
+  final index = File('${root.path}/index.html');
+  if (!index.existsSync()) return 0;
+
+  final source = index.readAsStringSync();
+  if (!source.contains(coldBytesToken)) return 0;
+
+  final renderer = File('${root.path}/canvaskit/chromium/canvaskit.wasm');
+  final bytes =
+      precacheHashes(root).keys
+          .map((path) => File('${root.path}/$path').lengthSync())
+          .fold<int>(0, (sum, length) => sum + length) +
+      (renderer.existsSync() ? renderer.lengthSync() : 0);
+
+  index.writeAsStringSync(source.replaceAll(coldBytesToken, '$bytes'));
+  return bytes;
 }
 
 /// Removes what this build can never serve, and returns the bytes saved.

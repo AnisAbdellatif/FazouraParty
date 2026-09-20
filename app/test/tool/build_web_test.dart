@@ -174,6 +174,54 @@ void main() {
     expect(source, contains('fonts.gstatic.com'));
   });
 
+  group('the splash screen progress ring', () {
+    test('learns how big a cold load is', () {
+      write('index.html', "<script>Number('$coldBytesToken')</script>");
+      write('canvaskit/chromium/canvaskit.wasm', 'a' * 5000);
+
+      final cold = inlineColdBytes(root);
+      final html = File('${root.path}/index.html').readAsStringSync();
+
+      expect(html, isNot(contains(coldBytesToken)));
+      expect(html, contains("Number('$cold')"));
+      // The bundle plus the renderer it will fetch — the ring has to count
+      // down something, and the renderer is most of the wait.
+      expect(cold, greaterThan(5000));
+    });
+
+    test('counts the renderer that a browser actually downloads', () {
+      write('index.html', "<script>Number('$coldBytesToken')</script>");
+      final withoutRenderer = inlineColdBytes(root);
+
+      write('index.html', "<script>Number('$coldBytesToken')</script>");
+      write('canvaskit/chromium/canvaskit.wasm', 'a' * 5000);
+      final withRenderer = inlineColdBytes(root);
+
+      expect(withRenderer - withoutRenderer, 5000);
+    });
+
+    test('leaves a page that has no token alone', () {
+      write('index.html', '<html>no ring here</html>');
+
+      expect(inlineColdBytes(root), 0);
+      expect(
+        File('${root.path}/index.html').readAsStringSync(),
+        '<html>no ring here</html>',
+      );
+    });
+
+    test('is inlined before the cache key is taken', () {
+      // Otherwise a build whose only change was the number would ship a page
+      // the worker still believes it has cached.
+      write('index.html', "<script>Number('$coldBytesToken')</script>");
+      final before = bundleVersion(precacheHashes(root));
+
+      inlineColdBytes(root);
+
+      expect(bundleVersion(precacheHashes(root)), isNot(before));
+    });
+  });
+
   test("Flutter's own worker registration is stripped", () {
     final bootstrap = File('${root.path}/flutter_bootstrap.js');
 
