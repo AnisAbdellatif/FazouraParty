@@ -24,7 +24,7 @@ defmodule FazouraWeb.Admin.QuizEditLive do
       {:ok, quiz} ->
         {:ok,
          socket
-         |> assign(page: :quizzes, quiz: quiz, photo_for: nil, saved: false)
+         |> assign(page: :quizzes, quiz: quiz, photo_for: nil, open: nil)
          |> assign(load(quiz))
          |> allow_upload(:photo,
            accept: ~w(.jpg .jpeg .png .webp),
@@ -80,14 +80,22 @@ defmodule FazouraWeb.Admin.QuizEditLive do
     {:noreply, merge(socket, params)}
   end
 
+  # One question open at a time: the point of collapsing them is that the page holds a
+  # handful of inputs rather than a thousand.
+  def handle_event("toggle_question", %{"cid" => cid}, socket) do
+    {:noreply, assign(socket, open: if(socket.assigns.open == cid, do: nil, else: cid))}
+  end
+
   def handle_event("add_question", params, socket) do
     socket = merge(socket, params["quiz"])
     cid = "q#{socket.assigns.next_cid}"
 
+    # Opened, because the only reason to add one is to fill it in, and linked from the
+    # bar, because on a long quiz it lands well below the fold.
     {:noreply,
      socket
      |> assign(next_cid: socket.assigns.next_cid + 1)
-     |> assign(questions: socket.assigns.questions ++ [blank(cid)])}
+     |> assign(questions: socket.assigns.questions ++ [blank(cid)], open: cid)}
   end
 
   def handle_event("remove_question", %{"cid" => cid} = params, socket) do
@@ -98,7 +106,8 @@ defmodule FazouraWeb.Admin.QuizEditLive do
      socket
      |> assign(questions: questions)
      |> assign(
-       photo_for: if(socket.assigns.photo_for == cid, do: nil, else: socket.assigns.photo_for)
+       photo_for: forget(socket.assigns.photo_for, cid),
+       open: forget(socket.assigns.open, cid)
      )}
   end
 
@@ -139,7 +148,7 @@ defmodule FazouraWeb.Admin.QuizEditLive do
       {:ok, quiz} ->
         {:noreply,
          socket
-         |> assign(quiz: quiz, saved: true)
+         |> assign(quiz: quiz)
          |> assign(load(quiz))
          |> put_flash(:info, ~s(Saved "#{quiz.title}" as version #{quiz.version}.))}
 
@@ -221,6 +230,28 @@ defmodule FazouraWeb.Admin.QuizEditLive do
       "image_key" => "",
       "image_alt" => ""
     }
+  end
+
+  # Whatever pointed at a question that no longer exists points at nothing.
+  defp forget(cid, cid), do: nil
+  defp forget(other, _cid), do: other
+
+  # What a collapsed row shows. A question being written has no prompt yet, and a row
+  # with nothing in it is one you cannot find again.
+  defp preview(%{"prompt" => prompt}) when is_binary(prompt) do
+    case String.trim(prompt) do
+      "" -> "New question"
+      trimmed -> trimmed
+    end
+  end
+
+  defp preview(_question), do: "New question"
+
+  defp open_index(questions, cid) do
+    case Enum.find_index(questions, &(&1["cid"] == cid)) do
+      nil -> ""
+      index -> index + 1
+    end
   end
 
   # The hidden field carries an absent photo back from the browser as "", not as nil, so
@@ -320,6 +351,18 @@ defmodule FazouraWeb.Admin.QuizEditLive do
     </h2>
 
     <form id="edit-quiz" phx-change="validate" phx-submit="save">
+      <%!-- Sticky, because the alternative is scrolling past every question to save. --%>
+      <div class="bar">
+        <button class="primary" type="submit">Save</button>
+        <button type="button" phx-click="add_question">Add a question</button>
+        <span class="muted">
+          {length(@questions)} questions<span :if={@open}>
+            · <a href={"#question-#{@open}"}>editing {open_index(@questions, @open)}</a>
+          </span>
+        </span>
+        <.link navigate={~p"/admin/quizzes"} class="muted">Back without saving</.link>
+      </div>
+
       <div class="panel pad">
         <div class="fields">
           <label>
@@ -371,10 +414,27 @@ defmodule FazouraWeb.Admin.QuizEditLive do
 
       <h2>Questions</h2>
 
-      <div :for={{question, index} <- Enum.with_index(@questions, 1)} class="panel pad question">
-        <div class="row between">
+      <%!-- Collapsed by default: a 195-question quiz is a real one, and rendering every
+      field of every question makes the page unusable and every keystroke's diff large.
+      The working copy lives in the socket, so a closed question keeps what was typed. --%>
+      <div
+        :for={{question, index} <- Enum.with_index(@questions, 1)}
+        id={"question-#{question["cid"]}"}
+        class={["panel question", @open == question["cid"] && "pad open"]}
+      >
+        <div class="qrow">
           <strong class="muted">{index}</strong>
-          <div>
+          <img :if={photo?(question)} class="qthumb" src={Uploads.path(question["image_key"])} alt="" />
+          <button
+            type="button"
+            class="preview"
+            phx-click="toggle_question"
+            phx-value-cid={question["cid"]}
+          >
+            {preview(question)}
+          </button>
+          <span class="pill">{question["difficulty"]}</span>
+          <div class="qactions">
             <button type="button" phx-click="move_question" phx-value-cid={question["cid"]} phx-value-by="-1" disabled={index == 1}>
               Up
             </button>
@@ -387,6 +447,7 @@ defmodule FazouraWeb.Admin.QuizEditLive do
           </div>
         </div>
 
+        <div :if={@open == question["cid"]}>
         <label>
           Prompt
           <input
@@ -450,7 +511,7 @@ defmodule FazouraWeb.Admin.QuizEditLive do
         />
 
         <div class="photo">
-          <img :if={photo?(question)} src={Uploads.url(question["image_key"])} alt="" />
+          <img :if={photo?(question)} src={Uploads.path(question["image_key"])} alt="" />
 
           <div class="photo-controls">
             <label :if={photo?(question)}>
@@ -488,17 +549,14 @@ defmodule FazouraWeb.Admin.QuizEditLive do
             </div>
           </div>
         </div>
+        </div>
       </div>
 
       <p :if={@questions == []} class="empty panel">
         No questions yet — a quiz needs at least one.
       </p>
 
-      <div class="row" style="margin-top:16px">
-        <button type="button" phx-click="add_question">Add a question</button>
-        <button class="primary" type="submit">Save</button>
-        <.link navigate={~p"/admin/quizzes"} class="muted">Back without saving</.link>
-      </div>
+
     </form>
     """
   end

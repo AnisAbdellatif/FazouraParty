@@ -209,6 +209,13 @@ defmodule FazouraWeb.AdminLiveTest do
       view
     end
 
+    # Questions are collapsed until you open one, so a test opens it first — the fields
+    # are not in the page otherwise, any more than they are for a person.
+    defp open(view, cid) do
+      view |> element("button[phx-click=toggle_question][phx-value-cid=#{cid}]") |> render_click()
+      view
+    end
+
     defp save(view) do
       view |> form("form[phx-submit=save]") |> render_submit()
     end
@@ -228,6 +235,36 @@ defmodule FazouraWeb.AdminLiveTest do
                live(conn, ~p"/admin/quizzes/#{quiz.id}/edit")
 
       assert to == ~p"/admin/quizzes"
+    end
+
+    test "only the question you open renders its fields", %{conn: conn, quiz: quiz} do
+      view = editor(conn, quiz)
+
+      # Closed, the row still says which question it is.
+      assert has_element?(view, "#question-q1 .preview", "Who directed Jurassic Park?")
+      refute has_element?(view, "input[name='quiz[questions][q1][prompt]']")
+
+      open(view, "q1")
+      assert has_element?(view, "input[name='quiz[questions][q1][prompt]']")
+
+      open(view, "q1")
+      refute has_element?(view, "input[name='quiz[questions][q1][prompt]']")
+    end
+
+    test "a long quiz stays one question's worth of form", %{conn: conn} do
+      # 195 questions, and a real one: the quiz that ships with the server.
+      {:ok, capitals} = Quizzes.fetch("world-capitals")
+      view = editor(conn, capitals)
+
+      assert has_element?(view, "#question-q195")
+      assert prompts_rendered(view) == 0
+
+      open(view, "q195")
+      assert prompts_rendered(view) == 1
+    end
+
+    defp prompts_rendered(view) do
+      view |> render() |> then(&Regex.scan(~r/\[prompt\]/, &1)) |> length()
     end
 
     test "edits metadata and saves a new version", %{conn: conn, quiz: quiz} do
@@ -254,7 +291,7 @@ defmodule FazouraWeb.AdminLiveTest do
     end
 
     test "edits a question", %{conn: conn, quiz: quiz} do
-      view = editor(conn, quiz)
+      view = conn |> editor(quiz) |> open("q1")
 
       fields(view, %{
         "questions" => %{
@@ -284,15 +321,22 @@ defmodule FazouraWeb.AdminLiveTest do
       view = editor(conn, quiz)
       assert {:ok, %{question_count: 1}} = Quizzes.fetch(quiz.id)
 
-      view |> element("button[phx-click=add_question]") |> render_click()
+      # Adding one opens it, ready to fill in.
       view |> element("button[phx-click=add_question]") |> render_click()
 
       fields(view, %{
-        "questions" => %{
-          "q2" => %{"prompt" => "Second?", "accepted_answers" => "Yes"},
-          "q3" => %{"prompt" => "Third?", "accepted_answers" => "Yes"}
-        }
+        "questions" => %{"q2" => %{"prompt" => "Second?", "accepted_answers" => "Yes"}}
       })
+
+      view |> element("button[phx-click=add_question]") |> render_click()
+
+      fields(view, %{
+        "questions" => %{"q3" => %{"prompt" => "Third?", "accepted_answers" => "Yes"}}
+      })
+
+      # q2 is closed now, and what was typed into it is still there: the working copy
+      # lives in the socket, not in the rendered form.
+      assert has_element?(view, "#question-q2 .preview", "Second?")
 
       view
       |> element("button[phx-click=move_question][phx-value-cid=q3][phx-value-by='-1']")
@@ -321,7 +365,7 @@ defmodule FazouraWeb.AdminLiveTest do
     end
 
     test "a question cannot be saved empty", %{conn: conn, quiz: quiz} do
-      view = editor(conn, quiz)
+      view = conn |> editor(quiz) |> open("q1")
 
       fields(view, %{"questions" => %{"q1" => %{"prompt" => "", "accepted_answers" => ""}}})
 
@@ -330,7 +374,7 @@ defmodule FazouraWeb.AdminLiveTest do
     end
 
     test "a question with no photo does not pretend to have one", %{conn: conn, quiz: quiz} do
-      view = editor(conn, quiz)
+      view = conn |> editor(quiz) |> open("q1")
       refute has_element?(view, ".panel.question img")
 
       # The hidden field carries an absent photo back as "", which is not nil and was
@@ -366,8 +410,12 @@ defmodule FazouraWeb.AdminLiveTest do
           QuizFixtures.owner_key()
         )
 
-      view = editor(conn, quiz)
-      assert has_element?(view, "img[src$='#{image.key}']")
+      view = conn |> editor(quiz) |> open("q1")
+
+      # Same-origin, not the endpoint's public URL: behind a proxy — or in the local
+      # stack, where that URL is https on 443 — an absolute one points somewhere the
+      # browser looking at this page cannot reach, and the preview is a broken image.
+      assert has_element?(view, "img[src='/uploads/#{image.key}']")
 
       view |> element("button[phx-click=remove_photo][phx-value-cid=q1]") |> render_click()
       assert save(view) =~ "Saved"
@@ -382,7 +430,7 @@ defmodule FazouraWeb.AdminLiveTest do
     end
 
     test "adds a photo to a question", %{conn: conn, quiz: quiz} do
-      view = editor(conn, quiz)
+      view = conn |> editor(quiz) |> open("q1")
 
       view |> element("button[phx-click=choose_photo][phx-value-cid=q1]") |> render_click()
 

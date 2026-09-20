@@ -14,8 +14,19 @@ defmodule Fazoura.Uploads do
   @spec dir() :: String.t()
   def dir, do: Application.fetch_env!(:fazoura, :uploads_dir)
 
+  @doc """
+  Where a photo is served from, relative to whatever origin asked.
+
+  What the dashboard's own HTML uses. `url/1` builds an absolute one from the endpoint's
+  *public* URL, which is right for a quiz document a device on the other side of the
+  internet will read, and wrong for a page already being served from this origin — behind
+  a proxy, or in the local stack, that public URL is a different scheme and port.
+  """
+  @spec path(String.t()) :: String.t()
+  def path(key), do: "/uploads/" <> key
+
   @spec url(String.t()) :: String.t()
-  def url(key), do: FazouraWeb.Endpoint.url() <> "/uploads/" <> key
+  def url(key), do: FazouraWeb.Endpoint.url() <> path(key)
 
   @doc "Reads a previously stored upload by its generated key."
   @spec read(String.t()) :: {:ok, binary()} | :error

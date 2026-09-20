@@ -138,10 +138,29 @@ defmodule FazouraWeb.Layouts do
     button[disabled] { opacity: .35; cursor: default; }
     button[disabled]:hover { border-color: var(--line); }
     .panel.pad { padding: 16px; overflow: visible; }
-    .panel.question { margin-bottom: 12px; }
-    .row.between { display: flex; justify-content: space-between; align-items: center;
-                   gap: 8px; margin-bottom: 12px; }
-    .row.between strong { font-size: 13px; letter-spacing: .1em; }
+    .panel.question { margin-bottom: 8px; }
+    .panel.question.open { margin: 12px 0; border-color: var(--ac); }
+    .bar {
+      position: sticky; top: 0; z-index: 2; display: flex; align-items: center;
+      gap: 10px; flex-wrap: wrap; padding: 12px 0 14px; margin-bottom: 4px;
+      background: var(--bg); border-bottom: 1px solid var(--line);
+    }
+    .bar .muted { font-size: 12px; }
+    .qrow { display: flex; align-items: center; gap: 10px; padding: 10px 14px; }
+    .panel.question.open .qrow { padding: 0 0 12px; }
+    .qrow strong { font-size: 12px; letter-spacing: .1em; min-width: 2.2em; }
+    .qrow .preview {
+      flex: 1; min-width: 0; text-align: left; border: 0; padding: 4px 0;
+      border-radius: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .qrow .preview:hover { color: var(--ac); border-color: transparent; }
+    .qrow .pill { margin: 0; }
+    .qactions { display: flex; gap: 6px; flex-shrink: 0; }
+    .qactions button { padding: 4px 10px; font-size: 12px; }
+    .qthumb {
+      width: 30px; height: 30px; object-fit: cover; border-radius: 7px;
+      border: 1px solid var(--line); flex-shrink: 0;
+    }
     form label { display: block; margin: 0 0 12px; color: var(--dim); font-size: 12px; }
     form label > input, form label > textarea, form label > select { margin-top: 5px; }
     form label.check { display: flex; align-items: center; gap: 8px; color: var(--ink);

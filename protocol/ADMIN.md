@@ -74,7 +74,16 @@ Everything about one quiz, community or preset.
 - **Questions:** prompt, accepted answers (one per line, trimmed, blanks dropped),
   difficulty, an optional per-question time, an optional explanation — and add, remove and
   reorder.
-- **Photos:** upload one per question, replace it, or remove it. An uploaded photo is an
+- **One question is open at a time.** The rest are one-line rows: number, thumbnail,
+  prompt, difficulty and the reorder and remove buttons. A shipped quiz can have 195
+  questions, and rendering every field of every one is a page nobody can use and a diff on
+  every keystroke that carries the whole form. A closed question keeps what was typed into
+  it — the working copy is in the LiveView, not in the rendered inputs — and Save sits in a
+  bar that stays at the top of the page.
+- **Photos:** upload one per question, replace it, or remove it. Previews are served from
+  this server's own origin (`/uploads/<key>`), never from the endpoint's public URL — behind
+  a proxy those differ, and an absolute one points where the browser reading this page
+  cannot follow. An uploaded photo is an
   ordinary upload owned by the server itself, the same owner a preset's photos have (§6), so
   it cannot be claimed or unpublished through the API. Removing one only drops the
   reference; `ImageSweeper` collects the file once nothing points at it.

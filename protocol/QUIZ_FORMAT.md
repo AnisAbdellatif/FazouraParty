@@ -2,6 +2,9 @@
 
 **Quiz format version: `1`** · Companion to [PROTOCOL.md](PROTOCOL.md) (which covers live rooms).
 
+Writing one by hand? [QUIZ_AUTHORING.md](QUIZ_AUTHORING.md) is the how-to: the folder to
+build, where the photos go, and how to pack it.
+
 A *quiz* (called a *pack* in older parts of the room protocol) is the content a room plays:
 a titled, ordered list of questions. Quizzes are **JSON documents** at every boundary —
 built-in quiz files in the repo, the REST API, import/export — and are stored in a
