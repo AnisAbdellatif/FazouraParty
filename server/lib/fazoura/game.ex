@@ -63,7 +63,8 @@ defmodule Fazoura.Game do
             question_count: non_neg_integer(),
             time_limit_ms: pos_integer(),
             difficulty_multiplier: boolean(),
-            difficulties: [String.t()]
+            difficulties: [String.t()],
+            available_difficulties: [String.t()]
           },
           game_number: pos_integer(),
           question_offset: non_neg_integer(),
@@ -483,14 +484,10 @@ defmodule Fazoura.Game do
        })
        when is_integer(count) and is_integer(time) and is_boolean(bonus) and is_list(selected) do
     selected = Enum.uniq(selected)
-
     eligible_count = max_question_count(game, selected)
 
-    if selected != [] and
-         Enum.all?(selected, &(&1 in @difficulties)) and
-         Enum.all?(selected, &(&1 in game.settings.available_difficulties)) and
-         count >= 1 and eligible_count >= 1 and
-         (count <= eligible_count or selected != game.settings.difficulties) and
+    if valid_difficulties?(game, selected) and
+         valid_question_count?(game, count, eligible_count, selected) and
          time in @min_time_limit_ms..@max_time_limit_ms,
        do:
          {:ok,
@@ -523,6 +520,24 @@ defmodule Fazoura.Game do
   end
 
   defp validate_settings(_game, _payload), do: {:error, :invalid_settings}
+
+  # Real difficulties, and ones the selected quizzes actually have: the host
+  # cannot play a difficulty no question carries (PROTOCOL.md §5.1).
+  defp valid_difficulties?(game, selected) do
+    selected != [] and
+      Enum.all?(
+        selected,
+        &(&1 in @difficulties and &1 in game.settings.available_difficulties)
+      )
+  end
+
+  # Narrowing the difficulties shrinks the pool, so a count chosen before is
+  # clamped rather than refused; asking for more than the *current* selection
+  # holds is a mistake worth reporting (§6.2).
+  defp valid_question_count?(game, count, eligible_count, selected) do
+    count >= 1 and eligible_count >= 1 and
+      (count <= eligible_count or selected != game.settings.difficulties)
+  end
 
   defp max_question_count(game), do: max_question_count(game, game.settings.difficulties)
 

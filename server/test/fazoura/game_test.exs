@@ -188,6 +188,40 @@ defmodule Fazoura.GameTest do
          %{"question_count" => count, "time_limit_ms" => time, "difficulty_multiplier" => bonus}}
       )
 
+  defp configure(game, count, time, bonus, difficulties),
+    do:
+      host(
+        game,
+        {:configure,
+         %{
+           "question_count" => count,
+           "time_limit_ms" => time,
+           "difficulty_multiplier" => bonus,
+           "difficulties" => difficulties
+         }}
+      )
+
+  # Two easy questions and one hard one, so selecting a difficulty really does
+  # change the size of the pool.
+  defp mixed_game do
+    pack =
+      Pack.from_map(%{
+        "title" => "Mixed",
+        "questions" =>
+          for {difficulty, i} <- Enum.with_index(["easy", "easy", "hard"], 1) do
+            %{
+              "id" => "q#{i}",
+              "prompt" => "Question #{i}?",
+              "difficulty" => difficulty,
+              "accepted_answers" => ["Right"],
+              "time_limit_ms" => 10_000
+            }
+          end
+      })
+
+    Game.new("ROOM42", pack, shuffle_questions?: false)
+  end
+
   describe "settings" do
     test "defaults to the whole pack at the first question's time limit" do
       game = game_with_players(["sam"], 3)
@@ -253,6 +287,34 @@ defmodule Fazoura.GameTest do
       assert Game.view(game, :host, @t0).settings.max_question_count == 25
       assert configure(game, 26, 30_000) == {:error, :invalid_settings}
       assert {:ok, _} = configure(game, 25, 30_000)
+    end
+
+    test "only difficulties the pack has can be selected" do
+      game = mixed_game()
+
+      for selected <- [["easy", "medium"], [], ["brutal"]] do
+        assert configure(game, 1, 15_000, false, selected) == {:error, :invalid_settings}
+      end
+    end
+
+    test "narrowing the difficulties clamps the count instead of failing" do
+      game = mixed_game()
+      assert game.settings.available_difficulties == ["easy", "hard"]
+      assert Game.view(game, :host, @t0).settings.max_question_count == 3
+
+      # Three questions were on offer; only the one hard question now is, so
+      # the count follows the selection down rather than being refused.
+      game = game |> configure(3, 10_000, false, ["hard"]) |> ok!()
+      assert game.settings.question_count == 1
+      assert Game.view(game, :host, @t0).settings.max_question_count == 1
+
+      # Asking for more than the *current* selection holds is a mistake.
+      assert configure(game, 2, 10_000, false, ["hard"]) == {:error, :invalid_settings}
+
+      # The round is played from the filtered order, not the whole pack.
+      game = game |> host(:next) |> ok!()
+      question = Game.view(game, :host, @t0).question
+      assert {question.id, question.difficulty} == {"q3", "hard"}
     end
 
     for c <- ProtocolFixtures.load!("scoring.json")["multiplier"] do
