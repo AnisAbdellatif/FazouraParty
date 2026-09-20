@@ -280,6 +280,14 @@ Errors: `413 image_too_large`, `415 unsupported_image`.
 The room snapshots the quiz and starts with its `default_settings`. A question's photo URL
 becomes the room state's `question.image_url` (PROTOCOL.md §5.1).
 
+A **LAN host** does the same thing on its own origin. It has no quiz database and no
+internet, so every quiz reaches it as a document inline with `host_select_quiz`, photos and
+all; it keeps them in memory under random keys and serves them from the port it is already
+listening on, at `http://<host-ip>:<port>/api/room-images/<key>`, with the same per-image
+(2 MB) and per-room (8 MB) limits and the same response headers. A photo it will not accept
+fails the intent with `invalid_quiz`, the code Cloud answers with for the same document.
+Clients cannot tell the two apart: both send an ordinary `image_url`.
+
 ## 6. Evolution checklist
 
 - New optional field → add to this doc, the changeset and the Dart model with a default.

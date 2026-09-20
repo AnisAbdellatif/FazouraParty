@@ -208,10 +208,11 @@ void main() {
     });
   });
 
-  test('normalize.json match cases are the server\'s to decide (§8)', () {
-    // The client deliberately implements no answer matching: normalization and
-    // matching are server-authoritative (AGENTS.md §4). This asserts that stays
-    // true, so a future local "helpful" match cannot diverge from the fixture.
+  test('normalize.json match cases belong to whoever is hosting (§8)', () {
+    // Matching is host-authoritative (AGENTS.md §4), so nothing in the *client*
+    // decides it and there is nothing to assert here beyond the fixture being
+    // present. The LAN host does match, because it is a host: those cases are
+    // replayed in `core/game/answer_test.dart`.
     final normalize = ProtocolFixtures.load('normalize.json');
     expect(normalize['normalize'], isNotEmpty);
     expect(normalize['match'], isNotEmpty);

@@ -15,7 +15,10 @@ import 'dart:math';
 import 'answer.dart';
 import 'pack.dart';
 
-const protocolVersion = 6;
+/// Must equal `Fazoura.Game.protocol_version/0` and the version the client
+/// sends: a host that answers a different number refuses every join
+/// (PROTOCOL.md §4.1).
+const protocolVersion = 7;
 const minTimeLimitMs = 10000;
 const maxTimeLimitMs = 120000;
 const defaultTimeLimitMs = 30000;
@@ -129,27 +132,45 @@ class GameSettings {
     required this.timeLimitMs,
     required this.difficultyMultiplier,
     required this.difficulties,
+    required this.availableDifficulties,
   });
 
   final int questionCount;
   final int timeLimitMs;
   final bool difficultyMultiplier;
+
+  /// The difficulties the host has chosen to play.
   final List<String> difficulties;
+
+  /// The difficulties the pack actually contains, which is what bounds
+  /// [difficulties]. Fixed for a selected quiz; the host cannot pick a
+  /// difficulty no question has (§5.1).
+  final List<String> availableDifficulties;
 }
 
 /// The whole state of one room. Mutated in place by the intent handlers, which
 /// is safe because exactly one [LanRoom] owns one [Game] and Dart is
 /// single-threaded per isolate.
 class Game {
-  Game({required this.roomCode, required this.pack, this.mode = 'lan'})
-    : settings = _defaultSettings(pack),
-      questionOrder = _shuffledOrder(
-        _eligibleIndicesFor(pack, _availableDifficulties(pack)),
-      );
+  Game({
+    required this.roomCode,
+    required this.pack,
+    this.mode = 'lan',
+    this.shuffleQuestions = true,
+  }) : settings = _defaultSettings(pack),
+       questionOrder = _shuffledOrder(
+         _eligibleIndicesFor(pack, _availableDifficulties(pack)),
+         shuffleQuestions,
+       );
 
   final String roomCode;
   Pack pack;
   final String mode;
+
+  /// False plays the pack in its written order. Only tests turn it off, so a
+  /// scripted scenario knows which question comes next — the same
+  /// `shuffle_questions?` option `Fazoura.Game.new/3` takes.
+  final bool shuffleQuestions;
 
   GameSettings settings;
   GamePhase phase = GamePhase.lobby;
@@ -173,11 +194,13 @@ class Game {
       Pack(questions: [final first, ...]) => first.timeLimitMs,
       _ => defaultTimeLimitMs,
     };
+    final available = _availableDifficulties(pack);
     return GameSettings(
       questionCount: pack.questions.length,
       timeLimitMs: time.clamp(minTimeLimitMs, maxTimeLimitMs),
       difficultyMultiplier: pack.defaultDifficultyMultiplier,
-      difficulties: _availableDifficulties(pack),
+      difficulties: available,
+      availableDifficulties: available,
     );
   }
 
@@ -198,6 +221,7 @@ class Game {
     questionOffset = 0;
     questionOrder = _shuffledOrder(
       _eligibleIndicesFor(selected, settings.difficulties),
+      shuffleQuestions,
     );
   }
 
@@ -394,32 +418,63 @@ class Game {
     final count = payload['question_count'];
     final time = payload['time_limit_ms'];
     final bonus = payload['difficulty_multiplier'];
-    final rawDifficulties = payload['difficulties'];
-    final difficulties = rawDifficulties is List
-        ? rawDifficulties.whereType<String>().toSet().toList()
-        : settings.difficulties;
+    final raw = payload['difficulties'];
 
-    if (count is! int ||
-        time is! int ||
-        bonus is! bool ||
-        difficulties.isEmpty ||
-        difficulties.any(
-          (difficulty) => !supportedDifficulties.contains(difficulty),
+    if (count is! int || time is! int || bonus is! bool) {
+      throw const GameRuleError('invalid_settings');
+    }
+
+    // A payload that names no difficulties keeps the ones already selected,
+    // and then may not ask for more questions than those difficulties have —
+    // there is no new selection to clamp against.
+    final keepsSelection = raw is! List;
+    if (keepsSelection && count > maxAllowedQuestionCount) {
+      throw const GameRuleError('invalid_settings');
+    }
+
+    final selected = keepsSelection
+        ? settings.difficulties
+        : raw.toSet().toList();
+    final eligible = _eligibleIndices(selected).length;
+
+    if (selected.isEmpty ||
+        selected.any(
+          (difficulty) =>
+              !supportedDifficulties.contains(difficulty) ||
+              !settings.availableDifficulties.contains(difficulty),
         ) ||
         count < 1 ||
+        eligible < 1 ||
+        // Narrowing the difficulties shrinks the pool, so a count from before
+        // is clamped rather than refused; asking for more than the current
+        // selection holds is a mistake worth reporting (§6.2).
+        (count > eligible && _sameDifficulties(selected)) ||
         time < minTimeLimitMs ||
         time > maxTimeLimitMs) {
       throw const GameRuleError('invalid_settings');
     }
 
     settings = GameSettings(
-      questionCount: min(count, _eligibleIndices(difficulties).length),
+      questionCount: min(count, eligible),
       timeLimitMs: time,
       difficultyMultiplier: bonus,
-      difficulties: difficulties,
+      difficulties: [for (final difficulty in selected) difficulty as String],
+      availableDifficulties: settings.availableDifficulties,
     );
     questionOffset = 0;
-    questionOrder = _shuffledOrder(_eligibleIndices(difficulties));
+    questionOrder = _shuffledOrder(
+      _eligibleIndices(settings.difficulties),
+      shuffleQuestions,
+    );
+  }
+
+  bool _sameDifficulties(List<Object?> selected) {
+    final current = settings.difficulties;
+    if (selected.length != current.length) return false;
+    for (var i = 0; i < selected.length; i++) {
+      if (selected[i] != current[i]) return false;
+    }
+    return true;
   }
 
   /// Moves the role to a player. The room shell checks they are connected and
@@ -436,8 +491,8 @@ class Game {
     for (final entry in players.entries) {
       players[entry.key] = entry.value.copyWith(score: 0);
     }
-    // Continue through the pack where the last game stopped, wrapping around,
-    // so a short game doesn't replay the same questions (§6.3).
+    // The room stays, the players stay, the quiz does not: a rematch drops
+    // back to the lobby so the host can pick what to play next (§6.3).
     pack = const Pack.empty();
     settings = _defaultSettings(pack);
     questionOffset = 0;
@@ -510,15 +565,17 @@ class Game {
   PackQuestion? get currentQuestion {
     if (phase == GamePhase.lobby || phase == GamePhase.finished) return null;
     final index = questionIndex;
-    if (index == null) return null;
-    final orderIndex = (questionOffset + index) % _packSize;
+    if (index == null || questionOrder.isEmpty) return null;
+    // Wraps on the *order*, not the pack: with a difficulty selected, the
+    // order holds only the eligible questions and is the shorter of the two.
+    final orderIndex = (questionOffset + index) % questionOrder.length;
     final question = pack.questions[questionOrder[orderIndex]];
     return question.copyWith(timeLimitMs: settings.timeLimitMs);
   }
 
-  static List<int> _shuffledOrder(List<int> indices) {
+  static List<int> _shuffledOrder(List<int> indices, bool shuffle) {
     final order = List<int>.from(indices);
-    order.shuffle();
+    if (shuffle) order.shuffle();
     return order;
   }
 
@@ -529,13 +586,13 @@ class Game {
       )
       .toList();
 
-  static List<int> _eligibleIndicesFor(Pack pack, List<String> difficulties) =>
+  static List<int> _eligibleIndicesFor(Pack pack, List<Object?> difficulties) =>
       [
         for (var index = 0; index < pack.questions.length; index++)
           if (difficulties.contains(pack.questions[index].difficulty)) index,
       ];
 
-  List<int> _eligibleIndices(List<String> difficulties) =>
+  List<int> _eligibleIndices(List<Object?> difficulties) =>
       _eligibleIndicesFor(pack, difficulties);
 
   // --- Views (§5.1, §7) ----------------------------------------------------
@@ -565,6 +622,8 @@ class Game {
         'time_limit_ms': settings.timeLimitMs,
         'difficulty_multiplier': settings.difficultyMultiplier,
         'max_question_count': maxAllowedQuestionCount,
+        'difficulties': settings.difficulties,
+        'available_difficulties': settings.availableDifficulties,
         'min_time_limit_ms': minTimeLimitMs,
         'max_time_limit_ms': maxTimeLimitMs,
       },

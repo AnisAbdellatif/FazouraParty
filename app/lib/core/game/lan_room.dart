@@ -14,6 +14,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'game.dart';
+import 'lan_images.dart';
 import 'pack.dart';
 import '../models/quiz.dart';
 
@@ -53,9 +54,16 @@ class LanRoom {
     required this.hostToken,
     int Function()? now,
     Random? random,
+    this.imageBaseUrl,
+    bool shuffleQuestions = true,
   }) : _now = now ?? (() => DateTime.now().millisecondsSinceEpoch),
        _random = random ?? Random.secure(),
-       game = Game(roomCode: code, pack: pack) {
+       images = LanImages(random: random),
+       game = Game(
+         roomCode: code,
+         pack: pack,
+         shuffleQuestions: shuffleQuestions,
+       ) {
     _emptySince = _now();
     _schedule();
   }
@@ -65,6 +73,8 @@ class LanRoom {
     required Pack pack,
     int Function()? now,
     Random? random,
+    String? imageBaseUrl,
+    bool shuffleQuestions = true,
   }) {
     final rng = random ?? Random.secure();
     return LanRoom(
@@ -73,12 +83,23 @@ class LanRoom {
       hostToken: _opaqueToken(rng, 'h'),
       now: now,
       random: rng,
+      imageBaseUrl: imageBaseUrl,
+      shuffleQuestions: shuffleQuestions,
     );
   }
 
   final String code;
   final String hostToken;
   final Game game;
+
+  /// The selected quiz's photos, served by the transport (§5.7).
+  final LanImages images;
+
+  /// Origin the host is reachable on, e.g. `http://192.168.1.20:4040`. Set by
+  /// [LanHost] once it knows which port and address it bound, because a guest
+  /// has to be able to fetch a photo from it.
+  String? imageBaseUrl;
+
   final int Function() _now;
   final Random _random;
 
@@ -227,13 +248,22 @@ class LanRoom {
   void _promoteHost() {
     final candidates = _connectedPlayerIds();
     if (candidates.isEmpty) return;
-    _grantHost(candidates[_random.nextInt(candidates.length)]);
+    _grantHost(
+      candidates[_random.nextInt(candidates.length)],
+      game.hostPlayerId,
+    );
   }
 
   /// Moves the role to [playerId] and mints their token. The generation bump is
   /// what retires every token issued before this point.
-  void _grantHost(String playerId) {
-    _demotedPlayerId ??= game.hostPlayerId;
+  ///
+  /// [outgoing] is who held the role *before* this call — passed in rather
+  /// than read from the game, because unlike the Elixir version this port
+  /// mutates in place, so by the time a transfer gets here the game may
+  /// already name the new holder. Getting it wrong would leave the demoted
+  /// host looking at the new host's own view (§3.4, §7).
+  void _grantHost(String playerId, String? outgoing) {
+    _demotedPlayerId ??= outgoing;
     _heldByHostConn = false;
     _currentHostToken = _opaqueToken(_random, 'h');
     game.hostPlayerId = playerId;
@@ -262,11 +292,15 @@ class LanRoom {
     // Ending the room is the shell's business: no state to advance, only
     // sockets to tell (PROTOCOL.md §3.4).
     if (event == 'host_close') {
-      if (_recipient(actor) is! HostActor) {
-        throw const GameRuleError('not_host');
+      // The host *connection*, not merely whoever holds the role: a connection
+      // that has handed the role away is an ordinary client, and a promoted
+      // player closes the room by the same route Cloud gives them — none
+      // (`FazouraWeb.RoomChannel` → `Rooms.intent/3`).
+      if (_recipient(actor) case HostActor(holder: true)) {
+        close(LanCloseReason.closed);
+        return;
       }
-      close(LanCloseReason.closed);
-      return;
+      throw const GameRuleError('not_host');
     }
 
     if (event == 'host_transfer') {
@@ -275,12 +309,7 @@ class LanRoom {
     }
 
     if (event == 'host_select_quiz') {
-      final document = payload['quiz'];
-      if (document is! Map<String, dynamic>) {
-        throw const GameRuleError('invalid_quiz');
-      }
-      game.selectQuiz(Pack.fromQuiz(QuizDocument.fromJson(document)));
-      _afterChange(now);
+      _handleSelectQuiz(actor, payload, now);
       return;
     }
 
@@ -292,6 +321,52 @@ class LanRoom {
     _afterChange(now);
   }
 
+  /// Replaces the lobby's quiz. Cloud resolves either a stored `quiz_id` or a
+  /// full inline document; a LAN host has no quiz database and no internet, so
+  /// only the document means anything to it — the wire contract is the same
+  /// either way (PROTOCOL.md §4.2).
+  ///
+  /// The photos travel inside that document as base64, so this is also where
+  /// they are taken out and stored for the transport to serve (§5.7).
+  void _handleSelectQuiz(Actor actor, Map<String, dynamic> payload, int now) {
+    // Whoever holds the role may choose, including a promoted player: the same
+    // two ways in that `Fazoura.Rooms.RoomServer` accepts `:select_quiz`.
+    if (!_holdsHostRole(_recipient(actor))) {
+      throw const GameRuleError('not_host');
+    }
+
+    final document = payload['quiz'];
+    if (document is! Map<String, dynamic>) {
+      throw const GameRuleError('invalid_quiz');
+    }
+
+    final QuizDocument quiz;
+    try {
+      quiz = QuizDocument.fromJson(document);
+    } on Object {
+      throw const GameRuleError('invalid_quiz');
+    }
+
+    // Store the photos only once the quiz is accepted: `selectQuiz` refuses an
+    // empty pack or a game already under way, and a refused selection must
+    // leave the room exactly as it was, photos included.
+    final prepared = images.prepare(quiz);
+    game.selectQuiz(Pack.fromQuiz(prepared.quiz, imageUrl: _imageUrl));
+    images.commit(prepared.images);
+    _afterChange(now);
+  }
+
+  /// Where a guest fetches a photo of the selected quiz. Mirrors Cloud's
+  /// `/api/room-images/<key>`, so the two differ only in the origin.
+  String _imageUrl(String key) => '${imageBaseUrl ?? ''}/api/room-images/$key';
+
+  /// Whether [recipient] may act as the host: the host connection while it
+  /// still holds the role, or the player it was handed to (§3.4).
+  bool _holdsHostRole(Actor recipient) => switch (recipient) {
+    HostActor(:final holder) => holder,
+    PlayerActor(:final id) => id == game.hostPlayerId,
+  };
+
   void _handleTransfer(Actor actor, Map<String, dynamic> payload, int now) {
     final target = payload['player_id'];
     if (target is! String) throw const GameRuleError('invalid_payload');
@@ -300,9 +375,12 @@ class LanRoom {
     if (!_connectedPlayerIds().contains(target)) {
       throw const GameRuleError('not_connected');
     }
-    // Validates that the sender may do this at all; _grantHost applies it.
+    // Who is handing it over, read before the game is touched: `host_transfer`
+    // moves the role inside the game state, so afterwards it is too late to
+    // ask.
+    final outgoing = game.hostPlayerId;
     game.handle(_recipient(actor), 'host_transfer', payload, now);
-    _grantHost(target);
+    _grantHost(target, outgoing);
     _afterChange(now);
   }
 
@@ -318,6 +396,13 @@ class LanRoom {
   }
 
   // --- Timers --------------------------------------------------------------
+
+  /// Advances the room to [_now]: ends a question whose deadline has passed
+  /// and closes a room that has sat empty or finished for too long.
+  ///
+  /// Called by the room's own timer in a real game, and directly by tests
+  /// driving an injected clock — the same seam `Fazoura.Rooms.tick/1` is.
+  void tick() => _onTimer();
 
   void _onTimer() {
     if (_closed) return;
@@ -397,6 +482,9 @@ class LanRoom {
       connection.pushClosed(reason.wire);
     }
     _connections.clear();
+    // The photos outlive nothing: a closed room's quiz is gone, and these are
+    // megabytes held in a phone's memory (QUIZ_FORMAT.md §5.7).
+    images.clear();
     if (!_closedCompleter.isCompleted) _closedCompleter.complete(reason);
   }
 }

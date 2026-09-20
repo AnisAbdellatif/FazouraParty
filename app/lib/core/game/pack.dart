@@ -27,8 +27,10 @@ class PackQuestion {
   final List<String> acceptedAnswers;
   final int timeLimitMs;
 
-  /// On LAN this is a `lan://photo/<question id>` URL served by the host's own
-  /// HTTP server, not a public URL.
+  /// On LAN this points at the hosting device itself, e.g.
+  /// `http://192.168.1.20:4040/api/room-images/<key>` — reachable on the
+  /// local network only, but an ordinary URL as far as any client is
+  /// concerned (PROTOCOL.md §5.1).
   final String? imageUrl;
   final String difficulty;
 
@@ -64,7 +66,15 @@ class Pack {
   /// Questions without an explicit id get a positional one, matching what the
   /// server does when it stores a quiz: ids only have to be stable within the
   /// room, and clients must not parse them (PROTOCOL.md §1).
-  factory Pack.fromQuiz(QuizDocument quiz) {
+  ///
+  /// [imageUrl] turns a stored photo key into the URL clients fetch it from,
+  /// the same seam `Fazoura.Quizzes.to_pack/2` has. Without it a photo
+  /// question keeps its prompt and scores normally but carries no image —
+  /// which is all a pack built outside a running host can honestly say.
+  factory Pack.fromQuiz(
+    QuizDocument quiz, {
+    String Function(String key)? imageUrl,
+  }) {
     final questions = quiz.questions ?? const <QuizQuestion>[];
     return Pack(
       id: quiz.id ?? quiz.slug ?? 'local',
@@ -79,10 +89,44 @@ class Pack {
             prompt: question.prompt,
             acceptedAnswers: question.acceptedAnswers,
             timeLimitMs: question.timeLimitMs ?? _defaultTimeLimitMs,
-            imageUrl: question.hasPhoto ? 'lan://photo/${index + 1}' : null,
+            imageUrl: _imageUrl(question, imageUrl),
             difficulty: _difficulty(question.difficulty),
           ),
       ],
+    );
+  }
+
+  /// Builds a pack straight from the JSON shape the shared contract fixtures
+  /// use, the counterpart of `Fazoura.Game.Pack.from_map/1`. Only the fixture
+  /// runner needs it: a real pack comes from a quiz document.
+  factory Pack.fromMap(Map<String, dynamic> map) => Pack(
+    id: map['id'] as String? ?? 'inline',
+    title: map['title'] as String,
+    questions: [
+      for (final question in map['questions'] as List)
+        _questionFromMap(question as Map<String, dynamic>),
+    ],
+  );
+
+  static PackQuestion _questionFromMap(Map<String, dynamic> map) {
+    final difficulty = map['difficulty'] as String? ?? 'easy';
+    if (!_difficulties.contains(difficulty)) {
+      throw ArgumentError.value(
+        difficulty,
+        'difficulty',
+        'unknown difficulty; use easy, medium or hard',
+      );
+    }
+    return PackQuestion(
+      id: map['id'] as String,
+      type: map['type'] as String? ?? 'text',
+      prompt: map['prompt'] as String,
+      acceptedAnswers: [
+        for (final answer in map['accepted_answers'] as List) answer as String,
+      ],
+      timeLimitMs: map['time_limit_ms'] as int? ?? _defaultTimeLimitMs,
+      imageUrl: map['image_url'] as String?,
+      difficulty: difficulty,
     );
   }
 
@@ -94,4 +138,16 @@ class Pack {
 
   static String _difficulty(String value) =>
       _difficulties.contains(value) ? value : 'easy';
+
+  /// Non-null only for a `text_photo` question whose photo was actually
+  /// stored: `image_url` is what tells a client there is an image to show
+  /// (PROTOCOL.md §5.1).
+  static String? _imageUrl(
+    QuizQuestion question,
+    String Function(String key)? imageUrl,
+  ) {
+    final key = question.image?.key;
+    if (!question.hasPhoto || key == null || imageUrl == null) return null;
+    return imageUrl(key);
+  }
 }

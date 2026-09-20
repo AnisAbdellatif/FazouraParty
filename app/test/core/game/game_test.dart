@@ -1,0 +1,824 @@
+/// The LAN host's game rules, held to the same cases as `Fazoura.GameTest`.
+///
+/// Deliberately mirrors that file group for group: the two implementations
+/// have to answer identically, and when one of them is changed the other's
+/// test file should be the obvious next place to look (AGENTS.md §8). Where a
+/// case comes from `protocol/fixtures/`, it is read from the fixture rather
+/// than copied, so a change to the contract fails here too.
+@TestOn('vm')
+library;
+
+import 'dart:math';
+
+import 'package:fazoura_party/core/game/game.dart';
+import 'package:fazoura_party/core/game/pack.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import '../../support/protocol_fixtures.dart';
+
+const t0 = 1000000;
+
+Pack pack([int questionCount = 2]) => Pack.fromMap({
+  'title': 'Test',
+  'questions': [
+    for (var i = 1; i <= questionCount; i++)
+      {
+        'id': 'q$i',
+        'prompt': 'Question $i?',
+        'accepted_answers': ['Right'],
+        'time_limit_ms': 10000,
+      },
+  ],
+});
+
+Game gameWithPlayers(List<String> names, [int questionCount = 2]) {
+  final game = Game(
+    roomCode: 'ROOM42',
+    pack: pack(questionCount),
+    shuffleQuestions: false,
+  );
+  for (final name in names) {
+    game.addPlayer(name, name);
+  }
+  return game;
+}
+
+void host(Game game, String event, [Map<String, dynamic> payload = const {}]) =>
+    game.handle(const HostActor(), event, payload, t0);
+
+void hostAt(Game game, String event, int now) =>
+    game.handle(const HostActor(), event, const {}, now);
+
+void submit(
+  Game game,
+  String id,
+  Object? answer,
+  Object? wager, [
+  int now = t0,
+]) => game.handle(PlayerActor(id), 'submit', {
+  'answer': answer,
+  'wager': wager,
+}, now);
+
+void configure(
+  Game game,
+  Object? count,
+  Object? time, [
+  Object? bonus = false,
+]) => host(game, 'host_configure', {
+  'question_count': count,
+  'time_limit_ms': time,
+  'difficulty_multiplier': bonus,
+});
+
+/// The code of the [GameRuleError] the callback throws.
+Matcher throwsCode(String code) =>
+    throwsA(isA<GameRuleError>().having((error) => error.code, 'code', code));
+
+void main() {
+  final scoring = ProtocolFixtures.load('scoring.json');
+
+  group('wager scoring (fixtures)', () {
+    for (final entry in scoring['delta'] as List) {
+      final c = entry as Map<String, dynamic>;
+      test('wager ${c['wager']}, correct=${c['correct']} -> ${c['delta']}', () {
+        final submission = GameSubmission(
+          answer: 'x',
+          wager: c['wager'] as int,
+          autoCorrect: c['correct'] as bool,
+          multiplier: 1,
+        );
+        expect(submission.delta, c['delta']);
+      });
+    }
+
+    for (final entry in scoring['override'] as List) {
+      final c = entry as Map<String, dynamic>;
+      test('override: ${c['name']}', () {
+        final autoCorrect = c['auto_correct'] as bool;
+        final game = gameWithPlayers(['sam']);
+        game.players['sam'] = game.players['sam']!.copyWith(
+          score: c['score_before_question'] as int,
+        );
+
+        host(game, 'host_next');
+        submit(game, 'sam', autoCorrect ? 'Right' : 'Wrong', c['wager']);
+        host(game, 'host_next');
+        expect(game.players['sam']!.score, c['score_after_scoring']);
+
+        host(game, 'host_override', {
+          'player_id': 'sam',
+          'correct': c['override'],
+        });
+        expect(game.players['sam']!.score, c['score_after_override']);
+      });
+    }
+
+    for (final wager in scoring['invalid_wagers'] as List) {
+      test('rejects wager $wager', () {
+        final game = gameWithPlayers(['sam']);
+        host(game, 'host_next');
+        expect(
+          () => submit(game, 'sam', 'Right', wager),
+          throwsCode('invalid_wager'),
+        );
+      });
+    }
+  });
+
+  group('players', () {
+    test('names are trimmed, 1-20 chars and unique case-insensitively', () {
+      final game = Game(roomCode: 'ROOM42', pack: pack());
+      game.addPlayer('p1', '  Sam ');
+      expect(game.players['p1']!.name, 'Sam');
+      expect(() => game.addPlayer('p2', 'sAM'), throwsCode('name_taken'));
+      expect(() => game.addPlayer('p2', '   '), throwsCode('invalid_name'));
+      expect(() => game.addPlayer('p2', 'a' * 21), throwsCode('invalid_name'));
+      expect(() => game.addPlayer('p2', null), throwsCode('invalid_name'));
+    });
+
+    test('a name is 20 graphemes, not 20 code units', () {
+      final game = Game(roomCode: 'ROOM42', pack: pack());
+      // 20 emoji are 40 UTF-16 code units; the limit counts characters (§4.1).
+      game.addPlayer('p1', '🎉' * 20);
+      expect(() => game.addPlayer('p2', '🎉' * 21), throwsCode('invalid_name'));
+    });
+
+    test('room is capped at 100 players', () {
+      final game = gameWithPlayers([for (var i = 1; i <= 100; i++) 'player$i']);
+      expect(() => game.addPlayer('extra', 'Extra'), throwsCode('room_full'));
+    });
+  });
+
+  group('phases', () {
+    test('full cycle over two questions', () {
+      final game = gameWithPlayers(['sam']);
+      expect(game.phase, GamePhase.lobby);
+
+      host(game, 'host_next');
+      expect(
+        (game.phase, game.questionIndex, game.deadline),
+        (GamePhase.question, 0, t0 + 10000),
+      );
+
+      host(game, 'host_next');
+      expect(game.phase, GamePhase.scoring);
+      host(game, 'host_next');
+      expect(game.phase, GamePhase.leaderboard);
+      host(game, 'host_next');
+      expect((game.phase, game.questionIndex), (GamePhase.question, 1));
+
+      host(game, 'host_next');
+      host(game, 'host_next');
+      host(game, 'host_next');
+      expect(game.phase, GamePhase.finished);
+      expect(() => host(game, 'host_next'), throwsCode('invalid_phase'));
+    });
+
+    test('an empty lobby has nothing to start', () {
+      final game = Game(roomCode: 'ROOM42', pack: const Pack.empty());
+      expect(() => host(game, 'host_next'), throwsCode('quiz_required'));
+    });
+
+    test('tick scores the question once the deadline passes', () {
+      final game = gameWithPlayers(['sam']);
+      host(game, 'host_next');
+      submit(game, 'sam', 'right', 3);
+
+      game.tick(t0 + 9999);
+      expect(game.phase, GamePhase.question);
+      game.tick(t0 + 10000);
+      expect(game.phase, GamePhase.scoring);
+      expect(game.players['sam']!.score, 3);
+    });
+
+    test('pause freezes the timer and resume restores the remaining time', () {
+      final game = gameWithPlayers(['sam']);
+      host(game, 'host_next');
+
+      hostAt(game, 'host_pause', t0 + 4000);
+      expect((game.deadline, game.pausedRemainingMs), (null, 6000));
+      expect(() => host(game, 'host_pause'), throwsCode('paused'));
+      game.tick(t0 + 999999);
+      expect(game.phase, GamePhase.question);
+      expect(() => submit(game, 'sam', 'Right', 5), throwsCode('paused'));
+
+      hostAt(game, 'host_resume', t0 + 50000);
+      expect((game.deadline, game.pausedRemainingMs), (t0 + 56000, null));
+      expect(() => host(game, 'host_resume'), throwsCode('not_paused'));
+    });
+  });
+
+  group('intent validation', () {
+    late Game game;
+    setUp(() {
+      game = gameWithPlayers(['sam', 'alex']);
+      host(game, 'host_next');
+    });
+
+    test('role checks', () {
+      expect(
+        () => game.handle(const PlayerActor('sam'), 'host_next', {}, t0),
+        throwsCode('not_host'),
+      );
+      expect(
+        () => game.handle(const PlayerActor('sam'), 'host_override', {}, t0),
+        throwsCode('not_host'),
+      );
+      expect(
+        () => game.handle(const HostActor(), 'submit', {}, t0),
+        throwsCode('not_player'),
+      );
+    });
+
+    test('an unknown intent is refused rather than ignored', () {
+      expect(() => host(game, 'host_teleport'), throwsCode('invalid_payload'));
+    });
+
+    test('one submission per player, before the deadline', () {
+      submit(game, 'sam', 'Right', 5);
+      expect(
+        () => submit(game, 'sam', 'Right', 5),
+        throwsCode('already_submitted'),
+      );
+      expect(
+        () => submit(game, 'alex', 'Right', 5, t0 + 10000),
+        throwsCode('invalid_phase'),
+      );
+    });
+
+    test('answer must be 1-100 chars', () {
+      expect(() => submit(game, 'sam', '  ', 5), throwsCode('invalid_answer'));
+      expect(
+        () => submit(game, 'sam', 'a' * 101, 5),
+        throwsCode('invalid_answer'),
+      );
+      expect(() => submit(game, 'sam', 42, 5), throwsCode('invalid_answer'));
+    });
+
+    test('override errors', () {
+      submit(game, 'sam', 'Right', 5);
+      expect(
+        () =>
+            host(game, 'host_override', {'player_id': 'sam', 'correct': false}),
+        throwsCode('invalid_phase'),
+      );
+
+      host(game, 'host_next');
+      expect(
+        () => host(game, 'host_override', {
+          'player_id': 'nobody',
+          'correct': true,
+        }),
+        throwsCode('unknown_player'),
+      );
+      expect(
+        () =>
+            host(game, 'host_override', {'player_id': 'alex', 'correct': true}),
+        throwsCode('no_submission'),
+      );
+      expect(
+        () => host(game, 'host_override', {'player_id': 'sam'}),
+        throwsCode('invalid_payload'),
+      );
+    });
+  });
+
+  group('settings', () {
+    test("defaults to the whole pack at the first question's time limit", () {
+      final game = gameWithPlayers(['sam'], 3);
+
+      expect(game.settings.questionCount, 3);
+      expect(game.settings.timeLimitMs, 10000);
+      expect(game.settings.difficultyMultiplier, isFalse);
+      expect(game.settings.difficulties, ['easy']);
+      expect(game.settings.availableDifficulties, ['easy']);
+
+      final view = game.view(const HostActor(), t0);
+      expect(view['question_count'], 3);
+      expect(view['settings'], {
+        'question_count': 3,
+        'time_limit_ms': 10000,
+        'difficulty_multiplier': false,
+        'max_question_count': 3,
+        'difficulties': ['easy'],
+        'available_difficulties': ['easy'],
+        'min_time_limit_ms': 10000,
+        'max_time_limit_ms': 120000,
+      });
+    });
+
+    test('host sets question count and time limit in the lobby only', () {
+      final game = gameWithPlayers(['sam'], 3);
+
+      for (final (count, time) in const [
+        (0, 20000),
+        (4, 20000),
+        (2, 9999),
+        (2, 120001),
+        ('2', 20000),
+      ]) {
+        expect(
+          () => configure(game, count, time),
+          throwsCode('invalid_settings'),
+          reason: 'count=$count time=$time',
+        );
+      }
+
+      expect(
+        () => host(game, 'host_configure', {}),
+        throwsCode('invalid_settings'),
+      );
+      expect(
+        () => host(game, 'host_configure', {
+          'question_count': 2,
+          'time_limit_ms': 20000,
+        }),
+        throwsCode('invalid_settings'),
+      );
+      expect(
+        () => configure(game, 2, 20000, 'yes'),
+        throwsCode('invalid_settings'),
+      );
+      expect(
+        () => game.handle(const PlayerActor('sam'), 'host_configure', {}, t0),
+        throwsCode('not_host'),
+      );
+
+      configure(game, 2, 15000);
+      host(game, 'host_next');
+      expect(game.deadline, t0 + 15000);
+      expect(
+        (game.view(const HostActor(), t0)['question']
+            as Map<String, dynamic>)['time_limit_ms'],
+        15000,
+      );
+      expect(() => configure(game, 1, 15000), throwsCode('invalid_phase'));
+
+      for (var i = 0; i < 6; i++) {
+        host(game, 'host_next');
+      }
+      expect(game.phase, GamePhase.finished);
+    });
+
+    test('a difficulty the pack does not have cannot be selected', () {
+      final game = gameWithPlayers(['sam'], 3);
+      expect(
+        () => host(game, 'host_configure', {
+          'question_count': 1,
+          'time_limit_ms': 15000,
+          'difficulty_multiplier': false,
+          'difficulties': ['easy', 'hard'],
+        }),
+        throwsCode('invalid_settings'),
+      );
+      expect(
+        () => host(game, 'host_configure', {
+          'question_count': 1,
+          'time_limit_ms': 15000,
+          'difficulty_multiplier': false,
+          'difficulties': <String>[],
+        }),
+        throwsCode('invalid_settings'),
+      );
+      expect(
+        () => host(game, 'host_configure', {
+          'question_count': 1,
+          'time_limit_ms': 15000,
+          'difficulty_multiplier': false,
+          'difficulties': ['easy', 42],
+        }),
+        throwsCode('invalid_settings'),
+      );
+    });
+
+    test('narrowing the difficulties clamps the count instead of failing', () {
+      final game = Game(
+        roomCode: 'ROOM42',
+        shuffleQuestions: false,
+        pack: Pack.fromMap({
+          'title': 'Mixed',
+          'questions': [
+            for (final (i, difficulty) in ['easy', 'easy', 'hard'].indexed)
+              {
+                'id': 'q${i + 1}',
+                'prompt': '?',
+                'difficulty': difficulty,
+                'accepted_answers': ['Right'],
+                'time_limit_ms': 10000,
+              },
+          ],
+        }),
+      );
+      expect(game.settings.availableDifficulties, ['easy', 'hard']);
+      expect(game.maxAllowedQuestionCount, 3);
+
+      // Three questions were on offer; only the one hard question now is, so
+      // the count follows the selection down rather than being refused.
+      host(game, 'host_configure', {
+        'question_count': 3,
+        'time_limit_ms': 10000,
+        'difficulty_multiplier': false,
+        'difficulties': ['hard'],
+      });
+      expect(game.settings.questionCount, 1);
+      expect(game.maxAllowedQuestionCount, 1);
+
+      // Asking for more than the *current* selection holds is a mistake.
+      expect(
+        () => host(game, 'host_configure', {
+          'question_count': 2,
+          'time_limit_ms': 10000,
+          'difficulty_multiplier': false,
+          'difficulties': ['hard'],
+        }),
+        throwsCode('invalid_settings'),
+      );
+
+      // The pack is played from the filtered order, not the whole pack, so the
+      // only hard question is the one asked.
+      host(game, 'host_next');
+      final question =
+          game.view(const HostActor(), t0)['question'] as Map<String, dynamic>;
+      expect(question['id'], 'q3');
+      expect(question['difficulty'], 'hard');
+    });
+  });
+
+  group('question count and difficulty bonus', () {
+    test('the round can use the full pack size', () {
+      final game = gameWithPlayers(['sam'], 25);
+      expect(game.settings.questionCount, 25);
+      expect(
+        (game.view(const HostActor(), t0)['settings']
+            as Map<String, dynamic>)['max_question_count'],
+        25,
+      );
+      expect(() => configure(game, 26, 30000), throwsCode('invalid_settings'));
+      configure(game, 25, 30000);
+      expect(game.settings.questionCount, 25);
+    });
+
+    for (final entry in scoring['multiplier'] as List) {
+      final c = entry as Map<String, dynamic>;
+      test('${c['difficulty']}, bonus ${c['bonus']}: '
+          'wager ${c['wager']} -> ${c['delta']}', () {
+        final game = Game(
+          roomCode: 'ROOM42',
+          shuffleQuestions: false,
+          pack: Pack.fromMap({
+            'title': 'T',
+            'questions': [
+              {
+                'id': 'q1',
+                'prompt': '?',
+                'difficulty': c['difficulty'],
+                'accepted_answers': ['Right'],
+                'time_limit_ms': 10000,
+              },
+            ],
+          }),
+        );
+        game.addPlayer('sam', 'Sam');
+        configure(game, 1, 10000, c['bonus']);
+        host(game, 'host_next');
+        expect(
+          (game.view(const HostActor(), t0)['question']
+              as Map<String, dynamic>)['multiplier'],
+          c['multiplier'],
+        );
+
+        submit(
+          game,
+          'sam',
+          c['correct'] as bool ? 'Right' : 'Wrong',
+          c['wager'],
+        );
+        host(game, 'host_next');
+
+        expect(game.players['sam']!.score, c['delta']);
+        final submissions =
+            game.view(const HostActor(), t0)['submissions'] as List;
+        final only = submissions.single as Map<String, dynamic>;
+        expect(
+          (only['multiplier'], only['delta']),
+          (c['multiplier'], c['delta']),
+        );
+      });
+    }
+
+    test('unknown difficulties are rejected when loading a pack', () {
+      expect(
+        () => Pack.fromMap({
+          'title': 'T',
+          'questions': [
+            {
+              'id': 'q',
+              'prompt': '?',
+              'difficulty': 'brutal',
+              'accepted_answers': <String>[],
+            },
+          ],
+        }),
+        throwsArgumentError,
+      );
+    });
+  });
+
+  group('avatar hues', () {
+    test(
+      'stay within 0..359 and spread away from hues already in the room',
+      () {
+        final game = Game(roomCode: 'ROOM42', pack: pack());
+        game.addPlayer('a', 'A', avatarHue: 100);
+
+        final candidates = [
+          for (var i = 0; i < 3; i++) ...[95, 110, 280, 102],
+        ];
+        var index = 0;
+        expect(
+          game.pickAvatarHue(_ScriptedRandom(() => candidates[index++])),
+          280,
+        );
+
+        for (var i = 0; i < 50; i++) {
+          expect(game.pickAvatarHue(), inInclusiveRange(0, 359));
+        }
+        final players = game.view(const HostActor(), t0)['players'] as List;
+        expect((players.first as Map<String, dynamic>)['avatar_hue'], 100);
+      },
+    );
+  });
+
+  group('rematch', () {
+    test('resets scores and returns to quiz selection in the same room', () {
+      final game = gameWithPlayers(['sam', 'alex'], 3);
+      configure(game, 2, 10000);
+
+      host(game, 'host_next');
+      submit(game, 'sam', 'Right', 7);
+      for (var i = 0; i < 6; i++) {
+        host(game, 'host_next');
+      }
+      expect(game.phase, GamePhase.finished);
+      expect(game.players['sam']!.score, 7);
+
+      expect(
+        () => game.handle(const PlayerActor('sam'), 'host_rematch', {}, t0),
+        throwsCode('not_host'),
+      );
+
+      host(game, 'host_rematch');
+      expect(
+        (game.phase, game.gameNumber, game.questionIndex),
+        (GamePhase.lobby, 2, null),
+      );
+      expect(game.players.values.map((p) => p.score), [0, 0]);
+      expect(game.players.length, 2);
+      expect(game.settings.questionCount, 0);
+      expect(game.pack.questions, isEmpty);
+      expect(() => host(game, 'host_rematch'), throwsCode('invalid_phase'));
+
+      game.selectQuiz(pack(3));
+      host(game, 'host_next');
+      final view = game.view(const HostActor(), t0);
+      expect(
+        (view['question'] as Map<String, dynamic>)['id'],
+        isIn(['q1', 'q2', 'q3']),
+      );
+      expect(view['game_number'], 2);
+    });
+
+    test('a quiz can only be chosen in the lobby, and cannot be empty', () {
+      final game = gameWithPlayers(['sam']);
+      expect(
+        () => game.selectQuiz(const Pack.empty()),
+        throwsCode('empty_pack'),
+      );
+      host(game, 'host_next');
+      expect(() => game.selectQuiz(pack(3)), throwsCode('invalid_phase'));
+    });
+  });
+
+  group('views', () {
+    test("players never see answers or others' submissions before scoring", () {
+      final game = gameWithPlayers(['sam', 'alex']);
+      host(game, 'host_next');
+      submit(game, 'sam', 'Right', 4);
+
+      final player = game.view(const PlayerActor('alex'), t0);
+      expect(player['accepted_answers'], isNull);
+      expect(player['submissions'], isNull);
+      expect((player['you'] as Map<String, dynamic>)['submission'], isNull);
+      expect(
+        (player['players'] as List).cast<Map<String, dynamic>>().firstWhere(
+          (p) => p['id'] == 'sam',
+        )['has_submitted'],
+        isTrue,
+      );
+
+      final own = game.view(const PlayerActor('sam'), t0);
+      expect((own['you'] as Map<String, dynamic>)['submission'], {
+        'answer': 'Right',
+        'wager': 4,
+        'correct': null,
+        'delta': null,
+      });
+
+      final hostView = game.view(const HostActor(), t0);
+      expect(hostView['accepted_answers'], isNull);
+      expect(hostView['submissions'], isNull);
+      expect(hostView['you'], {
+        'role': 'host',
+        'player_id': null,
+        'host_token': null,
+        'submission': null,
+      });
+
+      host(game, 'host_next');
+      final scored = game.view(const PlayerActor('alex'), t0);
+      expect(scored['accepted_answers'], ['Right']);
+      final submissions = (scored['submissions'] as List)
+          .cast<Map<String, dynamic>>();
+      expect(submissions.single['player_id'], 'sam');
+      expect(submissions.single['correct'], isTrue);
+      expect(submissions.single['delta'], 4);
+    });
+
+    test(
+      'a playing host submits, sees nothing early, and can override their own '
+      'answer',
+      () {
+        final game = gameWithPlayers(['sam']);
+        game.addHostPlayer('hana', 'Hana');
+        // Already playing: a reconnecting host does not become a second player.
+        game.addHostPlayer('other', 'Other');
+        expect(game.hostPlayerId, 'hana');
+        expect(game.players.length, 2);
+        expect(() => game.addPlayer('x', 'HANA'), throwsCode('name_taken'));
+
+        host(game, 'host_next');
+        host(game, 'submit', {'answer': 'Rigth', 'wager': 6});
+        expect(
+          () => host(game, 'submit', {'answer': 'Right', 'wager': 6}),
+          throwsCode('already_submitted'),
+        );
+
+        final during = game.view(const HostActor(), t0);
+        expect(
+          (during['accepted_answers'], during['submissions']),
+          (null, null),
+        );
+        expect(during['you'], {
+          'role': 'host',
+          'player_id': 'hana',
+          'host_token': null,
+          'submission': {
+            'answer': 'Rigth',
+            'wager': 6,
+            'correct': null,
+            'delta': null,
+          },
+        });
+        final players = (during['players'] as List)
+            .cast<Map<String, dynamic>>();
+        expect(players.map((p) => p['id']), ['hana', 'sam']);
+        expect(players.first['is_host'], isTrue);
+        expect(players.first['has_submitted'], isTrue);
+        expect(players[1]['is_host'], isFalse);
+
+        host(game, 'host_next');
+        expect(game.players['hana']!.score, -6);
+        expect(game.view(const HostActor(), t0)['accepted_answers'], ['Right']);
+
+        host(game, 'host_override', {'player_id': 'hana', 'correct': true});
+        expect(game.players['hana']!.score, 6);
+        expect(
+          (game.view(const PlayerActor('sam'), t0)['you']
+              as Map<String, dynamic>)['submission'],
+          isNull,
+        );
+      },
+    );
+
+    test('players are sorted by score desc, then name case-insensitively', () {
+      final game = gameWithPlayers(['bob', 'Alice', 'carl']);
+      game.players['carl'] = game.players['carl']!.copyWith(score: 5);
+
+      final names = (game.view(const HostActor(), t0)['players'] as List)
+          .cast<Map<String, dynamic>>()
+          .map((p) => p['name']);
+      expect(names, ['carl', 'Alice', 'bob']);
+    });
+
+    test('finished hides question data from everyone', () {
+      final game = gameWithPlayers(['sam'], 1);
+      for (var i = 0; i < 4; i++) {
+        host(game, 'host_next');
+      }
+      expect(game.phase, GamePhase.finished);
+
+      final view = game.view(const HostActor(), t0);
+      expect(
+        (view['question'], view['accepted_answers'], view['submissions']),
+        (null, null, null),
+      );
+    });
+
+    test('a promoted player is told they are the host', () {
+      final game = gameWithPlayers(['sam']);
+      host(game, 'host_transfer', {'player_id': 'sam'});
+
+      expect(
+        (game.view(const PlayerActor('sam'), t0)['you']
+            as Map<String, dynamic>)['role'],
+        'host',
+      );
+      // The connection that handed the role away is an ordinary client now,
+      // and the snapshot has to say so (§3.4).
+      expect(
+        (game.view(const HostActor(holder: false), t0)['you']
+            as Map<String, dynamic>)['role'],
+        'player',
+      );
+    });
+
+    test('the snapshot carries every field PROTOCOL.md §5.1 names', () {
+      final game = gameWithPlayers(['sam']);
+      host(game, 'host_next');
+      final view = game.view(const HostActor(), t0);
+
+      expect(view.keys.toSet(), {
+        'protocol_version',
+        'room_code',
+        'mode',
+        'phase',
+        'server_time',
+        'pack_title',
+        'question_index',
+        'question_count',
+        'game_number',
+        'settings',
+        'question',
+        'deadline',
+        'paused_remaining_ms',
+        'accepted_answers',
+        'players',
+        'you',
+        'submissions',
+      });
+      expect((view['settings'] as Map).keys.toSet(), {
+        'question_count',
+        'time_limit_ms',
+        'difficulty_multiplier',
+        'max_question_count',
+        'difficulties',
+        'available_difficulties',
+        'min_time_limit_ms',
+        'max_time_limit_ms',
+      });
+      expect((view['question'] as Map).keys.toSet(), {
+        'id',
+        'type',
+        'prompt',
+        'image_url',
+        'time_limit_ms',
+        'difficulty',
+        'multiplier',
+      });
+      expect(((view['players'] as List).first as Map).keys.toSet(), {
+        'id',
+        'name',
+        'score',
+        'connected',
+        'has_submitted',
+        'is_host',
+        'avatar_hue',
+      });
+      expect((view['you'] as Map).keys.toSet(), {
+        'role',
+        'player_id',
+        'host_token',
+        'submission',
+      });
+      expect(view['mode'], 'lan');
+      expect(view['protocol_version'], protocolVersion);
+      expect(view['server_time'], t0);
+    });
+  });
+}
+
+/// Hands out a scripted sequence where a hue would be picked at random.
+class _ScriptedRandom implements Random {
+  _ScriptedRandom(this._next);
+  final int Function() _next;
+
+  @override
+  int nextInt(int max) => _next();
+
+  @override
+  bool nextBool() => throw UnimplementedError();
+
+  @override
+  double nextDouble() => throw UnimplementedError();
+}

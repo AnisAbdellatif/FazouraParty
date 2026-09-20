@@ -49,6 +49,9 @@ class LanHost {
       server.port,
       await _localAddresses(),
     );
+    // Only now is the origin known, and a photo URL has to carry one a guest
+    // on the network can reach — loopback would work on this device alone.
+    host.room.imageBaseUrl = host.joinUrl ?? 'http://127.0.0.1:${host.port}';
     unawaited(host._accept());
     return host;
   }
@@ -76,16 +79,73 @@ class LanHost {
   Future<void> _accept() async {
     try {
       await for (final request in _server) {
-        if (!WebSocketTransformer.isUpgradeRequest(request) ||
-            !request.uri.path.startsWith('/socket/websocket')) {
-          request.response.statusCode = HttpStatus.notFound;
-          unawaited(request.response.close());
+        if (WebSocketTransformer.isUpgradeRequest(request) &&
+            request.uri.path.startsWith('/socket/websocket')) {
+          unawaited(_upgrade(request));
           continue;
         }
-        unawaited(_upgrade(request));
+        unawaited(_serveHttp(request));
       }
     } on Object {
       // The server was closed underneath us; stop() owns the teardown.
+    }
+  }
+
+  /// The one plain HTTP route: a photo of the quiz being played.
+  ///
+  /// The LAN twin of `FazouraWeb.RoomImageController`, down to the headers.
+  /// The bytes are the host's own, but they are still bytes a browser is asked
+  /// to render from an origin that also serves the game, so they get the same
+  /// treatment `FazouraWeb.Plugs.UserContent` gives them: believe the declared
+  /// type, never offer it as a download, and give it an opaque origin if it is
+  /// ever navigated to directly.
+  Future<void> _serveHttp(HttpRequest request) async {
+    final response = request.response;
+    final key = _imageKey(request.uri.path);
+    final image = key == null ? null : room.images.fetch(key);
+
+    if (request.method != 'GET' || image == null) {
+      response.statusCode = HttpStatus.notFound;
+      response.headers.contentType = ContentType.json;
+      response.write(
+        jsonEncode({
+          'error': {
+            'code': 'image_not_found',
+            'message': 'That photo is no longer available.',
+          },
+        }),
+      );
+    } else {
+      response.statusCode = HttpStatus.ok;
+      response.headers
+        ..contentType = ContentType.parse(image.contentType)
+        ..set('cache-control', 'private, max-age=3600')
+        ..set('x-content-type-options', 'nosniff')
+        ..set('content-disposition', 'inline')
+        ..set('content-security-policy', "sandbox; default-src 'none'");
+      response.add(image.bytes);
+    }
+
+    try {
+      await response.close();
+    } on Object {
+      // The guest hung up mid-response; nothing left to do.
+    }
+  }
+
+  /// The key in `/api/room-images/<key>`, or null for any other path. Matched
+  /// against the last segment only, so `..` cannot walk anywhere — there is no
+  /// filesystem behind this, but a key is a map lookup and should look like
+  /// one.
+  static String? _imageKey(String path) {
+    const prefix = '/api/room-images/';
+    if (!path.startsWith(prefix)) return null;
+    final key = path.substring(prefix.length);
+    if (key.isEmpty || key.contains('/')) return null;
+    try {
+      return Uri.decodeComponent(key);
+    } on ArgumentError {
+      return null;
     }
   }
 
@@ -388,5 +448,8 @@ String lanErrorMessage(String code) => switch (code) {
     'Choose 1 question up to the pack size, and 10–120 seconds per question.',
   'quiz_required' => 'Choose a quiz before starting the game.',
   'empty_pack' => 'That quiz has no playable questions.',
+  'invalid_quiz' => 'That quiz could not be loaded.',
+  'quiz_not_found' => 'That quiz is gone or no longer shared with you.',
+  'not_connected' => "That player isn't connected right now.",
   _ => 'Malformed request.',
 };
