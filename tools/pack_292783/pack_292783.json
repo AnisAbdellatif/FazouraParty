@@ -1,0 +1,1941 @@
+{
+  "format_version": 1,
+  "version": "1.0",
+  "title": "Choufli Hal Ultimate Quizz",
+  "description": null,
+  "language": "en",
+  "tags": [
+    "choufli_hal",
+    "tun",
+    "sitecom"
+  ],
+  "source_pack_id": 292783,
+  "default_settings": {
+    "time_limit_ms": 30000,
+    "difficulty_multiplier": false
+  },
+  "question_count": 174,
+  "has_photos": true,
+  "questions": [
+    {
+      "type": "text_photo",
+      "prompt": "Chesmou ?",
+      "accepted_answers": [
+        "خوك الرزڤي"
+      ],
+      "difficulty": "hard",
+      "image": {
+        "path": "images/292783-3661816.jpg",
+        "url": "https://static.sporcle.com/question_images/292783-3661816?v=1756931680312",
+        "alt": null
+      },
+      "explanation": null,
+      "source_difficulty": 13
+    },
+    {
+      "type": "text",
+      "prompt": "اماني وين تحب تعيش ؟",
+      "accepted_answers": [
+        "كنادا"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 44
+    },
+    {
+      "type": "text",
+      "prompt": "امين المال القديم مت نادي احباء فرويد وين بعثوه",
+      "accepted_answers": [
+        "النمسا vienne"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 14
+    },
+    {
+      "type": "text",
+      "prompt": "بقداش تكلف  العشاء لسليمان وقتلي فوفة و سي الطيب جاو تعشاو بحذاه اول مرة ؟",
+      "accepted_answers": [
+        "120 dt"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 22
+    },
+    {
+      "type": "text",
+      "prompt": "بقداش تلف المكياج و المشطة الي عملتهم خولة في سنتر متع زينب",
+      "accepted_answers": [
+        "90 dt"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 24
+    },
+    {
+      "type": "text",
+      "prompt": "دلندة قداش تسال  سبوعي (قالتها في الحلقة متع راس العام ) الاجابة الاقرب",
+      "accepted_answers": [
+        "463,5 dt"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 27
+    },
+    {
+      "type": "text",
+      "prompt": "سنية ال partie الي يحبها سبوعي في الدجاجة؟",
+      "accepted_answers": [
+        "الأفخاذ"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 64
+    },
+    {
+      "type": "text",
+      "prompt": "شكون الجارة الي سبوعي شرالها كانون ؟",
+      "accepted_answers": [
+        "خالتك محبوبة"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 27
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة اسم الاكباش الي كان يربي فيهم الباجي (3 ) ؟",
+      "accepted_answers": [
+        "الأعور و بوراس و السفرود"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 7
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة اسم الطفلة الي تجي تشري الحلوى من عند فوشيكة ؟",
+      "accepted_answers": [
+        "آمنة"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 17
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة اسم الكاتبة متع سي الطيب ؟",
+      "accepted_answers": [
+        "ناتاشا"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 18
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة اسم مرت سي الفاضل ؟",
+      "accepted_answers": [
+        "صَفيّة"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 8
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة البرنامج الي حبت اماني تشارك فيه",
+      "accepted_answers": [
+        "Mannequin académie"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 43
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة النادي الي شاركت فيه اماني في الكولاج",
+      "accepted_answers": [
+        "نادي لبيب"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 27
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة مرض الخوف من التجمعات ؟",
+      "accepted_answers": [
+        "Agoraphobie"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 27
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة يعيط حسين لميدو",
+      "accepted_answers": [
+        "سي ميبو"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 22
+    },
+    {
+      "type": "text",
+      "prompt": "شنية البلاد الي مرت دكتور بن عمر تعدي فاها sport d’hiver ?",
+      "accepted_answers": [
+        "Megève"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 18
+    },
+    {
+      "type": "text",
+      "prompt": "شنية الجزيرة الي مشاتلها دوجة و فضيلة في الكروازيار ؟",
+      "accepted_answers": [
+        "ميوركا / جزر الكناري"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 36
+    },
+    {
+      "type": "text",
+      "prompt": "شنية اللمة الي عملتها زينب في الدار الجديدة ؟",
+      "accepted_answers": [
+        "Pendaison de la crémaillère"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 24
+    },
+    {
+      "type": "text",
+      "prompt": "شنية الماركة متع الكبوت الي مشات بيه دوجة للوتيل؟",
+      "accepted_answers": [
+        "Prada"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 12
+    },
+    {
+      "type": "text",
+      "prompt": "شنية النبتة الي حبت زينب تزرعها في الجنينة ؟",
+      "accepted_answers": [
+        "Hibiscus 🌺"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 17
+    },
+    {
+      "type": "text",
+      "prompt": "صاحب شكيب الي قال لسبوعي على سهرية راس العام و وصاه ميقولش لدلندة؟",
+      "accepted_answers": [
+        "جمال"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 7
+    },
+    {
+      "type": "text",
+      "prompt": "فما باسيون جا لسليمان و حلو في الجنه دراع و قلو بش تخدم معايا و بعد جبد بيه . شنوة المرض متاعو ؟",
+      "accepted_answers": [
+        "Mythomanie"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 49
+    },
+    {
+      "type": "text",
+      "prompt": "في الموسم الاول سليمان جاه استدعاء عرس و خباه على زينب لعرس شكون ؟؟",
+      "accepted_answers": [
+        "روافد"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 19
+    },
+    {
+      "type": "text",
+      "prompt": "قداش فاها الفاتورة الي ضيعها سبوعي ؟",
+      "accepted_answers": [
+        "90 dt"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 24
+    },
+    {
+      "type": "text",
+      "prompt": "كان فاكر جا يعرف حمزة شنيا كان يهديلو",
+      "accepted_answers": [
+        "Logiciel tayara"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 20
+    },
+    {
+      "type": "text",
+      "prompt": "منين سمعت عزة بالسرقة متع الصياغة ؟",
+      "accepted_answers": [
+        "من عند نورة جارتهم الي تسكن اللوطة"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 29
+    },
+    {
+      "type": "text",
+      "prompt": "إسم السبوعي كيف عمل فيها عراف",
+      "accepted_answers": [
+        "عرجون بو كرشين"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 56
+    },
+    {
+      "type": "text",
+      "prompt": "إسم القورية إلي جات تشوف عند السبوعي كي عمل فيها عراف",
+      "accepted_answers": [
+        "Jane"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 25
+    },
+    {
+      "type": "text",
+      "prompt": "إسم بنت خالة دلندا",
+      "accepted_answers": [
+        "نرجس"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 33
+    },
+    {
+      "type": "text",
+      "prompt": "إسم بو زينب",
+      "accepted_answers": [
+        "سي المنذر"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 59
+    },
+    {
+      "type": "text",
+      "prompt": "إسم جارة زينب في حي النصر",
+      "accepted_answers": [
+        "خولة"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 69
+    },
+    {
+      "type": "text",
+      "prompt": "إسم خطيبة سليمان الأولى",
+      "accepted_answers": [
+        "مليكة"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 28
+    },
+    {
+      "type": "text",
+      "prompt": "إسم صاحب أماني الأول (ما ضهرش حتى مرة)",
+      "accepted_answers": [
+        "أنيس"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 30
+    },
+    {
+      "type": "text",
+      "prompt": "إسم غناية سوزي إلي قالت عليها أماني",
+      "accepted_answers": [
+        "هشك بشك يا زعبلا"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 34
+    },
+    {
+      "type": "text",
+      "prompt": "إسم مشروع السونتر متع زينب",
+      "accepted_answers": [
+        "بور لافورم"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 69
+    },
+    {
+      "type": "text",
+      "prompt": "إسم معلم فضيلة في تعليم الكبار",
+      "accepted_answers": [
+        "الفاضل"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 80
+    },
+    {
+      "type": "text",
+      "prompt": "إسم ولد الباجي",
+      "accepted_answers": [
+        "ذياب"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 64
+    },
+    {
+      "type": "text",
+      "prompt": "اسم المريض إلي جا لسليمان و مريض بالضحك",
+      "accepted_answers": [
+        "محسن عجاج"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 19
+    },
+    {
+      "type": "text",
+      "prompt": "بقداش باع سليمان أرضو متع البلاد",
+      "accepted_answers": [
+        "30 مليون"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 48
+    },
+    {
+      "type": "text",
+      "prompt": "بقداش تبيع زينب المخدة إلي تخيط فيهم فضيلة",
+      "accepted_answers": [
+        "30 DT"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 37
+    },
+    {
+      "type": "text",
+      "prompt": "جنسية الراقصة في راس العام",
+      "accepted_answers": [
+        "بوليفيا"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 30
+    },
+    {
+      "type": "text",
+      "prompt": "حسب السبوعي ماهي عاصمة نيجيريا",
+      "accepted_answers": [
+        "النيجر"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 49
+    },
+    {
+      "type": "text",
+      "prompt": "داود يا داود يا سيدي يا داود واشخص كان .....",
+      "accepted_answers": [
+        "عرسي يتعاود"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 60
+    },
+    {
+      "type": "text",
+      "prompt": "شسمو الdj الي ستدعاو سبوعي لسهريتو",
+      "accepted_answers": [
+        "Dj Diabolo"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 8
+    },
+    {
+      "type": "text",
+      "prompt": "شسمو صاحب دوجة الي عمرو 30 سنة",
+      "accepted_answers": [
+        "فراس"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 21
+    },
+    {
+      "type": "text",
+      "prompt": "شكون اقترح إسم عمر عمران على عزة",
+      "accepted_answers": [
+        "زينب"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 65
+    },
+    {
+      "type": "text",
+      "prompt": "شكون بدى مرمة السبوعي",
+      "accepted_answers": [
+        "فضيلة"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 80
+    },
+    {
+      "type": "text",
+      "prompt": "شكون لقى خدمة لفوشيكة",
+      "accepted_answers": [
+        "سليمان"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 83
+    },
+    {
+      "type": "text",
+      "prompt": "شكون لقى خوصة سليمان الضايعة",
+      "accepted_answers": [
+        "السبوعي"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 80
+    },
+    {
+      "type": "text",
+      "prompt": "شنوا إسم الطبيب إلي عدى عندو سليمان",
+      "accepted_answers": [
+        "دكتور الأسود"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 77
+    },
+    {
+      "type": "text",
+      "prompt": "شنوا المرض إلي خلا السبوعي ياكل و هو راقد",
+      "accepted_answers": [
+        "الروبصة"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 45
+    },
+    {
+      "type": "text",
+      "prompt": "شنوا حبت عزة تسمي بنتها",
+      "accepted_answers": [
+        "سارة"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 73
+    },
+    {
+      "type": "text",
+      "prompt": "شنوا لون السبوعي بيت نوم سليمان",
+      "accepted_answers": [
+        "أصفر و أحمر"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 73
+    },
+    {
+      "type": "text",
+      "prompt": "في شكون شك السبوعي صب بيه لأمو إلي هو يتكيف ؟",
+      "accepted_answers": [
+        "عزة"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 60
+    },
+    {
+      "type": "text",
+      "prompt": "قداش مربوح السونتر متع زينب",
+      "accepted_answers": [
+        "25 مليون"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 27
+    },
+    {
+      "type": "text",
+      "prompt": "كمل الشعر إلي قالتو فاطمة : صدقني يا صديقي لقد ...",
+      "accepted_answers": [
+        "شيحتلي ريقي"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 61
+    },
+    {
+      "type": "text",
+      "prompt": "نوع الصياغة إلي تحبها عزة",
+      "accepted_answers": [
+        "حنش و خيالي"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 73
+    },
+    {
+      "type": "text",
+      "prompt": "وين جاء النادي متع فرويد",
+      "accepted_answers": [
+        "Lac"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 45
+    },
+
+    {
+      "type": "text",
+      "prompt": "الباجي بقداش صلح الكليماتيزور متع سليمان ؟",
+      "accepted_answers": [
+        "60 دينار"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 44
+    },
+    {
+      "type": "text",
+      "prompt": "الباجي لشبروش : تابع دار العروس و الا دار العروسة ؟ شبروش : تابع .......................",
+      "accepted_answers": [
+        "الفرقة"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 61
+    },
+    {
+      "type": "text",
+      "prompt": "السبوعي بقداش يبيع في كاس سيتروناد ؟",
+      "accepted_answers": [
+        "1000 مليم"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 36
+    },
+    {
+      "type": "text",
+      "prompt": "السبوعي وين شاف دوجة مع صاحبها فراس ؟",
+      "accepted_answers": [
+        "في قهوة فاللاك"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 38
+    },
+    {
+      "type": "text",
+      "prompt": "السيكان و البرفانات و المكياج سينيي الي عطاهم الباجي لفوشيكة باش يبيعهم ، شكون شراهم ؟",
+      "accepted_answers": [
+        "فوشيكة و عطاهم لفضيلة cadeau"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 26
+    },
+    {
+      "type": "text",
+      "prompt": "الغجالي كيفاه شدوه الشرطة ؟",
+      "accepted_answers": [
+        "وهو خارج بالمسروق مالبلاص بعد ما خبر عليه سليمان"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 74
+    },
+    {
+      "type": "text",
+      "prompt": "المقاول الي مريض بالضحك عندو مرض نفساني اخر، شنية ؟",
+      "accepted_answers": [
+        "Claustrophobe - ما يحملش الحصرة"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 47
+    },
+    {
+      "type": "text",
+      "prompt": "اماني وين تحب تصيف ؟",
+      "accepted_answers": [
+        "حمامات"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 67
+    },
+    {
+      "type": "text",
+      "prompt": "اماني وين قرات العام لول فالجامعة ؟",
+      "accepted_answers": [
+        "صفاقس"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 80
+    },
+    {
+      "type": "text",
+      "prompt": "امي فضيلة تحكي لزينب على المسلسل التاريخي الي تبع فيه : الي باللحية، اذاكا شيخ القبيلة قتلولو ولدو قال ........................",
+      "accepted_answers": [
+        "نجيب نباهم والا نموت حذاهم"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 12
+    },
+    {
+      "type": "text",
+      "prompt": "اناهي كرهبة سي طيب اللي ساقتها دلندة ؟",
+      "accepted_answers": [
+        "X7"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 37
+    },
+    {
+      "type": "text",
+      "prompt": "بقداش دبوزة ماء كبيرة فالمشروع متاع السبوعي ؟",
+      "accepted_answers": [
+        "1 دينار"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 56
+    },
+    {
+      "type": "text",
+      "prompt": "بقداش سوم الفيلم عند الباجي ?",
+      "accepted_answers": [
+        "4 دينارات"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 11
+    },
+    {
+      "type": "text",
+      "prompt": "بقداش وسيم شرا كرهبة سليمان ؟",
+      "accepted_answers": [
+        "8 ملاين و 500"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 45
+    },
+    {
+      "type": "text",
+      "prompt": "بهاء طلعة ساكن دار اصلو منين ؟",
+      "accepted_answers": [
+        "ازمير تركيا"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 25
+    },
+    {
+      "type": "text",
+      "prompt": "بو سليمان بقداش من عام اكبر من فضيلة ؟",
+      "accepted_answers": [
+        "30 سنة"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 12
+    },
+    {
+      "type": "text",
+      "prompt": "بوراوي الشيفور قداش يحب فلوس من عند سليمان ؟",
+      "accepted_answers": [
+        "70 دينار"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 36
+    },
+    {
+      "type": "text",
+      "prompt": "تاريخ زواج زينب و سليمان",
+      "accepted_answers": [
+        "22/10 أو 18/10"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 18
+    },
+    {
+      "type": "text",
+      "prompt": "جنات على شنوة تحشش في رمضان ؟",
+      "accepted_answers": [
+        "على الكليونات"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 46
+    },
+    {
+      "type": "text",
+      "prompt": "جنات قداش حطت فلوس فالمشروع (centre)؟",
+      "accepted_answers": [
+        "25 مليون"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 31
+    },
+    {
+      "type": "text",
+      "prompt": "حسب سبوعي، علاش papa noël يلبس بالاحمر و الأبيض ؟",
+      "accepted_answers": [
+        "يحب الافريقي 🇮🇩"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 52
+    },
+    {
+      "type": "text",
+      "prompt": "حسب سليمان، شنوة هو فالاصل noël ?",
+      "accepted_answers": [
+        "Publicité mte3 gazouz"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 29
+    },
+    {
+      "type": "text",
+      "prompt": "حوسي شنوة يعيط لفضيلة ؟",
+      "accepted_answers": [
+        "جميلة"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 70
+    },
+    {
+      "type": "text",
+      "prompt": "دلندة عند شكون كانت تخدم قبل سليمان (اسم)؟",
+      "accepted_answers": [
+        "دكتور باش زايد"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 10
+    },
+    {
+      "type": "text",
+      "prompt": "دوجة مع شكون عدات عيد الحب ؟",
+      "accepted_answers": [
+        "بهاء طلعة ساكن دار"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 52
+    },
+    {
+      "type": "text",
+      "prompt": "دوجة و بهاء طلعة فين عداو عيد الحب ؟",
+      "accepted_answers": [
+        "مطعم الزريبة فاللاك"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 34
+    },
+    {
+      "type": "text",
+      "prompt": "زينب وين تحب تصيف ؟",
+      "accepted_answers": [
+        "قليبية"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 47
+    },
+    {
+      "type": "text",
+      "prompt": "سبوعي بقداش يبيع في دبوزة الماء الصغيرة ؟",
+      "accepted_answers": [
+        "700 مليم"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 32
+    },
+    {
+      "type": "text",
+      "prompt": "سبوعي قداش يسال سليمان فلوس ؟",
+      "accepted_answers": [
+        "3160 دينار"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 22
+    },
+    {
+      "type": "text",
+      "prompt": "سبوعي مع شكون مشا للبحر ؟",
+      "accepted_answers": [
+        "صوفية و سنية"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 79
+    },
+    {
+      "type": "text",
+      "prompt": "سبوعي وين خبا الصياغة المسروقة اول ما لقاها ؟",
+      "accepted_answers": [
+        "Chasse d'eau"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 70
+    },
+    {
+      "type": "text",
+      "prompt": "سبوعي وين مشا يعوم ؟",
+      "accepted_answers": [
+        "قمرت"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 16
+    },
+    {
+      "type": "text",
+      "prompt": "سليمان بقداش حب يبيع كرهبتو ؟",
+      "accepted_answers": [
+        "10 ملاين"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 52
+    },
+    {
+      "type": "text",
+      "prompt": "سليمان بقداش عدا على الباجي ؟",
+      "accepted_answers": [
+        "50 دينار"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 58
+    },
+    {
+      "type": "text",
+      "prompt": "سليمان على قداش من عام بش يخلص قرض دار النصر ؟",
+      "accepted_answers": [
+        "10 سنين"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 38
+    },
+    {
+      "type": "text",
+      "prompt": "سليمان قداش عطا فلوس لداود بش يمشي يرضي كلثوم ؟",
+      "accepted_answers": [
+        "5 دينارات"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 39
+    },
+    {
+      "type": "text",
+      "prompt": "سليمان قداش من مرة زاد في حق الفيزيتا ؟",
+      "accepted_answers": [
+        "2"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 62
+    },
+    {
+      "type": "text",
+      "prompt": "سليمان و زينب وين تعرفوا على بعضهم ؟",
+      "accepted_answers": [
+        "Fi groupe el mouraj3a"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 44
+    },
+    {
+      "type": "text",
+      "prompt": "سليمان يحكي على جنات : وحدة قارية ..................",
+      "accepted_answers": [
+        "كتاب + 2"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 17
+    },
+    {
+      "type": "text",
+      "prompt": "شسمها البنية الي تخدم فالسونتر مع ميدو ؟",
+      "accepted_answers": [
+        "مريم - ميمي"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 81
+    },
+    {
+      "type": "text",
+      "prompt": "شسمها الطالبة الي تقرأ عند لسليمان ؟",
+      "accepted_answers": [
+        "ياسمين"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 42
+    },
+    {
+      "type": "text",
+      "prompt": "شسمها العرافة الي جنات فكتلها كليونتها ؟",
+      "accepted_answers": [
+        "ديامونتة"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 67
+    },
+    {
+      "type": "text",
+      "prompt": "شسمها خطيبة سليمان لولة ؟",
+      "accepted_answers": [
+        "مليكة"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 32
+    },
+    {
+      "type": "text",
+      "prompt": "شسمها صاحبة فوفا الي شافت طيب مع مرا في قهوة ؟",
+      "accepted_answers": [
+        "ريم"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 10
+    },
+    {
+      "type": "text",
+      "prompt": "شسمها فوفا ؟",
+      "accepted_answers": [
+        "فايقة"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 85
+    },
+    {
+      "type": "text",
+      "prompt": "شسمو البرنامج متاع مينا اللي عزة تحب تشارك فيه ؟",
+      "accepted_answers": [
+        "مصعد الشهرة"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 14
+    },
+    {
+      "type": "text",
+      "prompt": "شسمو الجنان متع دار النصر ؟",
+      "accepted_answers": [
+        "عم الاخضر"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 53
+    },
+    {
+      "type": "text",
+      "prompt": "شسمو الراجل الي عزة كانت بش تاخذو ؟",
+      "accepted_answers": [
+        "بوجمعة"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 34
+    },
+    {
+      "type": "text",
+      "prompt": "شسمو الطبيب صاحب سليمان الي مشات تعدي عندو زينب ؟",
+      "accepted_answers": [
+        "دكتور رضا"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 32
+    },
+    {
+      "type": "text",
+      "prompt": "شسمو اللي يبيع للباجي فالافلام المسروقة ؟",
+      "accepted_answers": [
+        "مجدا"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 13
+    },
+    {
+      "type": "text",
+      "prompt": "شسمو صاحب اماني (المرحوم) ؟",
+      "accepted_answers": [
+        "هادي"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 48
+    },
+    {
+      "type": "text",
+      "prompt": "شسمو صاحب دوجة الي يعرف Paolo ?",
+      "accepted_answers": [
+        "فراس"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 24
+    },
+    {
+      "type": "text",
+      "prompt": "شكون أول مريض تعدا فالسيتكوم ؟",
+      "accepted_answers": [
+        "مدام حنان"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 17
+    },
+    {
+      "type": "text",
+      "prompt": "شكون اللي عمل عركة فالعرس الي فالسطح ؟",
+      "accepted_answers": [
+        "شبروش"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 79
+    },
+    {
+      "type": "text",
+      "prompt": "شكون الي عمل اشهار لجنات الي هيا تشوف فالسونتر ؟",
+      "accepted_answers": [
+        "خولة"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 38
+    },
+    {
+      "type": "text",
+      "prompt": "شكون دبر على السبوعي يهدي لعزة ميزان ؟",
+      "accepted_answers": [
+        "دلندة"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 57
+    },
+    {
+      "type": "text",
+      "prompt": "شكون دبر على سليمان بش يشري PC PORTABLE ?",
+      "accepted_answers": [
+        "دلندة"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 81
+    },
+    {
+      "type": "text",
+      "prompt": "شكون سبب افلاس سونتر زينب ؟",
+      "accepted_answers": [
+        "ميدو"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 58
+    },
+    {
+      "type": "text",
+      "prompt": "شكون طلع باسم فوشيكة ؟",
+      "accepted_answers": [
+        "سليمان"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 72
+    },
+    {
+      "type": "text",
+      "prompt": "شكون علم سبوعي الدخان ؟",
+      "accepted_answers": [
+        "فوشيكة"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 88
+    },
+    {
+      "type": "text",
+      "prompt": "شكيب مع شكون خان دلندة ؟",
+      "accepted_answers": [
+        "سنية بنت الفلاح"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 78
+    },
+    {
+      "type": "text",
+      "prompt": "شنوا شرا السبوعي بالتقسيط من عند الباجي ؟",
+      "accepted_answers": [
+        "DVD, tv, parabole"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 49
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة اسم المالك الاصلي للبالاص ؟",
+      "accepted_answers": [
+        "Monsieur hanoun"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 9
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة الاشتراك اللي هداه سليمان لدلندة في رمضان ؟",
+      "accepted_answers": [
+        "اشتراك دخول لمهرجان المدينة"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 43
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة الماسك الي السبوعي فجع بيه عزة ؟",
+      "accepted_answers": [
+        "شراك"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 68
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة المشروع اللي عملو السبوعي فالبيرو ؟",
+      "accepted_answers": [
+        "برد يا عطشان"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 81
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة تعيط جنات لفرويد ؟",
+      "accepted_answers": [
+        "Fred"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 26
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة كانوا يعيطو للباجي فالحومة ؟",
+      "accepted_answers": [
+        "خنتوش"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 60
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة لونو الساك الي فيه الصياغة الي سرقها الجغالي؟",
+      "accepted_answers": [
+        "بني"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 69
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة مشى يقرا سليمان فالحمامات ؟",
+      "accepted_answers": [
+        "Hypnose"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 55
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة هدا السبوعي لاماني كيف روح من طبرقة ؟",
+      "accepted_answers": [
+        "Lunettes"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 67
+    },
+    {
+      "type": "text",
+      "prompt": "شنوة هدا السبوعي لعزة في عيد الحب ؟",
+      "accepted_answers": [
+        "ميزان"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 82
+    },
+    {
+      "type": "text",
+      "prompt": "شنية أول أمنية قالها السبوعي للجن فالحلمة ؟",
+      "accepted_answers": [
+        "نحب نولي غني"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 37
+    },
+    {
+      "type": "text",
+      "prompt": "شنية أول كادو هداه السبوعي لعزة ؟",
+      "accepted_answers": [
+        "ورقة بو 10 لاف"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 19
+    },
+    {
+      "type": "text",
+      "prompt": "شنية أول كذبة كذبها السبوعي في poisson d'avril ؟",
+      "accepted_answers": [
+        "عزة حبلة"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 53
+    },
+    {
+      "type": "text",
+      "prompt": "شنية أول ماكلة طيبتها زينب ؟",
+      "accepted_answers": [
+        "مرمز"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 19
+    },
+    {
+      "type": "text",
+      "prompt": "شنية اسم المسابقة الي حبت اماني تشارك فيها ؟",
+      "accepted_answers": [
+        "Mannequin académie"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 52
+    },
+    {
+      "type": "text",
+      "prompt": "شنية اسمو خال عزة ؟",
+      "accepted_answers": [
+        "الحاج محمد"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 16
+    },
+    {
+      "type": "text",
+      "prompt": "شنية الأفلام اللي فكوهم للباجي كيف هبط عليه الcontrole ?",
+      "accepted_answers": [
+        "الأفلام التوانسة"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 55
+    },
+    {
+      "type": "text",
+      "prompt": "شنية الغناية الي غناتها عزة لمينا كيف جات للبالاص ؟",
+      "accepted_answers": [
+        "اخصمك اه"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 38
+    },
+    {
+      "type": "text",
+      "prompt": "شنية الكلمة اللي كتبتها اماني معوجة في إمتحان الفلسفة ؟",
+      "accepted_answers": [
+        "الاستقامة"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 43
+    },
+    {
+      "type": "text",
+      "prompt": "شنية ثاني أمنية قالها السبوعي للجن فالحلمة ؟",
+      "accepted_answers": [
+        "نحب نولي شباب و نحي الكرش"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 37
+    },
+    {
+      "type": "text",
+      "prompt": "شنية حب يزرع السبوعي فالجنينة متع النصر ؟",
+      "accepted_answers": [
+        "فلة و ياسمينة"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 15
+    },
+    {
+      "type": "text",
+      "prompt": "شنية شرط سليمان بش يكريلهم دار خلاعة ؟",
+      "accepted_answers": [
+        "يهزوا معاهم السبوعي و هو يقعد"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 53
+    },
+    {
+      "type": "text",
+      "prompt": "شنية كان يخدم سيدي داود ؟",
+      "accepted_answers": [
+        "جنان"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 67
+    },
+    {
+      "type": "text",
+      "prompt": "شنية نوعو الرخام الي شراه سليمان للفيلا ؟",
+      "accepted_answers": [
+        "3eme choix"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 44
+    },
+    {
+      "type": "text",
+      "prompt": "شنية يعيط فوشيكة للبوشونات متع الوذنين الي عطاهملو سليمان بش يسد بيهم وذنيه كيف يرقد ؟",
+      "accepted_answers": [
+        "Boule de kaskes"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 37
+    },
+    {
+      "type": "text",
+      "prompt": "طيب قداش عطا لسبوعي فلوس بش يشري ماء و عصير و يخلي الباقي عندو ؟",
+      "accepted_answers": [
+        "20 دينار"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 65
+    },
+    {
+      "type": "text",
+      "prompt": "عام قداش زينب و سليمان عرسوا ؟",
+      "accepted_answers": [
+        "1987"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 17
+    },
+    {
+      "type": "text",
+      "prompt": "عزة شنوة تحب صياغة فالفاتحة ؟",
+      "accepted_answers": [
+        "حنش و خيالي"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 77
+    },
+    {
+      "type": "text",
+      "prompt": "عمران خطيب جنات كيفاه يتربج بيها ؟",
+      "accepted_answers": [
+        "جيجي"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 46
+    },
+    {
+      "type": "text",
+      "prompt": "عمران وين يعيش ؟",
+      "accepted_answers": [
+        "فرنسا"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 71
+    },
+    {
+      "type": "text",
+      "prompt": "فاتحة عزة و سبوعي قداش من مرة تأجلت ؟",
+      "accepted_answers": [
+        "مرتين"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 26
+    },
+    {
+      "type": "text",
+      "prompt": "فاش كان يخدم السبوعي قبل ما يولي مع سليمان ؟",
+      "accepted_answers": [
+        "فرملي فالسبيطار"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 51
+    },
+    {
+      "type": "text",
+      "prompt": "فضيلة وين تحب تصيف ؟",
+      "accepted_answers": [
+        "رفراف"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 62
+    },
+    {
+      "type": "text",
+      "prompt": "فطومة وين تحب تصيف ؟",
+      "accepted_answers": [
+        "سوسة"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 35
+    },
+    {
+      "type": "text",
+      "prompt": "فوفا شنية تتربج ب سي طيب ؟",
+      "accepted_answers": [
+        "تيبو"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 87
+    },
+    {
+      "type": "text",
+      "prompt": "قداش تخلص زهور اللي تعاون في خولة ؟",
+      "accepted_answers": [
+        "350 دينار"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 25
+    },
+    {
+      "type": "text",
+      "prompt": "قداش دفع الباجي خطية على حقوق التاليف ؟",
+      "accepted_answers": [
+        "قد اللي صورو في شهر أو اكثر"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 12
+    },
+    {
+      "type": "text",
+      "prompt": "قداش سوم الفيزيتا في اول موسم ؟",
+      "accepted_answers": [
+        "30 دينار"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 66
+    },
+    {
+      "type": "text",
+      "prompt": "قداش عطا سليمان تسبقة لدلندا ؟",
+      "accepted_answers": [
+        "500 دينار"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 54
+    },
+    {
+      "type": "text",
+      "prompt": "قداش فمة من حلقة فالسيتكوم ؟",
+      "accepted_answers": [
+        "134"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 11
+    },
+    {
+      "type": "text",
+      "prompt": "قداش قعدت عزة في بلادهم ؟",
+      "accepted_answers": [
+        "4 ايام"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 10
+    },
+    {
+      "type": "text",
+      "prompt": "قداش قعدت كلثوم غضبانة هيا و صغارها في دار سليمان ؟",
+      "accepted_answers": [
+        "نهارين"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 42
+    },
+    {
+      "type": "text",
+      "prompt": "قداش لازمو يدفع سليمان بعد ما هبط عليه الفيسك ؟",
+      "accepted_answers": [
+        "3 ملاين و 200"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 16
+    },
+    {
+      "type": "text",
+      "prompt": "قداش من طفلة جات تحب تخدم مع سليمان (الي جاو مش الي دخلو) ؟",
+      "accepted_answers": [
+        "6"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 19
+    },
+    {
+      "type": "text",
+      "prompt": "كلثوم باش ضربت سيدها داود ؟",
+      "accepted_answers": [
+        "شلاكة"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 55
+    },
+    {
+      "type": "text",
+      "prompt": "كلثوم قداش عندها ولاد و قداش بنات ؟",
+      "accepted_answers": [
+        "4 ولاد و 2 بنات"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 23
+    },
+    {
+      "type": "text",
+      "prompt": "معا شكون سي طيب عندو رونديفو فالسكريتو ؟",
+      "accepted_answers": [
+        "طبيبة نساء"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 75
+    },
+    {
+      "type": "text",
+      "prompt": "من وقتاش سليمان عامل مطلب فالAFH ?",
+      "accepted_answers": [
+        "1986"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 8
+    },
+    {
+      "type": "text",
+      "prompt": "منين جماعة العرس الي عملوه في سطح البلاص ؟",
+      "accepted_answers": [
+        "باب الجزيرة"
+      ],
+      "difficulty": "hard",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 10
+    },
+    {
+      "type": "text",
+      "prompt": "منين شرا السبوعي كادو عيد الحب لعزة ؟",
+      "accepted_answers": [
+        "بوجمعة الكانكيوري"
+      ],
+      "difficulty": "easy",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 64
+    },
+    {
+      "type": "text",
+      "prompt": "ميدو قداش عندو خوات ؟",
+      "accepted_answers": [
+        "4 بنات"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 27
+    },
+    {
+      "type": "text",
+      "prompt": "وين دار بهاء طلعة ساكن دار ؟",
+      "accepted_answers": [
+        "في سيدي بوسعيد"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 29
+    },
+    {
+      "type": "text",
+      "prompt": "وين يعديو فيه المسلسل التاريخي الي امك فضيلة تبع فيه في رمضان ؟",
+      "accepted_answers": [
+        "القناة الي فيها البراكة - الاهرام"
+      ],
+      "difficulty": "medium",
+      "image": null,
+      "explanation": null,
+      "source_difficulty": 25
+    }
+
+  ]
+}

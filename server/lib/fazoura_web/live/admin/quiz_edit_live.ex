@@ -65,7 +65,7 @@ defmodule FazouraWeb.Admin.QuizEditLive do
             "difficulty" => question.difficulty,
             "seconds" => seconds(question.time_limit_ms),
             "explanation" => question.explanation || "",
-            "image_key" => question.image_key,
+            "image_key" => question.image_key || "",
             "image_alt" => question.image_alt || ""
           }
         end),
@@ -127,7 +127,7 @@ defmodule FazouraWeb.Admin.QuizEditLive do
      assign(socket,
        questions:
          update_question(socket.assigns.questions, cid, fn question ->
-           %{question | "image_key" => nil, "image_alt" => ""}
+           %{question | "image_key" => "", "image_alt" => ""}
          end)
      )}
   end
@@ -218,10 +218,14 @@ defmodule FazouraWeb.Admin.QuizEditLive do
       "difficulty" => "easy",
       "seconds" => "",
       "explanation" => "",
-      "image_key" => nil,
+      "image_key" => "",
       "image_alt" => ""
     }
   end
+
+  # The hidden field carries an absent photo back from the browser as "", not as nil, so
+  # nothing here may ask whether the key is merely truthy.
+  defp photo?(question), do: question["image_key"] not in [nil, ""]
 
   defp update_question(questions, cid, fun) do
     Enum.map(questions, fn question ->
@@ -446,10 +450,10 @@ defmodule FazouraWeb.Admin.QuizEditLive do
         />
 
         <div class="photo">
-          <img :if={question["image_key"]} src={Uploads.url(question["image_key"])} alt="" />
+          <img :if={photo?(question)} src={Uploads.url(question["image_key"])} alt="" />
 
           <div class="photo-controls">
-            <label :if={question["image_key"]}>
+            <label :if={photo?(question)}>
               Alt text <span class="muted">— describes the photo, up to 140 characters</span>
               <input
                 type="text"
@@ -470,10 +474,10 @@ defmodule FazouraWeb.Admin.QuizEditLive do
 
             <div :if={@photo_for != question["cid"]}>
               <button type="button" phx-click="choose_photo" phx-value-cid={question["cid"]}>
-                {if question["image_key"], do: "Replace photo", else: "Add photo"}
+                {if photo?(question), do: "Replace photo", else: "Add photo"}
               </button>
               <button
-                :if={question["image_key"]}
+                :if={photo?(question)}
                 type="button"
                 class="danger"
                 phx-click="remove_photo"

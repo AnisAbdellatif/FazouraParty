@@ -198,30 +198,10 @@ defmodule FazouraWeb.AdminLiveTest do
   end
 
   describe "the quiz editor" do
-    # The form sends everything it holds on every change, so a test that wants to change
-    # one field has to send the rest with it, exactly as the browser does.
+    # `form/3` reads the rendered form and merges these changes over its real values, so
+    # a test sends exactly what a browser would — including the hidden fields.
     defp fields(view, changes) do
-      form = element(view, "form[phx-submit=save]")
-      current = form |> render() |> params_from_html()
-      render_change(form, %{"quiz" => deep_merge(current, changes)})
-    end
-
-    # The rendered form's own values, so a test starts from what is on screen.
-    defp params_from_html(html) do
-      questions =
-        Regex.scan(~r/name="quiz\[questions\]\[(q\d+)\]/, html)
-        |> Enum.map(fn [_match, cid] -> cid end)
-        |> Enum.uniq()
-        |> Map.new(&{&1, %{}})
-
-      %{"questions" => questions}
-    end
-
-    defp deep_merge(left, right) do
-      Map.merge(left, right, fn
-        _key, %{} = a, %{} = b -> deep_merge(a, b)
-        _key, _a, b -> b
-      end)
+      view |> form("form[phx-submit=save]", %{"quiz" => changes}) |> render_change()
     end
 
     defp editor(conn, quiz) do
@@ -230,7 +210,7 @@ defmodule FazouraWeb.AdminLiveTest do
     end
 
     defp save(view) do
-      view |> element("form[phx-submit=save]") |> render_submit()
+      view |> form("form[phx-submit=save]") |> render_submit()
     end
 
     test "opens a quiz with its questions filled in", %{conn: conn, quiz: quiz} do
@@ -347,6 +327,24 @@ defmodule FazouraWeb.AdminLiveTest do
 
       assert save(view) =~ "questions"
       assert {:ok, %{version: "1.0"}} = Quizzes.fetch(quiz.id)
+    end
+
+    test "a question with no photo does not pretend to have one", %{conn: conn, quiz: quiz} do
+      view = editor(conn, quiz)
+      refute has_element?(view, ".panel.question img")
+
+      # The hidden field carries an absent photo back as "", which is not nil and was
+      # read as a key — rendering <img src="/uploads/">, a broken image on every
+      # question without a photo, from the first keystroke onwards.
+      fields(view, %{"questions" => %{"q1" => %{"prompt" => "Still no photo"}}})
+
+      refute has_element?(view, ".panel.question img")
+      assert has_element?(view, "button[phx-click=choose_photo][phx-value-cid=q1]")
+      refute has_element?(view, "button[phx-click=remove_photo][phx-value-cid=q1]")
+
+      assert save(view) =~ "Saved"
+      {:ok, saved} = Quizzes.fetch(quiz.id)
+      assert [%{type: "text", image_key: nil}] = saved.questions
     end
 
     test "removes a photo, which makes it an ordinary text question", %{conn: conn} do
