@@ -439,6 +439,66 @@ defmodule Fazoura.Quizzes do
       else: document
   end
 
+  @doc "Builds a portable ZIP archive containing the full quiz and its photos."
+  @spec archive(Quiz.t()) :: {:ok, binary()} | {:error, term()}
+  def archive(%Quiz{} = quiz) do
+    # The document goes *under* `quiz`, not at the top level: the manifest is a
+    # wrapper so the format has somewhere to grow (QUIZ_FORMAT.md §5.3b), and
+    # `QuizArchive.decode` on the client reads it from there.
+    manifest = %{quiz: quiz |> to_document(owner?: true) |> archive_document()}
+
+    with {:ok, images} <- archive_images(quiz) do
+      entries = [{~c"manifest.json", Jason.encode!(manifest)} | images]
+
+      case :zip.create(~c"quiz.fazoura", entries, [:memory]) do
+        {:ok, {_name, binary}} -> {:ok, binary}
+        error -> error
+      end
+    end
+  end
+
+  defp archive_document(document) do
+    questions =
+      Enum.map(document.questions || [], fn question ->
+        case question.image do
+          %{key: key} = image when is_binary(key) ->
+            question
+            |> Map.delete(:image)
+            |> Map.put(:image, %{path: "media/#{key}", alt: image.alt})
+
+          _ ->
+            question
+        end
+      end)
+
+    Map.put(document, :questions, questions)
+  end
+
+  defp archive_images(%Quiz{questions: questions}) do
+    questions
+    |> Enum.filter(& &1.image_key)
+    |> Enum.reduce_while({:ok, []}, fn question, {:ok, entries} ->
+      case archive_image(question.image_key) do
+        {:ok, entry} -> {:cont, {:ok, [entry | entries]}}
+        :error -> {:halt, {:error, :image_not_found}}
+      end
+    end)
+    |> case do
+      {:ok, entries} -> {:ok, Enum.reverse(entries)}
+      # A photo the quiz still references but the volume no longer has. The
+      # caller answers with an error rather than a ZIP missing a question's
+      # image, because the point of the archive is that it is self-contained.
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp archive_image(key) do
+    case Uploads.read(key) do
+      {:ok, binary} -> {:ok, {~c"media/" ++ String.to_charlist(key), binary}}
+      :error -> :error
+    end
+  end
+
   defp question_document(%Question{} = question) do
     %{
       id: question.id,

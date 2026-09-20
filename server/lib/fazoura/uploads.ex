@@ -17,6 +17,17 @@ defmodule Fazoura.Uploads do
   @spec url(String.t()) :: String.t()
   def url(key), do: FazouraWeb.Endpoint.url() <> "/uploads/" <> key
 
+  @doc "Reads a previously stored upload by its generated key."
+  @spec read(String.t()) :: {:ok, binary()} | :error
+  def read(key) when is_binary(key) do
+    case File.read(Path.join(dir(), Path.basename(key))) do
+      {:ok, binary} -> {:ok, binary}
+      {:error, _reason} -> :error
+    end
+  end
+
+  def read(_key), do: :error
+
   @doc "Content type and file extension from the image's magic bytes."
   @spec detect(binary()) :: {:ok, String.t(), String.t()} | :error
   def detect(<<0xFF, 0xD8, 0xFF, _rest::binary>>), do: {:ok, "image/jpeg", "jpg"}

@@ -133,6 +133,88 @@ defmodule FazouraWeb.QuizControllerTest do
     assert length(questions) == 20
   end
 
+  test "offline archive is a ZIP download", %{conn: conn} do
+    %{"id" => id} = create!(conn)
+
+    response = conn |> as(@other) |> get(~p"/api/quizzes/#{id}/archive")
+
+    assert response.status == 200
+    assert ["application/zip" <> _] = get_resp_header(response, "content-type")
+    assert <<0x50, 0x4B, _rest::binary>> = response.resp_body
+  end
+
+  test "an archive carries the manifest and every photo", %{conn: conn} do
+    key = upload_photo!(conn)
+
+    %{"id" => id} =
+      create!(conn, %{
+        "questions" => [
+          %{
+            "type" => "text_photo",
+            "prompt" => "What is this?",
+            "accepted_answers" => ["a"],
+            "image" => %{"key" => key, "alt" => "a photo"}
+          }
+        ]
+      })
+
+    response = conn |> as(@other) |> get(~p"/api/quizzes/#{id}/archive")
+    assert response.status == 200
+
+    {:ok, entries} = :zip.unzip(response.resp_body, [:memory])
+    names = Enum.map(entries, fn {name, _binary} -> to_string(name) end)
+
+    assert "manifest.json" in names
+    assert "media/" <> ^key = Enum.find(names, &String.starts_with?(&1, "media/"))
+
+    {_name, manifest} = Enum.find(entries, fn {name, _} -> name == ~c"manifest.json" end)
+    document = Jason.decode!(manifest)
+
+    # The point of the archive: answers and photos travel with the questions,
+    # by a path into the archive rather than a URL (QUIZ_FORMAT.md §5.3b).
+    assert [question] = document["quiz"]["questions"]
+    assert question["accepted_answers"] == ["a"]
+    assert question["image"] == %{"path" => "media/" <> key, "alt" => "a photo"}
+  end
+
+  test "a quiz whose photo is gone is refused, not a crash", %{conn: conn} do
+    key = upload_photo!(conn)
+
+    %{"id" => id} =
+      create!(conn, %{
+        "questions" => [
+          %{
+            "type" => "text_photo",
+            "prompt" => "What is this?",
+            "accepted_answers" => ["a"],
+            "image" => %{"key" => key}
+          }
+        ]
+      })
+
+    # The uploads volume lost the file — a restore that missed it, or a sweep
+    # that ran early. The quiz still references it.
+    File.rm!(Path.join(Fazoura.Uploads.dir(), key))
+
+    assert %{"code" => "image_not_found"} =
+             conn |> as(@other) |> get(~p"/api/quizzes/#{id}/archive") |> json_response(404)
+  end
+
+  defp upload_photo!(conn) do
+    path = Path.join(System.tmp_dir!(), "fazoura-#{System.unique_integer([:positive])}.png")
+    File.write!(path, QuizFixtures.png())
+
+    %{"key" => key} =
+      conn
+      |> as(@owner)
+      |> post(~p"/api/images", %{
+        file: %Plug.Upload{path: path, filename: "a.png", content_type: "image/png"}
+      })
+      |> json_response(201)
+
+    key
+  end
+
   test "publisher updates and unpublishes", %{conn: conn} do
     %{"id" => id} = create!(conn)
 

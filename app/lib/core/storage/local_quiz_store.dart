@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:sembast/sembast.dart';
 
+import '../quizzes/quiz_archive.dart';
 import '../models/models.dart';
 
 /// Quizzes made on this device, newest first.
@@ -26,10 +27,25 @@ class LocalQuizStore {
   }
 
   Future<void> put(LocalQuiz quiz) async {
+    final stored = quiz.archiveData == null
+        ? quiz
+        : quiz.copyWith(
+            quiz: quiz.quiz.copyWith(
+              questions: [
+                for (final question
+                    in quiz.quiz.questions ?? const <QuizQuestion>[])
+                  question.image == null
+                      ? question
+                      : question.copyWith(
+                          image: question.image!.copyWith(data: null),
+                        ),
+              ],
+            ),
+          );
     await _quizzes.record(quiz.localId).put(await _database, {
-      'updated_at': quiz.updatedAt?.toUtc().toIso8601String() ?? '',
+      'updated_at': stored.updatedAt?.toUtc().toIso8601String() ?? '',
       // One JSON string keeps photo data out of sembast's field indexing.
-      'json': jsonEncode(quiz.toJson()),
+      'json': jsonEncode(stored.toJson()),
     });
   }
 
@@ -37,7 +53,24 @@ class LocalQuizStore {
     await _quizzes.record(localId).delete(await _database);
   }
 
-  static LocalQuiz _decode(Map<String, Object?> value) => LocalQuiz.fromJson(
-    jsonDecode(value['json']! as String) as Map<String, dynamic>,
-  );
+  static LocalQuiz _decode(Map<String, Object?> value) {
+    final local = LocalQuiz.fromJson(
+      jsonDecode(value['json']! as String) as Map<String, dynamic>,
+    );
+    final archiveData = local.archiveData;
+    if (archiveData == null) return local;
+
+    try {
+      return local.copyWith(
+        quiz: QuizArchive.decode(base64Decode(archiveData)).quiz,
+      );
+    } on Object {
+      // A truncated or corrupt archive costs that quiz its photos, not the
+      // whole library: `_decode` runs for every row, so throwing here would
+      // make one bad download hide every quiz on the device. The document
+      // itself is still stored alongside the archive, so the quiz keeps its
+      // prompts and answers and plays without images.
+      return local;
+    }
+  }
 }

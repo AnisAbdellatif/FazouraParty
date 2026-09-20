@@ -138,6 +138,32 @@ defmodule FazouraWeb.SecurityTest do
                conn |> post(~p"/api/quizzes", QuizFixtures.quiz_params()) |> json_response(429)
     end
 
+    test "archives are capped well below the other reads", %{conn: conn} do
+      key = QuizFixtures.owner_key()
+
+      %{"id" => id} =
+        conn
+        |> put_req_header("x-owner-key", key)
+        |> post(~p"/api/quizzes", QuizFixtures.quiz_params())
+        |> json_response(201)
+
+      # Building one holds the whole quiz and every photo in memory, so 10 a
+      # minute (router), not the unmetered rate the cheap reads get.
+      for _ <- 1..10 do
+        assert conn |> get(~p"/api/quizzes/#{id}/archive") |> response(200)
+      end
+
+      conn = get(conn, ~p"/api/quizzes/#{id}/archive")
+      assert %{"code" => "rate_limited"} = json_response(conn, 429)
+      assert ["60"] = get_resp_header(conn, "retry-after")
+    end
+
+    test "an archive flood leaves the ordinary reads alone", %{conn: conn} do
+      for _ <- 1..11, do: get(conn, ~p"/api/quizzes/nope/archive")
+
+      assert conn |> get(~p"/api/quizzes") |> json_response(200)
+    end
+
     test "reads are not capped", %{conn: conn} do
       for _ <- 1..50 do
         assert conn |> get(~p"/api/quizzes") |> json_response(200)

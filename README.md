@@ -88,6 +88,10 @@ per-device key, not a login, is what lets you edit or unpublish it later.
 A round can draw on more than one quiz: pick several in the browser and the questions are
 shuffled together into one pool, so a few small quizzes make one evening.
 
+Saving a public quiz for offline use downloads one `.fazoura` archive containing its manifest,
+accepted answers and question images. The app keeps that compressed archive as the local source
+and expands its contents only when it needs the quiz document for hosting.
+
 ## Deploying
 
 A push to `main` runs both suites, builds an image, pushes it to GitHub Container

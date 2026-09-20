@@ -22,6 +22,9 @@ abstract class LocalQuiz with _$LocalQuiz {
     /// Server id of the published copy, if any.
     String? publishedId,
     DateTime? updatedAt,
+
+    /// Base64-encoded `.fazoura` archive for downloaded community quizzes.
+    String? archiveData,
   }) = _LocalQuiz;
 
   factory LocalQuiz.fromJson(Map<String, dynamic> json) =>

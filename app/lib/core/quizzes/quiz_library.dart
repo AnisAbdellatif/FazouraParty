@@ -4,6 +4,7 @@ import 'dart:math';
 import '../api/quiz_api.dart';
 import '../models/models.dart';
 import '../storage/local_quiz_store.dart';
+import 'quiz_archive.dart';
 
 /// The local save worked but the server step (publish or unpublish) failed.
 class PublishError implements Exception {
@@ -44,7 +45,7 @@ class QuizLibrary {
   /// Saves [quiz] on the device, then brings the server in line with its
   /// visibility. Throws [PublishError] if only the local save succeeded.
   Future<LocalQuiz> save(LocalQuiz quiz) async {
-    var saved = quiz.copyWith(updatedAt: _now());
+    var saved = quiz.copyWith(updatedAt: _now(), archiveData: null);
     await store.put(saved);
     try {
       saved = await _sync(saved);
@@ -58,6 +59,35 @@ class QuizLibrary {
   /// Downloads a public quiz and all of its photos, then stores it privately
   /// on this device so it can be hosted without a network connection.
   Future<LocalQuiz> saveCommunityQuiz(QuizDocument summary) async {
+    String? archiveData;
+    QuizDocument full;
+    try {
+      final archive = await api.downloadArchive(summary.hostId);
+      full = QuizArchive.decode(archive).quiz;
+      archiveData = base64Encode(archive);
+    } on GameError catch (error) {
+      if (error.code != 'quiz_archive_download_failed') rethrow;
+      full = await _downloadLegacy(summary);
+    } on FormatException {
+      full = await _downloadLegacy(summary);
+    }
+    final existing = (await list()).where(
+      (local) => local.quiz.id == summary.id && !local.isPublished,
+    );
+    final saved = LocalQuiz(
+      localId: existing.isEmpty ? newLocalId() : existing.first.localId,
+      quiz: full.copyWith(
+        id: full.id ?? summary.id,
+        visibility: 'private',
+        isOwner: false,
+      ),
+      archiveData: archiveData,
+    );
+    await store.put(saved);
+    return saved;
+  }
+
+  Future<QuizDocument> _downloadLegacy(QuizDocument summary) async {
     final full = await api.download(summary.hostId);
     final questions = <QuizQuestion>[];
     for (final question in full.questions ?? const <QuizQuestion>[]) {
@@ -77,20 +107,7 @@ class QuizLibrary {
         questions.add(question);
       }
     }
-    final existing = (await list()).where(
-      (local) => local.quiz.id == summary.id && !local.isPublished,
-    );
-    final saved = LocalQuiz(
-      localId: existing.isEmpty ? newLocalId() : existing.first.localId,
-      quiz: full.copyWith(
-        id: full.id ?? summary.id,
-        visibility: 'private',
-        isOwner: false,
-        questions: questions,
-      ),
-    );
-    await store.put(saved);
-    return saved;
+    return full.copyWith(questions: questions);
   }
 
   Future<LocalQuiz> setPublic(LocalQuiz quiz, bool public) => save(

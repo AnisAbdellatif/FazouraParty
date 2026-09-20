@@ -55,6 +55,19 @@ defmodule FazouraWeb.QuizController do
     end
   end
 
+  def archive(conn, %{"id" => id}) do
+    with {:ok, quiz} <- Quizzes.fetch(id),
+         {:ok, binary} <- Quizzes.archive(quiz) do
+      conn
+      |> put_resp_content_type("application/zip")
+      |> put_resp_header(
+        "content-disposition",
+        ~s(attachment; filename="#{quiz.slug || quiz.id}.fazoura")
+      )
+      |> send_resp(200, binary)
+    end
+  end
+
   def create(conn, _params) do
     with {:ok, quiz} <- Quizzes.create(conn.body_params, owner_key(conn)) do
       conn |> put_status(:created) |> render_owned(quiz)

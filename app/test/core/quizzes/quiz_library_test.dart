@@ -150,7 +150,7 @@ void main() {
     expect(saved.quiz.questions!.single.acceptedAnswers, ['1']);
     expect(saved.publishedId, isNull);
     expect(
-      server.lastWith('GET', '/api/quizzes/community-1/download'),
+      server.lastWith('GET', '/api/quizzes/community-1/archive'),
       isNotNull,
     );
     expect((await store.list()).single.localId, saved.localId);
@@ -176,8 +176,87 @@ void main() {
 
     expect(saved.quiz.questions!.single.image!.data, isNotNull);
     expect(saved.quiz.questions!.single.image!.url, isNull);
-    expect(server.lastWith('GET', '/uploads/photo.jpg'), isNotNull);
+    expect(
+      server.lastWith('GET', '/api/quizzes/community-photo/archive'),
+      isNotNull,
+    );
   });
+
+  test(
+    'falls back to the JSON download when archives are unavailable',
+    () async {
+      server.failArchives = true;
+      final community = quiz('legacy-community', 'Legacy Community').copyWith(
+        questions: const [
+          QuizQuestion(prompt: 'First?', acceptedAnswers: ['1']),
+        ],
+      );
+      server.quizzes.add(community);
+
+      final saved = await library.saveCommunityQuiz(community);
+
+      expect(saved.archiveData, isNull);
+      expect(saved.quiz.questions!.single.acceptedAnswers, ['1']);
+      expect(
+        server.lastWith('GET', '/api/quizzes/legacy-community/download'),
+        isNotNull,
+      );
+    },
+  );
+
+  test('a downloaded quiz keeps its photos across a reload', () async {
+    final community = quiz('community-photo', 'Community Photo').copyWith(
+      questions: [
+        QuizQuestion(
+          type: QuizQuestion.typePhoto,
+          prompt: 'Which film?',
+          acceptedAnswers: const ['Alien'],
+          image: const QuizImage(url: 'https://example.test/uploads/photo.jpg'),
+        ),
+      ],
+    );
+    server.quizzes.add(community);
+    await library.saveCommunityQuiz(community);
+
+    // Read back through the store, which is where the archive is expanded
+    // again: the photo bytes live only in the archive, never twice.
+    final reloaded = (await store.list()).single;
+    expect(reloaded.quiz.questions!.single.image!.data, isNotNull);
+  });
+
+  test(
+    'a corrupt archive costs one quiz its photos, not the library',
+    () async {
+      final good = quiz('good', 'Good').copyWith(
+        questions: const [
+          QuizQuestion(prompt: 'Fine?', acceptedAnswers: ['y']),
+        ],
+      );
+      server.quizzes.add(good);
+      await library.saveCommunityQuiz(good);
+
+      await store.put(
+        LocalQuiz(
+          localId: 'broken-1',
+          quiz: quiz('broken', 'Broken').copyWith(
+            questions: const [
+              QuizQuestion(prompt: 'Still readable?', acceptedAnswers: ['y']),
+            ],
+          ),
+          archiveData: base64Encode(const [1, 2, 3, 4]),
+        ),
+      );
+
+      // Every row is decoded on the way out, so a truncated download must not
+      // take the whole device library with it.
+      final all = await store.list();
+      expect(all, hasLength(2));
+
+      final broken = all.firstWhere((local) => local.localId == 'broken-1');
+      expect(broken.quiz.title, 'Broken');
+      expect(broken.quiz.questions!.single.prompt, 'Still readable?');
+    },
+  );
 
   test('forInlineRoom sends photo data; forPublishing sends keys', () {
     final document = photoQuiz().quiz.copyWith(

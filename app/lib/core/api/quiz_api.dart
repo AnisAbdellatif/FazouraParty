@@ -51,6 +51,20 @@ class QuizApi {
   Future<QuizDocument> download(String id) async =>
       QuizDocument.fromJson(await _send('GET', '/api/quizzes/$id/download'));
 
+  Future<List<int>> downloadArchive(String id) async {
+    final response = await _client.get(
+      _uri('/api/quizzes/$id/archive'),
+      headers: {'accept': 'application/zip'},
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw GameError(
+        code: 'quiz_archive_download_failed',
+        message: 'Could not download the offline quiz.',
+      );
+    }
+    return response.bodyBytes;
+  }
+
   Future<List<int>> downloadImage(String url) async {
     final http.Response response;
     try {

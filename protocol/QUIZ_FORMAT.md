@@ -237,6 +237,21 @@ accepted answers and remote image URLs. The client should download those images 
 store the resulting document privately on the device. This endpoint is intentionally an
 opt-in answer disclosure: without the answers, the device could not host the quiz offline.
 
+### 5.3b `GET /api/quizzes/:id/archive`
+
+Explicitly downloads the same offline quiz as a `.fazoura` ZIP archive. The archive contains:
+
+```text
+manifest.json
+media/<generated-image-key>
+```
+
+`manifest.json` contains the complete quiz document under `quiz`. Its question `image` objects
+use `path` instead of `key` or `url`, pointing to files inside the archive. The archive therefore
+keeps text, accepted answers and binary images together and can be retained or shared as one file.
+Clients should verify and unpack it in memory or in their local cache before hosting. The JSON
+download endpoint remains available for compatibility.
+
 ### 5.4 `POST /api/quizzes` (publish)
 
 Header `x-owner-key` required. Body: a quiz document (server-assigned and output-only

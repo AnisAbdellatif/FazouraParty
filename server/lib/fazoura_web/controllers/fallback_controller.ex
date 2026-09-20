@@ -67,6 +67,15 @@ defmodule FazouraWeb.FallbackController do
     do:
       error(conn, :unsupported_media_type, "unsupported_image", "Use a JPEG, PNG or WebP image.")
 
+  def call(conn, {:error, :image_not_found}),
+    do:
+      error(
+        conn,
+        :not_found,
+        "image_not_found",
+        "A photo of that quiz is no longer available, so it can't be packaged for offline play."
+      )
+
   def call(conn, {:error, :empty_pack}),
     do: error(conn, :unprocessable_entity, "empty_pack", "That quiz has no questions.")
 

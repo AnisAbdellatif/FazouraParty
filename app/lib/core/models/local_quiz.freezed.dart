@@ -19,7 +19,8 @@ mixin _$LocalQuiz {
  String get localId;/// The full document, questions and photo data included. Its
 /// `visibility` is what the creator chose.
  QuizDocument get quiz;/// Server id of the published copy, if any.
- String? get publishedId; DateTime? get updatedAt;
+ String? get publishedId; DateTime? get updatedAt;/// Base64-encoded `.fazoura` archive for downloaded community quizzes.
+ String? get archiveData;
 /// Create a copy of LocalQuiz
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -33,20 +34,20 @@ $LocalQuizCopyWith<LocalQuiz> get copyWith => _$LocalQuizCopyWithImpl<LocalQuiz>
 @override
 bool operator ==(Object other) {
   final _this = this as LocalQuiz;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is LocalQuiz&&(identical(other.localId, _this.localId) || other.localId == _this.localId)&&(identical(other.quiz, _this.quiz) || other.quiz == _this.quiz)&&(identical(other.publishedId, _this.publishedId) || other.publishedId == _this.publishedId)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is LocalQuiz&&(identical(other.localId, _this.localId) || other.localId == _this.localId)&&(identical(other.quiz, _this.quiz) || other.quiz == _this.quiz)&&(identical(other.publishedId, _this.publishedId) || other.publishedId == _this.publishedId)&&(identical(other.updatedAt, _this.updatedAt) || other.updatedAt == _this.updatedAt)&&(identical(other.archiveData, _this.archiveData) || other.archiveData == _this.archiveData));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as LocalQuiz;
-  return Object.hash(runtimeType,_this.localId,_this.quiz,_this.publishedId,_this.updatedAt);
+  return Object.hash(runtimeType,_this.localId,_this.quiz,_this.publishedId,_this.updatedAt,_this.archiveData);
 }
 
 @override
 String toString() {
   final _this = this as LocalQuiz;
-  return 'LocalQuiz(localId: ${_this.localId}, quiz: ${_this.quiz}, publishedId: ${_this.publishedId}, updatedAt: ${_this.updatedAt})';
+  return 'LocalQuiz(localId: ${_this.localId}, quiz: ${_this.quiz}, publishedId: ${_this.publishedId}, updatedAt: ${_this.updatedAt}, archiveData: ${_this.archiveData})';
 }
 
 
@@ -57,7 +58,7 @@ abstract mixin class $LocalQuizCopyWith<$Res>  {
   factory $LocalQuizCopyWith(LocalQuiz value, $Res Function(LocalQuiz) _then) = _$LocalQuizCopyWithImpl;
 @useResult
 $Res call({
- String localId, QuizDocument quiz, String? publishedId, DateTime? updatedAt
+ String localId, QuizDocument quiz, String? publishedId, DateTime? updatedAt, String? archiveData
 });
 
 
@@ -74,13 +75,14 @@ class _$LocalQuizCopyWithImpl<$Res>
 
 /// Create a copy of LocalQuiz
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? localId = null,Object? quiz = null,Object? publishedId = freezed,Object? updatedAt = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? localId = null,Object? quiz = null,Object? publishedId = freezed,Object? updatedAt = freezed,Object? archiveData = freezed,}) {
   return _then(LocalQuiz(
 localId: null == localId ? _self.localId : localId // ignore: cast_nullable_to_non_nullable
 as String,quiz: null == quiz ? _self.quiz : quiz // ignore: cast_nullable_to_non_nullable
 as QuizDocument,publishedId: freezed == publishedId ? _self.publishedId : publishedId // ignore: cast_nullable_to_non_nullable
 as String?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
-as DateTime?,
+as DateTime?,archiveData: freezed == archiveData ? _self.archiveData : archiveData // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 /// Create a copy of LocalQuiz
@@ -174,10 +176,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String localId,  QuizDocument quiz,  String? publishedId,  DateTime? updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String localId,  QuizDocument quiz,  String? publishedId,  DateTime? updatedAt,  String? archiveData)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _LocalQuiz() when $default != null:
-return $default(_that.localId,_that.quiz,_that.publishedId,_that.updatedAt);case _:
+return $default(_that.localId,_that.quiz,_that.publishedId,_that.updatedAt,_that.archiveData);case _:
   return orElse();
 
 }
@@ -195,10 +197,10 @@ return $default(_that.localId,_that.quiz,_that.publishedId,_that.updatedAt);case
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String localId,  QuizDocument quiz,  String? publishedId,  DateTime? updatedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String localId,  QuizDocument quiz,  String? publishedId,  DateTime? updatedAt,  String? archiveData)  $default,) {final _that = this;
 switch (_that) {
 case _LocalQuiz():
-return $default(_that.localId,_that.quiz,_that.publishedId,_that.updatedAt);case _:
+return $default(_that.localId,_that.quiz,_that.publishedId,_that.updatedAt,_that.archiveData);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -215,10 +217,10 @@ return $default(_that.localId,_that.quiz,_that.publishedId,_that.updatedAt);case
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String localId,  QuizDocument quiz,  String? publishedId,  DateTime? updatedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String localId,  QuizDocument quiz,  String? publishedId,  DateTime? updatedAt,  String? archiveData)?  $default,) {final _that = this;
 switch (_that) {
 case _LocalQuiz() when $default != null:
-return $default(_that.localId,_that.quiz,_that.publishedId,_that.updatedAt);case _:
+return $default(_that.localId,_that.quiz,_that.publishedId,_that.updatedAt,_that.archiveData);case _:
   return null;
 
 }
@@ -230,7 +232,7 @@ return $default(_that.localId,_that.quiz,_that.publishedId,_that.updatedAt);case
 @JsonSerializable()
 
 class _LocalQuiz extends LocalQuiz {
-  const _LocalQuiz({required this.localId, required this.quiz, this.publishedId, this.updatedAt}): super._();
+  const _LocalQuiz({required this.localId, required this.quiz, this.publishedId, this.updatedAt, this.archiveData}): super._();
   factory _LocalQuiz.fromJson(Map<String, dynamic> json) => _$LocalQuizFromJson(json);
 
 @override final  String localId;
@@ -240,6 +242,8 @@ class _LocalQuiz extends LocalQuiz {
 /// Server id of the published copy, if any.
 @override final  String? publishedId;
 @override final  DateTime? updatedAt;
+/// Base64-encoded `.fazoura` archive for downloaded community quizzes.
+@override final  String? archiveData;
 
 /// Create a copy of LocalQuiz
 /// with the given fields replaced by the non-null parameter values.
@@ -254,18 +258,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _LocalQuiz&&(identical(other.localId, localId) || other.localId == localId)&&(identical(other.quiz, quiz) || other.quiz == quiz)&&(identical(other.publishedId, publishedId) || other.publishedId == publishedId)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _LocalQuiz&&(identical(other.localId, localId) || other.localId == localId)&&(identical(other.quiz, quiz) || other.quiz == quiz)&&(identical(other.publishedId, publishedId) || other.publishedId == publishedId)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.archiveData, archiveData) || other.archiveData == archiveData));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,localId,quiz,publishedId,updatedAt);
+    return Object.hash(runtimeType,localId,quiz,publishedId,updatedAt,archiveData);
 }
 
 @override
 String toString() {
-    return 'LocalQuiz(localId: $localId, quiz: $quiz, publishedId: $publishedId, updatedAt: $updatedAt)';
+    return 'LocalQuiz(localId: $localId, quiz: $quiz, publishedId: $publishedId, updatedAt: $updatedAt, archiveData: $archiveData)';
 }
 
 
@@ -276,7 +280,7 @@ abstract mixin class _$LocalQuizCopyWith<$Res> implements $LocalQuizCopyWith<$Re
   factory _$LocalQuizCopyWith(_LocalQuiz value, $Res Function(_LocalQuiz) _then) = __$LocalQuizCopyWithImpl;
 @override @useResult
 $Res call({
- String localId, QuizDocument quiz, String? publishedId, DateTime? updatedAt
+ String localId, QuizDocument quiz, String? publishedId, DateTime? updatedAt, String? archiveData
 });
 
 
@@ -293,13 +297,14 @@ class __$LocalQuizCopyWithImpl<$Res>
 
 /// Create a copy of LocalQuiz
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? localId = null,Object? quiz = null,Object? publishedId = freezed,Object? updatedAt = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? localId = null,Object? quiz = null,Object? publishedId = freezed,Object? updatedAt = freezed,Object? archiveData = freezed,}) {
   return _then(_LocalQuiz(
 localId: null == localId ? _self.localId : localId // ignore: cast_nullable_to_non_nullable
 as String,quiz: null == quiz ? _self.quiz : quiz // ignore: cast_nullable_to_non_nullable
 as QuizDocument,publishedId: freezed == publishedId ? _self.publishedId : publishedId // ignore: cast_nullable_to_non_nullable
 as String?,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
-as DateTime?,
+as DateTime?,archiveData: freezed == archiveData ? _self.archiveData : archiveData // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

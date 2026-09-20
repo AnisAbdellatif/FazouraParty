@@ -7,7 +7,7 @@ defmodule FazouraWeb.Router do
 
   # Writes cost the server memory, disk or database rows and need no account, so they
   # are metered per IP. Reads are cheap and bounded already (`Quizzes.list/1` clamps
-  # its own limit), so they stay unmetered.
+  # its own limit), so they stay unmetered — with one exception below.
   pipeline :create_room do
     plug FazouraWeb.Plugs.RateLimit, bucket: :rooms, limit: 20, window_ms: 60_000
   end
@@ -18,6 +18,13 @@ defmodule FazouraWeb.Router do
 
   pipeline :publish do
     plug FazouraWeb.Plugs.RateLimit, bucket: :quizzes, limit: 30, window_ms: 60_000
+  end
+
+  # The one expensive read: building a `.fazoura` archive holds the whole quiz and
+  # every one of its photos in memory at once, so a handful of concurrent callers is
+  # worth far more than a handful of listings. Metered well below the other reads.
+  pipeline :archive do
+    plug FazouraWeb.Plugs.RateLimit, bucket: :archives, limit: 10, window_ms: 60_000
   end
 
   # The admin dashboard is the only HTML this server serves.
@@ -74,6 +81,12 @@ defmodule FazouraWeb.Router do
     get "/quizzes/:id/download", QuizController, :download
     get "/quizzes/:id", QuizController, :show
     get "/tags", QuizController, :tags
+  end
+
+  scope "/api", FazouraWeb do
+    pipe_through [:api, :archive]
+
+    get "/quizzes/:id/archive", QuizController, :archive
   end
 
   # Images are fetched with image Accept headers, so no JSON content negotiation.

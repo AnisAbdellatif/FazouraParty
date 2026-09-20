@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:archive/archive.dart';
 import 'package:fazoura_party/core/api/quiz_api.dart';
 import 'package:fazoura_party/core/models/models.dart';
 import 'package:fazoura_party/core/storage/local_quiz_store.dart';
@@ -76,6 +77,7 @@ class FakeQuizServer {
 
   bool failLists = false;
   bool failWrites = false;
+  bool failArchives = false;
   int _ids = 0;
 
   QuizApi api() => QuizApi(
@@ -156,6 +158,18 @@ class FakeQuizServer {
       return _json(quizzes[index].toJson());
     }
 
+    final archiveId = RegExp(r'^/api/quizzes/(.+)/archive$')
+        .firstMatch(path)
+        ?.group(1);
+    if (request.method == 'GET' && archiveId != null) {
+      if (failArchives) {
+        return _json({'code': 'quiz_archive_download_failed'}, 404);
+      }
+      final index = quizzes.indexWhere((q) => q.id == archiveId);
+      if (index < 0) return _json({'code': 'quiz_not_found'}, 404);
+      return http.Response.bytes(_archive(quizzes[index]), 200);
+    }
+
     if (request.method == 'GET' && path.startsWith('/uploads/')) {
       return http.Response.bytes([0xFF, 0xD8, 0xFF, 0xE0], 200);
     }
@@ -209,4 +223,38 @@ class FakeQuizServer {
 
   static http.Response _json(Object body, [int status = 200]) =>
       http.Response(jsonEncode(body), status);
+
+  static List<int> _archive(QuizDocument quiz) {
+    final document = quiz.toJson();
+    final questions = (document['questions'] as List<dynamic>? ?? []).map((
+      raw,
+    ) {
+      final question = Map<String, dynamic>.from(raw as Map);
+      final image = question['image'];
+      if (image is Map) {
+        final imageMap = Map<String, dynamic>.from(image);
+        final url = imageMap['url'] as String?;
+        question['image'] = {
+          'path': 'media/${url == null ? 'photo.jpg' : url.split('/').last}',
+          'alt': imageMap['alt'],
+        };
+      }
+      return question;
+    }).toList();
+    final archive = Archive()
+      ..addFile(
+        ArchiveFile.string(
+          'manifest.json',
+          jsonEncode({
+            'quiz': {...document, 'questions': questions},
+          }),
+        ),
+      );
+    if (questions.any((question) => (question as Map)['image'] != null)) {
+      archive.addFile(
+        ArchiveFile('media/photo.jpg', 4, [0xFF, 0xD8, 0xFF, 0xE0]),
+      );
+    }
+    return ZipEncoder().encodeBytes(archive);
+  }
 }
