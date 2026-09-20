@@ -274,7 +274,7 @@ Decisions confirmed during the build are logged in [PROTOCOL.md §12](protocol/P
 | 4 | Image storage and resize policy | **Closed** — local `UPLOADS_DIR` volume; client downscales to 1280 px JPEG (§5.2) |
 | 5 | Room code format and collision/expiry policy | **Closed** — PROTOCOL.md §3.2 |
 | 6 | Community moderation workflow and who reviews | **Open** — the one content risk still unaddressed. Today anything published is public immediately; the admin dashboard can only take it down afterwards. No review queue, and no way for a player to report a quiz. |
-| 7 | Web renderer decision after load-time profiling | **Measured, decision still open** — a cold first load is ~3.2 MB gzipped, 63% of it CanvasKit: ~17 s at 1.6 Mbit/s, ~6.6 s at 4, ~2.6 s at 10. Numbers and the options in `decisions.md`. Profiling also turned up that the PWA cannot render offline at all, because nothing caches CanvasKit. |
+| 7 | Web renderer decision after load-time profiling | **Measured, decision still open** — a cold first load is ~3.2 MB gzipped, 63% of it CanvasKit: ~17 s at 1.6 Mbit/s, ~6.6 s at 4, ~2.6 s at 10. Numbers and the options in `decisions.md`. Profiling also turned up that the PWA could not render offline at all, because nothing cached CanvasKit; that is fixed. |
 | 8 | Whether guests need any account at all | **Closed** — none; signed per-room `player_token` |
 
 ### Also outstanding

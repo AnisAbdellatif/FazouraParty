@@ -71,6 +71,29 @@
         navigator.serviceWorker
           .register('flutter_service_worker.js')
           .catch((error) => console.warn('Offline caching unavailable:', error));
+
+        // Flutter fetches its renderer while booting, before any worker
+        // controls this page, so the worker never sees that request — and the
+        // first time the app is opened with no network there is no renderer and
+        // it hangs on this splash screen. Tell the worker what this browser
+        // actually loaded rather than letting it guess: Flutter ships several
+        // renderer builds and picks one, so a guess would cache the wrong file.
+        // The worker decides which of these are worth keeping.
+        const sent = new Set();
+        const report = (entries) => {
+          const urls = entries
+            .map((entry) => entry.name)
+            .filter((name) => name.startsWith(location.origin + '/') && !sent.has(name));
+          if (urls.length === 0) return;
+          urls.forEach((url) => sent.add(url));
+          navigator.serviceWorker.ready
+            .then((registration) => registration.active?.postMessage({ type: 'cache', urls }))
+            .catch(() => {});
+        };
+        // `buffered` replays what was fetched before this ran, which is most of
+        // it; the observer catches the renderer, which arrives later.
+        new PerformanceObserver((list) => report(list.getEntries()))
+          .observe({ type: 'resource', buffered: true });
       });
     }
   </script>

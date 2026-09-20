@@ -191,8 +191,41 @@ self.addEventListener('activate', (event) => {
 // The page can ask a waiting worker to take over instead of waiting for a
 // cold start: navigator.serviceWorker.controller.postMessage('skipWaiting').
 self.addEventListener('message', (event) => {
-  if (event.data === 'skipWaiting') self.skipWaiting();
+  if (event.data === 'skipWaiting') {
+    self.skipWaiting();
+    return;
+  }
+  const data = event.data;
+  if (data && data.type === 'cache' && Array.isArray(data.urls)) {
+    event.waitUntil(cacheAlreadyFetched(data.urls));
+  }
 });
+
+// Files the page fetched before this worker could intercept them. The renderer
+// is the one that matters: Flutter loads it while booting, which on a first
+// visit is before any worker controls the page, so the fetch handler below
+// never sees it. Without this the app has no renderer the first time it is
+// opened offline and sits on its splash screen (index.html posts the list).
+async function cacheAlreadyFetched(urls) {
+  const cache = await caches.open(RUNTIME_CACHE);
+  for (const url of urls) {
+    let target;
+    try {
+      target = new URL(url, self.location.origin);
+    } catch (error) {
+      continue;
+    }
+    if (target.origin !== self.location.origin) continue;
+    if (!RUNTIME.some((prefix) => target.pathname.startsWith(prefix))) continue;
+    if (await cache.match(target.href, { ignoreSearch: true })) continue;
+    try {
+      const response = await fetch(target.href);
+      if (response && response.ok) await cache.put(target.href, response.clone());
+    } catch (error) {
+      // No network, or the file is gone: the next load tries again.
+    }
+  }
+}
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;

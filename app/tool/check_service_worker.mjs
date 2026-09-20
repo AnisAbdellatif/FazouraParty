@@ -6,8 +6,8 @@
 //
 // Checks what the caching actually has to get right: the bundle is precached, an
 // old version's cache is dropped, the API is never intercepted, repeat loads
-// don't touch the network, CanvasKit is cached on first use, and the app still
-// opens offline.
+// don't touch the network, CanvasKit is kept even though the worker never sees
+// it fetched, and the app still opens offline.
 
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -204,6 +204,31 @@ check('fetches CanvasKit on first use', (await wasm.responded)?.ok === true && n
 networkCalls = [];
 await fetchEvent('/canvaskit/canvaskit.wasm');
 check('caches CanvasKit after first use', networkCalls.length === 0);
+
+// The renderer is fetched during boot, before any worker controls the page, so
+// on a first visit the fetch handler above never runs for it. index.html posts
+// what it loaded instead; without this the first offline open has no renderer.
+const renderer = '/canvaskit/chromium/canvaskit.wasm';
+networkCalls = [];
+await dispatch('message', {
+  data: { type: 'cache', urls: [`${ORIGIN}${renderer}`, `${ORIGIN}/main.dart.js`] },
+});
+check('fetches a renderer the worker never saw requested', networkCalls.length === 1);
+networkCalls = [];
+const reported = await fetchEvent(renderer);
+check('serves that renderer from cache afterwards',
+  (await reported.responded)?.ok === true && networkCalls.length === 0);
+
+networkCalls = [];
+await dispatch('message', {
+  data: { type: 'cache', urls: [`${ORIGIN}${renderer}`] },
+});
+check('does not re-fetch what it already holds', networkCalls.length === 0);
+
+await dispatch('message', {
+  data: { type: 'cache', urls: [`${ORIGIN}/api/quizzes`, 'https://example.test/x.js'] },
+});
+check('caches only what it would runtime-cache anyway', networkCalls.length === 0);
 
 networkCalls = [];
 const font = await fetchEvent('https://fonts.gstatic.com/s/font.woff2');
