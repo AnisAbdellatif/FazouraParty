@@ -54,6 +54,9 @@ const rendererFamilies = <String, String>{
   'wimp': 'skwasm',
 };
 
+/// Precompressed copies, served by `Accept-Encoding` rather than by name.
+const brotliSuffix = '.br';
+
 /// Replaced in the built `index.html` with the size of a cold load.
 const coldBytesToken = '__FZ_COLD_BYTES__';
 
@@ -114,6 +117,8 @@ Future<void> main(List<String> args) async {
     '${const JsonEncoder.withIndent('  ').convert({'version': version, 'generated_at': DateTime.now().toUtc().toIso8601String(), 'precache_bytes': bytes, 'precache': hashes})}\n',
   );
 
+  precompress(root);
+
   stdout.writeln(
     'cache key $version · ${hashes.length} precached files · '
     '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB'
@@ -148,6 +153,29 @@ int inlineColdBytes(Directory root) {
 
   index.writeAsStringSync(source.replaceAll(coldBytesToken, '$bytes'));
   return bytes;
+}
+
+/// Writes a brotli copy of everything worth compressing.
+///
+/// Last, because a `.br` is a copy: anything that rewrites a file afterwards
+/// would leave a stale one for the server to hand out. Node is already a build
+/// dependency (`check_service_worker.mjs`) and has brotli built in, so this
+/// costs no new toolchain.
+void precompress(Directory root) {
+  final result = Process.runSync('node', [
+    'tool/precompress.mjs',
+    root.path,
+  ], runInShell: true);
+
+  if (result.exitCode != 0) {
+    stderr.write(result.stderr);
+    stderr.writeln(
+      'build_web: precompression failed — the app still works, '
+      'but the server will compress on every request.',
+    );
+    return;
+  }
+  stdout.write(result.stdout);
 }
 
 /// Removes what this build can never serve, and returns the bytes saved.
@@ -227,7 +255,12 @@ Map<String, String> precacheHashes(Directory root) {
       final path = entity.path
           .substring(root.path.length + 1)
           .replaceAll(r'\', '/');
-      if (!precacheExclude.contains(path)) paths.add(path);
+      // A `.br` is a copy of the file beside it, not another thing to fetch:
+      // the server picks it by `Accept-Encoding`, and hashing it would only
+      // move the cache key twice for one change.
+      if (!precacheExclude.contains(path) && !path.endsWith(brotliSuffix)) {
+        paths.add(path);
+      }
     }
   }
 

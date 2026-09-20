@@ -18,6 +18,7 @@ defmodule FazouraWeb.Plugs.WebAppTest do
     File.write!(Path.join(dir, "flutter_service_worker.js"), "// sw")
     File.write!(Path.join(dir, "canvaskit/canvaskit.wasm"), "wasm")
     File.write!(Path.join(dir, "main.dart.js_1.part.js"), "// the quiz editor")
+    File.write!(Path.join(dir, "main.dart.js.br"), "brotli bytes")
 
     previous = Application.get_env(:fazoura, :web_dir)
     Application.put_env(:fazoura, :web_dir, dir)
@@ -28,6 +29,24 @@ defmodule FazouraWeb.Plugs.WebAppTest do
     end)
 
     %{dir: dir}
+  end
+
+  test "hands out the precompressed copy when the client takes brotli", %{conn: conn} do
+    # The build compresses once; without this the server would recompress a few
+    # megabytes on every cold visit.
+    conn = conn |> put_req_header("accept-encoding", "br") |> get("/main.dart.js")
+
+    assert response(conn, 200) == "brotli bytes"
+    assert get_resp_header(conn, "content-encoding") == ["br"]
+    assert get_resp_header(conn, "vary") == ["Accept-Encoding"]
+  end
+
+  test "falls back to the plain file when it doesn't", %{conn: conn} do
+    # Caddy compresses this one on the way out, as it did before.
+    conn = conn |> put_req_header("accept-encoding", "gzip") |> get("/main.dart.js")
+
+    assert response(conn, 200) == "console.log('app')"
+    assert get_resp_header(conn, "content-encoding") == []
   end
 
   test "serves the deferred chunks the app splits out", %{conn: conn} do

@@ -174,6 +174,30 @@ void main() {
     expect(source, contains('fonts.gstatic.com'));
   });
 
+  group('precompressed copies', () {
+    test('are not things to fetch in their own right', () {
+      write('assets/fonts/MaterialIcons-Regular.otf.br', 'brotli bytes');
+      write('main.dart.js.br', 'brotli bytes');
+
+      final hashes = precacheHashes(root);
+
+      // The server picks one by `Accept-Encoding`; listing them would have the
+      // worker fetch `X.br` as a separate URL and move the cache key twice for
+      // a single change.
+      expect(hashes.keys.where((path) => path.endsWith('.br')), isEmpty);
+      expect(hashes.keys, contains('assets/fonts/MaterialIcons-Regular.otf'));
+      expect(hashes.keys, contains('main.dart.js'));
+    });
+
+    test('do not move the cache key on their own', () {
+      final before = bundleVersion(precacheHashes(root));
+
+      write('main.dart.js.br', 'brotli bytes');
+
+      expect(bundleVersion(precacheHashes(root)), before);
+    });
+  });
+
   group('deferred chunks', () {
     setUp(() {
       write('main.dart.js_1.part.js', 'the quiz editor and its photo pipeline');

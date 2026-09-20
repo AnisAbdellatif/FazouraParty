@@ -8,6 +8,12 @@ defmodule FazouraWeb.Plugs.WebApp do
   and never a stale app shell. Repeat visits don't reach the network at all — the worker
   answers from its own cache.
 
+  Compression is precomputed. The build writes a brotli copy beside each compressible
+  file and `Plug.Static` hands that out when the client accepts `br`, which is about a
+  quarter smaller than gzip across the boot path and costs the server nothing per
+  request. Anything without a `.br` — or a client that doesn't want one — falls through
+  to Caddy, which compresses on the fly as it always did.
+
   With `:web_dir` unset or missing (a server that only serves the API), this does nothing.
   """
 
@@ -60,6 +66,7 @@ defmodule FazouraWeb.Plugs.WebApp do
         from: dir,
         only: @served,
         only_matching: @served_prefixes,
+        brotli: true,
         cache_control_for_etags: @cache_control,
         cache_control_for_vsn_requests: @cache_control
       )
