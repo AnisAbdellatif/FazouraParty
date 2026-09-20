@@ -24,6 +24,11 @@ defmodule Fazoura.Quizzes do
   # while keeping a server's worth of rooms in the hundreds of MB rather than the GBs.
   @max_inline_bytes 8 * 1024 * 1024
 
+  # Owns the photos that ship with the server. Not a secret and not held by any device:
+  # it exists so preset photos have an owner like every other upload, while staying
+  # outside the publish-and-edit path the apps use.
+  @preset_owner_key "fazoura-preset-photos-owned-by-the-server"
+
   @type owner_key :: String.t() | nil
 
   @doc "Largest total of inline photo bytes one room may hold (QUIZ_FORMAT.md §5.7)."
@@ -561,10 +566,74 @@ defmodule Fazoura.Quizzes do
   def sync_builtin!(dir \\ Path.join(:code.priv_dir(:fazoura), "quizzes")) do
     for path <- dir |> Path.join("*.json") |> Path.wildcard() |> Enum.sort() do
       slug = Path.basename(path, ".json")
-      params = path |> File.read!() |> Jason.decode!()
+
+      params =
+        path
+        |> File.read!()
+        |> Jason.decode!()
+        |> take_preset_photos!(dir)
 
       {:ok, quiz} = Repo.transaction(fn -> upsert_builtin!(slug, params) end)
       quiz
+    end
+  end
+
+  # A preset is an ordinary public quiz that happens to ship with the server, so its
+  # photos are ordinary uploads: stored in the uploads directory with a row in `images`,
+  # swept like any other. What is different is only where the bytes come from — a file
+  # beside the quiz, named by `image.path`, the same way a `.fazoura` archive names one
+  # (QUIZ_FORMAT.md §5.3b).
+  #
+  # Raises rather than skipping. These run on every deploy, and a preset whose photo went
+  # missing should stop the release, not reach a party with a hole in it.
+  defp take_preset_photos!(%{"questions" => questions} = params, dir) when is_list(questions) do
+    Map.put(params, "questions", Enum.map(questions, &take_preset_photo!(&1, dir)))
+  end
+
+  defp take_preset_photos!(params, _dir), do: params
+
+  defp take_preset_photo!(%{"image" => %{"path" => relative} = image} = question, dir)
+       when is_binary(relative) do
+    stored = store_preset_photo!(read_preset_photo!(dir, relative), relative)
+
+    Map.put(question, "image", image |> Map.delete("path") |> Map.put("key", stored.key))
+  end
+
+  defp take_preset_photo!(question, _dir), do: question
+
+  defp read_preset_photo!(dir, relative) do
+    path = Path.expand(relative, dir)
+
+    unless String.starts_with?(path, Path.expand(dir) <> "/") do
+      raise ArgumentError, "preset photo #{relative} is outside #{dir}"
+    end
+
+    case File.read(path) do
+      {:ok, binary} -> binary
+      {:error, reason} -> raise ArgumentError, "preset photo #{relative}: #{inspect(reason)}"
+    end
+  end
+
+  defp store_preset_photo!(binary, relative) do
+    case Uploads.store_stable(binary) do
+      {:ok, stored} ->
+        # Owned by a key no device holds: nobody can edit or unpublish a preset through
+        # the API, and nobody else's quiz can reference its photos. The repository is
+        # what changes them (`Fazoura.Admin.create_preset/1` takes the same view).
+        {:ok, hash} = OwnerKey.hash(@preset_owner_key)
+
+        Repo.get_by(Image, key: stored.key) ||
+          Repo.insert!(%Image{
+            key: stored.key,
+            content_type: stored.content_type,
+            byte_size: stored.byte_size,
+            owner_key_hash: hash
+          })
+
+        stored
+
+      {:error, reason} ->
+        raise ArgumentError, "preset photo #{relative} was refused: #{inspect(reason)}"
     end
   end
 

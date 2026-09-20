@@ -62,6 +62,39 @@ defmodule Fazoura.Uploads do
   end
 
   @doc """
+  Stores `binary` under a key derived from its own bytes, writing the file only when it
+  is not already there.
+
+  For photos that come from the repository rather than from a device (`priv/quizzes`,
+  synced on every deploy): a random key would write a fresh copy each time and leave the
+  previous one for the sweeper, so re-running a sync would churn the volume. Same bytes,
+  same key, same file.
+  """
+  @spec store_stable(binary()) ::
+          {:ok, %{key: String.t(), content_type: String.t(), byte_size: non_neg_integer()}}
+          | {:error, :image_too_large | :unsupported_image}
+  def store_stable(binary) when byte_size(binary) > @max_bytes, do: {:error, :image_too_large}
+
+  def store_stable(binary) when is_binary(binary) do
+    with {:ok, content_type, ext} <- validate(binary) do
+      key = digest(binary) <> "." <> ext
+      path = Path.join(dir(), key)
+
+      unless File.regular?(path) do
+        File.mkdir_p!(dir())
+        File.write!(path, binary)
+      end
+
+      {:ok, %{key: key, content_type: content_type, byte_size: byte_size(binary)}}
+    end
+  end
+
+  # The same shape as a generated key: 24 hex characters and an extension.
+  defp digest(binary) do
+    :crypto.hash(:sha256, binary) |> Base.encode16(case: :lower) |> binary_part(0, 24)
+  end
+
+  @doc """
   The content type and extension of a binary that is an image we accept, both by its
   magic bytes and by its header being well-formed and sanely sized.
   """

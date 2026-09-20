@@ -4,8 +4,9 @@ defmodule Fazoura.QuizzesTest do
 
   alias Fazoura.QuizFixtures
   alias Fazoura.Quizzes
-  alias Fazoura.Quizzes.Quiz
+  alias Fazoura.Quizzes.{Image, Quiz}
   alias Fazoura.Rooms.Images
+  alias Fazoura.Uploads
 
   @owner "owner-key-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   @other "other-key-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
@@ -357,6 +358,90 @@ defmodule Fazoura.QuizzesTest do
 
       assert Enum.map(quiz.questions, & &1.difficulty) |> Enum.uniq() |> Enum.sort() ==
                ["easy", "hard", "medium"]
+    end
+
+    test "a preset photo becomes an ordinary upload" do
+      dir = preset_dir(%{"path" => "media/still.png", "alt" => "A still"})
+
+      [quiz] = Quizzes.sync_builtin!(dir)
+      {:ok, quiz} = Quizzes.fetch(quiz.id)
+      [question] = quiz.questions
+
+      # Nothing about it is special once it is in: a key, a file in the uploads
+      # directory and a row in `images`, like a photo any device published.
+      assert question.image_key
+      assert question.image_alt == "A still"
+      assert File.regular?(Path.join(Uploads.dir(), question.image_key))
+      assert Repo.get_by(Image, key: question.image_key)
+      assert quiz.has_photos
+
+      document = Quizzes.to_document(quiz, owner?: true)
+      assert [%{image: %{url: url}}] = document.questions
+      assert String.ends_with?(url, "/uploads/" <> question.image_key)
+    end
+
+    test "re-syncing reuses the same file instead of piling up copies" do
+      dir = preset_dir(%{"path" => "media/still.png"})
+
+      [first] = Quizzes.sync_builtin!(dir)
+      [again] = Quizzes.sync_builtin!(dir)
+
+      {:ok, first} = Quizzes.fetch(first.id)
+      {:ok, again} = Quizzes.fetch(again.id)
+
+      # A random key would write a new file every deploy and leave the last one
+      # for the sweeper; the key comes from the bytes instead.
+      assert hd(first.questions).image_key == hd(again.questions).image_key
+      assert Repo.aggregate(from(i in Image), :count) == 1
+    end
+
+    test "a preset photo the repository lost stops the sync" do
+      dir = preset_dir(%{"path" => "media/missing.png"})
+      File.rm!(Path.join(dir, "media/still.png"))
+
+      # Loudly, because this runs on every deploy: a preset with a hole in it
+      # should stop the release rather than reach a party.
+      assert_raise ArgumentError, ~r/missing\.png/, fn -> Quizzes.sync_builtin!(dir) end
+    end
+
+    test "a preset photo cannot be read from outside its own directory" do
+      dir = preset_dir(%{"path" => "../../../etc/passwd"})
+
+      assert_raise ArgumentError, ~r/outside/, fn -> Quizzes.sync_builtin!(dir) end
+    end
+
+    test "a preset photo that is not an image is refused" do
+      dir = preset_dir(%{"path" => "media/still.png"})
+      File.write!(Path.join(dir, "media/still.png"), "GIF89a not one of ours")
+
+      assert_raise ArgumentError, ~r/refused/, fn -> Quizzes.sync_builtin!(dir) end
+    end
+
+    defp preset_dir(image) do
+      dir = Path.join(System.tmp_dir!(), "fazoura_preset_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(Path.join(dir, "media"))
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      File.write!(Path.join(dir, "media/still.png"), @png)
+
+      File.write!(
+        Path.join(dir, "film-night.json"),
+        Jason.encode!(
+          QuizFixtures.quiz_params(%{
+            "title" => "Film Night",
+            "questions" => [
+              %{
+                "type" => "text_photo",
+                "prompt" => "Which film?",
+                "accepted_answers" => ["The Matrix"],
+                "image" => image
+              }
+            ]
+          })
+        )
+      )
+
+      dir
     end
 
     test "to_pack snapshots questions with defaults and photo urls" do

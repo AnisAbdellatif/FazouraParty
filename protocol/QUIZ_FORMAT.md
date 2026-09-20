@@ -110,7 +110,7 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 | `accepted_answers` | string[] | Required, 1–10 answers, each 1–100 characters. Matching is PROTOCOL.md §8 |
 | `difficulty` | `"easy"` \| `"medium"` \| `"hard"` | Default `"easy"`; drives the difficulty bonus (PROTOCOL.md §9) |
 | `time_limit_ms` | int \| null | Reserved for per-question overrides; ignored by rooms today |
-| `image` | object \| null | Required for `text_photo`, must be `null` for `text`. Fields: `key` (from §5.6, when publishing); `data` (base64 JPEG/PNG/WebP ≤ 2 MB, for private quizzes sent inline, §5.7, and how the app keeps photos on the device); optional `alt` (≤ 140 chars); `url` is output only |
+| `image` | object \| null | Required for `text_photo`, must be `null` for `text`. Fields: `key` (from §5.6, when publishing); `data` (base64 JPEG/PNG/WebP ≤ 2 MB, for private quizzes sent inline, §5.7, and how the app keeps photos on the device); `path` (a file beside the document — inside a `.fazoura` archive, §5.3b, or beside a preset's JSON, §6); optional `alt` (≤ 140 chars); `url` is output only |
 | `explanation` | string \| null | ≤ 280 chars, shown after the reveal in a later release |
 
 ### 2.3 Tags
@@ -303,7 +303,40 @@ listening on, at `http://<host-ip>:<port>/api/room-images/<key>`, with the same 
 fails the intent with `invalid_quiz`, the code Cloud answers with for the same document.
 Clients cannot tell the two apart: both send an ordinary `image_url`.
 
-## 6. Evolution checklist
+
+## 6. Presets
+
+A preset is an ordinary public quiz. Nothing about it is a separate kind of thing: same
+table, same photos in the uploads directory, same sweeper, same browsing. It carries two
+extras — `source: "builtin"`, which shows it first when browsing, and a `slug`, which makes
+it hostable by name — and an admin can set or clear both on any published quiz from the
+dashboard (ADMIN.md).
+
+The ones that ship with the server live in `server/priv/quizzes/`, one JSON file per quiz,
+and are synced on every deploy by `Fazoura.Quizzes.sync_builtin!/1`:
+
+- **The filename is the slug.** `film-night.json` is hostable as `{"quiz_id": "film-night"}`.
+- **The file holds a quiz document** (§2) without the output-only fields — the sync assigns
+  `source`, `visibility` and the rest.
+- **Photos sit beside it**, named by `image.path` relative to the quizzes directory:
+
+  ```json
+  "image": { "path": "media/matrix.jpg", "alt": "A man dodging bullets" }
+  ```
+
+  The sync reads the file, validates it like any upload, and stores it under a key derived
+  from its own bytes — so re-running reuses the same file instead of leaving the previous
+  copy behind. A path that escapes the quizzes directory, a file that is missing, or one
+  that is not a JPEG/PNG/WebP stops the sync: these run on every deploy, and a preset with
+  a hole in it should stop the release rather than reach a party.
+- **`version` is not bumped for you.** Change the questions and change `"1.0"` to `"1.1"`,
+  or devices holding an offline copy will not know it is stale.
+
+Preset photos are owned by a key no device holds, so nobody can edit or unpublish a preset
+through the API and no other quiz can reference its photos. The repository is what changes
+them, and re-running the sync restores them if the uploads volume is ever lost.
+
+## 7. Evolution checklist
 
 - New optional field → add to this doc, the changeset and the Dart model with a default.
   No version bump.
