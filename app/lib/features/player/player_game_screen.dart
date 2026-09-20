@@ -1,9 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
-import '../../core/providers/player_tokens.dart';
+import '../../core/providers/room_tokens.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/connection_banner.dart';
@@ -25,7 +27,7 @@ class PlayerGameScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.listen(roomClosedProvider, (_, next) {
       if (next.hasValue) {
-        ref.read(playerTokensProvider.notifier).drop(roomCode);
+        unawaited(ref.read(roomTokensProvider.notifier).drop(roomCode));
       }
     });
     final closedReason = ref.watch(roomClosedProvider).value;

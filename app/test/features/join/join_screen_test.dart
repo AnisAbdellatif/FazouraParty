@@ -1,10 +1,11 @@
 import 'package:fazoura_party/core/models/models.dart';
 import 'package:fazoura_party/core/providers/connection_providers.dart';
-import 'package:fazoura_party/core/providers/player_tokens.dart';
+import 'package:fazoura_party/core/providers/room_tokens.dart';
 import 'package:fazoura_party/features/join/join_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/buttons.dart';
 import '../../support/fake_game_connection.dart';
@@ -49,6 +50,9 @@ void main() {
       addTearDown(tester.view.reset);
 
       fake = FakeGameConnection();
+      // Room tokens live on the device so a refresh does not cost a player
+      // their identity (PROTOCOL.md §3.3).
+      SharedPreferences.setMockInitialValues({});
       container = ProviderContainer.test(
         overrides: [gameConnectionProvider.overrideWithValue(fake)],
       );
@@ -110,7 +114,12 @@ void main() {
       expect(fake.joins.single.roomCode, 'K7QX2M');
       expect(fake.joins.single.displayName, 'Sam');
       expect(fake.joins.single.playerToken, isNull);
-      expect(container.read(playerTokensProvider), {'K7QX2M': 'token-1'});
+      expect(
+        await container
+            .read(roomTokensProvider.notifier)
+            .playerTokenFor('K7QX2M'),
+        'token-1',
+      );
       expect(find.text('ROOM K7QX2M'), findsOneWidget);
     });
 

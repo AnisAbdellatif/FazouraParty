@@ -9,7 +9,7 @@ import '../../core/lan/lan_host.dart' show defaultLanPort;
 import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../core/providers/lan_providers.dart';
-import '../../core/providers/player_tokens.dart';
+import '../../core/providers/room_tokens.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
@@ -126,7 +126,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final code = normalizeRoomCode(_codeController.text);
     final name = _nameController.text.trim();
-    final tokens = ref.read(playerTokensProvider.notifier);
+    final tokens = ref.read(roomTokensProvider.notifier);
 
     setState(() {
       _joining = true;
@@ -144,9 +144,9 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
     try {
       final result = await ref
           .read(gameConnectionProvider)
-          .join(code, name, playerToken: tokens.tokenFor(code));
+          .join(code, name, playerToken: await tokens.playerTokenFor(code));
       final token = result.playerToken;
-      if (token != null) tokens.save(code, token);
+      if (token != null) await tokens.savePlayerToken(code, token);
       if (!mounted) return;
       unawaited(
         Navigator.of(context).pushReplacement(
@@ -158,7 +158,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
     } catch (error) {
       if (error is GameError &&
           (error.code == 'room_not_found' || error.code == 'invalid_token')) {
-        tokens.drop(code);
+        await tokens.drop(code);
       }
       ref.invalidate(gameConnectionProvider);
       if (!mounted) return;

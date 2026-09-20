@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../core/providers/lan_providers.dart';
+import '../../core/providers/room_tokens.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
@@ -32,6 +33,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ? await _createLanRoom()
           : await ref.read(roomApiProvider).createRoom();
       ref.invalidate(gameConnectionProvider);
+      // Remembered before the join, not after: a host who closes the tab on
+      // the lobby still has a room, and this is the only way back to it — the
+      // host never types a code (PROTOCOL.md §3.3).
+      if (!setup.overLan) {
+        await ref
+            .read(roomTokensProvider.notifier)
+            .saveHostToken(created.roomCode, created.hostToken);
+      }
       await ref
           .read(gameConnectionProvider)
           .joinAsHost(
@@ -58,6 +67,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
+  /// Takes back a room this device is still the host of. The room may have
+  /// ended while the app was away, in which case the host is told and the
+  /// tokens are forgotten (§4.1).
+  Future<void> _resumeHosting(RoomToken room) async {
+    setState(() => _creating = true);
+    try {
+      ref.read(currentGameTargetProvider.notifier).useCloud();
+      ref.invalidate(gameConnectionProvider);
+      await ref
+          .read(gameConnectionProvider)
+          .joinAsHost(room.code, room.hostToken!);
+      if (!mounted) return;
+      setState(() => _creating = false);
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => HostScreen(roomCode: room.code),
+        ),
+      );
+    } catch (error) {
+      ref.invalidate(gameConnectionProvider);
+      if (error is GameError &&
+          (error.code == 'room_not_found' || error.code == 'invalid_token')) {
+        await ref.read(roomTokensProvider.notifier).drop(room.code);
+      }
+      if (!mounted) return;
+      setState(() => _creating = false);
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(describeError(error))));
+    }
+  }
+
   /// Starts a room on this device. No HTTP call: the host holds the whole game
   /// in process and hands out the same room code and host token shape as the
   /// cloud server (PROTOCOL.md §3.1).
@@ -69,6 +109,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final fz = FzTheme.of(context);
+    // A room this device still holds the host token for, offered until it
+    // stops working or ages out (PROTOCOL.md §3.3).
+    final hosted = ref
+        .watch(roomTokensProvider)
+        .value
+        ?.where((room) => room.hostToken != null)
+        .firstOrNull;
 
     return Scaffold(
       body: FzPage(
@@ -79,6 +126,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (hosted != null) ...[
+              FzButton(
+                key: const Key('resumeHostingButton'),
+                label: 'Back to room ${hosted.code}',
+                trailing: 'hosting',
+                onPressed: _creating ? null : () => _resumeHosting(hosted),
+              ),
+              const SizedBox(height: 11),
+            ],
             FzButton(
               key: const Key('hostGameButton'),
               label: _creating ? 'Creating…' : 'Start a party',
