@@ -93,6 +93,15 @@
       letter-spacing: .08em;
       font-variant-numeric: tabular-nums;
     }
+    /* The number is coarse while the app bundle is in flight, so say what is
+       being waited on rather than leaving a guest looking at a stuck 0%. */
+    #splash-phase {
+      font-size: 10px;
+      letter-spacing: .22em;
+      color: #FFC400;
+      opacity: .55;
+      min-height: 12px;
+    }
     @keyframes splash-spin {
       to { transform: rotate(270deg); }
     }
@@ -118,6 +127,7 @@
       </svg>
       <span id="splash-pct"></span>
     </div>
+    <div id="splash-phase"></div>
   </div>
   <script>
     // How far along the download is, for the ring above. A cold load is a few
@@ -131,6 +141,7 @@
       const arc = document.querySelector('#splash-ring .arc');
       const label = document.getElementById('splash-pct');
       const ring = document.getElementById('splash-ring');
+      const phase = document.getElementById('splash-phase');
       const circumference = 2 * Math.PI * 21;
       let loaded = 0;
       let shown = -1;
@@ -152,6 +163,12 @@
           loaded += bytes;
           render();
         },
+        // What is being waited on. The renderer is the second half of a cold
+        // load and the half the ring measures smoothly; before it starts the
+        // number barely moves, and a label is the honest way to say why.
+        say(text) {
+          if (phase.textContent !== text) phase.textContent = text;
+        },
         // Set from a test or the console to see the ring at a given value.
         preview(value) {
           shown = -1;
@@ -164,6 +181,8 @@
         },
       };
     })();
+
+    window.__fzProgress.say('LOADING APP');
 
     // Counted off a clone, so the response Flutter gets is the one fetch
     // returned. Replacing the body would put a hand-built stream in front of
@@ -191,6 +210,11 @@
             const url = new URL(response.url || String(args[0]), location.href);
             if (response.ok && response.body && url.origin === location.origin) {
               window.__fzStreamed.add(url.href);
+              // The renderer starting means the app bundle is in, and that the
+              // ring is about to start moving properly.
+              if (url.pathname.startsWith('/canvaskit/')) {
+                progress.say('LOADING GRAPHICS');
+              }
               count(response.clone()).catch(() => {});
             }
           } catch (error) {
