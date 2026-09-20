@@ -203,7 +203,11 @@ void main() {
     tearDown(() => room.close(LanCloseReason.shutdown));
 
     void selectQuiz(List<Uint8List?> photos) =>
-        room.handle(host, 'host_select_quiz', {'quiz': quizWithPhotos(photos)});
+        room.handle(host, 'host_select_quiz', {
+          'quizzes': [
+            {'quiz': quizWithPhotos(photos)},
+          ],
+        });
 
     test('the question carries a URL on this host that serves the bytes', () {
       final photo = pngBytes();
@@ -238,7 +242,11 @@ void main() {
 
       expect(
         () => room.handle(sam, 'host_select_quiz', {
-          'quiz': quizWithPhotos([pngBytes()]),
+          'quizzes': [
+            {
+              'quiz': quizWithPhotos([pngBytes()]),
+            },
+          ],
         }),
         throwsCode('not_host'),
       );

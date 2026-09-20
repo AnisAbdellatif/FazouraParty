@@ -146,7 +146,11 @@ void main() {
       final selected = await hostGuest.send(
         'room:${host.roomCode}',
         'host_select_quiz',
-        {'quiz': photoQuiz(pngBytes())},
+        {
+          'quizzes': [
+            {'quiz': photoQuiz(pngBytes())},
+          ],
+        },
       );
       expect(selected['status'], 'ok');
 
@@ -229,7 +233,9 @@ void main() {
       final guest = await _Guest.connect(host.port);
       await guest.join(host.roomCode, {'host_token': host.hostToken});
       await guest.send('room:${host.roomCode}', 'host_select_quiz', {
-        'quiz': photoQuiz(photo),
+        'quizzes': [
+          {'quiz': photoQuiz(photo)},
+        ],
       });
       final before = guest.stateCount;
       await guest.send('room:${host.roomCode}', 'host_next', {});

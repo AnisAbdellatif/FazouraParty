@@ -1,8 +1,9 @@
-/// Immutable pack snapshot used by a LAN-hosted room.
+/// Immutable snapshot of the questions a LAN-hosted room plays.
 ///
-/// Dart port of `server/lib/fazoura/game/pack.ex`. The room copies the pack
-/// when it is created, so editing a quiz mid-game can never affect a running
-/// room (AGENTS.md §4).
+/// Dart port of `server/lib/fazoura/game/pack.ex`. A round is played from one
+/// pool drawn from every quiz the host selected ([Pack.merge], PROTOCOL.md
+/// §6.4). The room copies it when it is created, so editing a quiz mid-game
+/// can never affect a running room (AGENTS.md §4).
 library;
 
 import '../models/quiz.dart';
@@ -34,8 +35,8 @@ class PackQuestion {
   final String? imageUrl;
   final String difficulty;
 
-  PackQuestion copyWith({int? timeLimitMs}) => PackQuestion(
-    id: id,
+  PackQuestion copyWith({int? timeLimitMs, String? id}) => PackQuestion(
+    id: id ?? this.id,
     type: type,
     prompt: prompt,
     acceptedAnswers: acceptedAnswers,
@@ -47,16 +48,14 @@ class PackQuestion {
 
 class Pack {
   const Pack({
-    required this.id,
-    required this.title,
+    required this.titles,
     required this.questions,
     this.defaultTimeLimitMs,
     this.defaultDifficultyMultiplier = false,
   });
 
   const Pack.empty()
-    : id = 'unselected',
-      title = '',
+    : titles = const [],
       questions = const [],
       defaultTimeLimitMs = null,
       defaultDifficultyMultiplier = false;
@@ -77,8 +76,7 @@ class Pack {
   }) {
     final questions = quiz.questions ?? const <QuizQuestion>[];
     return Pack(
-      id: quiz.id ?? quiz.slug ?? 'local',
-      title: quiz.title,
+      titles: [quiz.title],
       defaultTimeLimitMs: quiz.defaultSettings.timeLimitMs,
       defaultDifficultyMultiplier: quiz.defaultSettings.difficultyMultiplier,
       questions: [
@@ -96,12 +94,32 @@ class Pack {
     );
   }
 
+  /// One pool from the quizzes the host selected, in the order they selected
+  /// them — the counterpart of `Fazoura.Game.Pack.merge/1` (PROTOCOL.md §6.4).
+  ///
+  /// Question ids are rewritten to stay unique across the pool: two quizzes
+  /// may each call a question `q1`, and clients use the id to tell one
+  /// question from the next. Ids are opaque (§1), so rewriting them is ours to
+  /// do. Lobby defaults come from the first quiz, because a pool has none.
+  factory Pack.merge(List<Pack> packs) {
+    if (packs.length == 1) return packs.single;
+    return Pack(
+      titles: [for (final pack in packs) ...pack.titles],
+      defaultTimeLimitMs: packs.first.defaultTimeLimitMs,
+      defaultDifficultyMultiplier: packs.first.defaultDifficultyMultiplier,
+      questions: [
+        for (final (index, pack) in packs.indexed)
+          for (final question in pack.questions)
+            question.copyWith(id: '$index-${question.id}'),
+      ],
+    );
+  }
+
   /// Builds a pack straight from the JSON shape the shared contract fixtures
   /// use, the counterpart of `Fazoura.Game.Pack.from_map/1`. Only the fixture
   /// runner needs it: a real pack comes from a quiz document.
   factory Pack.fromMap(Map<String, dynamic> map) => Pack(
-    id: map['id'] as String? ?? 'inline',
-    title: map['title'] as String,
+    titles: [map['title'] as String],
     questions: [
       for (final question in map['questions'] as List)
         _questionFromMap(question as Map<String, dynamic>),
@@ -130,8 +148,9 @@ class Pack {
     );
   }
 
-  final String id;
-  final String title;
+  /// Titles of the selected quizzes, in the order the host chose them. Empty
+  /// means nothing is selected yet (PROTOCOL.md §5.1, §6.4).
+  final List<String> titles;
   final List<PackQuestion> questions;
   final int? defaultTimeLimitMs;
   final bool defaultDifficultyMultiplier;

@@ -465,8 +465,7 @@ defmodule Fazoura.Quizzes do
   @spec to_pack(Quiz.t(), (String.t() -> String.t())) :: Pack.t()
   def to_pack(%Quiz{} = quiz, image_url \\ &Uploads.url/1) do
     %Pack{
-      id: quiz.id || "inline",
-      title: quiz.title,
+      titles: [quiz.title],
       default_time_limit_ms: quiz.default_time_limit_ms,
       default_difficulty_multiplier: quiz.default_difficulty_multiplier,
       questions:

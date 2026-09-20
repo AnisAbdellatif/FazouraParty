@@ -20,7 +20,7 @@ class PhoenixGameConnection implements GameConnection {
     PhoenixSocket Function(String endpoint)? socketFactory,
   }) : _socketFactory = socketFactory ?? PhoenixSocket.new;
 
-  static const int protocolVersion = 7;
+  static const int protocolVersion = 8;
 
   /// `phx_join` payload (PROTOCOL.md §4.1).
   static Map<String, dynamic> joinPayload({
@@ -61,15 +61,23 @@ class PhoenixGameConnection implements GameConnection {
     'difficulties': difficulties,
   };
 
-  static Map<String, dynamic> selectQuizPayload({
-    String? quizId,
-    QuizDocument? inlineQuiz,
-  }) {
-    if (inlineQuiz != null) {
-      return {'quiz': inlineQuiz.forInlineRoom().toJson()};
-    }
-    return {'quiz_id': quizId};
-  }
+  /// The whole selection, every time: `host_select_quiz` replaces what was
+  /// selected before rather than adding to it (PROTOCOL.md §6.4).
+  static Map<String, dynamic> selectQuizPayload(
+    List<QuizSelection> quizzes,
+  ) => {
+    'quizzes': [
+      for (final selection in quizzes)
+        switch (selection) {
+          StoredQuizSelection(:final quizId) => {'quiz_id': quizId},
+          // `forInlineRoom` is what turns the device's stored photo bytes into
+          // the base64 the host expects (QUIZ_FORMAT.md §5.7).
+          InlineQuizSelection(:final quiz) => {
+            'quiz': quiz.forInlineRoom().toJson(),
+          },
+        },
+    ],
+  };
 
   /// HTTP(S) base URL of the server, e.g. `http://localhost:4000`.
   final String baseUrl;
@@ -190,14 +198,11 @@ class PhoenixGameConnection implements GameConnection {
   );
 
   @override
-  Future<void> hostSelectQuiz({String? quizId, QuizDocument? inlineQuiz}) {
-    if (quizId == null && inlineQuiz == null) {
-      throw ArgumentError('quizId or inlineQuiz is required');
+  Future<void> hostSelectQuiz(List<QuizSelection> quizzes) {
+    if (quizzes.isEmpty) {
+      throw ArgumentError('at least one quiz is required');
     }
-    return _push(
-      'host_select_quiz',
-      selectQuizPayload(quizId: quizId, inlineQuiz: inlineQuiz),
-    );
+    return _push('host_select_quiz', selectQuizPayload(quizzes));
   }
 
   @override

@@ -22,6 +22,10 @@ import '../models/quiz.dart';
 const roomCodeAlphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const roomCodeLength = 6;
 
+/// Most quizzes one round may draw from (PROTOCOL.md §6.4). A bound on how much
+/// a single room can be made to hold, inline photos included.
+const maxQuizzes = 10;
+
 /// A room with nobody in it closes after 30 seconds; a finished one after 10
 /// minutes (PROTOCOL.md §3.2, §3.4).
 const emptyTtl = Duration(seconds: 30);
@@ -335,25 +339,40 @@ class LanRoom {
       throw const GameRuleError('not_host');
     }
 
-    final document = payload['quiz'];
+    final entries = payload['quizzes'];
+    if (entries is! List || entries.isEmpty || entries.length > maxQuizzes) {
+      throw const GameRuleError('invalid_quiz');
+    }
+
+    // Everything a LAN host plays arrives as a document: it has no quiz
+    // database to resolve a `quiz_id` against, and no internet to fetch one
+    // (PROTOCOL.md §6.4). The wire shape is the same either way.
+    final quizzes = [for (final entry in entries) _quizOf(entry)];
+
+    // Store the photos only once the selection is accepted: `selectQuiz`
+    // refuses an empty pool or a game already under way, and a refused
+    // selection must leave the room exactly as it was, photos included.
+    final prepared = [for (final quiz in quizzes) images.prepare(quiz)];
+    game.selectQuiz(
+      Pack.merge([
+        for (final one in prepared)
+          Pack.fromQuiz(one.quiz, imageUrl: _imageUrl),
+      ]),
+    );
+    images.commit({for (final one in prepared) ...one.images});
+    _afterChange(now);
+  }
+
+  QuizDocument _quizOf(Object? entry) {
+    final document = entry is Map<String, dynamic> ? entry['quiz'] : null;
     if (document is! Map<String, dynamic>) {
       throw const GameRuleError('invalid_quiz');
     }
-
-    final QuizDocument quiz;
     try {
-      quiz = QuizDocument.fromJson(document);
+      return QuizDocument.fromJson(document);
     } on Object {
       throw const GameRuleError('invalid_quiz');
     }
-
-    // Store the photos only once the quiz is accepted: `selectQuiz` refuses an
-    // empty pack or a game already under way, and a refused selection must
-    // leave the room exactly as it was, photos included.
-    final prepared = images.prepare(quiz);
-    game.selectQuiz(Pack.fromQuiz(prepared.quiz, imageUrl: _imageUrl));
-    images.commit(prepared.images);
-    _afterChange(now);
   }
 
   /// Where a guest fetches a photo of the selected quiz. Mirrors Cloud's

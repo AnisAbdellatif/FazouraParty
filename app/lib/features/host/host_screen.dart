@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/connection/game_connection.dart';
 import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../core/providers/lan_providers.dart';
 import '../../core/providers/quiz_providers.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/format.dart';
+import '../../shared/quiz_titles.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/connection_banner.dart';
 import '../../shared/widgets/fz.dart';
@@ -140,16 +142,16 @@ class _HostPhase extends ConsumerWidget {
       Phase.lobby => LobbyView(
         state: state,
         lanAddress: lanAddress,
-        settingsEditor: state.packTitle == null || state.settings == null
+        settingsEditor: state.packTitles.isEmpty || state.settings == null
             ? null
             : GameSettingsEditor(
-                packTitle: state.packTitle ?? 'Trivia',
+                packTitle: describeQuizzes(state.packTitles, ifEmpty: 'Trivia'),
                 settings: state.settings!,
               ),
-        footer: state.packTitle == null
+        footer: state.packTitles.isEmpty
             ? FzButton(
                 key: const Key('chooseQuizButton'),
-                label: 'Choose a quiz',
+                label: 'Choose quizzes',
                 onPressed: () => _chooseQuiz(context, ref, run),
               )
             : Column(
@@ -163,7 +165,7 @@ class _HostPhase extends ConsumerWidget {
                   const SizedBox(height: 10),
                   FzButton(
                     key: const Key('reselectQuizButton'),
-                    label: 'Choose another quiz',
+                    label: 'Change the quizzes',
                     kind: FzButtonKind.outline,
                     onPressed: () => _chooseQuiz(context, ref, run),
                   ),
@@ -199,29 +201,35 @@ class _HostPhase extends ConsumerWidget {
     WidgetRef ref,
     Future<void> Function(Future<void> Function() intent) run,
   ) async {
-    final choice = await showQuizBrowser(context);
-    if (!context.mounted || choice == null) return;
+    final choices = await showQuizBrowser(context);
+    if (!context.mounted || choices == null || choices.isEmpty) return;
     final isLan = ref.read(hostedLanRoomProvider) != null;
+
     await run(() async {
-      switch (choice) {
-        case PublicQuizChoice(:final quiz):
-          if (isLan) {
-            final full = await ref.read(quizApiProvider).get(quiz.hostId);
-            await ref
-                .read(gameConnectionProvider)
-                .hostSelectQuiz(inlineQuiz: full);
-          } else {
-            await ref
-                .read(gameConnectionProvider)
-                .hostSelectQuiz(quizId: quiz.hostId);
-          }
-        case LocalQuizChoice(:final quiz):
-          await ref
-              .read(gameConnectionProvider)
-              .hostSelectQuiz(inlineQuiz: quiz.quiz);
+      final selection = <QuizSelection>[];
+      for (final choice in choices) {
+        selection.add(await _selectionFor(ref, choice, isLan: isLan));
       }
+      await ref.read(gameConnectionProvider).hostSelectQuiz(selection);
     });
   }
+
+  /// A browser choice as the intent carries it (PROTOCOL.md §6.4).
+  ///
+  /// A LAN host has no quiz database, so a public quiz has to be fetched whole
+  /// and sent inline; Cloud already has it and takes the id. Either way the
+  /// wire shape is the same, which is why one selection can hold both.
+  Future<QuizSelection> _selectionFor(
+    WidgetRef ref,
+    QuizChoice choice, {
+    required bool isLan,
+  }) async => switch (choice) {
+    LocalQuizChoice(:final quiz) => InlineQuizSelection(quiz.quiz),
+    PublicQuizChoice(:final quiz) when isLan => InlineQuizSelection(
+      await ref.read(quizApiProvider).get(quiz.hostId),
+    ),
+    PublicQuizChoice(:final quiz) => StoredQuizSelection(quiz.hostId),
+  };
 }
 
 class _QuestionControls extends StatelessWidget {

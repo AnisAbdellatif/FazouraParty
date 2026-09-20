@@ -17,7 +17,7 @@ void main() {
       expect(state.mode, Mode.cloud);
       expect(state.phase, Phase.question);
       expect(state.serverTime, 1789502400000);
-      expect(state.packTitle, 'General Knowledge');
+      expect(state.packTitles, ['General Knowledge']);
       expect(state.questionIndex, 2);
       expect(state.questionCount, 10);
       expect(

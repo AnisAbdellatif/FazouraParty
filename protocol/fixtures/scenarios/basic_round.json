@@ -18,7 +18,7 @@
     {
       "actor": "host",
       "join": {
-        "protocol_version": 7,
+        "protocol_version": 8,
         "host_token": "$host_token"
       },
       "expect": {
@@ -32,7 +32,7 @@
     {
       "actor": "sam",
       "join": {
-        "protocol_version": 7,
+        "protocol_version": 8,
         "display_name": "Sam"
       },
       "expect": {
@@ -45,7 +45,7 @@
     {
       "actor": "alex",
       "join": {
-        "protocol_version": 7,
+        "protocol_version": 8,
         "display_name": "alex"
       },
       "expect": {
@@ -58,7 +58,7 @@
     {
       "actor": "dup",
       "join": {
-        "protocol_version": 7,
+        "protocol_version": 8,
         "display_name": "SAM"
       },
       "expect": {

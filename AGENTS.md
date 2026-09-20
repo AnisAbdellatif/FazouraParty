@@ -38,7 +38,8 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 
 - **The server is authoritative.** Clients send intents only (`join`, `submit`, `next_question`, `override`, ...). All validation — wager range, phase, host permissions, one submission per question — happens server-side. Never trust client-computed scores or correctness.
 - Wager is an integer 1–10. Correct → `+wager`, incorrect → `−wager`.
-- **Game settings:** before a game starts (lobby), the host sets the number of questions (1..pack size), the time per question (10–120 s, applies to every question) and the difficulty bonus toggle.
+- **Game settings:** before a game starts (lobby), the host sets the number of questions (1..pool size), the time per question (10–120 s, applies to every question) and the difficulty bonus toggle.
+- **Several quizzes per round:** the host selects 1–10 quizzes with one `host_select_quiz`, and the round's questions are drawn at random from all of them merged into one pool (`protocol/PROTOCOL.md` §6.4). A selection may mix stored quizzes with documents held on the device; lobby settings come from the first one chosen; selecting again replaces the whole selection.
 - **Difficulty bonus:** pack questions have a difficulty (easy/medium/hard). With the toggle on, points are wager × 1 / 2 / 3; off (default), wager × 1.
 - **Avatar colours** are random, assigned by the server per player (spread apart within a room), so every device shows the same colour for the same player. Clients must not derive colours locally.
 - **Rematch:** after a game finishes, the host can start a new game in the same room — same players and settings, scores reset, continuing through the pack. No new room is created.

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/models/models.dart';
+import '../../shared/quiz_titles.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
 
@@ -106,10 +107,10 @@ class LobbyView extends StatelessWidget {
                     const FzEyebrow('Tonight', size: 9.5),
                     const SizedBox(height: 6),
                     Text(
-                      state.packTitle == null
+                      state.packTitles.isEmpty
                           ? 'The host is choosing a quiz…'
                           : [
-                              state.packTitle!,
+                              describeQuizzes(state.packTitles),
                               '${state.questionCount} '
                                   '${state.questionCount == 1 ? 'question' : 'questions'}',
                               if (state.settings != null)

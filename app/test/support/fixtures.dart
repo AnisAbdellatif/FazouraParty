@@ -11,7 +11,7 @@ const roomStateExampleJson = '''
   "phase": "question",
   "server_time": 1789502400000,
 
-  "pack_title": "General Knowledge",
+  "pack_titles": ["General Knowledge"],
   "question_index": 2,
   "question_count": 10,
   "game_number": 1,

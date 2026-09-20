@@ -9,7 +9,7 @@ defmodule Fazoura.Game do
 
   alias Fazoura.Game.{Answer, Pack}
 
-  @protocol_version 7
+  @protocol_version 8
   # Points = wager × multiplier when the difficulty bonus is on (PROTOCOL.md §9).
   @multipliers %{"easy" => 1, "medium" => 2, "hard" => 3}
   @min_time_limit_ms 10_000
@@ -130,7 +130,11 @@ defmodule Fazoura.Game do
      }}
   end
 
-  def select_quiz(_game, _pack), do: {:error, :empty_pack}
+  def select_quiz(%__MODULE__{phase: :lobby}, _pack), do: {:error, :empty_pack}
+
+  # Choosing what to play is a lobby-only thing; mid-game it is the phase that
+  # is wrong, not the selection (PROTOCOL.md §4.2, §6.4).
+  def select_quiz(_game, _pack), do: {:error, :invalid_phase}
 
   # Whole pack, at the first question's time limit (clamped to the allowed range).
   defp default_settings(pack) do
@@ -525,7 +529,7 @@ defmodule Fazoura.Game do
   defp max_question_count(game, difficulties),
     do: length(question_indices(game.pack, difficulties))
 
-  defp empty_pack, do: %Pack{id: "unselected", title: "", questions: []}
+  defp empty_pack, do: %Pack{titles: [], questions: []}
 
   defp shuffled_order([], _shuffle?), do: []
   defp shuffled_order(indices, false), do: indices
@@ -560,7 +564,7 @@ defmodule Fazoura.Game do
       mode: Atom.to_string(game.mode),
       phase: Atom.to_string(game.phase),
       server_time: now,
-      pack_title: if(game.pack.questions == [], do: nil, else: game.pack.title),
+      pack_titles: if(game.pack.questions == [], do: [], else: game.pack.titles),
       question_index: game.question_index,
       question_count: game.settings.question_count,
       game_number: game.game_number,

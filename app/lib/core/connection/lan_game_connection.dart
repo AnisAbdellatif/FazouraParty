@@ -88,8 +88,8 @@ class LanGameConnection implements GameConnection {
   );
 
   @override
-  Future<void> hostSelectQuiz({String? quizId, QuizDocument? inlineQuiz}) =>
-      _inner.hostSelectQuiz(quizId: quizId, inlineQuiz: inlineQuiz);
+  Future<void> hostSelectQuiz(List<QuizSelection> quizzes) =>
+      _inner.hostSelectQuiz(quizzes);
 
   @override
   Future<void> hostRematch() => _inner.hostRematch();

@@ -107,7 +107,7 @@ class FakeGameConnection implements GameConnection {
 
   final List<({int questionCount, int timeLimitMs, bool difficultyMultiplier})>
   configures = [];
-  final List<({String? quizId, QuizDocument? inlineQuiz})> quizSelections = [];
+  final List<List<QuizSelection>> quizSelections = [];
   int rematchCalls = 0;
 
   @override
@@ -126,11 +126,8 @@ class FakeGameConnection implements GameConnection {
   }
 
   @override
-  Future<void> hostSelectQuiz({
-    String? quizId,
-    QuizDocument? inlineQuiz,
-  }) async {
-    quizSelections.add((quizId: quizId, inlineQuiz: inlineQuiz));
+  Future<void> hostSelectQuiz(List<QuizSelection> quizzes) async {
+    quizSelections.add(quizzes);
     if (intentError != null) throw intentError!;
   }
 

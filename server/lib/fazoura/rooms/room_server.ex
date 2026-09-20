@@ -12,12 +12,17 @@ defmodule Fazoura.Rooms.RoomServer do
   use GenServer, restart: :temporary
 
   alias Fazoura.{Game, Quizzes}
+  alias Fazoura.Game.Pack
   alias Fazoura.Rooms.Images
 
   # A room with nobody in it is over; the delay only exists so a lone host who
   # blips doesn't lose it, and so a new room has time for its first join
   # (PROTOCOL.md §3.4).
   @empty_ttl_ms :timer.seconds(30)
+
+  # Most quizzes one round may draw from (PROTOCOL.md §6.4). A bound on how much
+  # a single room can be made to hold, inline photos included.
+  @max_quizzes 10
   @finished_ttl_ms :timer.minutes(10)
   @token_max_age_s 86_400
 
@@ -99,7 +104,7 @@ defmodule Fazoura.Rooms.RoomServer do
     summary = %{
       code: game.room_code,
       phase: game.phase,
-      quiz_title: game.pack.title,
+      quiz_title: Enum.join(game.pack.titles, " + "),
       players: map_size(game.players),
       connections: map_size(state.conns),
       answered: map_size(game.submissions),
@@ -189,7 +194,7 @@ defmodule Fazoura.Rooms.RoomServer do
   end
 
   defp select_quiz_intent(state, payload) do
-    with {:ok, pack, image_keys} <- resolve_quiz(payload),
+    with {:ok, pack, image_keys} <- resolve_selection(payload),
          {:ok, game} <- Game.handle(state.game, :host, {:select_quiz, pack}, state.now.()) do
       :ok = Images.attach(image_keys, self())
       {:reply, :ok, update_game(state, game)}
@@ -197,6 +202,27 @@ defmodule Fazoura.Rooms.RoomServer do
       {:error, _code} = error -> {:reply, error, state}
     end
   end
+
+  # The whole selection, resolved into the one pool the round is played from
+  # (PROTOCOL.md §6.4). Entries may mix stored quizzes with inline documents.
+  defp resolve_selection(%{"quizzes" => quizzes})
+       when is_list(quizzes) and quizzes != [] and length(quizzes) <= @max_quizzes do
+    quizzes
+    |> Enum.reduce_while({:ok, [], []}, fn entry, {:ok, packs, keys} ->
+      case resolve_quiz(entry) do
+        {:ok, pack, image_keys} -> {:cont, {:ok, [pack | packs], keys ++ image_keys}}
+        error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, packs, image_keys} -> {:ok, Pack.merge(Enum.reverse(packs)), image_keys}
+      # Photos of the quizzes that did resolve are already in memory, and the
+      # room never learns their keys, so nothing would ever collect them.
+      error -> error
+    end
+  end
+
+  defp resolve_selection(_payload), do: {:error, :invalid_quiz}
 
   defp resolve_quiz(%{"quiz_id" => id}) when is_binary(id) do
     case Quizzes.fetch(id) do
@@ -212,7 +238,7 @@ defmodule Fazoura.Rooms.RoomServer do
     end
   end
 
-  defp resolve_quiz(_payload), do: {:error, :invalid_quiz}
+  defp resolve_quiz(_entry), do: {:error, :invalid_quiz}
 
   defp fetch_player_id(%{"player_id" => id}) when is_binary(id), do: {:ok, id}
   defp fetch_player_id(_payload), do: {:error, :invalid_payload}

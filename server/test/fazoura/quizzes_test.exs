@@ -305,8 +305,7 @@ defmodule Fazoura.QuizzesTest do
       assert {:ok, pack, [key]} = Quizzes.inline_pack(params)
       assert Repo.aggregate(Quiz, :count) == 0
 
-      assert {pack.id, pack.title, pack.default_time_limit_ms} ==
-               {"inline", "Movie Night", 20_000}
+      assert {pack.titles, pack.default_time_limit_ms} == {["Movie Night"], 20_000}
 
       assert [%{id: "q1", image_url: nil}, %{id: "q2", image_url: url}] = pack.questions
       assert hd(pack.questions).accepted_answers == ["Canberra"]
@@ -374,8 +373,8 @@ defmodule Fazoura.QuizzesTest do
       {:ok, quiz} = Quizzes.fetch(quiz.id)
       pack = Quizzes.to_pack(quiz)
 
-      assert {pack.title, pack.default_time_limit_ms, pack.default_difficulty_multiplier} ==
-               {"Movie Night", 20_000, true}
+      assert {pack.titles, pack.default_time_limit_ms, pack.default_difficulty_multiplier} ==
+               {["Movie Night"], 20_000, true}
 
       assert [%{image_url: nil, time_limit_ms: 20_000, difficulty: "medium"}, %{image_url: url}] =
                pack.questions

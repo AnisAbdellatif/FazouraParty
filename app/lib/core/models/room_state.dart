@@ -17,7 +17,10 @@ abstract class RoomState with _$RoomState {
 
     /// Host clock (ms since epoch) when the snapshot was built.
     required int serverTime,
-    String? packTitle,
+
+    /// Titles of the selected quizzes, in the order the host chose them.
+    /// Empty while none are selected (PROTOCOL.md §5.1, §6.4).
+    @Default(<String>[]) List<String> packTitles,
     int? questionIndex,
     required int questionCount,
 

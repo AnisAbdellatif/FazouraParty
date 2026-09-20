@@ -85,6 +85,9 @@ device's local database and is sent to the server inline each time you host it, 
 stored. Publish it and it goes into the server's library for everyone to host — and a
 per-device key, not a login, is what lets you edit or unpublish it later.
 
+A round can draw on more than one quiz: pick several in the browser and the questions are
+shuffled together into one pool, so a few small quizzes make one evening.
+
 ## Deploying
 
 A push to `main` runs both suites, builds an image, pushes it to GitHub Container

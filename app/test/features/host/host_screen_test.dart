@@ -120,7 +120,7 @@ void main() {
       await tester.tap(button);
       await tester.pump(const Duration(milliseconds: 500));
       expect(
-        find.text("Pick tonight's quiz", skipOffstage: false),
+        find.text("Pick tonight's quizzes", skipOffstage: false),
         findsOneWidget,
       );
     });

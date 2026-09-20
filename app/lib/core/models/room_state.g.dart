@@ -12,7 +12,11 @@ _RoomState _$RoomStateFromJson(Map<String, dynamic> json) => _RoomState(
   mode: $enumDecode(_$ModeEnumMap, json['mode']),
   phase: $enumDecode(_$PhaseEnumMap, json['phase']),
   serverTime: (json['server_time'] as num).toInt(),
-  packTitle: json['pack_title'] as String?,
+  packTitles:
+      (json['pack_titles'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList() ??
+      const <String>[],
   questionIndex: (json['question_index'] as num?)?.toInt(),
   questionCount: (json['question_count'] as num).toInt(),
   gameNumber: (json['game_number'] as num?)?.toInt() ?? 1,
@@ -45,7 +49,7 @@ Map<String, dynamic> _$RoomStateToJson(_RoomState instance) =>
       'mode': _$ModeEnumMap[instance.mode]!,
       'phase': _$PhaseEnumMap[instance.phase]!,
       'server_time': instance.serverTime,
-      'pack_title': instance.packTitle,
+      'pack_titles': instance.packTitles,
       'question_index': instance.questionIndex,
       'question_count': instance.questionCount,
       'game_number': instance.gameNumber,

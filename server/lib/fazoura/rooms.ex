@@ -25,8 +25,9 @@ defmodule Fazoura.Rooms do
           {:ok, String.t(), String.t()} | {:error, :empty_pack | :too_many_rooms}
   def create(pack, opts \\ [])
 
-  def create(%Pack{questions: []} = pack, _opts) when pack.id != "unselected",
-    do: {:error, :empty_pack}
+  # A pack with no questions is only legal as the empty lobby a room is created
+  # in; a selection that came to nothing is a mistake (PROTOCOL.md §6.4).
+  def create(%Pack{questions: [], titles: [_ | _]}, _opts), do: {:error, :empty_pack}
 
   def create(%Pack{} = pack, opts) do
     if count() >= max_rooms() do

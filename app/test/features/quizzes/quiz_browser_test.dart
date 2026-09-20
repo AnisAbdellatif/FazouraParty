@@ -9,7 +9,7 @@ import '../../support/fake_quiz_server.dart';
 
 void main() {
   late FakeQuizServer server;
-  QuizChoice? picked;
+  List<QuizChoice>? picked;
 
   Future<void> settle(WidgetTester tester) async {
     for (var i = 0; i < 6; i++) {
@@ -87,9 +87,72 @@ void main() {
     expect(find.text('Movie Night'), findsOneWidget);
     expect(server.requests.last.url.queryParameters['q'], 'movie');
 
+    // Tapping a card picks it; the browser stays open so more can be added,
+    // and the footer confirms the selection (PROTOCOL.md §6.4).
     await tapKey(tester, const ValueKey('quizCard-mv'));
-    expect(picked, isA<PublicQuizChoice>());
-    expect((picked! as PublicQuizChoice).quiz.id, 'mv');
+    expect(picked, isNull);
+    await tapKey(tester, const Key('hostSelectedQuizzes'));
+
+    expect(picked, hasLength(1));
+    expect(picked!.single, isA<PublicQuizChoice>());
+    expect((picked!.single as PublicQuizChoice).quiz.id, 'mv');
+  });
+
+  testWidgets('picks several quizzes, in the order they were picked', (
+    tester,
+  ) async {
+    await openBrowser(
+      tester,
+      public: [
+        quiz('sci', 'Science'),
+        quiz('his', 'History'),
+        quiz('mov', 'Movies'),
+      ],
+    );
+
+    // Nothing to confirm until something is picked.
+    expect(find.byKey(const Key('hostSelectedQuizzes')), findsNothing);
+
+    await tapKey(tester, const ValueKey('quizCard-mov'));
+    expect(find.text('Host this quiz'), findsOneWidget);
+
+    await tapKey(tester, const ValueKey('quizCard-sci'));
+    await tapKey(tester, const ValueKey('quizCard-his'));
+    expect(find.text('Host these 3 quizzes'), findsOneWidget);
+
+    // Tapping again unpicks, and the order of the rest is unchanged.
+    await tapKey(tester, const ValueKey('quizCard-sci'));
+    expect(find.text('Host these 2 quizzes'), findsOneWidget);
+
+    await tapKey(tester, const Key('hostSelectedQuizzes'));
+
+    expect(picked, hasLength(2));
+    expect(picked!.map((choice) => (choice as PublicQuizChoice).quiz.id), [
+      'mov',
+      'his',
+    ], reason: 'the first picked is the one whose defaults the lobby takes');
+  });
+
+  testWidgets('a public quiz and one of mine can be picked together', (
+    tester,
+  ) async {
+    await openBrowser(
+      tester,
+      public: [quiz('sci', 'Science')],
+      local: [localQuiz('a', 'Secret Party')],
+    );
+
+    await tapKey(tester, const ValueKey('quizCard-sci'));
+    await tapKey(tester, const Key('quizScopeMine'));
+    // The selection survives switching between Public and My quizzes.
+    expect(find.text('Host this quiz'), findsOneWidget);
+
+    await tapKey(tester, const ValueKey('quizCard-a'));
+    await tapKey(tester, const Key('hostSelectedQuizzes'));
+
+    expect(picked, hasLength(2));
+    expect(picked!.first, isA<PublicQuizChoice>());
+    expect(picked!.last, isA<LocalQuizChoice>());
   });
 
   testWidgets('saves a public quiz for offline play', (tester) async {
@@ -215,7 +278,8 @@ void main() {
     expect(server.requestsWith('GET', '/api/quizzes'), hasLength(1));
 
     await tapKey(tester, const ValueKey('quizCard-a'));
-    expect((picked! as LocalQuizChoice).quiz.localId, 'a');
+    await tapKey(tester, const Key('hostSelectedQuizzes'));
+    expect((picked!.single as LocalQuizChoice).quiz.localId, 'a');
   });
 
   testWidgets('publish, make private and delete a local quiz', (tester) async {

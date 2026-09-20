@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/models/models.dart';
 import '../../shared/navigation.dart';
+import '../../shared/quiz_titles.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
 
@@ -28,7 +29,7 @@ class FinishedView extends StatelessWidget {
   Future<void> _share(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final summary = [
-      'Fazoura Party · ${state.packTitle ?? 'trivia'}',
+      'Fazoura Party · ${describeQuizzes(state.packTitles, ifEmpty: 'trivia')}',
       for (final (i, p) in state.players.indexed)
         '${i + 1}. ${p.name} — ${p.score}',
     ].join('\n');

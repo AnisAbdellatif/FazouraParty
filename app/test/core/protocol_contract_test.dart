@@ -1,6 +1,7 @@
 @TestOn('vm')
 library;
 
+import 'package:fazoura_party/core/connection/game_connection.dart';
 import 'package:fazoura_party/core/connection/phoenix_game_connection.dart';
 import 'package:fazoura_party/core/models/models.dart';
 import 'package:fazoura_party/features/player_question/player_question_view.dart'
@@ -251,7 +252,7 @@ Map<String, dynamic> _completeSnapshot(Object? partial) {
     'mode': 'cloud',
     'phase': 'lobby',
     'server_time': 1789502400000,
-    'pack_title': 'Fixture Pack',
+    'pack_titles': ['Fixture Pack'],
     'question_count': 1,
     ...expected,
     // players/you entries in a fixture are themselves partial. `you` is always
@@ -378,15 +379,17 @@ Map<String, dynamic>? _encodeIntent(
         difficulties: (payload['difficulties'] as List).cast<String>(),
       );
     case 'host_select_quiz':
-      final quizId = payload['quiz_id'];
-      if (quizId is String) {
-        return PhoenixGameConnection.selectQuizPayload(quizId: quizId);
+      final entries = payload['quizzes'] as List;
+      // A fixture entry naming a stored quiz is rebuilt exactly; one carrying
+      // a document is not, because the fixtures use a minimal custom document
+      // and production adds its canonical inline-room fields before sending.
+      if (entries.any((entry) => (entry as Map)['quiz_id'] is! String)) {
+        return null;
       }
-      final quiz = payload['quiz'];
-      if (quiz is! Map<String, dynamic>) return null;
-      // The fixture uses a minimal custom document; production adds its
-      // canonical inline-room fields before sending it.
-      return null;
+      return PhoenixGameConnection.selectQuizPayload([
+        for (final entry in entries)
+          StoredQuizSelection((entry as Map)['quiz_id'] as String),
+      ]);
     case 'host_next':
     case 'host_pause':
     case 'host_resume':

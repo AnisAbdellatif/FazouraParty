@@ -8,7 +8,7 @@ defmodule FazouraWeb.RoomController do
 
   def create(conn, params) when map_size(params) == 0 do
     with {:ok, room_code, host_token} <-
-           Rooms.create(%Fazoura.Game.Pack{id: "unselected", title: "", questions: []}) do
+           Rooms.create(%Fazoura.Game.Pack{titles: [], questions: []}) do
       created(conn, room_code, host_token)
     end
   end

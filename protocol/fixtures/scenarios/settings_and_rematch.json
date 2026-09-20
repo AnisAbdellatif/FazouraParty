@@ -36,7 +36,7 @@
     {
       "actor": "host",
       "join": {
-        "protocol_version": 7,
+        "protocol_version": 8,
         "host_token": "$host_token",
         "display_name": "Hana"
       },
@@ -47,7 +47,7 @@
     {
       "actor": "sam",
       "join": {
-        "protocol_version": 7,
+        "protocol_version": 8,
         "display_name": "Sam"
       },
       "expect": {
@@ -368,42 +368,46 @@
       "actor": "host",
       "push": "host_select_quiz",
       "payload": {
-        "quiz": {
-          "format_version": 1,
-          "title": "Fixture Pack",
-          "tags": [
-            "fixture"
-          ],
-          "questions": [
-            {
-              "id": "q1",
-              "type": "text",
-              "prompt": "Question 1?",
-              "accepted_answers": [
-                "one"
+        "quizzes": [
+          {
+            "quiz": {
+              "format_version": 1,
+              "title": "Fixture Pack",
+              "tags": [
+                "fixture"
               ],
-              "time_limit_ms": 30000
-            },
-            {
-              "id": "q2",
-              "type": "text",
-              "prompt": "Question 2?",
-              "accepted_answers": [
-                "two"
-              ],
-              "time_limit_ms": 30000
-            },
-            {
-              "id": "q3",
-              "type": "text",
-              "prompt": "Question 3?",
-              "accepted_answers": [
-                "three"
-              ],
-              "time_limit_ms": 30000
+              "questions": [
+                {
+                  "id": "q1",
+                  "type": "text",
+                  "prompt": "Question 1?",
+                  "accepted_answers": [
+                    "one"
+                  ],
+                  "time_limit_ms": 30000
+                },
+                {
+                  "id": "q2",
+                  "type": "text",
+                  "prompt": "Question 2?",
+                  "accepted_answers": [
+                    "two"
+                  ],
+                  "time_limit_ms": 30000
+                },
+                {
+                  "id": "q3",
+                  "type": "text",
+                  "prompt": "Question 3?",
+                  "accepted_answers": [
+                    "three"
+                  ],
+                  "time_limit_ms": 30000
+                }
+              ]
             }
-          ]
-        }
+          }
+        ]
       },
       "expect": {
         "status": "ok"

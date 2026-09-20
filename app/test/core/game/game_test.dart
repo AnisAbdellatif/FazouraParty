@@ -754,7 +754,7 @@ void main() {
         'mode',
         'phase',
         'server_time',
-        'pack_title',
+        'pack_titles',
         'question_index',
         'question_count',
         'game_number',

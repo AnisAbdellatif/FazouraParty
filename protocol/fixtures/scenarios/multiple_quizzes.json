@@ -1,0 +1,471 @@
+{
+  "name": "host selects three quizzes and the round is drawn from all of them",
+  "pack": {
+    "title": "Fixture Pack",
+    "questions": [
+      {
+        "id": "q1",
+        "type": "text",
+        "prompt": "Replaced before anyone plays",
+        "accepted_answers": [
+          "never asked"
+        ],
+        "time_limit_ms": 30000
+      }
+    ]
+  },
+  "steps": [
+    {
+      "actor": "host",
+      "join": {
+        "protocol_version": 8,
+        "host_token": "$host_token"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "join": {
+        "protocol_version": 8,
+        "display_name": "Sam"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "lobby",
+        "pack_titles": [
+          "Fixture Pack"
+        ],
+        "question_count": 1
+      }
+    },
+    {
+      "actor": "sam",
+      "push": "host_select_quiz",
+      "payload": {
+        "quizzes": [
+          {
+            "quiz": {
+              "format_version": 1,
+              "title": "Not Yours",
+              "tags": [
+                "fixture"
+              ],
+              "questions": [
+                {
+                  "id": "x1",
+                  "type": "text",
+                  "prompt": "Should never be asked",
+                  "accepted_answers": [
+                    "no"
+                  ],
+                  "time_limit_ms": 30000
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "not_host"
+        }
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_select_quiz",
+      "payload": {
+        "quizzes": []
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "invalid_quiz"
+        }
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_select_quiz",
+      "payload": {
+        "quizzes": [
+          {
+            "quiz": {
+              "format_version": 1,
+              "title": "Science",
+              "tags": [
+                "fixture"
+              ],
+              "default_settings": {
+                "time_limit_ms": 20000,
+                "difficulty_multiplier": false
+              },
+              "questions": [
+                {
+                  "id": "q1",
+                  "type": "text",
+                  "prompt": "Science one?",
+                  "accepted_answers": [
+                    "sci one"
+                  ],
+                  "time_limit_ms": 30000
+                },
+                {
+                  "id": "q2",
+                  "type": "text",
+                  "prompt": "Science two?",
+                  "accepted_answers": [
+                    "sci two"
+                  ],
+                  "time_limit_ms": 30000
+                }
+              ]
+            }
+          },
+          {
+            "quiz": {
+              "format_version": 1,
+              "title": "History",
+              "tags": [
+                "fixture"
+              ],
+              "default_settings": {
+                "time_limit_ms": 45000,
+                "difficulty_multiplier": true
+              },
+              "questions": [
+                {
+                  "id": "q1",
+                  "type": "text",
+                  "prompt": "History one?",
+                  "accepted_answers": [
+                    "hist one"
+                  ],
+                  "difficulty": "hard",
+                  "time_limit_ms": 30000
+                }
+              ]
+            }
+          },
+          {
+            "quiz": {
+              "format_version": 1,
+              "title": "Movies",
+              "tags": [
+                "fixture"
+              ],
+              "questions": [
+                {
+                  "id": "q1",
+                  "type": "text",
+                  "prompt": "Movies one?",
+                  "accepted_answers": [
+                    "mov one"
+                  ],
+                  "time_limit_ms": 30000
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "lobby",
+        "pack_titles": [
+          "Science",
+          "History",
+          "Movies"
+        ],
+        "question_count": 4,
+        "settings": {
+          "question_count": 4,
+          "time_limit_ms": 20000,
+          "difficulty_multiplier": false,
+          "max_question_count": 4,
+          "difficulties": [
+            "easy",
+            "hard"
+          ],
+          "available_difficulties": [
+            "easy",
+            "hard"
+          ]
+        }
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_configure",
+      "payload": {
+        "question_count": 4,
+        "time_limit_ms": 20000,
+        "difficulty_multiplier": true,
+        "difficulties": [
+          "easy",
+          "hard"
+        ]
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "question",
+        "question_index": 0,
+        "question_count": 4,
+        "question": {
+          "prompt": "Science one?",
+          "multiplier": 1
+        }
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_select_quiz",
+      "payload": {
+        "quizzes": [
+          {
+            "quiz": {
+              "format_version": 1,
+              "title": "Too Late",
+              "tags": [
+                "fixture"
+              ],
+              "questions": [
+                {
+                  "id": "q1",
+                  "type": "text",
+                  "prompt": "Too late?",
+                  "accepted_answers": [
+                    "no"
+                  ],
+                  "time_limit_ms": 30000
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "invalid_phase"
+        }
+      }
+    },
+    {
+      "actor": "sam",
+      "push": "submit",
+      "payload": {
+        "answer": "sci one",
+        "wager": 5
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "question",
+        "question_index": 1,
+        "question": {
+          "prompt": "Science two?"
+        }
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "question",
+        "question_index": 2,
+        "question": {
+          "prompt": "History one?",
+          "difficulty": "hard",
+          "multiplier": 3
+        }
+      }
+    },
+    {
+      "actor": "sam",
+      "push": "submit",
+      "payload": {
+        "answer": "hist one",
+        "wager": 4
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "scoring",
+        "players": [
+          {
+            "name": "Sam",
+            "score": 17
+          }
+        ]
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "question",
+        "question_index": 3,
+        "question": {
+          "prompt": "Movies one?"
+        }
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "finished",
+        "pack_titles": [
+          "Science",
+          "History",
+          "Movies"
+        ]
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_rematch",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "lobby",
+        "game_number": 2,
+        "pack_titles": [],
+        "question_count": 0
+      }
+    }
+  ]
+}

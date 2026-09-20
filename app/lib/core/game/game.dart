@@ -18,7 +18,7 @@ import 'pack.dart';
 /// Must equal `Fazoura.Game.protocol_version/0` and the version the client
 /// sends: a host that answers a different number refuses every join
 /// (PROTOCOL.md §4.1).
-const protocolVersion = 7;
+const protocolVersion = 8;
 const minTimeLimitMs = 10000;
 const maxTimeLimitMs = 120000;
 const defaultTimeLimitMs = 30000;
@@ -613,7 +613,7 @@ class Game {
       'mode': mode,
       'phase': phase.wire,
       'server_time': now,
-      'pack_title': pack.questions.isEmpty ? null : pack.title,
+      'pack_titles': pack.questions.isEmpty ? const <String>[] : pack.titles,
       'question_index': questionIndex,
       'question_count': settings.questionCount,
       'game_number': gameNumber,

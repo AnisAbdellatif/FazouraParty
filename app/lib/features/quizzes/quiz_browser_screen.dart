@@ -32,9 +32,13 @@ final class LocalQuizChoice extends QuizChoice {
   final LocalQuiz quiz;
 }
 
-/// Opens the quiz browser; returns the quiz picked to host, or null.
-Future<QuizChoice?> showQuizBrowser(BuildContext context) {
-  return Navigator.of(context).push<QuizChoice>(
+/// Most quizzes one round may draw from (PROTOCOL.md §6.4).
+const maxSelectedQuizzes = 10;
+
+/// Opens the quiz browser; returns the quizzes picked to host in the order
+/// they were picked, or null if the host backed out. Never empty.
+Future<List<QuizChoice>?> showQuizBrowser(BuildContext context) {
+  return Navigator.of(context).push<List<QuizChoice>>(
     MaterialPageRoute(
       builder: (_) => QuizBrowserScreen(
         onEdit: (context, quiz) => showQuizEditor(context, existing: quiz),
@@ -44,7 +48,9 @@ Future<QuizChoice?> showQuizBrowser(BuildContext context) {
 }
 
 /// Browse public quizzes from the server (QUIZ_FORMAT.md §5.1) or the ones
-/// made on this device, and pick one to host. This device's quizzes can be
+/// made on this device, and pick one or more to host: a round draws its
+/// questions from every quiz picked, so several small quizzes make one bigger
+/// pool (PROTOCOL.md §6.4). This device's quizzes can be
 /// edited, published, made private and deleted here.
 class QuizBrowserScreen extends ConsumerStatefulWidget {
   const QuizBrowserScreen({
@@ -79,6 +85,12 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
   String? _error;
   int _request = 0;
   int _localRequest = 0;
+
+  /// What the host has picked so far, in the order they picked it — the first
+  /// is the one whose defaults the lobby starts from (PROTOCOL.md §6.4). Keyed
+  /// so a quiz can be unpicked and so re-rendered cards keep their state.
+  final Map<String, QuizChoice> _selected = {};
+
   final Set<String> _savedPublicIds = {};
   final Map<String, int> _savedPublicVersions = {};
   final Set<String> _savingPublicIds = {};
@@ -96,6 +108,22 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
     _debounce?.cancel();
     _search.dispose();
     super.dispose();
+  }
+
+  bool _isSelected(String id) => _selected.containsKey(id);
+
+  void _toggle(String id, QuizChoice choice) {
+    setState(() {
+      if (_selected.remove(id) != null) return;
+      if (_selected.length >= maxSelectedQuizzes) {
+        _error =
+            'That is the most quizzes one game can draw from '
+            '($maxSelectedQuizzes).';
+        return;
+      }
+      _selected[id] = choice;
+      _error = null;
+    });
   }
 
   Future<void> _loadPublic({required bool reset}) async {
@@ -340,6 +368,18 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
 
     return Scaffold(
       body: FzPage(
+        // Pinned, because the host builds a selection while scrolling and
+        // should never have to hunt for the way out of the browser.
+        footer: _selected.isEmpty
+            ? null
+            : FzButton(
+                key: const Key('hostSelectedQuizzes'),
+                label: _selected.length == 1
+                    ? 'Host this quiz'
+                    : 'Host these ${_selected.length} quizzes',
+                onPressed: () =>
+                    Navigator.of(context).pop(_selected.values.toList()),
+              ),
         header: Row(
           children: [
             FzCircleButton(
@@ -359,7 +399,7 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
               child: Text(
-                "Pick tonight's quiz",
+                "Pick tonight's quizzes",
                 maxLines: 1,
                 style: fz.t(31, height: 1.16, tracking: -.03),
               ),
@@ -448,8 +488,8 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
                   child: _QuizCard(
                     summary: quiz,
                     cardId: quiz.hostId,
-                    onTap: () =>
-                        Navigator.of(context).pop(PublicQuizChoice(quiz)),
+                    selected: _isSelected(quiz.hostId),
+                    onTap: () => _toggle(quiz.hostId, PublicQuizChoice(quiz)),
                     actions: [
                       FzPill(
                         key: ValueKey('saveOffline-${quiz.hostId}'),
@@ -524,7 +564,8 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
     return _QuizCard(
       summary: quiz.summary,
       cardId: id,
-      onTap: () => Navigator.of(context).pop(LocalQuizChoice(quiz)),
+      selected: _isSelected(id),
+      onTap: () => _toggle(id, LocalQuizChoice(quiz)),
       tags: [
         FzTag(
           quiz.isPublished ? 'Public' : 'Private',
@@ -615,6 +656,7 @@ class _QuizCard extends StatelessWidget {
     required this.summary,
     required this.cardId,
     required this.onTap,
+    this.selected = false,
     this.tags = const [],
     this.warning,
     this.warningKey,
@@ -624,6 +666,10 @@ class _QuizCard extends StatelessWidget {
   final QuizDocument summary;
   final String cardId;
   final VoidCallback onTap;
+
+  /// Picked for this round. The card shows it, because the browser stays open
+  /// while the host builds up a selection.
+  final bool selected;
   final List<Widget> tags;
   final String? warning;
   final Key? warningKey;
@@ -644,7 +690,12 @@ class _QuizCard extends StatelessWidget {
     return Material(
       color: FzColors.panel,
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: selected
+            ? const BorderSide(color: FzColors.ac, width: 2)
+            : BorderSide.none,
+      ),
       child: InkWell(
         key: ValueKey('quizCard-$cardId'),
         onTap: count > 0 ? onTap : null,
@@ -662,6 +713,14 @@ class _QuizCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
+                      if (selected) ...[
+                        const Icon(
+                          Icons.check_circle,
+                          size: 18,
+                          color: FzColors.ac,
+                        ),
+                        const SizedBox(width: 8),
+                      ],
                       Expanded(child: Text(quiz.title, style: fz.h(19))),
                       for (final tag in tags) ...[
                         const SizedBox(width: 6),

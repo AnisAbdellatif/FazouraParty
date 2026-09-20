@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `7`** · Status: **FROZEN** (changes are breaking — see AGENTS.md §3)
+**Protocol version: `8`** · Status: **FROZEN** (changes are breaking — see AGENTS.md §3)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -49,15 +49,15 @@ Pushes from the host (§5) have `ref = null`.
 
 ### 3.1 Room creation
 
-**Cloud:** `POST /api/rooms` with an empty body to create the room before choosing a quiz.
-The host selects a quiz in the lobby with `host_select_quiz`. For backwards compatibility,
-the endpoint also accepts a quiz body and snapshots it immediately.
+**Cloud:** `POST /api/rooms` with an empty body to create the room before choosing anything.
+The host then selects the quizzes to play in the lobby with `host_select_quiz` (§6.4).
 
-The legacy body may be `{"quiz_id": "<uuid or built-in slug>"}` for a stored
-(public) quiz (`pack_id` is accepted as a legacy alias), or `{"quiz": <quiz document>}` for a
-private quiz kept on the host's device, sent inline with base64 photos and never stored
-(QUIZ_FORMAT.md §4, §5.7). The room snapshots the quiz and starts with its
-`default_settings`.
+For backwards compatibility the endpoint also accepts a **single** quiz body and snapshots it
+immediately: `{"quiz_id": "<uuid or built-in slug>"}` for a stored (public) quiz (`pack_id` is
+accepted as a legacy alias), or `{"quiz": <quiz document>}` for a private quiz kept on the
+host's device, sent inline with base64 photos and never stored (QUIZ_FORMAT.md §4, §5.7). The
+room snapshots that one quiz and starts with its `default_settings`. Selecting several is only
+possible through `host_select_quiz`.
 
 ```json
 201 {"room_code": "K7QX2M", "host_token": "<signed token>"}
@@ -176,7 +176,7 @@ Join error codes: `unsupported_protocol_version`, `room_not_found`, `invalid_tok
 | `host_resume` | host | `{}` | `question` (paused) | Restarts the timer |
 | `host_override` | host | `{"player_id": string, "correct": bool}` | `scoring`, `leaderboard` | Sets the verdict on that player's submission for the **current** question, including the host's own |
 | `host_configure` | host | `{"question_count": int, "time_limit_ms": int, "difficulty_multiplier": bool, "difficulties": ["easy"\|"medium"\|"hard", ...]}` | `lobby` | Sets the game settings (§6.2). The difficulty list must be non-empty and selects the questions eligible for the round |
-| `host_select_quiz` | host | `{"quiz_id": string}` or `{"quiz": object}` | `lobby` | Selects or replaces the quiz; resets lobby settings to that quiz's defaults |
+| `host_select_quiz` | host | `{"quizzes": [{"quiz_id": string} \| {"quiz": object}, ...]}` | `lobby` | Selects or replaces the quizzes played this round (§6.4); resets lobby settings to the first one's defaults |
 | `host_rematch` | host | `{}` | `finished` | Starts a new game in the same room (§6.3) |
 | `host_transfer` | host | `{"player_id": string}` | any | Hands the host role to a connected player (§3.4) |
 | `host_close` | host | `{}` | any | Ends the room now: every client gets `room_closed: closed` |
@@ -225,7 +225,7 @@ it per socket rather than broadcasting one identical payload.
   "phase": "question",
   "server_time": 1789502400000,
 
-  "pack_title": "General Knowledge",
+  "pack_titles": ["General Knowledge", "Film & TV"],
   "question_index": 2,
   "question_count": 10,
   "game_number": 1,
@@ -273,7 +273,7 @@ it per socket rather than broadcasting one identical payload.
 | `mode` | `"cloud"` \| `"lan"` | |
 | `phase` | `"lobby"` \| `"question"` \| `"scoring"` \| `"leaderboard"` \| `"finished"` | §6 |
 | `server_time` | timestamp | Host clock when the snapshot was built. Clients compute `offset = server_time - local_now` and render timers from `deadline - (local_now + offset)` |
-| `pack_title` | string | Always present |
+| `pack_titles` | string[] | Titles of the selected quizzes, in the order the host chose them. Empty while none are selected (§6.4) |
 | `question_count` | int | Questions in the current game; always equals `settings.question_count` |
 | `game_number` | int | 1 for the first game in the room, +1 on every rematch. Question ids repeat across games, so clients key per-question UI state on (`game_number`, `question_index`) |
 | `settings` | object | Always present. `question_count`, `time_limit_ms` (applied to every question, overriding the pack), `difficulty_multiplier` (bool), `difficulties` (selected question difficulties), `available_difficulties` (difficulty values present in the pack), plus the bounds `max_question_count` (number of questions matching the selected difficulties), `min_time_limit_ms`, `max_time_limit_ms` |
@@ -357,7 +357,8 @@ recomputed as: `score -= old_delta; score += new_delta`. Setting an override equ
 
 ### 6.2 Game settings
 
-- The maximum number of questions per game is the selected pack size: `max_question_count` = pack size.
+- The maximum number of questions per game is the size of the selected pool: `max_question_count`
+  = the number of questions across every selected quiz that match `settings.difficulties` (§6.4).
 - Defaults when the room is created: `question_count` = `max_question_count`,
   `difficulty_multiplier` = `false`, `time_limit_ms` = the
   first question's limit clamped to 10 000–120 000 ms.
@@ -371,9 +372,30 @@ recomputed as: `score -= old_delta; score += new_delta`. Setting an override equ
 
 - every player's `score` = 0; players, connection state, host and tokens are kept;
 - `game_number += 1`, `question_index = null`, submissions cleared;
-- the next game continues through the pack where the previous one stopped (wrapping around
-  to the first question), so a shorter game doesn't repeat the same questions;
+- the selection is cleared: the room returns to an empty lobby and the host chooses what to
+  play next with `host_select_quiz` (§6.4);
 - the room's finished-expiry (§3.2) is cancelled.
+
+### 6.4 Selected quizzes
+
+A round is played from a **pool**: one or more quizzes the host chose, merged into a single
+shuffled list of questions. `host_select_quiz` (§4.2) carries the whole selection each time and
+replaces whatever was selected before; there is no "add one more" intent. Each entry is either a
+stored quiz (`quiz_id`) or a full inline document (`quiz`), and one selection may mix the two —
+a host can play a published quiz alongside one that never leaves their device.
+
+- **1 to 10 quizzes.** More is `invalid_quiz`, as is an empty list or a malformed entry. An
+  unknown `quiz_id` is `quiz_not_found`. A selection whose questions come to zero is `empty_pack`.
+- **Questions are drawn from the whole pool.** They are shuffled together once per round, so a
+  round of 10 questions over three quizzes takes 10 at random from all of them rather than a
+  fixed share of each. Selecting the same quiz twice is pointless but harmless: it is one pool,
+  and duplicates simply make those questions likelier.
+- **Lobby settings come from the first quiz selected** — its `default_settings` — because a pool
+  has no defaults of its own. `question_count` resets to the pool size.
+- **Question ids are made unique within the pool.** Two quizzes may each call a question `q1`;
+  ids are opaque (§1), so hosts are free to rewrite them, and must, because clients use them to
+  tell one question from the next.
+- `pack_titles` (§5.1) lists the selected titles in order, so clients can name the round.
 
 ## 7. Visibility rules
 
@@ -419,8 +441,8 @@ Punctuation is **not** stripped. Test cases: [`fixtures/normalize.json`](fixture
 
 Clients depend only on `GameConnection` ([`game_connection.dart`](game_connection.dart)). The
 Cloud and LAN implementations differ only in the socket URL and how the room is created.
-At the start of each round, the selected pack is shuffled once; all players then see
-that same shuffled order for the round.
+At the start of each round, the selected quizzes are merged into one pool and shuffled once;
+all players then see that same shuffled order for the round (§6.4).
 
 ## 11. Fixtures
 
@@ -464,5 +486,7 @@ Confirmed by the project owner on 2026-09-15.
 | Game settings & rematch (added in v3) | Host sets question count (1..pack) and per-question time (10–120 s) in the lobby; host-triggered rematch keeps the room and players, resets scores, continues through the pack |
 | Avatars, pack-sized rounds, difficulty bonus (added in v4) | Server-assigned random avatar hues; up to the selected pack size per game; optional difficulty multiplier easy ×1 / medium ×2 / hard ×3, off by default |
 | Host role (added in v5) | Transferable to a connected player, and passed on automatically if the host drops; each change issues a fresh `host_token` and invalidates the old one; a room with nobody in it ends after 30 s rather than lingering for the old 10-minute host timeout |
+
+| Several quizzes per round (added in v8) | The host selects 1–10 quizzes and the round draws its questions at random from all of them merged into one pool; `pack_title` became `pack_titles` |
 
 Changing any of these is a protocol version bump.
