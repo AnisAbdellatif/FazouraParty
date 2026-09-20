@@ -196,6 +196,72 @@ defmodule FazouraWeb.SelectQuizTest do
     end
   end
 
+  describe "photo budget" do
+    # A photo every per-image check accepts, and how many it takes to pass the
+    # per-room total.
+    defp under_image_cap, do: div(Fazoura.Uploads.max_bytes(), 2)
+    defp photo(bytes), do: Base.encode64(QuizFixtures.png_of_size(bytes))
+
+    defp photo_quiz(title, count, bytes) do
+      %{
+        "quiz" =>
+          QuizFixtures.quiz_params(%{
+            "title" => title,
+            "questions" =>
+              for i <- 1..count do
+                %{
+                  "type" => "text_photo",
+                  "prompt" => "Question #{i}?",
+                  "accepted_answers" => ["a"],
+                  "image" => %{"data" => photo(bytes)}
+                }
+              end
+          })
+      }
+    end
+
+    test "the total is bounded across the selection, not per quiz", %{socket: socket} do
+      # Each quiz is comfortably inside the room cap on its own; together they
+      # are over it. Counting per quiz would let a selection hold ten times what
+      # one room is allowed (QUIZ_FORMAT.md §5.7).
+      per_quiz = photo_quiz("Heavy", 2, under_image_cap())
+
+      quizzes =
+        List.duplicate(per_quiz, ceil(Quizzes.max_inline_bytes() / (2 * under_image_cap())) + 1)
+
+      ref = select(socket, [per_quiz])
+      assert_reply ref, :ok, %{}
+
+      ref = select(socket, quizzes)
+      assert_reply ref, :error, %{code: "invalid_quiz"}, 2_000
+    end
+
+    test "a selection that fails part way leaves no photos behind", %{socket: socket} do
+      before = :ets.info(Fazoura.Rooms.Images, :size)
+
+      # The first quiz resolves and puts its photo in memory; the second names a
+      # quiz that does not exist, so the whole selection is refused and nothing
+      # will ever attach — or collect — that photo.
+      ref =
+        select(socket, [
+          photo_quiz("Resolves", 1, 1000),
+          %{"quiz_id" => Ecto.UUID.generate()}
+        ])
+
+      assert_reply ref, :error, %{code: "quiz_not_found"}, 2_000
+      assert :ets.info(Fazoura.Rooms.Images, :size) == before
+    end
+
+    test "photos of an accepted selection are kept", %{socket: socket} do
+      before = :ets.info(Fazoura.Rooms.Images, :size)
+
+      ref = select(socket, [photo_quiz("One", 1, 1000), photo_quiz("Two", 1, 1000)])
+      assert_reply ref, :ok, %{}
+
+      assert :ets.info(Fazoura.Rooms.Images, :size) == before + 2
+    end
+  end
+
   describe "the pool" do
     test "questions keep their own prompts and ids stay unique across quizzes", %{
       socket: socket

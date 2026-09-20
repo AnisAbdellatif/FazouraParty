@@ -89,6 +89,28 @@ void main() {
       expect(images.length, 1);
     });
 
+    test('the byte budget runs across a selection, not per quiz', () {
+      final images = LanImages();
+      // Each quiz sits comfortably inside the room cap on its own; together
+      // they are over it (PROTOCOL.md §6.4).
+      final photo = Uint8List.fromList([
+        ...pngBytes(),
+        ...List.filled(LanImages.maxImageBytes - 1000, 0),
+      ]);
+      final quiz = QuizDocument.fromJson(quizWithPhotos([photo, photo]));
+
+      final first = images.prepare(quiz);
+      expect(first.spent, greaterThan(0));
+
+      // Four quizzes of two near-cap photos each is well past 8 MB.
+      var spent = first.spent;
+      expect(() {
+        for (var i = 0; i < 3; i++) {
+          spent = images.prepare(quiz, spent: spent).spent;
+        }
+      }, throwsCode('invalid_quiz'));
+    });
+
     test('a committed selection replaces the last one', () {
       final images = LanImages();
       final first = images.prepare(

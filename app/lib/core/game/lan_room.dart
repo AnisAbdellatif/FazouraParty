@@ -351,8 +351,16 @@ class LanRoom {
 
     // Store the photos only once the selection is accepted: `selectQuiz`
     // refuses an empty pool or a game already under way, and a refused
-    // selection must leave the room exactly as it was, photos included.
-    final prepared = [for (final quiz in quizzes) images.prepare(quiz)];
+    // selection must leave the room exactly as it was, photos included. The
+    // byte budget runs across the whole selection, not per quiz, so ten
+    // quizzes cannot hold ten times what one room is allowed.
+    final prepared =
+        <({QuizDocument quiz, Map<String, LanImage> images, int spent})>[];
+    for (final quiz in quizzes) {
+      prepared.add(
+        images.prepare(quiz, spent: prepared.isEmpty ? 0 : prepared.last.spent),
+      );
+    }
     game.selectQuiz(
       Pack.merge([
         for (final one in prepared)

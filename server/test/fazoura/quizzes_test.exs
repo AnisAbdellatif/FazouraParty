@@ -289,7 +289,7 @@ defmodule Fazoura.QuizzesTest do
     end
   end
 
-  describe "inline_pack/1 (private quizzes)" do
+  describe "inline_pack/2 (private quizzes)" do
     test "builds a pack without storing anything, photos held in memory" do
       params =
         quiz_params(%{
@@ -302,7 +302,8 @@ defmodule Fazoura.QuizzesTest do
           ]
         })
 
-      assert {:ok, pack, [key]} = Quizzes.inline_pack(params)
+      assert {:ok, pack, [key], bytes} = Quizzes.inline_pack(params)
+      assert bytes > 0
       assert Repo.aggregate(Quiz, :count) == 0
 
       assert {pack.titles, pack.default_time_limit_ms} == {["Movie Night"], 20_000}

@@ -7,10 +7,18 @@
 @TestOn('vm')
 library;
 
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:fazoura_party/core/game/game.dart';
+import 'package:fazoura_party/core/game/lan_images.dart';
 import 'package:fazoura_party/core/game/lan_room.dart';
 import 'package:fazoura_party/core/game/pack.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
+
+Uint8List pngBytes() =>
+    Uint8List.fromList(img.encodePng(img.Image(width: 8, height: 8)));
 
 Map<String, dynamic> quiz(
   String title,
@@ -253,6 +261,41 @@ void main() {
         }),
         throwsCode('invalid_quiz'),
       );
+    });
+
+    test('photos are bounded across the whole selection', () {
+      // Four quizzes of two near-cap photos each: each quiz is fine alone, the
+      // selection is not. Counting per quiz would let ten quizzes hold ten
+      // times what one room is allowed (QUIZ_FORMAT.md §5.7).
+      final photo = base64Encode([
+        ...pngBytes(),
+        ...List.filled(LanImages.maxImageBytes - 1000, 0),
+      ]);
+      Map<String, dynamic> heavy(String title) => {
+        ...quiz(title, ['a?', 'b?']),
+        'questions': [
+          for (final id in ['q1', 'q2'])
+            {
+              'id': id,
+              'type': 'text_photo',
+              'prompt': 'Which?',
+              'accepted_answers': ['a'],
+              'time_limit_ms': 30000,
+              'image': {'data': photo},
+            },
+        ],
+      };
+
+      select([heavy('One')]);
+      expect(room.images.length, 2);
+
+      expect(
+        () => select([for (var i = 0; i < 4; i++) heavy('Quiz $i')]),
+        throwsCode('invalid_quiz'),
+      );
+      // The refusal left the accepted selection alone.
+      expect(room.images.length, 2);
+      expect(host.latest['pack_titles'], ['One']);
     });
 
     test('a pool of nothing is refused', () {

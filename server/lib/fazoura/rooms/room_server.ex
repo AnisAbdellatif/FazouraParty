@@ -205,40 +205,53 @@ defmodule Fazoura.Rooms.RoomServer do
 
   # The whole selection, resolved into the one pool the round is played from
   # (PROTOCOL.md §6.4). Entries may mix stored quizzes with inline documents.
+  #
+  # Inline photos go into memory as each quiz resolves, so the accumulator also
+  # carries the keys and the bytes spent so far: the keys because a selection
+  # that fails half way must not leave photos behind that no room will ever
+  # collect, and the bytes because `max_inline_bytes/0` bounds the room rather
+  # than each quiz in it.
   defp resolve_selection(%{"quizzes" => quizzes})
        when is_list(quizzes) and quizzes != [] and length(quizzes) <= @max_quizzes do
     quizzes
-    |> Enum.reduce_while({:ok, [], []}, fn entry, {:ok, packs, keys} ->
-      case resolve_quiz(entry) do
-        {:ok, pack, image_keys} -> {:cont, {:ok, [pack | packs], keys ++ image_keys}}
-        error -> {:halt, error}
+    |> Enum.reduce_while({:ok, [], [], 0}, fn entry, {:ok, packs, keys, spent} ->
+      case resolve_quiz(entry, spent) do
+        {:ok, pack, image_keys, spent} ->
+          {:cont, {:ok, [pack | packs], keys ++ image_keys, spent}}
+
+        error ->
+          {:halt, {error, keys}}
       end
     end)
     |> case do
-      {:ok, packs, image_keys} -> {:ok, Pack.merge(Enum.reverse(packs)), image_keys}
-      # Photos of the quizzes that did resolve are already in memory, and the
-      # room never learns their keys, so nothing would ever collect them.
-      error -> error
+      {:ok, packs, image_keys, _spent} ->
+        {:ok, Pack.merge(Enum.reverse(packs)), image_keys}
+
+      {error, orphans} ->
+        Images.delete(orphans)
+        error
     end
   end
 
   defp resolve_selection(_payload), do: {:error, :invalid_quiz}
 
-  defp resolve_quiz(%{"quiz_id" => id}) when is_binary(id) do
+  defp resolve_quiz(%{"quiz_id" => id}, spent) when is_binary(id) do
     case Quizzes.fetch(id) do
-      {:ok, quiz} -> {:ok, Quizzes.to_pack(quiz), []}
+      # A stored quiz's photos are on disk and served from there, so they cost
+      # the room nothing to hold.
+      {:ok, quiz} -> {:ok, Quizzes.to_pack(quiz), [], spent}
       _ -> {:error, :quiz_not_found}
     end
   end
 
-  defp resolve_quiz(%{"quiz" => %{} = document}) do
-    case Quizzes.inline_pack(document) do
-      {:ok, pack, image_keys} -> {:ok, pack, image_keys}
+  defp resolve_quiz(%{"quiz" => %{} = document}, spent) do
+    case Quizzes.inline_pack(document, spent) do
+      {:ok, pack, image_keys, spent} -> {:ok, pack, image_keys, spent}
       _ -> {:error, :invalid_quiz}
     end
   end
 
-  defp resolve_quiz(_entry), do: {:error, :invalid_quiz}
+  defp resolve_quiz(_entry, _spent), do: {:error, :invalid_quiz}
 
   defp fetch_player_id(%{"player_id" => id}) when is_binary(id), do: {:ok, id}
   defp fetch_player_id(_payload), do: {:error, :invalid_payload}

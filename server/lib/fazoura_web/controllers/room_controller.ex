@@ -16,7 +16,7 @@ defmodule FazouraWeb.RoomController do
   # POST /api/rooms (PROTOCOL.md §3.1, QUIZ_FORMAT.md §5.7): either a private quiz sent
   # inline as `quiz`, or a stored one by `quiz_id` (`pack_id` is the legacy name).
   def create(conn, %{"quiz" => %{} = document}) do
-    with {:ok, pack, image_keys} <- Quizzes.inline_pack(document) do
+    with {:ok, pack, image_keys, _bytes} <- Quizzes.inline_pack(document) do
       case Rooms.create(pack, image_keys: image_keys) do
         {:ok, room_code, host_token} ->
           created(conn, room_code, host_token)

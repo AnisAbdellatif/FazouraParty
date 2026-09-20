@@ -5,7 +5,7 @@ defmodule Fazoura.Quizzes do
   There are no accounts. The database only holds public quizzes (built-in and
   published ones); a per-device publisher key lets the device that published a quiz
   update or unpublish it. Private quizzes never reach the database: the app keeps them
-  and sends the whole document each time it hosts (`inline_pack/1`).
+  and sends the whole document each time it hosts (`inline_pack/2`).
   """
 
   import Ecto.Query
@@ -328,30 +328,35 @@ defmodule Fazoura.Quizzes do
   builds its pack without touching the database. Photos come inline as base64
   `image.data`; they are kept in memory by `Fazoura.Rooms.Images` under the returned keys,
   which the caller attaches to the room (or deletes if the room can't start).
+
+  `spent` is the photo bytes the room already holds, and the returned total is what it
+  holds afterwards: a selection resolves one quiz at a time (PROTOCOL.md §6.4), and
+  `max_inline_bytes/0` bounds the room, not each quiz in it.
   """
-  @spec inline_pack(term()) ::
-          {:ok, Pack.t(), [String.t()]}
+  @spec inline_pack(term(), non_neg_integer()) ::
+          {:ok, Pack.t(), [String.t()], non_neg_integer()}
           | {:error, Ecto.Changeset.t() | :image_too_large | :unsupported_image}
-  def inline_pack(params) do
-    with {:ok, params, images} <- extract_inline_images(params),
+  def inline_pack(params, spent \\ 0) do
+    with {:ok, params, images, spent} <- extract_inline_images(params, spent),
          {:ok, quiz} <-
            %Quiz{source: "inline", visibility: "private", questions: [], quiz_tags: []}
            |> Quiz.changeset(params)
            |> Ecto.Changeset.apply_action(:insert) do
       Images.put(images)
-      {:ok, to_pack(quiz, &Images.url/1), Enum.map(images, &elem(&1, 0))}
+      {:ok, to_pack(quiz, &Images.url/1), Enum.map(images, &elem(&1, 0)), spent}
     end
   end
 
-  defp extract_inline_images(%{"questions" => questions} = params) when is_list(questions) do
-    result = Enum.reduce_while(questions, {:ok, [], [], 0}, &take_inline_image/2)
+  defp extract_inline_images(%{"questions" => questions} = params, spent)
+       when is_list(questions) do
+    result = Enum.reduce_while(questions, {:ok, [], [], spent}, &take_inline_image/2)
 
-    with {:ok, questions, images, _bytes} <- result do
-      {:ok, Map.put(params, "questions", Enum.reverse(questions)), Enum.reverse(images)}
+    with {:ok, questions, images, bytes} <- result do
+      {:ok, Map.put(params, "questions", Enum.reverse(questions)), Enum.reverse(images), bytes}
     end
   end
 
-  defp extract_inline_images(params), do: {:ok, params, []}
+  defp extract_inline_images(params, spent), do: {:ok, params, [], spent}
 
   defp take_inline_image(question, {:ok, acc, images, bytes}) do
     case inline_image(question) do
@@ -362,7 +367,10 @@ defmodule Fazoura.Quizzes do
   end
 
   # Every photo is already under the per-image cap, but a room holds all of them in
-  # memory for its whole life, so the total is what has to be bounded as well.
+  # memory for its whole life, so the total is what has to be bounded as well. The
+  # running total is carried *across* the quizzes a selection names (PROTOCOL.md
+  # §6.4): ten quizzes each just under the cap would otherwise be ten times the
+  # memory one room is allowed.
   defp keep_image(question, {_key, _type, binary} = image, acc, images, bytes) do
     bytes = bytes + byte_size(binary)
 

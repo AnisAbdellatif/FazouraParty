@@ -42,19 +42,25 @@ class LanImages {
 
   /// Takes the inline photos out of [quiz] and returns the document with each
   /// one replaced by the key it would be served under, alongside the photos
-  /// themselves. Stores nothing: the caller [commit]s only once the quiz has
-  /// been accepted, so a refused selection leaves the room's photos untouched.
+  /// themselves and the bytes the room holds once they are committed. Stores
+  /// nothing: the caller [commit]s only once the whole selection has been
+  /// accepted, so a refused one leaves the room's photos untouched.
+  ///
+  /// [spent] is what the rest of the selection already accounts for. A round
+  /// may name up to ten quizzes (PROTOCOL.md §6.4) and [maxTotalBytes] bounds
+  /// the *room*, so the total is carried across them rather than restarting at
+  /// each one — the same budget `Fazoura.Quizzes.inline_pack/2` threads.
   ///
   /// Throws [GameRuleError] with `invalid_quiz` for a photo that is not a
   /// supported image or that pushes the room over the total — the same code
-  /// Cloud answers `host_select_quiz` with when `inline_pack/1` refuses a
-  /// document.
-  ({QuizDocument quiz, Map<String, LanImage> images}) prepare(
-    QuizDocument quiz,
-  ) {
+  /// Cloud answers `host_select_quiz` with when it refuses a document.
+  ({QuizDocument quiz, Map<String, LanImage> images, int spent}) prepare(
+    QuizDocument quiz, {
+    int spent = 0,
+  }) {
     final stored = <String, LanImage>{};
     final questions = <QuizQuestion>[];
-    var total = 0;
+    var total = spent;
 
     for (final question in quiz.questions ?? const <QuizQuestion>[]) {
       final bytes = _bytesOf(question);
@@ -80,7 +86,11 @@ class LanImages {
       );
     }
 
-    return (quiz: quiz.copyWith(questions: questions), images: stored);
+    return (
+      quiz: quiz.copyWith(questions: questions),
+      images: stored,
+      spent: total,
+    );
   }
 
   /// Serves [images] from now on, dropping the previous selection's photos. A
