@@ -154,6 +154,58 @@ defmodule Fazoura.Admin do
     with {:ok, params} <- Quizzes.read_archive(binary), do: create_preset(params)
   end
 
+  @doc """
+  The quiz the editor works on, with its questions and tags (ADMIN.md §3.3).
+  """
+  @spec fetch_quiz(term()) :: {:ok, Quiz.t()} | {:error, :quiz_not_found}
+  def fetch_quiz(id) do
+    with {:ok, quiz} <- fetch(id) do
+      {:ok, Repo.preload(quiz, [:questions, :quiz_tags])}
+    end
+  end
+
+  @doc """
+  Replaces a quiz from an edited document (QUIZ_FORMAT.md §2).
+
+  Moderation, so no publisher key is involved and photo keys are trusted — the editor
+  only ever sets one it has just stored. Questions are re-issued, as they are on any
+  replacement, and the minor version is bumped.
+  """
+  @spec update_quiz(term(), map()) ::
+          {:ok, Quiz.t()} | {:error, Ecto.Changeset.t() | :quiz_not_found}
+  def update_quiz(id, params) do
+    with {:ok, quiz} <- fetch_quiz(id) do
+      Quizzes.replace_document(quiz, params)
+    end
+  end
+
+  @doc """
+  A changeset's errors as one line: "title can't be blank · tags must be a list of 1 to
+  10 tags". The dashboard has nowhere better to put them than a flash.
+  """
+  @spec error_messages(Ecto.Changeset.t()) :: String.t()
+  def error_messages(%Ecto.Changeset{} = changeset) do
+    changeset
+    |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
+    |> Enum.map_join(" · ", fn {field, messages} ->
+      "#{field} #{messages |> List.flatten() |> flatten_messages()}"
+    end)
+  end
+
+  # Question errors arrive as a list of per-question maps, most of them empty.
+  defp flatten_messages(messages) do
+    messages
+    |> Enum.flat_map(fn
+      message when is_binary(message) ->
+        [message]
+
+      %{} = nested ->
+        Enum.map(nested, fn {field, list} -> "#{field} #{Enum.join(list, ", ")}" end)
+    end)
+    |> Enum.uniq()
+    |> Enum.join(", ")
+  end
+
   # Anything that isn't a uuid is "not found" rather than a cast error.
   defp fetch(id) when is_binary(id) do
     with {:ok, uuid} <- Ecto.UUID.cast(id),

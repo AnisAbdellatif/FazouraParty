@@ -180,8 +180,20 @@ defmodule Fazoura.Quizzes do
   def replace(id, params, owner_key) do
     with {:ok, quiz} <- fetch_owned(id, owner_key),
          :ok <- check_images(params, quiz.owner_key_hash) do
-      Repo.transaction(fn -> replace_children!(quiz, params) end)
+      replace_document(quiz, params)
     end
+  end
+
+  @doc """
+  Replaces a quiz and all its children from a document, bumping the minor version so a
+  device holding an offline copy can tell it is stale.
+
+  Whoever calls this has already decided they are allowed to: `replace/3` checks the
+  publisher key, and `Fazoura.Admin` answers to the dashboard instead (ADMIN.md §3.3).
+  """
+  @spec replace_document(Quiz.t(), map()) :: {:ok, Quiz.t()} | {:error, Ecto.Changeset.t()}
+  def replace_document(%Quiz{} = quiz, params) do
+    Repo.transaction(fn -> replace_children!(quiz, params) end)
   end
 
   # Old tags and questions are deleted first so the new ones can reuse their positions.
@@ -244,6 +256,18 @@ defmodule Fazoura.Quizzes do
         owner_key_hash: hash
       })
     end
+  end
+
+  @doc """
+  Stores a photo the server itself owns, for one an admin adds from the dashboard.
+
+  The same owner as a preset's photos: not a device's, so nothing published through the
+  API can claim it and the photo cannot be removed by unpublishing something else.
+  """
+  @spec store_own_image(binary()) ::
+          {:ok, Image.t()} | {:error, :image_too_large | :unsupported_image}
+  def store_own_image(binary) do
+    with {:ok, stored} <- Uploads.store_stable(binary), do: {:ok, register_photo(stored)}
   end
 
   @doc """

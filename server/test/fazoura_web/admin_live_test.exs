@@ -80,9 +80,17 @@ defmodule FazouraWeb.AdminLiveTest do
       assert Quizzes.fetch(quiz.id) == {:error, :quiz_not_found}
 
       json = Jason.encode!(QuizFixtures.quiz_params(%{"title" => "Pasted Preset"}))
-      view |> form("form[phx-submit=add_preset]", %{json: json}) |> render_submit()
-      assert render(view) =~ "Added preset"
-      assert {:ok, %{source: "builtin"}} = Quizzes.fetch("pasted-preset")
+
+      # A new quiz opens in the editor, which is where whoever added it is going next.
+      redirect = view |> form("form[phx-submit=add_preset]", %{json: json}) |> render_submit()
+      assert {:ok, %{id: id, source: "builtin"}} = Quizzes.fetch("pasted-preset")
+      assert {:error, {:live_redirect, %{to: to}}} = redirect
+      assert to == ~p"/admin/quizzes/#{id}/edit"
+
+      assert {:ok, _editor, html} = follow_redirect(redirect, conn)
+      assert html =~ "Pasted Preset"
+
+      {:ok, view, _html} = live(conn, ~p"/admin/quizzes")
 
       view |> form("form[phx-submit=add_preset]", %{json: "nope"}) |> render_submit()
       assert render(view) =~ "valid JSON"
@@ -111,10 +119,16 @@ defmodule FazouraWeb.AdminLiveTest do
         )
 
       upload(view, "night.fazoura", binary)
-      view |> form("form[phx-submit=add_package]") |> render_submit()
 
-      assert render(view) =~ "Added preset"
+      # Straight into the editor: a package's questions are the thing most likely to
+      # need a correction before anyone plays it.
+      redirect = view |> form("form[phx-submit=add_package]") |> render_submit()
       assert {:ok, quiz} = Quizzes.fetch("packaged-night")
+      assert {:error, {:live_redirect, %{to: to}}} = redirect
+      assert to == ~p"/admin/quizzes/#{quiz.id}/edit"
+
+      assert {:ok, _editor, html} = follow_redirect(redirect, conn)
+      assert html =~ "Which film?"
       assert {quiz.source, quiz.has_photos} == {"builtin", true}
 
       # The photo travelled with the document and came out an ordinary upload, so the
@@ -180,6 +194,215 @@ defmodule FazouraWeb.AdminLiveTest do
 
       assert view |> form("form[phx-change=search]", %{q: "zzz"}) |> render_change() =~
                "No quizzes match"
+    end
+  end
+
+  describe "the quiz editor" do
+    # The form sends everything it holds on every change, so a test that wants to change
+    # one field has to send the rest with it, exactly as the browser does.
+    defp fields(view, changes) do
+      form = element(view, "form[phx-submit=save]")
+      current = form |> render() |> params_from_html()
+      render_change(form, %{"quiz" => deep_merge(current, changes)})
+    end
+
+    # The rendered form's own values, so a test starts from what is on screen.
+    defp params_from_html(html) do
+      questions =
+        Regex.scan(~r/name="quiz\[questions\]\[(q\d+)\]/, html)
+        |> Enum.map(fn [_match, cid] -> cid end)
+        |> Enum.uniq()
+        |> Map.new(&{&1, %{}})
+
+      %{"questions" => questions}
+    end
+
+    defp deep_merge(left, right) do
+      Map.merge(left, right, fn
+        _key, %{} = a, %{} = b -> deep_merge(a, b)
+        _key, _a, b -> b
+      end)
+    end
+
+    defp editor(conn, quiz) do
+      {:ok, view, _html} = live(conn, ~p"/admin/quizzes/#{quiz.id}/edit")
+      view
+    end
+
+    defp save(view) do
+      view |> element("form[phx-submit=save]") |> render_submit()
+    end
+
+    test "opens a quiz with its questions filled in", %{conn: conn, quiz: quiz} do
+      {:ok, view, html} = live(conn, ~p"/admin/quizzes/#{quiz.id}/edit")
+
+      assert html =~ "Movie Night"
+      assert html =~ "Who directed Jurassic Park?"
+      assert has_element?(view, "form[phx-submit=save]")
+    end
+
+    test "a quiz that is gone sends you back to the list", %{conn: conn, quiz: quiz} do
+      Fazoura.Admin.delete_quiz(quiz.id)
+
+      assert {:error, {:live_redirect, %{to: to}}} =
+               live(conn, ~p"/admin/quizzes/#{quiz.id}/edit")
+
+      assert to == ~p"/admin/quizzes"
+    end
+
+    test "edits metadata and saves a new version", %{conn: conn, quiz: quiz} do
+      view = editor(conn, quiz)
+
+      fields(view, %{
+        "title" => "Movie Night Deluxe",
+        "description" => "Now with more films",
+        "tags" => "cinema, classics",
+        "seconds" => "45",
+        "difficulty_multiplier" => "true"
+      })
+
+      assert save(view) =~ "Saved"
+
+      {:ok, saved} = Quizzes.fetch(quiz.id)
+      assert saved.title == "Movie Night Deluxe"
+      assert saved.description == "Now with more films"
+      assert Enum.map(saved.quiz_tags, & &1.tag) == ["cinema", "classics"]
+      assert {saved.default_time_limit_ms, saved.default_difficulty_multiplier} == {45_000, true}
+
+      # A device holding an offline copy has to be able to tell it is stale.
+      assert saved.version == "1.1"
+    end
+
+    test "edits a question", %{conn: conn, quiz: quiz} do
+      view = editor(conn, quiz)
+
+      fields(view, %{
+        "questions" => %{
+          "q1" => %{
+            "prompt" => "Capital of New Zealand?",
+            "accepted_answers" => "Wellington\n  Te Whanganui-a-Tara  \n\n",
+            "difficulty" => "hard",
+            "seconds" => "60",
+            "explanation" => "Not Auckland."
+          }
+        }
+      })
+
+      assert save(view) =~ "Saved"
+
+      {:ok, saved} = Quizzes.fetch(quiz.id)
+      [first | _rest] = saved.questions
+
+      assert first.prompt == "Capital of New Zealand?"
+      # One answer per line, trimmed, blank lines dropped.
+      assert first.accepted_answers == ["Wellington", "Te Whanganui-a-Tara"]
+      assert {first.difficulty, first.time_limit_ms} == {"hard", 60_000}
+      assert first.explanation == "Not Auckland."
+    end
+
+    test "adds, moves and removes questions", %{conn: conn, quiz: quiz} do
+      view = editor(conn, quiz)
+      assert {:ok, %{question_count: 1}} = Quizzes.fetch(quiz.id)
+
+      view |> element("button[phx-click=add_question]") |> render_click()
+      view |> element("button[phx-click=add_question]") |> render_click()
+
+      fields(view, %{
+        "questions" => %{
+          "q2" => %{"prompt" => "Second?", "accepted_answers" => "Yes"},
+          "q3" => %{"prompt" => "Third?", "accepted_answers" => "Yes"}
+        }
+      })
+
+      view
+      |> element("button[phx-click=move_question][phx-value-cid=q3][phx-value-by='-1']")
+      |> render_click()
+
+      view |> element("button[phx-click=remove_question][phx-value-cid=q1]") |> render_click()
+
+      assert save(view) =~ "Saved"
+
+      {:ok, saved} = Quizzes.fetch(quiz.id)
+      # Started with q1; added q2 and q3; moved q3 above q2; dropped q1.
+      assert Enum.map(saved.questions, & &1.prompt) == ["Third?", "Second?"]
+    end
+
+    test "a quiz it would refuse says why and stays put", %{conn: conn, quiz: quiz} do
+      view = editor(conn, quiz)
+
+      fields(view, %{"title" => "", "tags" => ""})
+      html = save(view)
+
+      assert html =~ "title can&#39;t be blank"
+      assert html =~ "tags must be a list of 1 to 10 tags"
+
+      # Nothing was written, and the form still holds what was typed.
+      assert {:ok, %{title: "Movie Night", version: "1.0"}} = Quizzes.fetch(quiz.id)
+    end
+
+    test "a question cannot be saved empty", %{conn: conn, quiz: quiz} do
+      view = editor(conn, quiz)
+
+      fields(view, %{"questions" => %{"q1" => %{"prompt" => "", "accepted_answers" => ""}}})
+
+      assert save(view) =~ "questions"
+      assert {:ok, %{version: "1.0"}} = Quizzes.fetch(quiz.id)
+    end
+
+    test "removes a photo, which makes it an ordinary text question", %{conn: conn} do
+      {:ok, image} = Quizzes.store_image(QuizFixtures.png(), QuizFixtures.owner_key())
+
+      {:ok, quiz} =
+        Quizzes.create(
+          QuizFixtures.quiz_params(%{
+            "title" => "Photo Quiz",
+            "questions" => [
+              %{
+                "type" => "text_photo",
+                "prompt" => "Which film?",
+                "accepted_answers" => ["The Matrix"],
+                "image" => %{"key" => image.key, "alt" => "A still"}
+              }
+            ]
+          }),
+          QuizFixtures.owner_key()
+        )
+
+      view = editor(conn, quiz)
+      assert has_element?(view, "img[src$='#{image.key}']")
+
+      view |> element("button[phx-click=remove_photo][phx-value-cid=q1]") |> render_click()
+      assert save(view) =~ "Saved"
+
+      {:ok, saved} = Quizzes.fetch(quiz.id)
+      [question] = saved.questions
+
+      # The type follows the photo rather than being set separately, so there is no way
+      # to end up with a photo question that has no photo.
+      assert {question.type, question.image_key} == {"text", nil}
+      refute saved.has_photos
+    end
+
+    test "adds a photo to a question", %{conn: conn, quiz: quiz} do
+      view = editor(conn, quiz)
+
+      view |> element("button[phx-click=choose_photo][phx-value-cid=q1]") |> render_click()
+
+      view
+      |> file_input("form[phx-submit=save]", :photo, [
+        %{name: "still.png", content: QuizFixtures.png(), type: "image/png"}
+      ])
+      |> render_upload("still.png")
+
+      fields(view, %{"questions" => %{"q1" => %{"image_alt" => "A still"}}})
+      assert save(view) =~ "Saved"
+
+      {:ok, saved} = Quizzes.fetch(quiz.id)
+      [first | _rest] = saved.questions
+
+      assert {first.type, first.image_alt} == {"text_photo", "A still"}
+      assert File.regular?(Path.join(Uploads.dir(), first.image_key))
+      assert saved.has_photos
     end
   end
 

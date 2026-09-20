@@ -46,7 +46,7 @@ defmodule Fazoura.Quizzes.Question do
       :explanation
     ])
     |> put_change(:position, position)
-    |> update_change(:prompt, &String.trim/1)
+    |> update_change(:prompt, &trim/1)
     |> update_change(:accepted_answers, &clean_answers/1)
     |> validate_required([:type, :prompt, :accepted_answers])
     |> validate_inclusion(:type, @types)
@@ -67,6 +67,10 @@ defmodule Fazoura.Quizzes.Question do
     |> validate_length(:explanation, max: 280)
     |> validate_image()
   end
+
+  # An emptied prompt casts to the schema default — nil — rather than to "".
+  defp trim(value) when is_binary(value), do: String.trim(value)
+  defp trim(value), do: value
 
   # The document nests the photo as `image: {key, alt}`; the table flattens it.
   defp normalize(%{} = params) do

@@ -50,6 +50,7 @@ defmodule FazouraWeb.Router do
     live_session :admin, on_mount: {FazouraWeb.Admin.Auth, :ensure_admin} do
       live "/", StatsLive
       live "/quizzes", QuizzesLive
+      live "/quizzes/:id/edit", QuizEditLive
       live "/tags", TagsLive
     end
   end

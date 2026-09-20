@@ -9,7 +9,7 @@ Companion to [PROTOCOL.md](PROTOCOL.md) (live rooms) and [QUIZ_FORMAT.md](QUIZ_F
 
 The key indicators are live data: running games and connected players are BEAM processes in
 the room registry, not rows in a table. The Phoenix server can read them directly, so the
-dashboard is three LiveViews in the same application — no second service to deploy, no
+dashboard is four LiveViews in the same application — no second service to deploy, no
 extra API to expose the room state, no second set of credentials or CORS rules. The quiz
 database is already here too.
 
@@ -55,13 +55,39 @@ Refreshes every 2 seconds while open.
   quiz and become ordinary uploads owned by a key no device holds (§6); a pasted document does
   not, so its photos must already be uploaded. `tools/fazoura_pack.py` builds a package from a
   folder of JSON and images.
+- **Edit** any quiz — its metadata and every question — in the editor (§3.3). A quiz added
+  from a package or a pasted document opens there straight away, since a new quiz is the one
+  most likely to need a correction before anyone plays it.
 - **Delete** any quiz, preset or community, with its questions and tags. Running games are
   unaffected: a room snapshots its quiz when it starts (PROTOCOL.md §6.2).
 
 Moderation deliberately ignores the publisher key that normally guards a quiz
 (QUIZ_FORMAT.md §4).
 
-### 3.3 Tags (`/admin/tags`)
+### 3.3 Quiz editor (`/admin/quizzes/:id/edit`)
+
+Everything about one quiz, community or preset.
+
+- **Metadata:** title, description, language, tags (comma separated) and the default
+  seconds per question and difficulty bonus. The form counts seconds; the document counts
+  milliseconds (QUIZ_FORMAT.md §2.2).
+- **Questions:** prompt, accepted answers (one per line, trimmed, blanks dropped),
+  difficulty, an optional per-question time, an optional explanation — and add, remove and
+  reorder.
+- **Photos:** upload one per question, replace it, or remove it. An uploaded photo is an
+  ordinary upload owned by the server itself, the same owner a preset's photos have (§6), so
+  it cannot be claimed or unpublished through the API. Removing one only drops the
+  reference; `ImageSweeper` collects the file once nothing points at it.
+- **A question's type follows its photo.** `text_photo` exactly when there is one, so a
+  photo question with no photo is not a state the editor can produce.
+- **Saving replaces the quiz** and bumps the minor version, exactly as `PUT /api/quizzes/:id`
+  does for a publisher — question ids are re-issued, and a device holding an offline copy can
+  tell that its copy is stale. Validation is `Quiz.changeset/2`, the same rules the API
+  applies; a rejected save changes nothing and reports why.
+
+The working copy lives in the LiveView until it is saved, so leaving the page discards it.
+
+### 3.4 Tags (`/admin/tags`)
 
 The **suggested tags** the apps offer as quick picks (QUIZ_FORMAT.md §2.3): add, remove,
 reorder, and reset to the built-in list. Each tag shows how many public quizzes use it.

@@ -62,7 +62,7 @@ defmodule FazouraWeb.Admin.QuizzesLive do
          socket
          |> assign(json: "")
          |> put_flash(:info, ~s(Added preset "#{quiz.title}".))
-         |> load()}
+         |> push_navigate(to: ~p"/admin/quizzes/#{quiz.id}/edit")}
 
       {:error, :invalid_json} ->
         {:noreply, socket |> assign(json: json) |> put_flash(:error, "That isn't valid JSON.")}
@@ -71,7 +71,7 @@ defmodule FazouraWeb.Admin.QuizzesLive do
         {:noreply,
          socket
          |> assign(json: json)
-         |> put_flash(:error, "The quiz is invalid: #{errors(changeset)}")}
+         |> put_flash(:error, "The quiz is invalid: #{Admin.error_messages(changeset)}")}
     end
   end
 
@@ -92,7 +92,7 @@ defmodule FazouraWeb.Admin.QuizzesLive do
         {:noreply,
          socket
          |> put_flash(:info, ~s(Added preset "#{quiz.title}" — #{described(quiz)}.))
-         |> load()}
+         |> push_navigate(to: ~p"/admin/quizzes/#{quiz.id}/edit")}
 
       [{:error, reason}] ->
         {:noreply, put_flash(socket, :error, package_error(reason))}
@@ -108,7 +108,7 @@ defmodule FazouraWeb.Admin.QuizzesLive do
   end
 
   defp package_error(%Ecto.Changeset{} = changeset),
-    do: "The quiz in that package is invalid: #{errors(changeset)}"
+    do: "The quiz in that package is invalid: #{Admin.error_messages(changeset)}"
 
   defp package_error(:archive_too_large),
     do: "That package is over the #{div(Archive.max_bytes(), 1024 * 1024)} MB limit."
@@ -137,15 +137,6 @@ defmodule FazouraWeb.Admin.QuizzesLive do
   defp upload_error(:not_accepted), do: "Only .fazoura packages can be uploaded here."
   defp upload_error(:too_many_files), do: "One package at a time."
   defp upload_error(reason), do: "That file was refused: #{inspect(reason)}."
-
-  # "title can't be blank · questions must be a list of 1 to 1024 questions"
-  defp errors(changeset) do
-    changeset
-    |> Ecto.Changeset.traverse_errors(fn {message, _opts} -> message end)
-    |> Enum.map_join(" · ", fn {field, messages} ->
-      "#{field} #{messages |> List.flatten() |> Enum.join(", ")}"
-    end)
-  end
 
   @impl true
   def render(assigns) do
@@ -187,6 +178,7 @@ defmodule FazouraWeb.Admin.QuizzesLive do
               <span :if={quiz.has_photos}>· photos</span>
             </td>
             <td>
+              <.link navigate={~p"/admin/quizzes/#{quiz.id}/edit"} class="button">Edit</.link>
               <button
                 phx-click="toggle_preset"
                 phx-value-id={quiz.id}

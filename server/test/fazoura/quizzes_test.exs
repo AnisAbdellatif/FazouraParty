@@ -256,6 +256,22 @@ defmodule Fazoura.QuizzesTest do
   end
 
   describe "replace/3 and delete/2" do
+    test "a field cleared to an empty string is reported, not a crash" do
+      {:ok, quiz} = Quizzes.create(quiz_params(), @owner)
+
+      # Ecto replaces an emptied field with the schema default — nil — so a changeset
+      # that trims it has to cope with one. This used to raise, which meant a 500.
+      assert {:error, changeset} =
+               Quizzes.replace(
+                 quiz.id,
+                 quiz_params(%{"title" => "", "questions" => [question(%{"prompt" => ""})]}),
+                 @owner
+               )
+
+      assert %{title: ["can't be blank"]} = errors(changeset)
+      assert [%{prompt: ["can't be blank"]}] = errors(changeset).questions
+    end
+
     setup do
       {:ok, quiz} = Quizzes.create(quiz_params(), @owner)
       %{quiz: quiz}

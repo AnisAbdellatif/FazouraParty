@@ -128,6 +128,37 @@ defmodule FazouraWeb.Layouts do
     .tagchip button { border: 0; padding: 0 4px; color: var(--dim); }
     .muted { color: var(--dim); }
     details summary { cursor: pointer; color: var(--dim); margin: 24px 0 12px; }
+
+    /* The quiz editor */
+    a.button {
+      display: inline-block; text-decoration: none; font: inherit; border-radius: 999px;
+      padding: 6px 13px; border: 1px solid var(--line); color: var(--ink);
+    }
+    a.button:hover { border-color: var(--ac); }
+    button[disabled] { opacity: .35; cursor: default; }
+    button[disabled]:hover { border-color: var(--line); }
+    .panel.pad { padding: 16px; overflow: visible; }
+    .panel.question { margin-bottom: 12px; }
+    .row.between { display: flex; justify-content: space-between; align-items: center;
+                   gap: 8px; margin-bottom: 12px; }
+    .row.between strong { font-size: 13px; letter-spacing: .1em; }
+    form label { display: block; margin: 0 0 12px; color: var(--dim); font-size: 12px; }
+    form label > input, form label > textarea, form label > select { margin-top: 5px; }
+    form label.check { display: flex; align-items: center; gap: 8px; color: var(--ink);
+                       font-size: 13px; margin-top: 22px; }
+    form label.check input { width: auto; margin: 0; }
+    .fields { display: grid; gap: 0 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    input[type=number], select {
+      font: inherit; width: 100%; background: #121110; color: var(--ink);
+      border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+    }
+    textarea.answers { min-height: 92px; }
+    .photo { display: flex; gap: 14px; align-items: flex-start; }
+    .photo img {
+      width: 108px; height: 108px; object-fit: cover; border-radius: 10px;
+      border: 1px solid var(--line); background: #121110;
+    }
+    .photo-controls { flex: 1; min-width: 0; }
     """
   end
 end

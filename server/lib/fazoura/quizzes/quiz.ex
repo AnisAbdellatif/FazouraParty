@@ -61,7 +61,7 @@ defmodule Fazoura.Quizzes.Quiz do
       :default_time_limit_ms,
       :default_difficulty_multiplier
     ])
-    |> update_change(:title, &String.trim/1)
+    |> update_change(:title, &trim/1)
     |> validate_required([:format_version, :title])
     |> validate_number(:format_version, equal_to: @format_version)
     |> validate_change(:version, fn :version, version ->
@@ -79,6 +79,11 @@ defmodule Fazoura.Quizzes.Quiz do
     |> put_tags(params["tags"])
     |> put_questions(params["questions"])
   end
+
+  # An emptied field casts to the schema default — nil — rather than to "", so trimming
+  # has to cope with one. `validate_required/2` is what reports it.
+  defp trim(value) when is_binary(value), do: String.trim(value)
+  defp trim(value), do: value
 
   # Tags are free text (§2.3): normalised, de-duplicated, order preserved.
   defp put_tags(changeset, tags) when is_list(tags) do

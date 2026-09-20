@@ -215,7 +215,7 @@ Order: built-in first, then most recently updated.
 
 `tags` are the tags public quizzes actually use, most used first then alphabetically
 (query: `limit`, 1–100, default 30). `suggested` is the admin-maintained quick-pick list
-(§2.3, ADMIN.md §3.3); clients fall back to their built-in list when it is empty or the
+(§2.3, ADMIN.md §3.4); clients fall back to their built-in list when it is empty or the
 server can't be reached.
 
 ```json
