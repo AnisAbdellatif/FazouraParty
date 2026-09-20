@@ -30,7 +30,8 @@ abstract final class FzColors {
 typedef FontApplier = TextStyle Function(TextStyle style);
 
 /// Fonts for the design: Figtree for body and buttons, DM Mono for labels,
-/// codes and numbers, Reem Kufi for display headings and the Arabic wordmark.
+/// codes and numbers, Reem Kufi for display headings, and Noto Naskh Arabic
+/// behind all three for anything written in Arabic.
 ///
 /// All three are bundled with the app (pubspec `fonts:`) and referenced by
 /// family name, so nothing is ever fetched over the network — the design holds
@@ -47,13 +48,15 @@ class FzTheme extends ThemeExtension<FzTheme> {
   final FontApplier monoFont;
   final FontApplier titleFont;
 
-  /// Latin fonts fall back to Reem Kufi for anything they lack — in practice
-  /// the Arabic wordmark, which appears inside otherwise-Latin strings. Without
-  /// a bundled fallback that covers it, Flutter Web downloads Noto Sans Arabic
-  /// from fonts.gstatic.com on first paint, which is both a third-party request
-  /// and a blank wordmark at a party with no internet. Reem Kufi is an Arabic
-  /// typeface and already ships with the app.
-  static const _arabicFallback = ['Reem Kufi'];
+  /// The Latin fonts carry no Arabic, so everything written in it — a quiz, a
+  /// name, an answer — is drawn by the fallback. Naskh is the shape Arabic is
+  /// read in, and the one to hand a question to; Reem Kufi, which used to sit
+  /// here, is a display face and made body text hard going.
+  ///
+  /// Bundled rather than left to the system, because without a fallback that
+  /// covers Arabic, Flutter Web fetches one from fonts.gstatic.com on first
+  /// paint — a third-party request, and blank text at a party with no internet.
+  static const _arabicFallback = ['Noto Naskh Arabic'];
 
   static TextStyle _figtree(TextStyle style) => style.copyWith(
     fontFamily: 'Figtree',
@@ -62,7 +65,7 @@ class FzTheme extends ThemeExtension<FzTheme> {
 
   static TextStyle _dmMono(TextStyle style) => style.copyWith(
     fontFamily: 'DM Mono',
-    fontFamilyFallback: const ['Reem Kufi', 'monospace'],
+    fontFamilyFallback: const [..._arabicFallback, 'monospace'],
   );
 
   static TextStyle _reemKufi(TextStyle style) =>

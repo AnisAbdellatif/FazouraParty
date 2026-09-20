@@ -10,6 +10,7 @@ import '../../core/quizzes/quiz_library.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
+import '../../shared/widgets/fz_direction.dart';
 import '../../shared/widgets/fz_choice.dart';
 import '../../shared/widgets/question_photo.dart';
 import 'photo_resize.dart';
@@ -325,27 +326,33 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 8),
-        TextField(
-          key: const Key('quizTitleField'),
+        FzTypingDirection(
           controller: _title,
-          maxLength: maxQuizTitleLength,
-          style: fz.h(22),
-          decoration: const InputDecoration(
-            hintText: 'Quiz title',
-            counterText: '',
+          child: TextField(
+            key: const Key('quizTitleField'),
+            controller: _title,
+            maxLength: maxQuizTitleLength,
+            style: fz.h(22),
+            decoration: const InputDecoration(
+              hintText: 'Quiz title',
+              counterText: '',
+            ),
           ),
         ),
         const SizedBox(height: 10),
-        TextField(
-          key: const Key('quizDescriptionField'),
+        FzTypingDirection(
           controller: _description,
-          minLines: 1,
-          maxLines: 3,
-          maxLength: maxQuizDescriptionLength,
-          style: fz.m(13),
-          decoration: const InputDecoration(
-            hintText: 'Short description (optional)',
-            counterText: '',
+          child: TextField(
+            key: const Key('quizDescriptionField'),
+            controller: _description,
+            minLines: 1,
+            maxLines: 3,
+            maxLength: maxQuizDescriptionLength,
+            style: fz.m(13),
+            decoration: const InputDecoration(
+              hintText: 'Short description (optional)',
+              counterText: '',
+            ),
           ),
         ),
         const SizedBox(height: 20),
@@ -380,16 +387,19 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
         Row(
           children: [
             Expanded(
-              child: TextField(
-                key: const Key('tagInput'),
+              child: FzTypingDirection(
                 controller: _tagInput,
-                maxLength: maxTagLength,
-                style: fz.m(14),
-                decoration: const InputDecoration(
-                  hintText: 'Add a tag',
-                  counterText: '',
+                child: TextField(
+                  key: const Key('tagInput'),
+                  controller: _tagInput,
+                  maxLength: maxTagLength,
+                  style: fz.m(14),
+                  decoration: const InputDecoration(
+                    hintText: 'Add a tag',
+                    counterText: '',
+                  ),
+                  onSubmitted: _addTag,
                 ),
-                onSubmitted: _addTag,
               ),
             ),
             const SizedBox(width: 8),
@@ -632,16 +642,19 @@ class _QuestionEditor extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          TextField(
-            key: Key('questionPrompt-$index'),
+          FzTypingDirection(
             controller: question.prompt,
-            minLines: 1,
-            maxLines: 4,
-            maxLength: maxPromptLength,
-            style: fz.h(17, weight: FontWeight.w700),
-            decoration: const InputDecoration(
-              hintText: 'Type the question',
-              counterText: '',
+            child: TextField(
+              key: Key('questionPrompt-$index'),
+              controller: question.prompt,
+              minLines: 1,
+              maxLines: 4,
+              maxLength: maxPromptLength,
+              style: fz.h(17, weight: FontWeight.w700),
+              decoration: const InputDecoration(
+                hintText: 'Type the question',
+                counterText: '',
+              ),
             ),
           ),
           if (question.isPhoto) ...[
@@ -705,14 +718,17 @@ class _QuestionEditor extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: TextField(
-                  key: Key('answerInput-$index'),
+                child: FzTypingDirection(
                   controller: question.answerInput,
-                  style: fz.m(14),
-                  decoration: const InputDecoration(
-                    hintText: 'Add an accepted answer',
+                  child: TextField(
+                    key: Key('answerInput-$index'),
+                    controller: question.answerInput,
+                    style: fz.m(14),
+                    decoration: const InputDecoration(
+                      hintText: 'Add an accepted answer',
+                    ),
+                    onSubmitted: (_) => _addAnswer(),
                   ),
-                  onSubmitted: (_) => _addAnswer(),
                 ),
               ),
               const SizedBox(width: 8),

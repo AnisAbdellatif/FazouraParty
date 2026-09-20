@@ -92,7 +92,7 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 | `slug` | string \| null | Stable human id for built-in quizzes (`general-knowledge`); `null` for custom |
 | `title` | string | Required, 1–80 characters (trimmed) |
 | `description` | string \| null | ≤ 280 characters |
-| `language` | string | BCP-47-ish code, 2–10 chars, default `"en"` |
+| `language` | string | BCP-47-ish code, 2–10 chars, default `"en"`. Metadata, not layout: a client works out which way a line reads from the line itself (first strong character, UAX #9), because a quiz may mix scripts and a player answers in whichever they like |
 | `tags` | string[] | Required: 1–10 tags in display order, each 1–24 characters. Free text, normalised to lower case with collapsed whitespace and de-duplicated (§2.3) |
 | `source` | `"builtin"` \| `"custom"` | Server-assigned |
 | `visibility` | `"public"` \| `"private"` | Stored quizzes are always `public`; the app uses `private` for quizzes kept on the device (§4). Ignored on input |

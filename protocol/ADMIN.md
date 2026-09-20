@@ -94,6 +94,10 @@ Everything about one quiz, community or preset.
   tell that its copy is stale. Validation is `Quiz.changeset/2`, the same rules the API
   applies; a rejected save changes nothing and reports why.
 
+- **Right-to-left content** is handled by `dir="auto"` on every field and on anything showing
+  a quiz's own words, so an Arabic title, prompt or answer reads from the right without the
+  dashboard itself becoming an Arabic dashboard.
+
 The working copy lives in the LiveView until it is saved, so leaving the page discards it.
 
 ### 3.4 Tags (`/admin/tags`)

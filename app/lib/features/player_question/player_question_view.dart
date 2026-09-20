@@ -7,6 +7,7 @@ import '../../shared/describe_error.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/countdown.dart';
 import '../../shared/widgets/fz.dart';
+import '../../shared/widgets/fz_direction.dart';
 import '../../shared/widgets/question_photo.dart';
 import '../../shared/widgets/submitted_dots.dart';
 
@@ -148,14 +149,17 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
             FzEnter(
               key: ValueKey('prompt-${question.id}'),
               rise: true,
-              child: Text(
-                question.prompt,
-                key: const Key('questionPrompt'),
-                style: fz.h(
-                  30,
-                  weight: FontWeight.w900,
-                  height: 1.12,
-                  tracking: -.03,
+              child: FzDirection(
+                text: question.prompt,
+                child: Text(
+                  question.prompt,
+                  key: const Key('questionPrompt'),
+                  style: fz.h(
+                    30,
+                    weight: FontWeight.w900,
+                    height: 1.12,
+                    tracking: -.03,
+                  ),
                 ),
               ),
             ),
@@ -191,20 +195,23 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
   List<Widget> _inputs(FzTheme fz, {required bool paused}) {
     final busy = _sending;
     return [
-      TextField(
-        key: const Key('answerField'),
+      FzTypingDirection(
         controller: _answerController,
-        enabled: !busy,
-        maxLength: maxAnswerLength,
-        style: fz.h(20, weight: FontWeight.w700),
-        decoration: const InputDecoration(
-          hintText: 'Type your answer',
-          counterText: '',
+        child: TextField(
+          key: const Key('answerField'),
+          controller: _answerController,
+          enabled: !busy,
+          maxLength: maxAnswerLength,
+          style: fz.h(20, weight: FontWeight.w700),
+          decoration: const InputDecoration(
+            hintText: 'Type your answer',
+            counterText: '',
+          ),
+          textInputAction: TextInputAction.done,
+          onSubmitted: (_) {
+            if (!busy && !paused) _submit();
+          },
         ),
-        textInputAction: TextInputAction.done,
-        onSubmitted: (_) {
-          if (!busy && !paused) _submit();
-        },
       ),
       const SizedBox(height: 22),
       Row(
@@ -331,10 +338,13 @@ class _LockedIn extends StatelessWidget {
               style: fz.m(12, color: FzColors.dim),
             ),
             const SizedBox(height: 12),
-            Text(
-              'Your answer: $answer',
-              textAlign: TextAlign.center,
-              style: fz.h(17),
+            FzDirection(
+              text: 'Your answer: $answer',
+              child: Text(
+                'Your answer: $answer',
+                textAlign: TextAlign.center,
+                style: fz.h(17),
+              ),
             ),
             const SizedBox(height: 4),
             Text('Wager $wager', style: fz.m(11, color: FzColors.ac)),

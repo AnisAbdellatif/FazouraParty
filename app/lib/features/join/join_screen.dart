@@ -13,6 +13,7 @@ import '../../core/providers/room_tokens.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
+import '../../shared/widgets/fz_direction.dart';
 import '../player/player_game_screen.dart';
 
 const roomCodeLength = 6;
@@ -212,17 +213,20 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
               const SizedBox(height: 28),
               const FzEyebrow('Your name'),
               const SizedBox(height: 10),
-              TextFormField(
-                key: const Key('displayNameField'),
+              FzTypingDirection(
                 controller: _nameController,
-                enabled: !_joining,
-                style: fz.h(18, weight: FontWeight.w700),
-                decoration: const InputDecoration(
-                  hintText: 'What should we call you?',
+                child: TextFormField(
+                  key: const Key('displayNameField'),
+                  controller: _nameController,
+                  enabled: !_joining,
+                  style: fz.h(18, weight: FontWeight.w700),
+                  decoration: const InputDecoration(
+                    hintText: 'What should we call you?',
+                  ),
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _join(),
+                  validator: validateDisplayName,
                 ),
-                textInputAction: TextInputAction.done,
-                onFieldSubmitted: (_) => _join(),
-                validator: validateDisplayName,
               ),
               const SizedBox(height: 8),
               SwitchListTile(

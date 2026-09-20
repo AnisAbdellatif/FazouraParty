@@ -5,6 +5,7 @@ import '../../core/models/models.dart';
 import '../../shared/quiz_titles.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
+import '../../shared/widgets/fz_direction.dart';
 
 /// Room code, player grid and tonight's pack. Players get a waiting card at
 /// the bottom; the host passes a start button as [footer] and the game
@@ -226,12 +227,15 @@ class _PlayerCard extends StatelessWidget {
           children: [
             FzAvatar(id: player.id, name: player.name, hue: player.avatarHue),
             const SizedBox(height: 8),
-            Text(
-              player.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: fz.h(12.5, weight: FontWeight.w600),
+            FzDirection(
+              text: player.name,
+              child: Text(
+                player.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: fz.h(12.5, weight: FontWeight.w600),
+              ),
             ),
             const SizedBox(height: 6),
             FzTag(tag, color: tagColor),

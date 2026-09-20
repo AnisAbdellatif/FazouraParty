@@ -14,6 +14,7 @@ import '../../shared/quiz_titles.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/connection_banner.dart';
 import '../../shared/widgets/fz.dart';
+import '../../shared/widgets/fz_direction.dart';
 import '../../shared/widgets/game_top_bar.dart';
 import '../../shared/widgets/reveal_summary.dart';
 import '../../shared/widgets/standings.dart';
@@ -600,9 +601,12 @@ class _SubmissionRow extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 3),
-                    Text(
-                      submission.answer,
-                      style: fz.h(16, weight: FontWeight.w700),
+                    FzDirection(
+                      text: submission.answer,
+                      child: Text(
+                        submission.answer,
+                        style: fz.h(16, weight: FontWeight.w700),
+                      ),
                     ),
                     const SizedBox(height: 3),
                     Text(

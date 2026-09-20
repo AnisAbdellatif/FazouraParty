@@ -347,7 +347,8 @@ defmodule FazouraWeb.Admin.QuizEditLive do
   def render(assigns) do
     ~H"""
     <h2>
-      <.link navigate={~p"/admin/quizzes"} class="muted">Quizzes</.link> / {@quiz.title}
+      <.link navigate={~p"/admin/quizzes"} class="muted">Quizzes</.link> /
+      <span dir="auto">{@quiz.title}</span>
     </h2>
 
     <form id="edit-quiz" phx-change="validate" phx-submit="save">
@@ -367,7 +368,7 @@ defmodule FazouraWeb.Admin.QuizEditLive do
         <div class="fields">
           <label>
             Title
-            <input type="text" name="quiz[title]" value={@meta["title"]} autocomplete="off" />
+            <input type="text" name="quiz[title]" value={@meta["title"]} autocomplete="off" dir="auto" />
           </label>
           <label>
             Language
@@ -382,12 +383,13 @@ defmodule FazouraWeb.Admin.QuizEditLive do
             name="quiz[description]"
             value={@meta["description"]}
             autocomplete="off"
+            dir="auto"
           />
         </label>
 
         <label>
           Tags <span class="muted">— 1 to 10, comma separated</span>
-          <input type="text" name="quiz[tags]" value={@meta["tags"]} autocomplete="off" />
+          <input type="text" name="quiz[tags]" value={@meta["tags"]} autocomplete="off" dir="auto" />
         </label>
 
         <div class="fields">
@@ -428,6 +430,7 @@ defmodule FazouraWeb.Admin.QuizEditLive do
           <button
             type="button"
             class="preview"
+            dir="auto"
             phx-click="toggle_question"
             phx-value-cid={question["cid"]}
           >
@@ -455,6 +458,7 @@ defmodule FazouraWeb.Admin.QuizEditLive do
             name={"quiz[questions][#{question["cid"]}][prompt]"}
             value={question["prompt"]}
             autocomplete="off"
+            dir="auto"
           />
         </label>
 
@@ -465,6 +469,7 @@ defmodule FazouraWeb.Admin.QuizEditLive do
               name={"quiz[questions][#{question["cid"]}][accepted_answers]"}
               class="answers"
               spellcheck="false"
+              dir="auto"
             >{question["accepted_answers"]}</textarea>
           </label>
 
@@ -501,6 +506,7 @@ defmodule FazouraWeb.Admin.QuizEditLive do
             name={"quiz[questions][#{question["cid"]}][explanation]"}
             value={question["explanation"]}
             autocomplete="off"
+            dir="auto"
           />
         </label>
 
@@ -521,6 +527,7 @@ defmodule FazouraWeb.Admin.QuizEditLive do
                 name={"quiz[questions][#{question["cid"]}][image_alt]"}
                 value={question["image_alt"]}
                 autocomplete="off"
+                dir="auto"
               />
             </label>
 

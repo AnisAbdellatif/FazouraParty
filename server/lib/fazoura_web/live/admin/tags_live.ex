@@ -86,13 +86,14 @@ defmodule FazouraWeb.Admin.TagsLive do
         placeholder="Add a tag, e.g. pub quiz"
         maxlength={Tag.max_length()}
         autocomplete="off"
-      />
+        dir="auto"
+        />
       <button class="primary" type="submit">Add</button>
     </form>
 
     <div class="tags">
       <span :for={{tag, index} <- Enum.with_index(@tags)} class="tagchip">
-        {tag}
+        <span dir="auto">{tag}</span>
         <span class="muted">{Map.get(@in_use, tag, 0)}</span>
         <button phx-click="move" phx-value-tag={tag} phx-value-by="-1" disabled={index == 0}>
           ↑

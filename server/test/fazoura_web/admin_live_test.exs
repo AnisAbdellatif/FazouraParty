@@ -237,6 +237,45 @@ defmodule FazouraWeb.AdminLiveTest do
       assert to == ~p"/admin/quizzes"
     end
 
+    test "Arabic in a quiz is laid out as Arabic", %{conn: conn} do
+      {:ok, quiz} =
+        Quizzes.create(
+          QuizFixtures.quiz_params(%{
+            "title" => "ليلة الأفلام",
+            "description" => "أسئلة عن السينما",
+            "questions" => [
+              %{
+                "type" => "text",
+                "prompt" => "ما هي عاصمة الجزائر؟",
+                "accepted_answers" => ["الجزائر العاصمة"]
+              }
+            ]
+          }),
+          QuizFixtures.owner_key()
+        )
+
+      {:ok, view, list} = live(conn, ~p"/admin/quizzes")
+      assert list =~ "ليلة الأفلام"
+
+      # `dir="auto"` is the browser's own first-strong-character rule, so a title
+      # written in Arabic reads from the right without the dashboard being an
+      # Arabic dashboard.
+      assert has_element?(view, "td span[dir=auto]", "ليلة الأفلام")
+      assert has_element?(view, "td div[dir=auto]", "أسئلة عن السينما")
+
+      view = conn |> editor(quiz) |> open("q1")
+
+      assert has_element?(view, "input[name='quiz[title]'][dir=auto]")
+      assert has_element?(view, "input[name='quiz[questions][q1][prompt]'][dir=auto]")
+
+      assert has_element?(
+               view,
+               "textarea[name='quiz[questions][q1][accepted_answers]'][dir=auto]"
+             )
+
+      assert has_element?(view, ".preview[dir=auto]", "ما هي عاصمة الجزائر؟")
+    end
+
     test "only the question you open renders its fields", %{conn: conn, quiz: quiz} do
       view = editor(conn, quiz)
 

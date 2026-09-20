@@ -4,6 +4,7 @@ import '../../core/models/models.dart';
 import '../format.dart';
 import '../theme/fz_theme.dart';
 import 'fz.dart';
+import 'fz_direction.dart';
 
 /// Pink "HOST" tag for the playing host.
 class HostBadge extends StatelessWidget {
@@ -125,10 +126,13 @@ class _StandingRow extends StatelessWidget {
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
-                        player.name,
-                        overflow: TextOverflow.ellipsis,
-                        style: fz.h(15),
+                      child: FzDirection(
+                        text: player.name,
+                        child: Text(
+                          player.name,
+                          overflow: TextOverflow.ellipsis,
+                          style: fz.h(15),
+                        ),
                       ),
                     ),
                     if (player.isHost) ...[

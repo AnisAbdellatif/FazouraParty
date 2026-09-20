@@ -47,8 +47,9 @@ flutter:
   # unavailable — and a LAN party has no internet at all. Shipping them also
   # removes a third-party request from every cloud page load.
   #
-  # Figtree and Reem Kufi are variable fonts: one file serves every weight, so
-  # each weight below points at the same file and Flutter interpolates.
+  # Figtree, Reem Kufi and Noto Naskh Arabic are variable fonts: one file serves
+  # every weight, so each weight below points at the same file and Flutter
+  # interpolates.
   fonts:
     - family: Figtree
       fonts:
@@ -73,6 +74,23 @@ flutter:
         - asset: assets/fonts/ReemKufi.ttf
           weight: 600
         - asset: assets/fonts/ReemKufi.ttf
+          weight: 700
+    # Arabic, wherever it turns up: a quiz written in it, a player's name, an
+    # answer typed into a phone. Naskh is the shape Arabic is *read* in — the
+    # one books and newspapers use — so it is the one for text. Reem Kufi is a
+    # display face and stays on the headings it was chosen for.
+    #
+    # Its weight axis stops at 700, so a heavier heading lands on 700 rather
+    # than being faked.
+    - family: Noto Naskh Arabic
+      fonts:
+        - asset: assets/fonts/NotoNaskhArabic.ttf
+          weight: 400
+        - asset: assets/fonts/NotoNaskhArabic.ttf
+          weight: 500
+        - asset: assets/fonts/NotoNaskhArabic.ttf
+          weight: 600
+        - asset: assets/fonts/NotoNaskhArabic.ttf
           weight: 700
     # DM Mono ships as static weights; the design uses regular and medium.
     - family: DM Mono

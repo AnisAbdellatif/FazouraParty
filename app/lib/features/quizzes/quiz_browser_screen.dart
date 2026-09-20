@@ -9,6 +9,7 @@ import '../../core/quizzes/quiz_library.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
+import '../../shared/widgets/fz_direction.dart';
 import '../../shared/widgets/fz_choice.dart';
 import '../../shared/widgets/stripe_header.dart';
 import 'quiz_choice.dart';
@@ -711,7 +712,12 @@ class _QuizCard extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                       ],
-                      Expanded(child: Text(quiz.title, style: fz.h(19))),
+                      Expanded(
+                        child: FzDirection(
+                          text: quiz.title,
+                          child: Text(quiz.title, style: fz.h(19)),
+                        ),
+                      ),
                       for (final tag in tags) ...[
                         const SizedBox(width: 6),
                         tag,
@@ -721,9 +727,12 @@ class _QuizCard extends StatelessWidget {
                   if (quiz.description != null &&
                       quiz.description!.isNotEmpty) ...[
                     const SizedBox(height: 6),
-                    Text(
-                      quiz.description!,
-                      style: fz.m(11.5, color: FzColors.dim, height: 1.5),
+                    FzDirection(
+                      text: quiz.description!,
+                      child: Text(
+                        quiz.description!,
+                        style: fz.m(11.5, color: FzColors.dim, height: 1.5),
+                      ),
                     ),
                   ],
                   const SizedBox(height: 8),

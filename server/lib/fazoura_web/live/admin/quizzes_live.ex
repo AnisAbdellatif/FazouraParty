@@ -148,6 +148,7 @@ defmodule FazouraWeb.Admin.QuizzesLive do
         name="q"
         value={@q}
         placeholder="Search by title or tag"
+        dir="auto"
         phx-debounce="250"
         autocomplete="off"
       />
@@ -167,12 +168,12 @@ defmodule FazouraWeb.Admin.QuizzesLive do
         <tbody>
           <tr :for={quiz <- @quizzes} id={"quiz-#{quiz.id}"}>
             <td>
-              {quiz.title}
+              <span dir="auto">{quiz.title}</span>
               <span :if={quiz.source == "builtin"} class="pill preset">preset</span>
-              <div :if={quiz.description} class="muted">{quiz.description}</div>
+              <div :if={quiz.description} class="muted" dir="auto">{quiz.description}</div>
               <div :if={quiz.slug} class="muted">/{quiz.slug}</div>
             </td>
-            <td class="muted">{Enum.map_join(quiz.quiz_tags, ", ", & &1.tag)}</td>
+            <td class="muted" dir="auto">{Enum.map_join(quiz.quiz_tags, ", ", & &1.tag)}</td>
             <td class="muted">
               {quiz.question_count}
               <span :if={quiz.has_photos}>· photos</span>
@@ -224,7 +225,7 @@ defmodule FazouraWeb.Admin.QuizzesLive do
       </form>
 
       <form id="add-preset" phx-submit="add_preset" style="margin-top:24px">
-        <textarea name="json" placeholder={placeholder()} spellcheck="false">{@json}</textarea>
+        <textarea name="json" placeholder={placeholder()} spellcheck="false" dir="auto">{@json}</textarea>
         <p class="muted">
           Or paste the quiz on its own: the same JSON as <code>priv/quizzes/*.json</code>
           and the apps (QUIZ_FORMAT.md §2), with photos by key. Either way the quiz is
