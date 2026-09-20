@@ -11,7 +11,7 @@ defmodule Fazoura.Quizzes do
   import Ecto.Query
 
   alias Fazoura.Game.Pack
-  alias Fazoura.Quizzes.{Image, OwnerKey, Question, Quiz, Tag}
+  alias Fazoura.Quizzes.{Archive, Image, OwnerKey, Question, Quiz, Tag}
   alias Fazoura.Repo
   alias Fazoura.Rooms.Images
   alias Fazoura.Uploads
@@ -452,21 +452,34 @@ defmodule Fazoura.Quizzes do
       else: document
   end
 
-  @doc "Builds a portable ZIP archive containing the full quiz and its photos."
+  @doc "Builds a portable `.fazoura` package containing the full quiz and its photos."
   @spec archive(Quiz.t()) :: {:ok, binary()} | {:error, term()}
   def archive(%Quiz{} = quiz) do
-    # The document goes *under* `quiz`, not at the top level: the manifest is a
-    # wrapper so the format has somewhere to grow (QUIZ_FORMAT.md §5.3b), and
-    # `QuizArchive.decode` on the client reads it from there.
-    manifest = %{quiz: quiz |> to_document(owner?: true) |> archive_document()}
+    with {:ok, photos} <- archive_photos(quiz) do
+      quiz |> to_document(owner?: true) |> archive_document() |> Archive.build(photos)
+    end
+  end
 
-    with {:ok, images} <- archive_images(quiz) do
-      entries = [{~c"manifest.json", Jason.encode!(manifest)} | images]
+  @doc """
+  Reads a `.fazoura` package into the quiz document params `create/2` and
+  `Fazoura.Admin.create_preset/1` take, storing the photos it carries as ordinary
+  uploads along the way.
 
-      case :zip.create(~c"quiz.fazoura", entries, [:memory]) do
-        {:ok, {_name, binary}} -> {:ok, binary}
-        error -> error
-      end
+  The photos are stored before the document is validated, so a package whose quiz turns
+  out to be invalid leaves uploads behind with nothing pointing at them — which is
+  precisely what `Fazoura.Quizzes.ImageSweeper` collects.
+  """
+  @spec read_archive(binary()) :: {:ok, map()} | {:error, Archive.reason() | photo_error()}
+  def read_archive(binary) do
+    with {:ok, %{document: document, photos: photos}} <- Archive.read(binary) do
+      store_photos(document, &read_carried(photos, &1))
+    end
+  end
+
+  defp read_carried(photos, path) do
+    case Map.fetch(photos, path) do
+      {:ok, bytes} -> {:ok, bytes}
+      :error -> {:error, :not_in_the_package}
     end
   end
 
@@ -477,7 +490,7 @@ defmodule Fazoura.Quizzes do
           %{key: key} = image when is_binary(key) ->
             question
             |> Map.delete(:image)
-            |> Map.put(:image, %{path: "media/#{key}", alt: image.alt})
+            |> Map.put(:image, %{path: Archive.media_path(key), alt: image.alt})
 
           _ ->
             question
@@ -487,29 +500,21 @@ defmodule Fazoura.Quizzes do
     Map.put(document, :questions, questions)
   end
 
-  defp archive_images(%Quiz{questions: questions}) do
+  defp archive_photos(%Quiz{questions: questions}) do
     questions
     |> Enum.filter(& &1.image_key)
-    |> Enum.reduce_while({:ok, []}, fn question, {:ok, entries} ->
-      case archive_image(question.image_key) do
-        {:ok, entry} -> {:cont, {:ok, [entry | entries]}}
-        :error -> {:halt, {:error, :image_not_found}}
+    |> Enum.reduce_while({:ok, %{}}, fn question, {:ok, photos} ->
+      case Uploads.read(question.image_key) do
+        {:ok, binary} ->
+          {:cont, {:ok, Map.put(photos, Archive.media_path(question.image_key), binary)}}
+
+        # A photo the quiz still references but the volume no longer has. The caller
+        # answers with an error rather than a package missing a question's image,
+        # because the point of the package is that it is self-contained.
+        :error ->
+          {:halt, {:error, :image_not_found}}
       end
     end)
-    |> case do
-      {:ok, entries} -> {:ok, Enum.reverse(entries)}
-      # A photo the quiz still references but the volume no longer has. The
-      # caller answers with an error rather than a ZIP missing a question's
-      # image, because the point of the archive is that it is self-contained.
-      {:error, _reason} = error -> error
-    end
-  end
-
-  defp archive_image(key) do
-    case Uploads.read(key) do
-      {:ok, binary} -> {:ok, {~c"media/" ++ String.to_charlist(key), binary}}
-      :error -> :error
-    end
   end
 
   defp question_document(%Question{} = question) do
@@ -568,73 +573,91 @@ defmodule Fazoura.Quizzes do
       slug = Path.basename(path, ".json")
 
       params =
-        path
-        |> File.read!()
-        |> Jason.decode!()
-        |> take_preset_photos!(dir)
+        case path |> File.read!() |> Jason.decode!() |> store_photos(&read_beside(dir, &1)) do
+          {:ok, params} ->
+            params
+
+          # Raises rather than skipping. This runs on every deploy, and a preset whose
+          # photo went missing should stop the release, not reach a party with a hole
+          # in it.
+          {:error, {reason, photo}} ->
+            raise ArgumentError, "preset photo #{photo} was refused: #{inspect(reason)}"
+        end
 
       {:ok, quiz} = Repo.transaction(fn -> upsert_builtin!(slug, params) end)
       quiz
     end
   end
 
-  # A preset is an ordinary public quiz that happens to ship with the server, so its
-  # photos are ordinary uploads: stored in the uploads directory with a row in `images`,
-  # swept like any other. What is different is only where the bytes come from — a file
-  # beside the quiz, named by `image.path`, the same way a `.fazoura` archive names one
-  # (QUIZ_FORMAT.md §5.3b).
-  #
-  # Raises rather than skipping. These run on every deploy, and a preset whose photo went
-  # missing should stop the release, not reach a party with a hole in it.
-  defp take_preset_photos!(%{"questions" => questions} = params, dir) when is_list(questions) do
-    Map.put(params, "questions", Enum.map(questions, &take_preset_photo!(&1, dir)))
-  end
-
-  defp take_preset_photos!(params, _dir), do: params
-
-  defp take_preset_photo!(%{"image" => %{"path" => relative} = image} = question, dir)
-       when is_binary(relative) do
-    stored = store_preset_photo!(read_preset_photo!(dir, relative), relative)
-
-    Map.put(question, "image", image |> Map.delete("path") |> Map.put("key", stored.key))
-  end
-
-  defp take_preset_photo!(question, _dir), do: question
-
-  defp read_preset_photo!(dir, relative) do
+  # A preset's photo, read from the file named by `image.path` beside the quiz.
+  # `Path.expand` resolves any `..` first, so the check is on where the path actually
+  # lands rather than on how it is spelled.
+  defp read_beside(dir, relative) do
     path = Path.expand(relative, dir)
 
-    unless String.starts_with?(path, Path.expand(dir) <> "/") do
-      raise ArgumentError, "preset photo #{relative} is outside #{dir}"
-    end
+    if String.starts_with?(path, Path.expand(dir) <> "/"),
+      do: File.read(path),
+      else: {:error, :outside_the_quizzes_directory}
+  end
 
-    case File.read(path) do
-      {:ok, binary} -> binary
-      {:error, reason} -> raise ArgumentError, "preset photo #{relative}: #{inspect(reason)}"
+  ## Photos that travel with their quiz
+
+  @typedoc "Which photo went wrong, and why."
+  @type photo_error :: {atom(), String.t()}
+
+  # Swaps every question's `image.path` for the key of a stored upload, reading the bytes
+  # through `read`. Shared by the two places a quiz arrives with its photos beside it
+  # rather than uploaded first: the presets in `priv/quizzes` (QUIZ_FORMAT.md §6) and a
+  # `.fazoura` package (§5.3b).
+  #
+  # Neither is special once it is in. The photos are ordinary uploads — a file in the
+  # uploads directory, a row in `images`, swept like any other — so nothing downstream
+  # has to know where they came from.
+  @spec store_photos(map(), (String.t() -> {:ok, binary()} | {:error, atom()})) ::
+          {:ok, map()} | {:error, photo_error()}
+  defp store_photos(%{"questions" => questions} = params, read) when is_list(questions) do
+    questions
+    |> Enum.reduce_while({:ok, []}, fn question, {:ok, done} ->
+      case store_photo(question, read) do
+        {:ok, question} -> {:cont, {:ok, [question | done]}}
+        {:error, _reason} = error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, done} -> {:ok, Map.put(params, "questions", Enum.reverse(done))}
+      {:error, _reason} = error -> error
     end
   end
 
-  defp store_preset_photo!(binary, relative) do
-    case Uploads.store_stable(binary) do
-      {:ok, stored} ->
-        # Owned by a key no device holds: nobody can edit or unpublish a preset through
-        # the API, and nobody else's quiz can reference its photos. The repository is
-        # what changes them (`Fazoura.Admin.create_preset/1` takes the same view).
-        {:ok, hash} = OwnerKey.hash(@preset_owner_key)
+  defp store_photos(params, _read), do: {:ok, params}
 
-        Repo.get_by(Image, key: stored.key) ||
-          Repo.insert!(%Image{
-            key: stored.key,
-            content_type: stored.content_type,
-            byte_size: stored.byte_size,
-            owner_key_hash: hash
-          })
-
-        stored
-
-      {:error, reason} ->
-        raise ArgumentError, "preset photo #{relative} was refused: #{inspect(reason)}"
+  defp store_photo(%{"image" => %{"path" => path} = image} = question, read)
+       when is_binary(path) do
+    with {:ok, binary} <- read.(path),
+         {:ok, stored} <- Uploads.store_stable(binary) do
+      register_photo(stored)
+      {:ok, Map.put(question, "image", image |> Map.delete("path") |> Map.put("key", stored.key))}
+    else
+      {:error, reason} -> {:error, {reason, path}}
     end
+  end
+
+  defp store_photo(question, _read), do: {:ok, question}
+
+  # Owned by a key no device holds: nobody can edit or unpublish one of these quizzes
+  # through the API, and nobody else's quiz can reference its photos
+  # (`Fazoura.Admin.create_preset/1` takes the same view). The key derives from the
+  # bytes, so the row may already be there from an earlier sync or an identical photo.
+  defp register_photo(stored) do
+    {:ok, hash} = OwnerKey.hash(@preset_owner_key)
+
+    Repo.get_by(Image, key: stored.key) ||
+      Repo.insert!(%Image{
+        key: stored.key,
+        content_type: stored.content_type,
+        byte_size: stored.byte_size,
+        owner_key_hash: hash
+      })
   end
 
   defp upsert_builtin!(slug, params) do

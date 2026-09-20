@@ -49,8 +49,12 @@ Refreshes every 2 seconds while open.
   hostable by that slug and is listed first when browsing. Promoting a community quiz keeps
   its questions and tags; slugs are derived from the title and de-duplicated (`movie-night`,
   `movie-night-2`).
-- **Add a preset** by pasting a quiz document (QUIZ_FORMAT.md §2) — the same JSON as
-  `server/priv/quizzes/*.json`. No publisher key is involved and photo keys are trusted.
+- **Add a preset** either by uploading a `.fazoura` package (QUIZ_FORMAT.md §5.3b) or by
+  pasting a quiz document (§2) — the same JSON as `server/priv/quizzes/*.json`. No publisher key
+  is involved and photo keys are trusted. A package carries its photos, so they arrive with the
+  quiz and become ordinary uploads owned by a key no device holds (§6); a pasted document does
+  not, so its photos must already be uploaded. `tools/fazoura_pack.py` builds a package from a
+  folder of JSON and images.
 - **Delete** any quiz, preset or community, with its questions and tags. Running games are
   unaffected: a room snapshots its quiz when it starts (PROTOCOL.md §6.2).
 

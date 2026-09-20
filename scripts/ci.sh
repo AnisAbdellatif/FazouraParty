@@ -5,6 +5,7 @@
 #   scripts/ci.sh              # server + app + image (what a pull request runs)
 #   scripts/ci.sh server       # Elixir: compile, format, credo, test, dialyzer
 #   scripts/ci.sh app          # Flutter: format, analyze, test, web build, worker
+#   scripts/ci.sh tools        # Python: the .fazoura packaging utility
 #   scripts/ci.sh image        # build the production Docker image
 #   scripts/ci.sh versions     # just the toolchain check
 #
@@ -131,6 +132,18 @@ app() {
   cd "$ROOT"
 }
 
+# The packaging utility is standard-library Python, so there is nothing to pin and
+# nothing to install: any python3 a developer or a runner already has will do.
+tools() {
+  step "Tools (Python)"
+  cd "$ROOT/tools"
+
+  have python3 || fail "python3 not found"
+  python3 -m unittest discover --start-directory . --pattern 'test_*.py'
+
+  cd "$ROOT"
+}
+
 image() {
   step "Image (Docker)"
 
@@ -204,13 +217,15 @@ main() {
     versions) versions ;;
     server)   versions; server ;;
     app)      versions; app ;;
+    # No toolchain check: this one needs nothing the other two pin.
+    tools)    tools ;;
     image)    image ;;
     # Running the stack is not a check, so it reports for itself rather than
     # claiming anything passed.
     up)       up; return ;;
     down)     down; return ;;
-    all)      versions; server; app; image ;;
-    *)        fail "unknown target '$target' (use: all, server, app, image, up, down, versions)" ;;
+    all)      versions; tools; server; app; image ;;
+    *)        fail "unknown target '$target' (use: all, server, app, tools, image, up, down, versions)" ;;
   esac
 
   if [ "$warned" = 1 ]; then

@@ -4,10 +4,19 @@ defmodule FazouraWeb.Admin.QuizzesLive do
   use FazouraWeb, :live_view
 
   alias Fazoura.Admin
+  alias Fazoura.Quizzes.Archive
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, socket |> assign(page: :quizzes, q: "", json: "") |> load()}
+    {:ok,
+     socket
+     |> assign(page: :quizzes, q: "", json: "", adding: false)
+     |> allow_upload(:package,
+       accept: ~w(.fazoura),
+       max_entries: 1,
+       max_file_size: Archive.max_bytes()
+     )
+     |> load()}
   end
 
   defp load(socket), do: assign(socket, quizzes: Admin.list_quizzes(q: socket.assigns.q))
@@ -45,6 +54,8 @@ defmodule FazouraWeb.Admin.QuizzesLive do
   end
 
   def handle_event("add_preset", %{"json" => json}, socket) do
+    socket = assign(socket, adding: true)
+
     case Admin.create_preset(json) do
       {:ok, quiz} ->
         {:noreply,
@@ -63,6 +74,69 @@ defmodule FazouraWeb.Admin.QuizzesLive do
          |> put_flash(:error, "The quiz is invalid: #{errors(changeset)}")}
     end
   end
+
+  # Selecting a file only needs the form to change for LiveView to take it; the upload
+  # itself is what the next submit consumes.
+  def handle_event("validate_package", _params, socket), do: {:noreply, socket}
+
+  def handle_event("add_package", _params, socket) do
+    socket = assign(socket, adding: true)
+
+    consumed =
+      consume_uploaded_entries(socket, :package, fn %{path: path}, _entry ->
+        {:ok, path |> File.read!() |> Admin.create_preset_from_package()}
+      end)
+
+    case consumed do
+      [{:ok, quiz}] ->
+        {:noreply,
+         socket
+         |> put_flash(:info, ~s(Added preset "#{quiz.title}" — #{described(quiz)}.))
+         |> load()}
+
+      [{:error, reason}] ->
+        {:noreply, put_flash(socket, :error, package_error(reason))}
+
+      [] ->
+        {:noreply, put_flash(socket, :error, "Choose a .fazoura package first.")}
+    end
+  end
+
+  defp described(quiz) do
+    photos = if quiz.has_photos, do: " with photos", else: ""
+    "#{quiz.question_count} questions#{photos}, hostable as /#{quiz.slug}"
+  end
+
+  defp package_error(%Ecto.Changeset{} = changeset),
+    do: "The quiz in that package is invalid: #{errors(changeset)}"
+
+  defp package_error(:archive_too_large),
+    do: "That package is over the #{div(Archive.max_bytes(), 1024 * 1024)} MB limit."
+
+  defp package_error(:invalid_archive), do: "That file isn't a readable .fazoura package."
+
+  defp package_error(:manifest_missing), do: "That package has no manifest.json."
+
+  defp package_error(:manifest_invalid),
+    do: "That package's manifest.json doesn't hold a quiz document under \"quiz\"."
+
+  defp package_error({:not_in_the_package, path}),
+    do: "The manifest asks for the photo #{path}, which the package doesn't carry."
+
+  defp package_error({:image_too_large, path}), do: "The photo #{path} is over 2 MB."
+
+  defp package_error({:unsupported_image, path}),
+    do: "The photo #{path} isn't a JPEG, PNG or WebP."
+
+  defp package_error({reason, path}), do: "The photo #{path} was refused: #{inspect(reason)}."
+
+  # The LiveView client's own refusals, before a byte reaches us.
+  defp upload_error(:too_large),
+    do: "That file is over the #{div(Archive.max_bytes(), 1024 * 1024)} MB limit."
+
+  defp upload_error(:not_accepted), do: "Only .fazoura packages can be uploaded here."
+  defp upload_error(:too_many_files), do: "One package at a time."
+  defp upload_error(reason), do: "That file was refused: #{inspect(reason)}."
 
   # "title can't be blank · questions must be a list of 1 to 1024 questions"
   defp errors(changeset) do
@@ -134,13 +208,35 @@ defmodule FazouraWeb.Admin.QuizzesLive do
       </table>
     </div>
 
-    <details>
-      <summary>Add a preset from a quiz document</summary>
-      <form id="add-preset" phx-submit="add_preset">
+    <%!-- Held open once an add has been tried, so a rejected one can be fixed and
+    re-submitted without hunting for the form again. --%>
+    <details open={@adding}>
+      <summary>Add a preset</summary>
+
+      <form id="add-package" phx-submit="add_package" phx-change="validate_package">
+        <.live_file_input upload={@uploads.package} />
+        <p class="muted">
+          A <code>.fazoura</code> package (QUIZ_FORMAT.md §5.3b): one ZIP holding the quiz
+          and its photos, as <code>GET /api/quizzes/:id/archive</code> sends it and
+          <code>tools/fazoura_pack.py</code> builds it from a folder. The photos become
+          ordinary uploads, so nothing has to be uploaded first.
+        </p>
+        <p :for={error <- upload_errors(@uploads.package)} class="muted">
+          {upload_error(error)}
+        </p>
+        <p :for={entry <- @uploads.package.entries} class="muted">
+          {entry.client_name}
+          <span :for={error <- upload_errors(@uploads.package, entry)}>— {upload_error(error)}</span>
+        </p>
+        <button class="primary" type="submit">Upload package</button>
+      </form>
+
+      <form id="add-preset" phx-submit="add_preset" style="margin-top:24px">
         <textarea name="json" placeholder={placeholder()} spellcheck="false">{@json}</textarea>
         <p class="muted">
-          The same JSON as <code>priv/quizzes/*.json</code> and the apps (QUIZ_FORMAT.md §2).
-          Presets are public, hostable by everyone and shown first when browsing.
+          Or paste the quiz on its own: the same JSON as <code>priv/quizzes/*.json</code>
+          and the apps (QUIZ_FORMAT.md §2), with photos by key. Either way the quiz is
+          public, hostable by everyone and shown first when browsing.
         </p>
         <button class="primary" type="submit">Add preset</button>
       </form>

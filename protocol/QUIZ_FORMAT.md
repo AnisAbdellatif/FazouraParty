@@ -252,6 +252,22 @@ keeps text, accepted answers and binary images together and can be retained or s
 Clients should verify and unpack it in memory or in their local cache before hosting. The JSON
 download endpoint remains available for compatibility.
 
+The same format goes the other way. An admin uploads one from the dashboard (ADMIN.md §3.2) to
+add a quiz with its photos in a single step, and `tools/fazoura_pack.py` builds one from a folder
+of JSON and images — so a quiz can be written offline, or moved from one server to another,
+without publishing every photo by hand first:
+
+```text
+film-night/                          $ tools/fazoura_pack.py film-night
+  film-night.json                    film-night.fazoura · 12 questions · 2 photos · 1409 KB
+  media/matrix.jpg
+```
+
+A reader treats a package as hostile: it is capped in size, what it claims to expand to is
+checked before anything is decompressed, entries outside `media/` are ignored, and its photos
+are validated like any upload (§5.7) before they are stored. A photo is named inside the
+package by a digest of its own bytes, so the same picture used twice is carried once.
+
 ### 5.4 `POST /api/quizzes` (publish)
 
 Header `x-owner-key` required. Body: a quiz document (server-assigned and output-only
@@ -331,6 +347,9 @@ and are synced on every deploy by `Fazoura.Quizzes.sync_builtin!/1`:
   a hole in it should stop the release rather than reach a party.
 - **`version` is not bumped for you.** Change the questions and change `"1.0"` to `"1.1"`,
   or devices holding an offline copy will not know it is stale.
+
+A folder in this layout is also exactly what `tools/fazoura_pack.py` packs, so a preset can be
+handed to another server as one `.fazoura` file without going through the repository (§5.3b).
 
 Preset photos are owned by a key no device holds, so nobody can edit or unpublish a preset
 through the API and no other quiz can reference its photos. The repository is what changes

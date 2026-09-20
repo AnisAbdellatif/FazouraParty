@@ -141,6 +141,19 @@ defmodule Fazoura.Admin do
     |> Repo.insert()
   end
 
+  @doc """
+  Creates a preset from an uploaded `.fazoura` package (QUIZ_FORMAT.md §5.3b).
+
+  The same thing as `create_preset/1`, except that the photos travel with the document
+  instead of having been uploaded first: they are stored on the way in and the questions
+  end up pointing at ordinary uploads.
+  """
+  @spec create_preset_from_package(binary()) ::
+          {:ok, Quiz.t()} | {:error, Ecto.Changeset.t() | atom() | {atom(), String.t()}}
+  def create_preset_from_package(binary) do
+    with {:ok, params} <- Quizzes.read_archive(binary), do: create_preset(params)
+  end
+
   # Anything that isn't a uuid is "not found" rather than a cast error.
   defp fetch(id) when is_binary(id) do
     with {:ok, uuid} <- Ecto.UUID.cast(id),

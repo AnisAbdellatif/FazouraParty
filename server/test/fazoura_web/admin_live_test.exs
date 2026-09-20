@@ -3,8 +3,10 @@ defmodule FazouraWeb.AdminLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Fazoura.{QuizFixtures, Quizzes, Rooms, Settings}
-  alias Fazoura.Quizzes.Tag
+  import Ecto.Query
+
+  alias Fazoura.{QuizFixtures, Quizzes, Repo, Rooms, Settings, Uploads}
+  alias Fazoura.Quizzes.{Archive, Quiz, Tag}
 
   @username "admin"
   @password "test-admin-password"
@@ -87,6 +89,86 @@ defmodule FazouraWeb.AdminLiveTest do
 
       view |> form("form[phx-submit=add_preset]", %{json: ~s({"title": ""})}) |> render_submit()
       assert render(view) =~ "The quiz is invalid"
+    end
+
+    test "uploads a .fazoura package, photos and all", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/admin/quizzes")
+
+      {:ok, binary} =
+        Archive.build(
+          QuizFixtures.quiz_params(%{
+            "title" => "Packaged Night",
+            "questions" => [
+              %{
+                "type" => "text_photo",
+                "prompt" => "Which film?",
+                "accepted_answers" => ["The Matrix"],
+                "image" => %{"path" => "media/still.png", "alt" => "A still"}
+              }
+            ]
+          }),
+          %{"media/still.png" => QuizFixtures.png()}
+        )
+
+      upload(view, "night.fazoura", binary)
+      view |> form("form[phx-submit=add_package]") |> render_submit()
+
+      assert render(view) =~ "Added preset"
+      assert {:ok, quiz} = Quizzes.fetch("packaged-night")
+      assert {quiz.source, quiz.has_photos} == {"builtin", true}
+
+      # The photo travelled with the document and came out an ordinary upload, so the
+      # question points at a file the server can serve.
+      [question] = quiz.questions
+      assert question.image_alt == "A still"
+      assert File.regular?(Path.join(Uploads.dir(), question.image_key))
+    end
+
+    test "says what is wrong with a package it cannot take", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/admin/quizzes")
+
+      upload(view, "broken.fazoura", "not a zip at all")
+      view |> form("form[phx-submit=add_package]") |> render_submit()
+      assert render(view) =~ "a readable .fazoura package"
+
+      {:ok, no_photo} =
+        Archive.build(
+          QuizFixtures.quiz_params(%{
+            "questions" => [
+              %{
+                "type" => "text_photo",
+                "prompt" => "Which film?",
+                "accepted_answers" => ["The Matrix"],
+                "image" => %{"path" => "media/gone.png"}
+              }
+            ]
+          }),
+          %{}
+        )
+
+      upload(view, "missing.fazoura", no_photo)
+      view |> form("form[phx-submit=add_package]") |> render_submit()
+      assert render(view) =~ "media/gone.png"
+
+      # Nothing was created by either attempt.
+      assert Repo.aggregate(from(q in Quiz, where: q.source == "builtin"), :count) == 2
+    end
+
+    test "submitting with nothing chosen says so", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/admin/quizzes")
+
+      view |> form("form[phx-submit=add_package]") |> render_submit()
+      assert render(view) =~ "Choose a .fazoura package first"
+    end
+
+    defp upload(view, name, binary) do
+      view
+      |> file_input("form[phx-submit=add_package]", :package, [
+        %{name: name, content: binary, type: "application/zip"}
+      ])
+      |> render_upload(name)
+
+      view
     end
 
     test "searches by title or tag", %{conn: conn} do

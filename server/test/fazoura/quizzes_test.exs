@@ -2,9 +2,8 @@ defmodule Fazoura.QuizzesTest do
   # SQLite's sandbox does not support concurrent tests.
   use Fazoura.DataCase, async: false
 
-  alias Fazoura.QuizFixtures
-  alias Fazoura.Quizzes
-  alias Fazoura.Quizzes.{Image, Quiz}
+  alias Fazoura.{Admin, QuizFixtures, Quizzes}
+  alias Fazoura.Quizzes.{Archive, Image, Quiz}
   alias Fazoura.Rooms.Images
   alias Fazoura.Uploads
 
@@ -346,7 +345,7 @@ defmodule Fazoura.QuizzesTest do
     end
   end
 
-  describe "built-ins and packs" do
+  describe "built-in presets" do
     test "sync_builtin! is idempotent and loads the 20-question General Knowledge quiz" do
       first = Enum.find(Quizzes.sync_builtin!(), &(&1.slug == "general-knowledge"))
       again = Enum.find(Quizzes.sync_builtin!(), &(&1.slug == "general-knowledge"))
@@ -443,7 +442,127 @@ defmodule Fazoura.QuizzesTest do
 
       dir
     end
+  end
 
+  describe "reading a .fazoura package" do
+    defp package(questions, photos) do
+      {:ok, binary} =
+        Archive.build(quiz_params(%{"questions" => questions}), photos)
+
+      binary
+    end
+
+    test "photos in the package become ordinary uploads the questions point at" do
+      binary =
+        package(
+          [
+            question(%{
+              "type" => "text_photo",
+              "prompt" => "Which film?",
+              "image" => %{"path" => "media/still.png", "alt" => "A still"}
+            })
+          ],
+          %{"media/still.png" => @png}
+        )
+
+      assert {:ok, params} = Quizzes.read_archive(binary)
+      assert [%{"image" => image}] = params["questions"]
+
+      # The path is gone: from here on this is a photo like any other, and nothing
+      # downstream can tell it arrived in a ZIP.
+      assert %{"key" => key, "alt" => "A still"} = image
+      refute Map.has_key?(image, "path")
+      assert File.regular?(Path.join(Uploads.dir(), key))
+      assert Repo.get_by(Image, key: key)
+    end
+
+    test "the same photo twice is stored once" do
+      binary =
+        package(
+          [
+            question(%{"type" => "text_photo", "image" => %{"path" => "media/a.png"}}),
+            question(%{"type" => "text_photo", "image" => %{"path" => "media/b.png"}})
+          ],
+          %{"media/a.png" => @png, "media/b.png" => @png}
+        )
+
+      assert {:ok, params} = Quizzes.read_archive(binary)
+
+      assert [%{"image" => %{"key" => first}}, %{"image" => %{"key" => second}}] =
+               params["questions"]
+
+      # The key comes from the bytes, so two names for one photo collapse.
+      assert first == second
+      assert Repo.aggregate(from(i in Image), :count) == 1
+    end
+
+    test "a manifest asking for a photo the package does not carry" do
+      binary =
+        package(
+          [question(%{"type" => "text_photo", "image" => %{"path" => "media/gone.png"}})],
+          %{}
+        )
+
+      assert Quizzes.read_archive(binary) ==
+               {:error, {:not_in_the_package, "media/gone.png"}}
+    end
+
+    test "a photo that is not an image the server accepts" do
+      binary =
+        package(
+          [question(%{"type" => "text_photo", "image" => %{"path" => "media/still.png"}})],
+          %{"media/still.png" => "GIF89a not one of ours"}
+        )
+
+      assert Quizzes.read_archive(binary) ==
+               {:error, {:unsupported_image, "media/still.png"}}
+    end
+
+    test "a quiz with no photos at all comes through untouched" do
+      binary = package([question()], %{})
+
+      assert {:ok, params} = Quizzes.read_archive(binary)
+      assert params["title"] == "  Movie Night "
+      assert [%{"prompt" => _prompt}] = params["questions"]
+    end
+
+    test "what archive/1 writes is what read_archive/1 reads" do
+      {:ok, image} = Quizzes.store_image(@png, @owner)
+
+      {:ok, quiz} =
+        Quizzes.create(
+          quiz_params(%{
+            "questions" => [
+              question(%{"type" => "text_photo", "image" => %{"key" => image.key}})
+            ]
+          }),
+          @owner
+        )
+
+      {:ok, quiz} = Quizzes.fetch(quiz.id)
+      {:ok, binary} = Quizzes.archive(quiz)
+
+      # A quiz can be exported from one server and taken into another, which is the
+      # whole point of the format (QUIZ_FORMAT.md §5.3b).
+      assert {:ok, params} = Quizzes.read_archive(binary)
+      assert {:ok, restored} = Admin.create_preset(params)
+      {:ok, restored} = Quizzes.fetch(restored.id)
+
+      assert Enum.map(restored.questions, & &1.prompt) ==
+               Enum.map(quiz.questions, & &1.prompt)
+
+      assert Enum.map(restored.questions, & &1.accepted_answers) ==
+               Enum.map(quiz.questions, & &1.accepted_answers)
+
+      # The photo comes back as a new upload rather than the publisher's: the package
+      # carries bytes, not a claim on a row someone else owns. Same picture, though.
+      restored_key = hd(restored.questions).image_key
+      refute restored_key == image.key
+      assert Uploads.read(restored_key) == {:ok, @png}
+    end
+  end
+
+  describe "packs" do
     test "to_pack snapshots questions with defaults and photo urls" do
       {:ok, image} = Quizzes.store_image(@png, @owner)
 

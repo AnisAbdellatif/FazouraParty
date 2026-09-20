@@ -54,6 +54,16 @@ jobs:
 
       - run: scripts/ci.sh server
 
+  tools:
+    name: Tools (Python)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # No setup-python: the utility is standard library only, and every runner
+      # already has a python3 new enough for it.
+      - run: scripts/ci.sh tools
+
   app:
     name: App (Flutter)
     needs: versions
