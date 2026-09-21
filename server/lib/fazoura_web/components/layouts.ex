@@ -116,6 +116,14 @@ defmodule FazouraWeb.Layouts do
     }
     textarea { min-height: 160px; resize: vertical; }
     input[type=file] { font: inherit; color: var(--dim); max-width: 100%; }
+    .hidden { display: none; }
+    label.button {
+      display: inline-block; cursor: pointer; font: inherit; border-radius: 999px;
+      padding: 6px 13px; border: 1px solid var(--line); color: var(--ink); margin: 0;
+    }
+    label.button.primary {
+      background: var(--ac); border-color: var(--ac); color: var(--bg); font-weight: 700;
+    }
     form.row { display: flex; gap: 8px; align-items: center; }
     .flash { padding: 11px 14px; border-radius: 12px; margin: 0 0 18px; }
     .flash.ok { background: rgba(74,222,128,.12); color: var(--ok); }

@@ -118,11 +118,10 @@ defmodule FazouraWeb.AdminLiveTest do
           %{"media/still.png" => QuizFixtures.png()}
         )
 
-      upload(view, "night.fazoura", binary)
+      # Choosing it is all it takes, and it lands straight in the editor: a package's
+      # questions are the thing most likely to need a correction before anyone plays it.
+      redirect = upload(view, "night.fazoura", binary)
 
-      # Straight into the editor: a package's questions are the thing most likely to
-      # need a correction before anyone plays it.
-      redirect = view |> form("form[phx-submit=add_package]") |> render_submit()
       assert {:ok, quiz} = Quizzes.fetch("packaged-night")
       assert {:error, {:live_redirect, %{to: to}}} = redirect
       assert to == ~p"/admin/quizzes/#{quiz.id}/edit"
@@ -141,9 +140,8 @@ defmodule FazouraWeb.AdminLiveTest do
     test "says what is wrong with a package it cannot take", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/admin/quizzes")
 
-      upload(view, "broken.fazoura", "not a zip at all")
-      view |> form("form[phx-submit=add_package]") |> render_submit()
-      assert render(view) =~ "a readable .fazoura package"
+      assert upload(view, "broken.fazoura", "not a zip at all") =~
+               "a readable .fazoura package"
 
       {:ok, no_photo} =
         Archive.build(
@@ -160,29 +158,76 @@ defmodule FazouraWeb.AdminLiveTest do
           %{}
         )
 
-      upload(view, "missing.fazoura", no_photo)
-      view |> form("form[phx-submit=add_package]") |> render_submit()
-      assert render(view) =~ "media/gone.png"
+      assert upload(view, "missing.fazoura", no_photo) =~ "media/gone.png"
 
       # Nothing was created by either attempt.
       assert Repo.aggregate(from(q in Quiz, where: q.source == "builtin"), :count) == 2
     end
 
-    test "submitting with nothing chosen says so", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/admin/quizzes")
+    test "there is nothing to confirm after choosing a package", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/admin/quizzes")
 
-      view |> form("form[phx-submit=add_package]") |> render_submit()
-      assert render(view) =~ "Choose a .fazoura package first"
+      # The label is the button and the input inside it is hidden, so the click opens
+      # the dialog. Anything else would be a second step for a file already chosen.
+      assert html =~ "Upload a package"
+      assert has_element?(view, "label.button input[type=file].hidden")
+      refute has_element?(view, "#add-package button")
     end
 
+    # Choosing the file is the whole gesture: the upload starts on the choice and the
+    # import happens as it finishes, so this returns whatever that produced — the page,
+    # or the redirect into the editor.
     defp upload(view, name, binary) do
       view
-      |> file_input("form[phx-submit=add_package]", :package, [
+      |> file_input("form[phx-change=validate_package]", :package, [
         %{name: name, content: binary, type: "application/zip"}
       ])
       |> render_upload(name)
+    end
 
-      view
+    test "downloads a quiz as a package", %{conn: conn, quiz: quiz} do
+      {:ok, image} = Quizzes.store_image(QuizFixtures.png(), QuizFixtures.owner_key())
+
+      {:ok, quiz} =
+        Quizzes.replace(
+          quiz.id,
+          QuizFixtures.quiz_params(%{
+            "questions" => [
+              %{
+                "type" => "text_photo",
+                "prompt" => "Which film?",
+                "accepted_answers" => ["The Matrix"],
+                "image" => %{"key" => image.key}
+              }
+            ]
+          }),
+          QuizFixtures.owner_key()
+        )
+
+      {:ok, view, _html} = live(conn, ~p"/admin/quizzes")
+      assert has_element?(view, "a[href='/admin/quizzes/#{quiz.id}/archive'][download]")
+
+      response = get(conn, ~p"/admin/quizzes/#{quiz.id}/archive")
+      assert response.status == 200
+      assert get_resp_header(response, "content-type") == ["application/zip; charset=utf-8"]
+
+      assert get_resp_header(response, "content-disposition") == [
+               ~s(attachment; filename="#{quiz.slug || quiz.id}.fazoura")
+             ]
+
+      # What comes out is what goes back in, which is the point of having the button.
+      assert {:ok, %{document: document, photos: photos}} = Archive.read(response.resp_body)
+      assert document["title"] == "Movie Night"
+
+      assert [%{"prompt" => "Which film?", "accepted_answers" => ["The Matrix"]}] =
+               document["questions"]
+
+      assert map_size(photos) == 1
+    end
+
+    test "downloading needs the dashboard's credentials", %{conn: conn, quiz: quiz} do
+      assert build_conn() |> get(~p"/admin/quizzes/#{quiz.id}/archive") |> response(401)
+      assert conn |> get(~p"/admin/quizzes/#{Ecto.UUID.generate()}/archive") |> response(404)
     end
 
     test "searches by title or tag", %{conn: conn} do

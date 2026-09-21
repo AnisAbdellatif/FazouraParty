@@ -361,6 +361,7 @@ defmodule FazouraWeb.Admin.QuizEditLive do
             · <a href={"#question-#{@open}"}>editing {open_index(@questions, @open)}</a>
           </span>
         </span>
+        <a href={~p"/admin/quizzes/#{@quiz.id}/archive"} class="muted" download>Download</a>
         <.link navigate={~p"/admin/quizzes"} class="muted">Back without saving</.link>
       </div>
 

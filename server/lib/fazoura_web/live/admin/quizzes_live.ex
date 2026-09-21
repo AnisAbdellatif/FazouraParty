@@ -14,7 +14,11 @@ defmodule FazouraWeb.Admin.QuizzesLive do
      |> allow_upload(:package,
        accept: ~w(.fazoura),
        max_entries: 1,
-       max_file_size: Archive.max_bytes()
+       max_file_size: Archive.max_bytes(),
+       # One button: choosing the file is the whole gesture. Nothing is gained by
+       # making someone confirm a file they just picked from a dialog.
+       auto_upload: true,
+       progress: &import_package/3
      )
      |> load()}
   end
@@ -75,31 +79,45 @@ defmodule FazouraWeb.Admin.QuizzesLive do
     end
   end
 
-  # Selecting a file only needs the form to change for LiveView to take it; the upload
-  # itself is what the next submit consumes.
-  def handle_event("validate_package", _params, socket), do: {:noreply, socket}
+  # A file the client itself refused — too large, wrong extension — never reaches
+  # `import_package/3`, and a refused entry would sit in the way of the next one. Say
+  # what was wrong and drop it, so the button is ready again.
+  def handle_event("validate_package", _params, socket) do
+    {:noreply,
+     Enum.reduce(socket.assigns.uploads.package.entries, socket, fn entry, socket ->
+       case upload_errors(socket.assigns.uploads.package, entry) do
+         [] ->
+           socket
 
-  def handle_event("add_package", _params, socket) do
-    socket = assign(socket, adding: true)
+         [reason | _rest] ->
+           socket
+           |> put_flash(:error, upload_error(reason))
+           |> cancel_upload(:package, entry.ref)
+       end
+     end)}
+  end
 
-    consumed =
-      consume_uploaded_entries(socket, :package, fn %{path: path}, _entry ->
-        {:ok, path |> File.read!() |> Admin.create_preset_from_package()}
-      end)
+  defp import_package(:package, entry, socket) do
+    if entry.done? do
+      imported =
+        consume_uploaded_entry(socket, entry, fn %{path: path} ->
+          {:ok, path |> File.read!() |> Admin.create_preset_from_package()}
+        end)
 
-    case consumed do
-      [{:ok, quiz}] ->
-        {:noreply,
-         socket
-         |> put_flash(:info, ~s(Added preset "#{quiz.title}" — #{described(quiz)}.))
-         |> push_navigate(to: ~p"/admin/quizzes/#{quiz.id}/edit")}
-
-      [{:error, reason}] ->
-        {:noreply, put_flash(socket, :error, package_error(reason))}
-
-      [] ->
-        {:noreply, put_flash(socket, :error, "Choose a .fazoura package first.")}
+      {:noreply, added(socket, imported)}
+    else
+      {:noreply, socket}
     end
+  end
+
+  defp added(socket, {:ok, quiz}) do
+    socket
+    |> put_flash(:info, ~s(Added preset "#{quiz.title}" — #{described(quiz)}.))
+    |> push_navigate(to: ~p"/admin/quizzes/#{quiz.id}/edit")
+  end
+
+  defp added(socket, {:error, reason}) do
+    socket |> assign(adding: true) |> put_flash(:error, package_error(reason))
   end
 
   defp described(quiz) do
@@ -180,6 +198,9 @@ defmodule FazouraWeb.Admin.QuizzesLive do
             </td>
             <td>
               <.link navigate={~p"/admin/quizzes/#{quiz.id}/edit"} class="button">Edit</.link>
+              <a href={~p"/admin/quizzes/#{quiz.id}/archive"} class="button" download>
+                Download
+              </a>
               <button
                 phx-click="toggle_preset"
                 phx-value-id={quiz.id}
@@ -206,22 +227,25 @@ defmodule FazouraWeb.Admin.QuizzesLive do
     <details open={@adding}>
       <summary>Add a preset</summary>
 
-      <form id="add-package" phx-submit="add_package" phx-change="validate_package">
-        <.live_file_input upload={@uploads.package} />
+      <%!-- The file input is the button: a label triggers the one it wraps, so the
+      dialog opens on the click and the upload starts on the choice. There is nothing
+      left to confirm. --%>
+      <form id="add-package" phx-change="validate_package">
+        <label class="button primary">
+          <.live_file_input upload={@uploads.package} class="hidden" /> Upload a package
+        </label>
+        <p :for={entry <- @uploads.package.entries} class="muted">
+          Reading {entry.client_name}… {entry.progress}%
+        </p>
+        <p :for={error <- upload_errors(@uploads.package)} class="muted">
+          {upload_error(error)}
+        </p>
         <p class="muted">
           A <code>.fazoura</code> package (QUIZ_FORMAT.md §5.3b): one ZIP holding the quiz
           and its photos, as <code>GET /api/quizzes/:id/archive</code> sends it and
           <code>tools/fazoura_pack.py</code> builds it from a folder. The photos become
           ordinary uploads, so nothing has to be uploaded first.
         </p>
-        <p :for={error <- upload_errors(@uploads.package)} class="muted">
-          {upload_error(error)}
-        </p>
-        <p :for={entry <- @uploads.package.entries} class="muted">
-          {entry.client_name}
-          <span :for={error <- upload_errors(@uploads.package, entry)}>— {upload_error(error)}</span>
-        </p>
-        <button class="primary" type="submit">Upload package</button>
       </form>
 
       <form id="add-preset" phx-submit="add_preset" style="margin-top:24px">

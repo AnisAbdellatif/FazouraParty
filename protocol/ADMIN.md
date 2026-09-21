@@ -49,8 +49,14 @@ Refreshes every 2 seconds while open.
   hostable by that slug and is listed first when browsing. Promoting a community quiz keeps
   its questions and tags; slugs are derived from the title and de-duplicated (`movie-night`,
   `movie-night-2`).
-- **Add a preset** either by uploading a `.fazoura` package (QUIZ_FORMAT.md §5.3b) or by
-  pasting a quiz document (§2) — the same JSON as `server/priv/quizzes/*.json`. No publisher key
+- **Upload a package.** One button: it opens the file dialog, and choosing a `.fazoura`
+  (QUIZ_FORMAT.md §5.3b) imports it and opens it in the editor. There is nothing to confirm
+  about a file that was just chosen from a dialog.
+- **Download** any quiz as a `.fazoura`, photos included — for a backup, or to move it to
+  another server, where it can be uploaded here or dropped in the packages directory (§6).
+  The public `GET /api/quizzes/:id/archive` sends the same bytes but is metered at ten a
+  minute; this route answers to the dashboard's credentials instead.
+- **Add a preset** either by uploading that package or by pasting a quiz document (§2) — the same JSON as `server/priv/quizzes/*.json`. No publisher key
   is involved and photo keys are trusted. A package carries its photos, so they arrive with the
   quiz and become ordinary uploads owned by a key no device holds (§6); a pasted document does
   not, so its photos must already be uploaded. `tools/fazoura_pack.py` builds a package from a

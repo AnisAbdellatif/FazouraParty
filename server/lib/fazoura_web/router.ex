@@ -47,6 +47,8 @@ defmodule FazouraWeb.Router do
   scope "/admin", FazouraWeb.Admin do
     pipe_through :admin
 
+    get "/quizzes/:id/archive", QuizController, :archive
+
     live_session :admin, on_mount: {FazouraWeb.Admin.Auth, :ensure_admin} do
       live "/", StatsLive
       live "/quizzes", QuizzesLive
