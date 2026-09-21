@@ -55,6 +55,7 @@ defmodule Fazoura.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.3.0"},
       {:bandit, "~> 1.5"},
+      {:benchee, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
@@ -75,6 +76,14 @@ defmodule Fazoura.MixProject do
   defp aliases do
     [
       setup: ["deps.get", "ecto.setup"],
+      # Benchmarks, not checks: slow, machine-dependent, and deliberately absent
+      # from scripts/ci.sh. `--no-start` because bench/ only touches pure game
+      # code — no Repo, no endpoint, no port 4000 already in use.
+      bench: [
+        "run --no-start bench/broadcast.exs",
+        "run --no-start bench/game.exs",
+        "run --no-start bench/answer.exs"
+      ],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
