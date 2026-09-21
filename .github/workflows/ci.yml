@@ -193,11 +193,12 @@ jobs:
           chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
 
       - name: Copy the stack definition
-        # Only these two. deploy/.env belongs to the VPS and is never shipped, and
-        # packages/ holds what someone put there.
+        # Only this one. deploy/.env belongs to the VPS and is never shipped,
+        # packages/ holds what someone put there, and Caddy runs on the host with a
+        # configuration this repository does not own.
         run: |
           scp -i ~/.ssh/deploy_key $SSH_OPTIONS -P "$DEPLOY_PORT" \
-            deploy/compose.yaml deploy/Caddyfile \
+            deploy/compose.yaml \
             "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
 
       - name: Make sure the packages drop folder exists

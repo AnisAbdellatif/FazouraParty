@@ -11,15 +11,19 @@ own — the deploy job hands it a token that dies with the job.
 ```
 GitHub Actions                                   the VPS
 ──────────────────                               ───────────────────────────────
-server ─┐                                        caddy   :80 :443  ──┐
-app  ───┴─▶ image ──push──▶ ghcr.io              │                   │ reverse_proxy
-                  │                       pull   ▼                   │
-                  └───────▶ deploy ──ssh──▶ app     :4000  ◀─────────┘
+server ─┐                                        caddy (on the host) :80 :443 ─┐
+app  ───┴─▶ image ──push──▶ ghcr.io              │                             │
+                  │                       pull   ▼               reverse_proxy │
+                  └───────▶ deploy ──ssh──▶ app  127.0.0.1:4000  ◀─────────────┘
                                              ├─ /app/web       the Flutter build
                                              ├─ /data/uploads  volume: photos
                                              └─ /data/packages ./packages, read-only
                                            db     postgres     volume: pgdata
 ```
+
+Caddy is **not** part of the stack. It runs on the host, where it was already
+terminating TLS for this machine, and proxies to the port the app publishes on
+loopback. `deploy/Caddyfile` is a copy of what it needs; nothing here installs it.
 
 A pull request runs the same suites and builds the image without pushing it, so a
 broken Dockerfile shows up on the PR rather than at deploy time.
@@ -33,7 +37,9 @@ record must resolve before the first deploy.
 
 ### 2. The VPS
 
-Install Docker, create a deploy user that can use it, and make the directory:
+Install Docker, create a deploy user that can use it, and make the directory. Caddy is
+assumed to be on the host already, holding `:80` and `:443` — the stack does not start
+one and would collide with it if it did:
 
 ```bash
 curl -fsSL https://get.docker.com | sh
@@ -79,6 +85,11 @@ change it afterwards, change it in the database too:
 ```bash
 docker compose exec db psql -U fazoura -d fazoura -c "ALTER USER fazoura PASSWORD 'new'"
 ```
+
+Point the host's Caddy at the app, using `deploy/Caddyfile` as the model — it proxies to
+`127.0.0.1:4000` and sets the forwarded headers Phoenix reads to know it is behind HTTPS.
+Reload it with `sudo systemctl reload caddy`. The app is published on loopback only, so
+that proxy is the only way in, which is what makes `TRUST_PROXY=true` honest.
 
 `APP_IMAGE` belongs here as well, even though the deploy exports its own: compose
 interpolates the whole file for every command, so without it `docker compose logs`, `ps`,

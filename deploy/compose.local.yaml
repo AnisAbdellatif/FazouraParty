@@ -22,9 +22,9 @@
 #
 #   * The image is **built from this checkout** instead of pulled from ghcr.io, so
 #     what runs is the code in your working tree.
-#   * **Caddy is not started.** It exists to terminate TLS for a public domain and
-#     would try to get a real certificate for it. The app's port is published
-#     directly instead, which is why this is plain http and PHX_HOST is localhost.
+#   * **No TLS.** In production the host's Caddy terminates it and proxies to the
+#     app's loopback port; here the app's port is published as it is, which is why
+#     this is plain http and PHX_HOST is localhost.
 #   * Secrets are **throwaway literals** rather than deploy/.env, which belongs to
 #     the VPS and is never in this repo.
 #   * Volumes are **not** the production ones: a local pgdata/uploads pair, so
@@ -78,15 +78,16 @@ services:
       # the same origin as the API. `:all` is safe *here* because the stack is
       # loopback-only, and is exactly what config/dev.exs already does.
       CORS_ORIGINS: "*"
-    ports:
+    # Production publishes on 127.0.0.1 for the host's proxy to reach. Here there is
+    # no proxy and a phone on the same Wi-Fi may want in, so it goes on every
+    # interface. `!override` replaces production's binding rather than adding to it:
+    # compose appends list entries across files by default, and the two
+    # bindings would otherwise both apply and fight over the port.
+    ports: !override
       - "4000:4000"
     volumes:
       - !reset []
       - local_uploads:/data/uploads
-
-  # Caddy would try to obtain a certificate for a domain that does not exist here.
-  caddy:
-    profiles: ["never"]
 
 volumes:
   local_pgdata:

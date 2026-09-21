@@ -1,8 +1,9 @@
-# The production stack: Postgres, the app, and Caddy terminating TLS in front of it.
+# The production stack: Postgres and the app. TLS is terminated by the Caddy already
+# running on the host, which proxies to the port published below — see Caddyfile.
 #
-# CI copies this file (and Caddyfile) to the VPS and runs compose there; the image is
-# pulled from ghcr.io, never built on the VPS. APP_IMAGE and APP_TAG come from the
-# deploy job's environment, everything else from the .env beside this file.
+# CI copies this file to the VPS and runs compose there; the image is pulled from
+# ghcr.io, never built on the VPS. APP_IMAGE and APP_TAG come from the deploy job's
+# environment, everything else from the .env beside this file.
 #
 #   export APP_IMAGE=ghcr.io/<owner>/<repo> APP_TAG=<sha>
 #   docker compose run --rm app bin/fazoura eval "Fazoura.Release.setup()"
@@ -34,6 +35,14 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-fazoura}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-fazoura}
+      # Also in .env, and named here so a deploy without it fails loudly rather than
+      # starting on runtime.exs's `example.com` default and building wrong photo URLs.
+      PHX_HOST: ${PHX_HOST:?set PHX_HOST in .env}
+    # Loopback only. The host's Caddy reaches it here; the internet must not, or a
+    # request could arrive without TLS and carry its own X-Forwarded-For — which
+    # `TRUST_PROXY=true` tells the app to believe, and rate limiting counts on.
+    ports:
+      - "127.0.0.1:4000:4000"
     depends_on:
       db:
         condition: service_healthy
@@ -54,24 +63,6 @@ services:
       retries: 5
       start_period: 20s
 
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    environment:
-      FZ_DOMAIN: ${PHX_HOST:?set PHX_HOST in .env}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - app
-
 volumes:
   pgdata:
   uploads:
-  caddy_data:
-  caddy_config:
