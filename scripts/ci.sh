@@ -7,7 +7,7 @@
 #   scripts/ci.sh app          # Flutter: format, analyze, test, web build, worker
 #   scripts/ci.sh tools        # Python: the .fazoura packaging utility
 #   scripts/ci.sh image        # build the production Docker image
-#   scripts/ci.sh versions     # just the toolchain check
+#   scripts/ci.sh versions     # just the toolchain check (or: versions server|app)
 #
 #   scripts/ci.sh up           # run that image locally (deploy/compose.local.yaml)
 #   scripts/ci.sh down         # stop it and delete its data
@@ -62,30 +62,31 @@ check_version() {
   fi
 }
 
+# Only the toolchains the target actually needs. CI installs Elixir on the server job
+# and Flutter on the app job and nothing else, so demanding both meant each one failed
+# on the toolchain it was never given — which is what kept every run red.
 versions() {
-  step "Toolchain"
-
+  local want="${1:-all}"
   local elixir_got="" otp_got="" flutter_got=""
 
-  if have elixir; then
+  step "Toolchain"
+
+  if [ "$want" = all ] || [ "$want" = server ]; then
+    have elixir || fail "elixir not found. See README.md for the toolchain."
     elixir_got="$(elixir --version 2>/dev/null | sed -n 's/^Elixir \([0-9.]*\).*/\1/p')"
     otp_got="$(erl -noshell -eval \
       'io:format("~s", [erlang:system_info(otp_release)]), halt().' 2>/dev/null || true)"
-  else
-    fail "elixir not found. See README.md for the toolchain."
+    check_version "Elixir" "$ELIXIR_VERSION" "$elixir_got"
+    # `erlang:system_info(otp_release)` gives the major only ("28"), which is the
+    # part that decides whether a build is compatible.
+    check_version "OTP" "${OTP_VERSION%%.*}" "$otp_got"
   fi
 
-  if have flutter; then
+  if [ "$want" = all ] || [ "$want" = app ]; then
+    have flutter || fail "flutter not found. See README.md for the toolchain."
     flutter_got="$(flutter --version 2>/dev/null | sed -n 's/^Flutter \([0-9.]*\).*/\1/p')"
-  else
-    fail "flutter not found. See README.md for the toolchain."
+    check_version "Flutter" "$FLUTTER_VERSION" "$flutter_got"
   fi
-
-  check_version "Elixir" "$ELIXIR_VERSION" "$elixir_got"
-  # `erlang:system_info(otp_release)` gives the major only ("28"), which is the
-  # part that decides whether a build is compatible.
-  check_version "OTP" "${OTP_VERSION%%.*}" "$otp_got"
-  check_version "Flutter" "$FLUTTER_VERSION" "$flutter_got"
 }
 
 server() {
@@ -214,9 +215,9 @@ main() {
   local target="${1:-all}"
 
   case "$target" in
-    versions) versions ;;
-    server)   versions; server ;;
-    app)      versions; app ;;
+    versions) versions "${2:-all}" ;;
+    server)   versions server; server ;;
+    app)      versions app; app ;;
     # No toolchain check: this one needs nothing the other two pin.
     tools)    tools ;;
     image)    image ;;
