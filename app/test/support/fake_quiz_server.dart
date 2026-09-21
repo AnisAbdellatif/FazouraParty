@@ -198,7 +198,11 @@ class FakeQuizServer {
 
     switch (request.method) {
       case 'GET':
-        return _json(quizzes[index].toJson());
+        // Without questions, as the real `show` answers anyone but the
+        // publisher (QUIZ_FORMAT.md §5.3) — accepted answers are not handed out
+        // by an ordinary read. Returning them here hid a bug where the LAN host
+        // sent a quiz with nothing in it.
+        return _json(quizzes[index].copyWith(questions: null).toJson());
       case 'PUT':
         quizzes[index] = _fromBody(request).copyWith(id: id);
         return _json(quizzes[index].toJson());
