@@ -8,6 +8,7 @@ import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../core/providers/lan_providers.dart';
 import '../../core/providers/quiz_providers.dart';
+import '../../core/providers/room_tokens.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/format.dart';
 import '../../shared/quiz_titles.dart';
@@ -40,6 +41,16 @@ class HostScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final fz = FzTheme.of(context);
+
+    // The room ending is the end of this device's claim on it. "Back to room"
+    // on the home screen is the only way a host gets back in (PROTOCOL.md
+    // §3.3), and offering it once the room is gone can only produce an error.
+    ref.listen(roomClosedProvider, (_, next) {
+      if (next.hasValue) {
+        unawaited(ref.read(roomTokensProvider.notifier).drop(roomCode));
+      }
+    });
+
     final closedReason = ref.watch(roomClosedProvider).value;
     final snapshot = ref.watch(roomStateProvider);
 
@@ -70,6 +81,13 @@ class HostScreen extends ConsumerWidget {
       } catch (_) {
         // The room may already be gone; leaving is what matters here.
       }
+
+      // Whichever way the host went out, this device is no longer the host of
+      // that room: it closed, or the role moved and the server bumped the host
+      // token it accepts. Keeping it would leave "Back to room" on the home
+      // screen with nothing behind it.
+      await ref.read(roomTokensProvider.notifier).drop(roomCode);
+
       if (context.mounted) await Navigator.of(context).maybePop();
     }
 
