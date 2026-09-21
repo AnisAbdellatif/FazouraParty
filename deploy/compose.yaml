@@ -40,6 +40,11 @@ services:
     volumes:
       # Published question photos. Losing this loses every photo on every public quiz.
       - uploads:/data/uploads
+      # Drop `.fazoura` packages in ./packages beside this file and the next
+      # `Fazoura.Release.setup()` seeds them (QUIZ_FORMAT.md §6). A bind mount rather
+      # than a named volume, because the whole point is copying a file in by hand.
+      # Read-only: seeding reads them and nothing writes back.
+      - ./packages:/data/packages:ro
     # Long enough for Rooms.Drain to tell live games the server is going away.
     stop_grace_period: 30s
     healthcheck:

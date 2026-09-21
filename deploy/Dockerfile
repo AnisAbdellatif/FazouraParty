@@ -50,7 +50,8 @@ ENV MIX_ENV=prod \
     PHX_SERVER=true \
     PORT=4000 \
     WEB_DIR=/app/web \
-    UPLOADS_DIR=/data/uploads
+    UPLOADS_DIR=/data/uploads \
+    PACKAGES_DIR=/data/packages
 
 # Question photos outlive the image: compose.yaml mounts a volume here, and a
 # fresh volume inherits this ownership, so `nobody` can still write to it.

@@ -40,6 +40,13 @@ if uploads_dir = System.get_env("UPLOADS_DIR") do
   config :fazoura, uploads_dir: uploads_dir
 end
 
+# `.fazoura` packages to seed from. Point this at a mounted directory and a quiz can be
+# added to a server by copying one file in and running `Fazoura.Release.setup/0`; leave
+# it and only the packages baked into the image are read.
+if packages_dir = System.get_env("PACKAGES_DIR") do
+  config :fazoura, packages_dir: packages_dir
+end
+
 if config_env() == :prod do
   # The quiz library needs a database. It stays optional here only so the release can be
   # started for a one-off `eval` without one; compose.yaml always sets it, and without it

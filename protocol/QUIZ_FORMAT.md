@@ -354,6 +354,26 @@ and are synced on every deploy by `Fazoura.Quizzes.sync_builtin!/1`:
 A folder in this layout is also exactly what `tools/fazoura_pack.py` packs, so a preset can be
 handed to another server as one `.fazoura` file without going through the repository (§5.3b).
 
+### Packages dropped in
+
+A `.fazoura` package is a second way in, for a quiz that did not come from this repository.
+`Fazoura.Quizzes.sync_packages!/1` reads every `<slug>.fazoura` in the packages directory —
+`:packages_dir`, which is `server/priv/packages` by default and `PACKAGES_DIR` in production —
+and upserts it exactly as a built-in, alongside the JSON files. Both run from
+`priv/repo/seeds.exs` and from `Fazoura.Release.setup/0`, so every deploy re-applies them.
+
+- **The filename is the slug**, so re-running updates the quiz a package already made rather
+  than adding another, and replacing the file replaces the quiz.
+- **The package carries its photos**, so unlike a JSON preset nothing has to be published
+  first; they are stored on the way in like any other upload (§5.3b).
+- **A package that cannot be read stops the sync.** These run on a deploy, and a quiz someone
+  put there going quietly missing is worse than a release that stops.
+- **A directory that isn't there is simply no packages**, so a server that uses none needs no
+  configuration.
+
+Pointing `PACKAGES_DIR` at a mounted directory is what makes it a drop folder: copy a package
+onto the server, run the seed, and the quiz is there — no image to rebuild.
+
 Preset photos are owned by a key no device holds, so nobody can edit or unpublish a preset
 through the API and no other quiz can reference its photos. The repository is what changes
 them, and re-running the sync restores them if the uploads volume is ever lost.

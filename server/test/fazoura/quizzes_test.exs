@@ -460,6 +460,100 @@ defmodule Fazoura.QuizzesTest do
     end
   end
 
+  describe "seeding from a packages directory" do
+    defp packages_dir(files) do
+      dir = Path.join(System.tmp_dir!(), "fazoura_packages_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf!(dir) end)
+
+      for {name, binary} <- files, do: File.write!(Path.join(dir, name), binary)
+      dir
+    end
+
+    defp package_binary(attrs \\ %{}, photos \\ %{}) do
+      {:ok, binary} = Archive.build(quiz_params(attrs), photos)
+      binary
+    end
+
+    test "a package in the directory becomes a preset named by its filename" do
+      dir =
+        packages_dir(%{
+          "film-night.fazoura" =>
+            package_binary(
+              %{
+                "title" => "Film Night",
+                "questions" => [
+                  question(%{
+                    "type" => "text_photo",
+                    "prompt" => "Which film?",
+                    "image" => %{"path" => "media/still.png", "alt" => "A still"}
+                  })
+                ]
+              },
+              %{"media/still.png" => @png}
+            )
+        })
+
+      assert [quiz] = Quizzes.sync_packages!(dir)
+      assert {:ok, quiz} = Quizzes.fetch("film-night")
+
+      # Hostable by name, like any other preset, and its photo arrived with it — there
+      # was nothing to publish first.
+      assert {quiz.title, quiz.slug, quiz.source, quiz.visibility} ==
+               {"Film Night", "film-night", "builtin", "public"}
+
+      [photo] = quiz.questions
+      assert photo.image_alt == "A still"
+      assert File.regular?(Path.join(Uploads.dir(), photo.image_key))
+    end
+
+    test "re-running updates the quiz it already made" do
+      dir = packages_dir(%{"film-night.fazoura" => package_binary(%{"title" => "Film Night"})})
+
+      [first] = Quizzes.sync_packages!(dir)
+      [again] = Quizzes.sync_packages!(dir)
+
+      assert first.id == again.id
+      assert Repo.aggregate(from(q in Quiz, where: q.source == "builtin"), :count) == 1
+
+      # Replacing the file replaces the quiz rather than adding a second one.
+      File.write!(
+        Path.join(dir, "film-night.fazoura"),
+        package_binary(%{"title" => "Film Night Deluxe"})
+      )
+
+      [updated] = Quizzes.sync_packages!(dir)
+      assert updated.id == first.id
+      assert updated.title == "Film Night Deluxe"
+      assert Repo.aggregate(from(q in Quiz, where: q.source == "builtin"), :count) == 1
+    end
+
+    test "every package in the directory is loaded, in a fixed order" do
+      dir =
+        packages_dir(%{
+          "b-night.fazoura" => package_binary(%{"title" => "B"}),
+          "a-night.fazoura" => package_binary(%{"title" => "A"}),
+          "notes.txt" => "not a package, and not read"
+        })
+
+      assert Enum.map(Quizzes.sync_packages!(dir), & &1.slug) == ["a-night", "b-night"]
+    end
+
+    test "a directory that is not there is simply no packages" do
+      assert Quizzes.sync_packages!(Path.join(System.tmp_dir!(), "fazoura_no_such_dir")) == []
+    end
+
+    test "a package that cannot be read stops the sync" do
+      dir = packages_dir(%{"broken.fazoura" => "not a zip at all"})
+
+      # This runs on a deploy: a quiz someone put here going quietly missing is worse
+      # than a release that stops.
+      assert_raise ArgumentError, ~r/broken\.fazoura was refused/, fn ->
+        Quizzes.sync_packages!(dir)
+      end
+    end
+  end
+
   describe "reading a .fazoura package" do
     defp package(questions, photos) do
       {:ok, binary} =

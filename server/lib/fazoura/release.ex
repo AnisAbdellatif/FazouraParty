@@ -39,14 +39,20 @@ defmodule Fazoura.Release do
     :ok
   end
 
-  @doc "Upserts `priv/quizzes/*.json`. Idempotent, so every deploy may run it."
+  @doc """
+  Upserts `priv/quizzes/*.json` and every `.fazoura` package in the packages directory.
+  Idempotent, so every deploy may run it.
+  """
   @spec seed() :: :ok
   def seed do
     load()
 
     for repo <- repos() do
       {:ok, _result, _apps} =
-        Ecto.Migrator.with_repo(repo, fn _repo -> Fazoura.Quizzes.sync_builtin!() end)
+        Ecto.Migrator.with_repo(repo, fn _repo ->
+          Fazoura.Quizzes.sync_builtin!()
+          Fazoura.Quizzes.sync_packages!()
+        end)
     end
 
     :ok

@@ -193,11 +193,19 @@ jobs:
           chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
 
       - name: Copy the stack definition
-        # Only these two. deploy/.env belongs to the VPS and is never shipped.
+        # Only these two. deploy/.env belongs to the VPS and is never shipped, and
+        # packages/ holds what someone put there.
         run: |
           scp -i ~/.ssh/deploy_key $SSH_OPTIONS -P "$DEPLOY_PORT" \
             deploy/compose.yaml deploy/Caddyfile \
             "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+
+      - name: Make sure the packages drop folder exists
+        # compose bind-mounts it, so without this Docker creates it as root and nobody
+        # can copy a quiz in without sudo.
+        run: |
+          ssh -i ~/.ssh/deploy_key $SSH_OPTIONS -p "$DEPLOY_PORT" \
+            "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DEPLOY_PATH/packages'"
 
       - name: Pull, migrate and restart
         env:

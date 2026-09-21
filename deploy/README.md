@@ -15,8 +15,9 @@ server ─┐                                        caddy   :80 :443  ──┐
 app  ───┴─▶ image ──push──▶ ghcr.io              │                   │ reverse_proxy
                   │                       pull   ▼                   │
                   └───────▶ deploy ──ssh──▶ app     :4000  ◀─────────┘
-                                             ├─ /app/web      the Flutter build
-                                             └─ /data/uploads  volume: photos
+                                             ├─ /app/web       the Flutter build
+                                             ├─ /data/uploads  volume: photos
+                                             └─ /data/packages ./packages, read-only
                                            db     postgres     volume: pgdata
 ```
 
@@ -119,6 +120,24 @@ in silence: `Fazoura.Rooms.Drain` closes every room with `room_closed: shutdown`
 while the sockets are still open, which is what `stop_grace_period: 30s` in
 `compose.yaml` is for. Merge between parties, not during one.
 
+## Adding a quiz without a deploy
+
+`<deploy path>/packages/` is a drop folder for `.fazoura` packages (QUIZ_FORMAT.md §6),
+mounted read-only at `/data/packages`. Copy one in and run the seed:
+
+```bash
+scp film-night.fazoura fazoura@<host>:/srv/fazoura/packages/
+ssh fazoura@<host> 'cd /srv/fazoura && docker compose run --rm app bin/fazoura eval "Fazoura.Release.setup()"'
+```
+
+The filename is the slug — `film-night.fazoura` is hostable as `/film-night` — and a
+newer file copied over it updates that quiz on the next seed rather than adding another.
+A package brings its photos with it, so nothing has to be published first. Every deploy
+runs the same seed, so packages left in the folder are re-applied and stay in step with
+whatever is in them.
+
+Build one with `tools/fazoura_pack.py`, or download one from `/admin`.
+
 ## Rolling back
 
 Every `main` commit is an image tag, so a rollback is a pull of an older one. From
@@ -150,6 +169,9 @@ ssh fazoura@<host> 'cd /srv/fazoura && docker compose exec -T app tar -cz -C /da
 
 Both matter: a quiz whose photos are gone renders as a broken question. Photos that
 nothing references any more are collected after a day (`Fazoura.Quizzes.ImageSweeper`).
+
+`packages/` is not in that list: it is an input, and re-seeding from it rebuilds what it
+made. Worth keeping wherever the packages came from, all the same.
 
 ## Running the stack locally
 

@@ -684,6 +684,46 @@ defmodule Fazoura.Quizzes do
       })
   end
 
+  @doc """
+  Upserts every `<dir>/<slug>.fazoura` package as a public built-in quiz, photos and all
+  (QUIZ_FORMAT.md §6).
+
+  The drop folder beside `priv/quizzes`: a package is one file, so a quiz written
+  somewhere else — by `tools/fazoura_pack.py`, or downloaded from another server — can be
+  put on a server by copying it in, with no JSON to unpack and no photos to publish
+  first. The filename is the slug, so re-running updates the quiz it already made rather
+  than adding a second one.
+
+  Idempotent, and a directory that isn't there is simply no packages. Run by
+  `priv/repo/seeds.exs` and by `Fazoura.Release.setup/0` on every deploy.
+  """
+  @spec sync_packages!(String.t()) :: [Quiz.t()]
+  def sync_packages!(dir \\ packages_dir()) do
+    for path <- dir |> Path.join("*.fazoura") |> Path.wildcard() |> Enum.sort() do
+      slug = Path.basename(path, ".fazoura")
+
+      params =
+        case path |> File.read!() |> read_archive() do
+          {:ok, params} ->
+            params
+
+          # Loudly, like a preset with a missing photo: this runs on every deploy, and a
+          # package that cannot be read should stop the release rather than leave the
+          # server quietly missing a quiz someone put there.
+          {:error, reason} ->
+            raise ArgumentError,
+                  "quiz package #{Path.basename(path)} was refused: #{inspect(reason)}"
+        end
+
+      {:ok, quiz} = Repo.transaction(fn -> upsert_builtin!(slug, params) end)
+      quiz
+    end
+  end
+
+  @doc "Where `.fazoura` packages are read from (`PACKAGES_DIR` in production)."
+  @spec packages_dir() :: String.t()
+  def packages_dir, do: Application.fetch_env!(:fazoura, :packages_dir)
+
   defp upsert_builtin!(slug, params) do
     quiz =
       case Repo.get_by(Quiz, slug: slug) do

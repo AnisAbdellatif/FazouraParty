@@ -16,6 +16,9 @@ config :fazoura,
     if(config_env() == :prod, do: Ecto.Adapters.Postgres, else: Ecto.Adapters.SQLite3),
   # Uploaded question photos (served at /uploads). Overridden in runtime.exs for prod.
   uploads_dir: Path.expand("../priv/uploads", __DIR__),
+  # Drop `.fazoura` packages here and they are seeded on the next setup, named by their
+  # filename (QUIZ_FORMAT.md §6). Overridden in runtime.exs for prod (PACKAGES_DIR).
+  packages_dir: Path.expand("../priv/packages", __DIR__),
   # Collects photos no quiz references any more (unpublished, replaced, abandoned).
   image_sweeper: [enabled: true, interval_ms: :timer.hours(1), grace_seconds: 86_400],
   # How long shutdown waits for "room closed" to reach live clients.
