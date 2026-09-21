@@ -122,8 +122,10 @@ while the sockets are still open, which is what `stop_grace_period: 30s` in
 
 ## Adding a quiz without a deploy
 
-`<deploy path>/packages/` is a drop folder for `.fazoura` packages (QUIZ_FORMAT.md §6),
-mounted read-only at `/data/packages`. Copy one in and run the seed:
+Quizzes that ship with the server live in `server/priv/packages` and travel in the image.
+`<deploy path>/packages/` is a second directory read after those (QUIZ_FORMAT.md §6),
+mounted read-only at `/data/packages`, for adding or correcting one without a deploy. Copy
+a package in and run the seed:
 
 ```bash
 scp film-night.fazoura fazoura@<host>:/srv/fazoura/packages/
@@ -132,6 +134,8 @@ ssh fazoura@<host> 'cd /srv/fazoura && docker compose run --rm app bin/fazoura e
 
 The filename is the slug — `film-night.fazoura` is hostable as `/film-night` — and a
 newer file copied over it updates that quiz on the next seed rather than adding another.
+Because this directory is read last, a package here with the same slug as one that shipped
+replaces it, which is how a shipped quiz gets corrected between deploys.
 A package brings its photos with it, so nothing has to be published first. Every deploy
 runs the same seed, so packages left in the folder are re-applied and stay in step with
 whatever is in them.

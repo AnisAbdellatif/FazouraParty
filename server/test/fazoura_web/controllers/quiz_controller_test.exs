@@ -7,7 +7,7 @@ defmodule FazouraWeb.QuizControllerTest do
   @other QuizFixtures.other_key()
 
   setup %{conn: conn} do
-    Quizzes.sync_builtin!()
+    QuizFixtures.builtin!("general-knowledge")
     %{conn: put_req_header(conn, "accept", "application/json")}
   end
 
@@ -60,7 +60,7 @@ defmodule FazouraWeb.QuizControllerTest do
       conn |> as(@other) |> get(~p"/api/quizzes") |> json_response(200)
 
     assert Enum.map(listed, & &1["title"]) |> MapSet.new() ==
-             MapSet.new(["General Knowledge", "Capital Cities of the World", "Open Quiz"])
+             MapSet.new(["General Knowledge", "Open Quiz"])
 
     refute Enum.any?(listed, &Map.has_key?(&1, "questions"))
     assert Enum.all?(listed, &(&1["is_owner"] == false))
@@ -109,7 +109,7 @@ defmodule FazouraWeb.QuizControllerTest do
              conn |> as(@owner) |> get(~p"/api/quizzes/#{id}") |> json_response(200)
 
     builtin = conn |> get(~p"/api/quizzes/general-knowledge") |> json_response(200)
-    assert %{"source" => "builtin", "question_count" => 20} = builtin
+    assert %{"source" => "builtin", "question_count" => 1} = builtin
     refute Map.has_key?(builtin, "questions")
 
     assert %{"code" => "quiz_not_found"} =
@@ -130,7 +130,7 @@ defmodule FazouraWeb.QuizControllerTest do
              |> get(~p"/api/quizzes/general-knowledge/download")
              |> json_response(200)
 
-    assert length(questions) == 20
+    assert length(questions) == 1
   end
 
   test "offline archive is a ZIP download", %{conn: conn} do

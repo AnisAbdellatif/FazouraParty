@@ -16,7 +16,7 @@ defmodule Fazoura.AdminTest do
 
   describe "stats/0" do
     setup do
-      Quizzes.sync_builtin!()
+      QuizFixtures.builtin!("general-knowledge")
       {:ok, quiz} = Quizzes.create(QuizFixtures.quiz_params(), @owner)
       %{quiz: quiz}
     end
@@ -24,14 +24,14 @@ defmodule Fazoura.AdminTest do
     test "counts the library" do
       stats = Admin.stats()
 
-      assert stats.library.quizzes == 3
-      assert stats.library.presets == 2
+      assert stats.library.quizzes == 2
+      assert stats.library.presets == 1
       assert stats.library.community == 1
-      assert stats.library.questions == 216
+      assert stats.library.questions == 2
       assert stats.library.photo_questions == 0
-      assert stats.library.tags == 8
+      assert stats.library.tags == 5
       assert %{tag: _, count: _} = hd(stats.top_tags)
-      assert length(stats.recent) == 3
+      assert length(stats.recent) == 2
       assert Enum.all?(stats.recent, &Ecto.assoc_loaded?(&1.quiz_tags))
     end
 
@@ -52,13 +52,13 @@ defmodule Fazoura.AdminTest do
 
   describe "moderation" do
     setup do
-      Quizzes.sync_builtin!()
+      QuizFixtures.builtin!("general-knowledge")
       {:ok, quiz} = Quizzes.create(QuizFixtures.quiz_params(), @owner)
       %{quiz: quiz}
     end
 
     test "lists and searches by title or tag", %{quiz: quiz} do
-      assert length(Admin.list_quizzes()) == 3
+      assert length(Admin.list_quizzes()) == 2
       assert [found] = Admin.list_quizzes(q: "  MOVIE ")
       assert found.id == quiz.id
       assert [^found] = Admin.list_quizzes(q: "cinema")
@@ -94,7 +94,7 @@ defmodule Fazoura.AdminTest do
       assert {:ok, _deleted} = Admin.delete_quiz(quiz.id)
       assert Admin.delete_quiz(quiz.id) == {:error, :quiz_not_found}
       assert Admin.delete_quiz("not-a-uuid") == {:error, :quiz_not_found}
-      assert Repo.aggregate(Quiz, :count) == 1
+      assert Repo.aggregate(Quiz, :count) == 0
     end
 
     test "adds a preset from a quiz document" do

@@ -1,18 +1,24 @@
-# Quiz packages (development)
+# Quiz packages
 
-Drop `.fazoura` files here and `mix setup` loads them into your local database
-(protocol/QUIZ_FORMAT.md §6). This is the default `:packages_dir`; **in production the
-directory is `PACKAGES_DIR`**, which `deploy/Dockerfile` sets to `/data/packages` and
-`deploy/compose.yaml` bind-mounts from `./packages` beside it — so packages are copied
-onto the server rather than baked into the image, and nothing here is read there.
+`.fazoura` files here ship with the server and are seeded into the database on every
+setup — `mix setup` locally, `Fazoura.Release.setup/0` on every deploy
+(protocol/QUIZ_FORMAT.md §6). They are committed, so they travel in the image the same
+way `priv/quizzes/*.json` does.
 
 - **The filename is the slug.** `film-night.fazoura` becomes a preset hostable as
-  `{"quiz_id": "film-night"}`, and re-running updates that quiz rather than adding a
-  second one.
-- **A package carries its photos**, so unlike `priv/quizzes/*.json` there is nothing to
-  publish first — they are stored as ordinary uploads on the way in.
-- **A package that cannot be read stops the sync**, because this also runs on a deploy,
-  and a quiz someone put there going quietly missing is worse than a failed release.
+  `{"quiz_id": "film-night"}`, and changing the file updates that quiz rather than adding
+  a second one.
+- **A package carries its photos**, so unlike a JSON quiz there is nothing to publish
+  first — they are stored as ordinary uploads on the way in.
+- **A package that cannot be read stops the sync**, because this runs on a deploy, and a
+  quiz going quietly missing is worse than a release that stops.
+
+`PACKAGES_DIR` names a **second** directory, read after this one — a drop folder on the
+server, so a quiz can be added or corrected without rebuilding the image. A package there
+with the same slug as one here wins, which is what makes it a correction.
 
 Build one from a folder of JSON and images with `tools/fazoura_pack.py`, or download one
 from the admin dashboard.
+
+Keep an eye on size: everything here is in the image and in git history for good. A large
+quiz is often better dropped on the server than committed.

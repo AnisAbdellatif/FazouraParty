@@ -184,8 +184,7 @@ defmodule Fazoura.QuizzesTest do
 
   describe "listing and reading" do
     setup do
-      builtin = Enum.find(Quizzes.sync_builtin!(), &(&1.slug == "general-knowledge"))
-      assert builtin != nil
+      builtin = QuizFixtures.builtin!("general-knowledge")
       {:ok, movies} = Quizzes.create(quiz_params(), @owner)
 
       {:ok, science} =
@@ -219,8 +218,10 @@ defmodule Fazoura.QuizzesTest do
       assert {:ok, [], nil} = Quizzes.list(tag: "nobody uses this")
       assert {:ok, [first], 1} = Quizzes.list(limit: 1)
       assert first.source == "builtin"
+      # The three this test made, less the first page. The count comes from the setup
+      # rather than from however many quizzes happen to ship with the server.
       assert {:ok, quizzes_after_first, nil} = Quizzes.list(limit: 5, offset: 1)
-      assert length(quizzes_after_first) == 3
+      assert length(quizzes_after_first) == 2
     end
 
     test "popular_tags counts the tags public quizzes use" do
@@ -296,8 +297,7 @@ defmodule Fazoura.QuizzesTest do
     end
 
     test "publisher unpublishes; built-ins can't be changed through the API", %{quiz: quiz} do
-      builtin = Enum.find(Quizzes.sync_builtin!(), &(&1.slug == "general-knowledge"))
-      assert builtin != nil
+      builtin = QuizFixtures.builtin!("general-knowledge")
       assert {:error, :quiz_not_found} = Quizzes.delete(builtin.id, @owner)
       assert {:error, :quiz_not_found} = Quizzes.delete(quiz.id, @other)
       assert :ok = Quizzes.delete(quiz.id, @owner)
@@ -362,17 +362,19 @@ defmodule Fazoura.QuizzesTest do
   end
 
   describe "built-in presets" do
-    test "sync_builtin! is idempotent and loads the 20-question General Knowledge quiz" do
-      first = Enum.find(Quizzes.sync_builtin!(), &(&1.slug == "general-knowledge"))
-      again = Enum.find(Quizzes.sync_builtin!(), &(&1.slug == "general-knowledge"))
+    test "sync_builtin! loads a JSON document as a public preset, idempotently" do
+      # Its own directory, not `priv/quizzes`: what ships with the server is content, and
+      # a test that asserts on it fails the day someone changes what ships.
+      dir = preset_dir(nil)
+
+      [first] = Quizzes.sync_builtin!(dir)
+      [again] = Quizzes.sync_builtin!(dir)
+
       assert first.id == again.id
-      assert Repo.aggregate(Quiz, :count) == 2
+      assert Repo.aggregate(Quiz, :count) == 1
 
-      {:ok, quiz} = Quizzes.fetch("general-knowledge")
-      assert {quiz.source, quiz.visibility, quiz.question_count} == {"builtin", "public", 20}
-
-      assert Enum.map(quiz.questions, & &1.difficulty) |> Enum.uniq() |> Enum.sort() ==
-               ["easy", "hard", "medium"]
+      {:ok, quiz} = Quizzes.fetch("film-night")
+      assert {quiz.slug, quiz.source, quiz.visibility} == {"film-night", "builtin", "public"}
     end
 
     test "a preset photo becomes an ordinary upload" do
@@ -439,20 +441,22 @@ defmodule Fazoura.QuizzesTest do
 
       File.write!(Path.join(dir, "media/still.png"), @png)
 
+      question =
+        if image do
+          %{
+            "type" => "text_photo",
+            "prompt" => "Which film?",
+            "accepted_answers" => ["The Matrix"],
+            "image" => image
+          }
+        else
+          %{"type" => "text", "prompt" => "Which film?", "accepted_answers" => ["The Matrix"]}
+        end
+
       File.write!(
         Path.join(dir, "film-night.json"),
         Jason.encode!(
-          QuizFixtures.quiz_params(%{
-            "title" => "Film Night",
-            "questions" => [
-              %{
-                "type" => "text_photo",
-                "prompt" => "Which film?",
-                "accepted_answers" => ["The Matrix"],
-                "image" => image
-              }
-            ]
-          })
+          QuizFixtures.quiz_params(%{"title" => "Film Night", "questions" => [question]})
         )
       )
 
@@ -541,6 +545,47 @@ defmodule Fazoura.QuizzesTest do
 
     test "a directory that is not there is simply no packages" do
       assert Quizzes.sync_packages!(Path.join(System.tmp_dir!(), "fazoura_no_such_dir")) == []
+    end
+
+    test "the shipped directory and the drop directory are both read" do
+      shipped = packages_dir(%{"shipped.fazoura" => package_binary(%{"title" => "Shipped"})})
+      dropped = packages_dir(%{"dropped.fazoura" => package_binary(%{"title" => "Dropped"})})
+
+      Application.put_env(:fazoura, :packages_dir, shipped)
+      Application.put_env(:fazoura, :packages_drop_dir, dropped)
+
+      on_exit(fn ->
+        Application.put_env(:fazoura, :packages_dir, Path.join(System.tmp_dir!(), "none"))
+        Application.put_env(:fazoura, :packages_drop_dir, nil)
+      end)
+
+      # A package committed to the repo has to seed a deploy, exactly as a JSON built-in
+      # does; the drop directory is for adding one without rebuilding.
+      assert Enum.map(Quizzes.sync_packages!(), & &1.slug) == ["shipped", "dropped"]
+      assert Quizzes.packages_dirs() == [shipped, dropped]
+    end
+
+    test "a dropped package can correct a shipped one of the same slug" do
+      shipped =
+        packages_dir(%{"film-night.fazoura" => package_binary(%{"title" => "Film Night"})})
+
+      dropped =
+        packages_dir(%{"film-night.fazoura" => package_binary(%{"title" => "Film Night Fixed"})})
+
+      Application.put_env(:fazoura, :packages_dir, shipped)
+      Application.put_env(:fazoura, :packages_drop_dir, dropped)
+
+      on_exit(fn ->
+        Application.put_env(:fazoura, :packages_dir, Path.join(System.tmp_dir!(), "none"))
+        Application.put_env(:fazoura, :packages_drop_dir, nil)
+      end)
+
+      # The drop directory is read last, which is what makes it the only way to fix a
+      # shipped quiz without a deploy.
+      Quizzes.sync_packages!()
+      assert {:ok, quiz} = Quizzes.fetch("film-night")
+      assert quiz.title == "Film Night Fixed"
+      assert Repo.aggregate(from(q in Quiz, where: q.source == "builtin"), :count) == 1
     end
 
     test "a package that cannot be read stops the sync" do

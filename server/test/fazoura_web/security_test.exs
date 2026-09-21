@@ -13,7 +13,7 @@ defmodule FazouraWeb.SecurityTest do
   alias Fazoura.{QuizFixtures, Quizzes, RateLimit, Rooms}
 
   setup do
-    Quizzes.sync_builtin!()
+    QuizFixtures.builtin!("general-knowledge")
     :ok
   end
 

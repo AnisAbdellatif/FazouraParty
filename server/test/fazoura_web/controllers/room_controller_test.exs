@@ -8,7 +8,7 @@ defmodule FazouraWeb.RoomControllerTest do
   @png QuizFixtures.png()
 
   setup do
-    Quizzes.sync_builtin!()
+    QuizFixtures.builtin!("general-knowledge")
     :ok
   end
 

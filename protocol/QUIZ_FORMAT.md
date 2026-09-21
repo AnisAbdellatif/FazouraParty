@@ -356,10 +356,17 @@ handed to another server as one `.fazoura` file without going through the reposi
 
 ### Packages dropped in
 
-A `.fazoura` package is a second way in, for a quiz that did not come from this repository.
-`Fazoura.Quizzes.sync_packages!/1` reads every `<slug>.fazoura` in the packages directory —
-`:packages_dir`, which is `server/priv/packages` by default and `PACKAGES_DIR` in production —
-and upserts it exactly as a built-in, alongside the JSON files. Both run from
+A quiz can also ship as a `.fazoura` package instead of as a JSON document with photos beside
+it. `Fazoura.Quizzes.sync_packages!/0` reads every `<slug>.fazoura` in **two** directories and
+upserts each exactly as a built-in, alongside the JSON files:
+
+1. `:packages_dir` — `server/priv/packages`, committed and carried in the image, which is
+   where a quiz that ships with the server lives.
+2. `:packages_drop_dir` — `PACKAGES_DIR`, unset by default. A directory on the server, so a
+   quiz can be added or corrected without rebuilding the image.
+
+It reads them in that order, so a dropped package with the same slug as a shipped one wins —
+which is the only way to correct a shipped quiz without a deploy. Both run from
 `priv/repo/seeds.exs` and from `Fazoura.Release.setup/0`, so every deploy re-applies them.
 
 - **The filename is the slug**, so re-running updates the quiz a package already made rather
@@ -371,8 +378,12 @@ and upserts it exactly as a built-in, alongside the JSON files. Both run from
 - **A directory that isn't there is simply no packages**, so a server that uses none needs no
   configuration.
 
-Pointing `PACKAGES_DIR` at a mounted directory is what makes it a drop folder: copy a package
-onto the server, run the seed, and the quiz is there — no image to rebuild.
+Pointing `PACKAGES_DIR` at a mounted directory is what makes the second one a drop folder:
+copy a package onto the server, run the seed, and the quiz is there — no image to rebuild.
+
+A package is one file with its photos inside, so it is the easier of the two to move between
+servers, to hand to someone, or to produce from a folder (`tools/fazoura_pack.py`). A JSON
+document with a `media/` directory beside it stays readable in a diff, which a ZIP is not.
 
 Preset photos are owned by a key no device holds, so nobody can edit or unpublish a preset
 through the API and no other quiz can reference its photos. The repository is what changes

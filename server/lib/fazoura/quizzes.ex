@@ -697,8 +697,14 @@ defmodule Fazoura.Quizzes do
   Idempotent, and a directory that isn't there is simply no packages. Run by
   `priv/repo/seeds.exs` and by `Fazoura.Release.setup/0` on every deploy.
   """
+  @spec sync_packages!() :: [Quiz.t()]
+  def sync_packages! do
+    Enum.flat_map(packages_dirs(), &sync_packages!/1)
+  end
+
+  @doc "The same, for one directory."
   @spec sync_packages!(String.t()) :: [Quiz.t()]
-  def sync_packages!(dir \\ packages_dir()) do
+  def sync_packages!(dir) when is_binary(dir) do
     for path <- dir |> Path.join("*.fazoura") |> Path.wildcard() |> Enum.sort() do
       slug = Path.basename(path, ".fazoura")
 
@@ -720,9 +726,22 @@ defmodule Fazoura.Quizzes do
     end
   end
 
-  @doc "Where `.fazoura` packages are read from (`PACKAGES_DIR` in production)."
-  @spec packages_dir() :: String.t()
-  def packages_dir, do: Application.fetch_env!(:fazoura, :packages_dir)
+  @doc """
+  The directories `.fazoura` packages are read from, in the order they are read.
+
+  The one that ships in `priv/packages` first, then the drop directory (`PACKAGES_DIR`)
+  if there is one — so a package copied onto a server can replace a shipped one of the
+  same slug, which is the only way to correct one without a deploy.
+  """
+  @spec packages_dirs() :: [String.t()]
+  def packages_dirs do
+    [
+      Application.fetch_env!(:fazoura, :packages_dir),
+      Application.get_env(:fazoura, :packages_drop_dir)
+    ]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
 
   defp upsert_builtin!(slug, params) do
     quiz =

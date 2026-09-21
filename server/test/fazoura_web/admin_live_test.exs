@@ -12,7 +12,7 @@ defmodule FazouraWeb.AdminLiveTest do
   @password "test-admin-password"
 
   setup %{conn: conn} do
-    Quizzes.sync_builtin!()
+    QuizFixtures.builtin!("general-knowledge")
     {:ok, quiz} = Quizzes.create(QuizFixtures.quiz_params(), QuizFixtures.owner_key())
     %{conn: as_admin(conn), quiz: quiz}
   end
@@ -160,8 +160,8 @@ defmodule FazouraWeb.AdminLiveTest do
 
       assert upload(view, "missing.fazoura", no_photo) =~ "media/gone.png"
 
-      # Nothing was created by either attempt.
-      assert Repo.aggregate(from(q in Quiz, where: q.source == "builtin"), :count) == 2
+      # Nothing was created by either attempt: still just the one from setup.
+      assert Repo.aggregate(from(q in Quiz, where: q.source == "builtin"), :count) == 1
     end
 
     test "there is nothing to confirm after choosing a package", %{conn: conn} do
@@ -336,9 +336,22 @@ defmodule FazouraWeb.AdminLiveTest do
     end
 
     test "a long quiz stays one question's worth of form", %{conn: conn} do
-      # 195 questions, and a real one: the quiz that ships with the server.
-      {:ok, capitals} = Quizzes.fetch("world-capitals")
-      view = editor(conn, capitals)
+      # The length a real quiz reaches — the capitals of every country — built here
+      # rather than taken from whatever ships, so the test keeps testing length.
+      long =
+        QuizFixtures.builtin!("world-capitals", %{
+          "title" => "Capital Cities of the World",
+          "questions" =>
+            for index <- 1..195 do
+              %{
+                "type" => "text",
+                "prompt" => "What is the capital of country #{index}?",
+                "accepted_answers" => ["Capital #{index}"]
+              }
+            end
+        })
+
+      view = editor(conn, long)
 
       assert has_element?(view, "#question-q195")
       assert prompts_rendered(view) == 0

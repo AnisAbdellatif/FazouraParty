@@ -12,9 +12,11 @@ config :fazoura, Fazoura.Repo,
 
 config :fazoura, uploads_dir: Path.expand("../tmp/test_uploads", __DIR__)
 
-# Nothing to seed unless a test says so: a stray package in the repo would otherwise
+# Nothing to seed unless a test says so: the packages that ship in priv would otherwise
 # turn up in every test that counts quizzes.
-config :fazoura, packages_dir: Path.expand("../tmp/test_packages", __DIR__)
+config :fazoura,
+  packages_dir: Path.expand("../tmp/test_packages", __DIR__),
+  packages_drop_dir: nil
 
 # Sweeping and draining are driven directly by their tests, never on a timer.
 config :fazoura, image_sweeper: [enabled: false]

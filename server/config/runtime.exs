@@ -40,11 +40,11 @@ if uploads_dir = System.get_env("UPLOADS_DIR") do
   config :fazoura, uploads_dir: uploads_dir
 end
 
-# `.fazoura` packages to seed from. Point this at a mounted directory and a quiz can be
-# added to a server by copying one file in and running `Fazoura.Release.setup/0`; leave
-# it and only the packages baked into the image are read.
+# A directory of `.fazoura` packages to seed from *in addition to* the ones that ship in
+# `priv/packages`. Point it at a mounted directory and a quiz can be added to a running
+# server by copying one file in; leave it and only the shipped packages are read.
 if packages_dir = System.get_env("PACKAGES_DIR") do
-  config :fazoura, packages_dir: packages_dir
+  config :fazoura, packages_drop_dir: packages_dir
 end
 
 if config_env() == :prod do

@@ -2,6 +2,38 @@ defmodule Fazoura.QuizFixtures do
   @moduledoc "Test helpers for quizzes and packs."
 
   alias Fazoura.Game.Pack
+  alias Fazoura.Quizzes.Quiz
+  alias Fazoura.Repo
+
+  @doc """
+  A preset in the database, made directly rather than from a file.
+
+  Tests that only need "a built-in exists" used to call `Fazoura.Quizzes.sync_builtin!/0`
+  and then reach for a slug by name, which tied the whole suite to whichever quizzes the
+  repository happened to ship — removing one broke twenty tests that did not care about
+  it. The two that are *about* loading from files build their own directory instead.
+  """
+  @spec builtin!(String.t(), map()) :: Quiz.t()
+  def builtin!(slug, attrs \\ %{}) do
+    %Quiz{
+      slug: slug,
+      source: "builtin",
+      visibility: "public",
+      questions: [],
+      quiz_tags: []
+    }
+    |> Quiz.changeset(
+      quiz_params(
+        # Its own title and tags, distinct from the community quizzes the same tests
+        # create, so a search or a tag filter can tell them apart.
+        Map.merge(
+          %{"title" => "General Knowledge", "tags" => ["general", "trivia", "classics"]},
+          attrs
+        )
+      )
+    )
+    |> Repo.insert!()
+  end
 
   def owner_key, do: "test-owner-key-aaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   def other_key, do: "test-other-key-bbbbbbbbbbbbbbbbbbbbbbbbbbbb"
