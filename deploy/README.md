@@ -70,6 +70,23 @@ Generate `SECRET_KEY_BASE` locally with `mix phx.gen.secret` (in `server/`). Lea
 `ADMIN_USERNAME`/`ADMIN_PASSWORD` empty and `/admin` returns 404 for everyone — that
 is how it stays unadvertised.
 
+`POSTGRES_PASSWORD` is interpolated into a connection **URL**, so it cannot contain
+`/`, `@`, `?`, `#` or `%` — `openssl rand -hex 32` is always safe. It is also only read
+when the database first initialises: changing it later leaves the cluster on the old one,
+and the app then fails to connect with a pool timeout rather than a clear refusal. To
+change it afterwards, change it in the database too:
+
+```bash
+docker compose exec db psql -U fazoura -d fazoura -c "ALTER USER fazoura PASSWORD 'new'"
+```
+
+`APP_IMAGE` belongs here as well, even though the deploy exports its own: compose
+interpolates the whole file for every command, so without it `docker compose logs`, `ps`,
+`exec` and `down` all refuse to run on the VPS. The examples below assume it is set.
+
+The paths below are written as `/srv/fazoura`, the default; if `DEPLOY_PATH` names
+somewhere else, that is where everything lives.
+
 ### 5. GitHub configuration
 
 Repository **variables** (Settings → Secrets and variables → Actions → Variables):
