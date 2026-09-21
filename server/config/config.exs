@@ -17,8 +17,10 @@ config :fazoura,
   # Uploaded question photos (served at /uploads). Overridden in runtime.exs for prod.
   uploads_dir: Path.expand("../priv/uploads", __DIR__),
   # `.fazoura` packages that ship with the server, seeded on every setup and named by
-  # their filename (QUIZ_FORMAT.md §6). Committed, so they travel in the image.
-  packages_dir: Path.expand("../priv/packages", __DIR__),
+  # their filename (QUIZ_FORMAT.md §6). nil means `priv/packages`, resolved when it is
+  # read rather than here: `Path.expand/2` in this file would bake in the path the build
+  # happened at, which in a release is a directory that no longer exists.
+  packages_dir: nil,
   # A second directory read after that one, for packages put on a server without
   # rebuilding it. nil unless PACKAGES_DIR is set (runtime.exs).
   packages_drop_dir: nil,

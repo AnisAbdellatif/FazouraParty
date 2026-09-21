@@ -465,6 +465,8 @@ defmodule Fazoura.QuizzesTest do
   end
 
   describe "seeding from a packages directory" do
+    @no_packages Path.join(System.tmp_dir!(), "fazoura_no_packages")
+
     defp packages_dir(files) do
       dir = Path.join(System.tmp_dir!(), "fazoura_packages_#{System.unique_integer([:positive])}")
       File.mkdir_p!(dir)
@@ -547,6 +549,16 @@ defmodule Fazoura.QuizzesTest do
       assert Quizzes.sync_packages!(Path.join(System.tmp_dir!(), "fazoura_no_such_dir")) == []
     end
 
+    test "the shipped directory is found where the release runs, not where it was built" do
+      Application.delete_env(:fazoura, :packages_dir)
+      on_exit(fn -> Application.put_env(:fazoura, :packages_dir, @no_packages) end)
+
+      # `Path.expand` in config.exs would bake in the build's own directory — inside the
+      # Docker builder that is `/src/priv/packages`, which the shipped release does not
+      # have, so every package quietly went unread.
+      assert Quizzes.packages_dirs() == [Path.join(:code.priv_dir(:fazoura), "packages")]
+    end
+
     test "the shipped directory and the drop directory are both read" do
       shipped = packages_dir(%{"shipped.fazoura" => package_binary(%{"title" => "Shipped"})})
       dropped = packages_dir(%{"dropped.fazoura" => package_binary(%{"title" => "Dropped"})})
@@ -555,7 +567,7 @@ defmodule Fazoura.QuizzesTest do
       Application.put_env(:fazoura, :packages_drop_dir, dropped)
 
       on_exit(fn ->
-        Application.put_env(:fazoura, :packages_dir, Path.join(System.tmp_dir!(), "none"))
+        Application.put_env(:fazoura, :packages_dir, @no_packages)
         Application.put_env(:fazoura, :packages_drop_dir, nil)
       end)
 
@@ -576,7 +588,7 @@ defmodule Fazoura.QuizzesTest do
       Application.put_env(:fazoura, :packages_drop_dir, dropped)
 
       on_exit(fn ->
-        Application.put_env(:fazoura, :packages_dir, Path.join(System.tmp_dir!(), "none"))
+        Application.put_env(:fazoura, :packages_dir, @no_packages)
         Application.put_env(:fazoura, :packages_drop_dir, nil)
       end)
 

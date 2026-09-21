@@ -736,12 +736,17 @@ defmodule Fazoura.Quizzes do
   @spec packages_dirs() :: [String.t()]
   def packages_dirs do
     [
-      Application.fetch_env!(:fazoura, :packages_dir),
+      Application.get_env(:fazoura, :packages_dir) || shipped_packages_dir(),
       Application.get_env(:fazoura, :packages_drop_dir)
     ]
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
   end
+
+  # Asked of the running system, exactly as `sync_builtin!/1` asks for `priv/quizzes`.
+  # A path expanded in `config.exs` is the path the *build* saw — `/src/priv/packages`
+  # inside the Docker builder — which does not exist in the release that ships.
+  defp shipped_packages_dir, do: Path.join(:code.priv_dir(:fazoura), "packages")
 
   defp upsert_builtin!(slug, params) do
     quiz =
