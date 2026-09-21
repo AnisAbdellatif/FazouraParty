@@ -75,8 +75,6 @@ class HostScreen extends ConsumerWidget {
             await connection.hostTransfer(playerId);
           case HostExitClose():
             await connection.hostClose();
-          case HostExitLeave():
-            break;
         }
       } catch (_) {
         // The room may already be gone; leaving is what matters here.
@@ -95,6 +93,10 @@ class HostScreen extends ConsumerWidget {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) return;
         ref.invalidate(gameConnectionProvider);
+        // Every way out of this screen, the dialog's and the back gesture's
+        // alike — and on the web the back button is the obvious one. Whatever
+        // route was taken, this device is no longer the host of that room.
+        unawaited(ref.read(roomTokensProvider.notifier).drop(roomCode));
         // The host walking out ends a LAN party: stop the server rather than
         // leave guests connected to a room nobody is running.
         unawaited(ref.read(hostedLanRoomProvider.notifier).stop());

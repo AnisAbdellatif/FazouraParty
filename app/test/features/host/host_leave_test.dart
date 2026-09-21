@@ -8,6 +8,7 @@
 @TestOn('vm')
 library;
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:fazoura_party/core/connection/game_connection.dart';
@@ -104,6 +105,47 @@ void main() {
     expect(await remembered(), hasLength(1));
 
     fake.closedCompleter.complete(RoomClosedReason.finished);
+    await tester.pumpAndSettle();
+
+    expect(await remembered(), isEmpty);
+  });
+
+  testWidgets('PROBE: leaving with the back gesture forgets it', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    fake = FakeGameConnection(
+      initialState: questionStateForHost(playing: false),
+    );
+    final navigator = GlobalKey<NavigatorState>();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [gameConnectionProvider.overrideWithValue(fake)],
+        child: Builder(
+          builder: (context) {
+            container = ProviderScope.containerOf(context);
+            return MaterialApp(navigatorKey: navigator, home: const SizedBox());
+          },
+        ),
+      ),
+    );
+    unawaited(
+      navigator.currentState!.push(
+        MaterialPageRoute<void>(
+          builder: (_) => const HostScreen(roomCode: 'K7QX2M'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(await remembered(), hasLength(1));
+
+    // The browser's back button, or Android's. It does not go through the exit
+    // dialog at all, so nothing along that path can be what forgets the room.
+    navigator.currentState!.pop();
     await tester.pumpAndSettle();
 
     expect(await remembered(), isEmpty);

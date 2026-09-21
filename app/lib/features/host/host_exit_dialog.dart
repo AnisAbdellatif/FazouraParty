@@ -20,12 +20,6 @@ class HostExitClose extends HostExit {
   const HostExitClose();
 }
 
-/// Leave without deciding: the room promotes someone at random (PROTOCOL.md
-/// §3.4), or closes shortly after if nobody is left.
-class HostExitLeave extends HostExit {
-  const HostExitLeave();
-}
-
 /// Asks the host what should happen to the room before they walk out.
 ///
 /// Always asked, even with an empty room: leaving is the one action here that
