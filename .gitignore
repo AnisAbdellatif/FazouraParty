@@ -1,9 +1,20 @@
-# OS / editors
+# OS
 .DS_Store
+._*
+.Spotlight-V100
+.Trashes
 Thumbs.db
+desktop.ini
+
+# Editors
 .idea/
 .vscode/
 *.iml
+*.swp
+*.swo
+*~
+.\#*
+\#*\#
 
 # Secrets
 .env
@@ -23,6 +34,11 @@ server/*.ez
 server/priv/static/assets/
 server/priv/plts/
 server/config/prod.secret.exs
+# Language servers keep their own build of the project.
+server/.elixir_ls/
+server/.lexical/
+server/.elixir-tools/
+*.beam
 
 # Flutter / Dart (app/)
 app/.dart_tool/
@@ -39,6 +55,34 @@ app/android/app/debug/
 app/android/app/release/
 app/ios/Pods/
 app/ios/Flutter/Generated.xcconfig
+app/ios/.symlinks/
+app/ios/Flutter/flutter_export_environment.sh
+app/android/.cxx/
+app/android/app/.cxx/
+app/android/key.properties
+app/*.jks
+app/*.keystore
+# `.g.dart` and `.freezed.dart` are committed on purpose: the build runner is not part
+# of `scripts/ci.sh`, so a checkout has to compile without running it.
+
+# Python (tools/)
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Node (app/tool/*.mjs — standard library today, but a dependency would land here)
+node_modules/
+npm-debug.log*
+.npm/
+
+# Local environment
+.envrc
+.direnv/
 
 # Local databases and uploads
 server/*.db
@@ -47,6 +91,9 @@ server/*.db-wal
 server/*.db-journal
 server/priv/uploads/
 server/tmp/
+# Packages dropped on a server live beside its compose file, not in the repo; the ones
+# that ship are `server/priv/packages/*.fazoura` and are committed (QUIZ_FORMAT.md §6).
+deploy/packages/
 
 # Claude Code local overrides (machine-specific)
 .claude/settings.local.json
