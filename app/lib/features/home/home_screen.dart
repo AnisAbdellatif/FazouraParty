@@ -8,6 +8,7 @@ import '../../core/providers/room_tokens.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
+import '../../shared/widgets/update_banner.dart';
 import '../host/host_setup_dialog.dart';
 import '../join/join_screen.dart';
 
@@ -149,6 +150,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Nothing on the web or in a development build; on Android, the
+            // one place a newer APK is offered (README, "Releasing the
+            // Android app").
+            const UpdateBanner(),
             if (hosted != null) ...[
               FzButton(
                 key: const Key('resumeHostingButton'),

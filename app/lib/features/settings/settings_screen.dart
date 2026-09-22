@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers/config_providers.dart';
+import '../../core/providers/update_providers.dart';
+import '../../core/update/app_release.dart';
+import '../../shared/describe_error.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
 
@@ -67,6 +70,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final fz = FzTheme.of(context);
 
+    final build = ref.watch(installedBuildProvider);
+    final named = build.version.isNotEmpty;
+
+    final sections = <Widget>[
+      // Only a build that came through `scripts/ci.sh apk` knows its own
+      // version; everything else would be naming a number it never got.
+      if (named) ...[
+        Text('This build', style: fz.h(17)),
+        const SizedBox(height: 6),
+        Text(
+          'Version ${build.version} (build ${build.versionCode})',
+          key: const Key('appVersionLabel'),
+          style: fz.m(13, color: FzColors.dim, height: 1.4),
+        ),
+      ],
+      if (build.supported) ...[
+        if (named) const SizedBox(height: 14),
+        const _UpdateSection(),
+      ],
+      if (kDebugMode) ...[
+        if (named) const SizedBox(height: 28),
+        Text('Development server', style: fz.h(17)),
+        const SizedBox(height: 6),
+        Text(
+          'Used for local development and Android emulator testing.',
+          style: fz.m(11.5, color: FzColors.dim, height: 1.4),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          key: const Key('debugServerUrlField'),
+          controller: _serverController,
+          keyboardType: TextInputType.url,
+          autocorrect: false,
+          style: fz.m(14),
+          decoration: InputDecoration(
+            hintText: 'http://10.0.2.2:4000',
+            errorText: _error,
+          ),
+        ),
+      ],
+    ];
+
     return Scaffold(
       body: FzPage(
         header: Row(
@@ -82,42 +127,126 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             Text('Settings', style: fz.t(25)),
           ],
         ),
-        footer: FzButton(
-          key: const Key('settingsSaveButton'),
-          label: _saving ? 'Saving…' : 'Save settings',
-          onPressed: _saving ? null : _save,
-        ),
+        // Only the development server is a *setting*; everything else on this
+        // screen is something to read or a one-off action, so a release build
+        // has nothing to save and is not offered a button that does nothing.
+        footer: kDebugMode
+            ? FzButton(
+                key: const Key('settingsSaveButton'),
+                label: _saving ? 'Saving…' : 'Save settings',
+                onPressed: _saving ? null : _save,
+              )
+            : null,
+        // FzBody already scrolls; a ListView here would be a viewport inside
+        // a viewport.
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 24),
-            if (kDebugMode) ...[
-              Text('Development server', style: fz.h(17)),
-              const SizedBox(height: 6),
-              Text(
-                'Used for local development and Android emulator testing.',
-                style: fz.m(11.5, color: FzColors.dim, height: 1.4),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                key: const Key('debugServerUrlField'),
-                controller: _serverController,
-                keyboardType: TextInputType.url,
-                autocorrect: false,
-                style: fz.m(14),
-                decoration: InputDecoration(
-                  hintText: 'http://10.0.2.2:4000',
-                  errorText: _error,
-                ),
-              ),
-            ] else
+            // Which of these a build has is decided at compile time and they
+            // can all be absent — a release web build knows no version, cannot
+            // update itself and has no development server. Assembling the list
+            // first is what keeps that case from being a blank screen.
+            if (sections.isEmpty)
               Text(
                 'No configurable settings are available in this build.',
                 style: fz.m(13, color: FzColors.dim),
-              ),
+              )
+            else
+              ...sections,
           ],
         ),
       ),
     );
+  }
+}
+
+/// Version state and the one action that changes it. Shown only where a build
+/// can replace itself — an Android APK that came from a release.
+class _UpdateSection extends ConsumerWidget {
+  const _UpdateSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fz = FzTheme.of(context);
+    final async = ref.watch(availableUpdateProvider);
+    final status = async.value;
+    final release = status?.release;
+    final failure = status?.failure;
+    // The provider is `AsyncLoading` only for the very first read; after that a
+    // check running announces itself inside the status.
+    final checking = async.isLoading || (status?.checking ?? false);
+
+    return FzPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(key: const Key('updateStatusLabel'), switch ((
+            checking,
+            failure,
+            release,
+          )) {
+            (true, _, _) => 'Checking…',
+            (_, final Object error, _) => describeError(error),
+            (_, _, final AppRelease found) =>
+              'Version ${found.version} is ready.',
+            _ => 'You have the latest version.',
+          }, style: fz.m(13, color: FzColors.dim, height: 1.4)),
+          if (release?.notes case final notes?
+              when notes.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              notes.trim(),
+              style: fz.h(13, weight: FontWeight.w500, height: 1.45),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              if (release != null) ...[
+                FzButton(
+                  key: const Key('settingsDownloadButton'),
+                  label: 'Download',
+                  expand: false,
+                  height: 40,
+                  fontSize: 13,
+                  onPressed: () => _download(context, ref),
+                ),
+                const SizedBox(width: 10),
+              ],
+              FzPill(
+                key: const Key('checkForUpdatesButton'),
+                label: 'Check again',
+                icon: Icons.refresh,
+                onPressed: checking
+                    ? null
+                    : () => ref.read(availableUpdateProvider.notifier).check(),
+              ),
+            ],
+          ),
+          if (release != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              // The browser downloads the APK; Android then asks whether to
+              // trust it. Saying so up front keeps that prompt from looking
+              // like something went wrong.
+              'Opens in your browser. Android will ask you to allow the '
+              'install once.${release.sizeLabel == null ? '' : ' ${release.sizeLabel} download.'}',
+              style: fz.m(11, color: FzColors.faint, height: 1.4),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _download(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final opened = await ref.read(availableUpdateProvider.notifier).download();
+    if (!opened) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not open the download.')),
+      );
+    }
   }
 }

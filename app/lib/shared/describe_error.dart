@@ -1,7 +1,11 @@
 import '../core/models/models.dart';
+import '../core/providers/update_providers.dart';
 
 /// Human-readable text for a [GameError] code (PROTOCOL.md §4).
 String describeError(Object error) {
+  if (error is UpdateCheckFailed) {
+    return 'Could not check for updates. Try again when you have a connection.';
+  }
   if (error is! GameError) return 'Something went wrong.';
   return switch (error.code) {
     'room_not_found' => 'That room does not exist or has ended.',

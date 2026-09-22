@@ -41,6 +41,7 @@ Agents test on the web build only — Android is verified by hand (see [AGENTS.m
 | `lib/core/connection/` | `GameConnection` — the transport-agnostic contract — and its Phoenix Channels implementation |
 | `lib/core/models/` | Wire types (`RoomState`, `JoinResult`, quiz documents), generated with freezed |
 | `lib/core/storage/`, `lib/core/quizzes/` | The device's own quiz library (sembast), publishing and sync |
+| `lib/core/update/` | The Android build's own update check — version, release manifest, and what makes a download URL trustworthy |
 | `lib/features/<feature>/` | One folder per screen: home, join, lobby, player, host, quizzes, … |
 | `lib/shared/theme/`, `lib/shared/widgets/` | `FzColors`/`FzTheme` tokens and the `Fz*` widgets every screen is built from |
 | `tool/` | `build_web.dart` (web build + service worker), `make_icons.dart` (every icon, from the SVG) |
@@ -56,6 +57,18 @@ node tool/check_service_worker.mjs
 
 This is the only supported way to build the web app: plain `flutter build web` leaves
 Flutter's own service worker in place, whose cache key does not track the bundle.
+
+## Android build
+
+```bash
+SERVER_URL=https://your.host ../scripts/ci.sh apk   # → build/release/
+```
+
+That is the only supported way to build an APK for somebody else: it signs with the
+release key, bakes in the server and the version, and writes the `android.json` the
+installed app reads to find out it is out of date. Without a keystore Gradle falls back
+to the debug key so `flutter run --release` keeps working — such a build cannot be
+installed over a real release. See [Releasing the Android app](../README.md#releasing-the-android-app).
 
 ## Icons
 

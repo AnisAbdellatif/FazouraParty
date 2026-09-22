@@ -59,6 +59,7 @@ scripts/ci.sh                 # server + app + Docker image
 scripts/ci.sh server          # compile, format, credo, test, dialyzer
 scripts/ci.sh app             # format, analyze, test, web build, service worker
 scripts/ci.sh image           # build the production image
+scripts/ci.sh apk             # signed Android APK (needs a key — see below)
 
 SKIP_DIALYZER=1 scripts/ci.sh server   # skip the slow first PLT build
 ```
@@ -96,6 +97,80 @@ and expands its contents only when it needs the quiz document for hosting.
 
 A push to `main` runs both suites, builds an image, pushes it to GitHub Container
 Registry and restarts the VPS over SSH. See [`deploy/README.md`](deploy/README.md).
+
+## Releasing the Android app
+
+The web app is a PWA and replaces itself; the Android app is not on any store, so it
+carries its own update check. Tagging is the whole release process:
+
+```bash
+# bump `version:` in app/pubspec.yaml first — both halves, name and build number
+git tag -a v0.2.0 -m "Rematch keeps the same quiz"
+git push origin v0.2.0
+```
+
+That runs the full suite, builds a signed universal APK, and publishes it as a GitHub
+release along with a small `android.json` manifest. An installed app reads that manifest
+from `releases/latest/download/android.json` — a URL GitHub keeps pointing at the newest
+release — at most once every six hours, and offers the download on the home screen and in
+Settings. Tapping it opens the APK in the browser; Android asks once whether to allow the
+install. The app never installs anything itself.
+
+`scripts/ci.sh apk` refuses to build unless the tag matches `app/pubspec.yaml`, so the
+version an APK believes it is and the release it is published under cannot drift apart.
+
+### The signing key
+
+Every release must be signed with the **same** key or Android refuses to install one over
+another — which would break updating for everyone who already has the app. Generate one
+once and keep it somewhere you will not lose it; losing it means every user has to
+uninstall and reinstall.
+
+```bash
+keytool -genkeypair -v -keystore fazoura-release.jks -alias fazoura   -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Then add it to the repository's **production** environment, as secrets:
+
+| Secret | What it is |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 fazoura-release.jks` |
+| `ANDROID_KEYSTORE_PASSWORD` | the keystore password |
+| `ANDROID_KEY_ALIAS` | `fazoura` |
+| `ANDROID_KEY_PASSWORD` | the key password — **the same one**, unless you know otherwise |
+
+`keytool` asks for a keystore password and a key password as if they were two things. They
+are not, for the keystore it writes: since Java 9 it produces **PKCS12**, which has no
+per-entry password and encrypts the key with the *store* password. It says so —
+
+```
+Warning: Different store and key passwords not supported for PKCS12 KeyStores.
+Ignoring user-specified -keypass value.
+```
+
+— and then quietly uses the store password for both. Set them to the same thing, or leave
+`ANDROID_KEY_PASSWORD` unset and the build falls back to the store password. Giving it the
+other password you typed fails at signing time with `UnrecoverableKeyException`. (Only the
+deprecated `-storetype JKS` keeps the two genuinely separate.)
+
+The APK also needs to know which server to talk to — Android has no origin to infer one
+from — so the `PUBLIC_HOST` repository variable must be set; it is the same one the deploy
+job smoke-checks against.
+
+The release job runs in the `production` environment, so that a signing key is not a
+repository-wide secret. If that environment restricts deployment branches, allow tags too
+— otherwise a `v*` tag cannot reach it.
+
+To build one locally, put the same values in `app/android/key.properties`
+(`storeFile`, `storePassword`, `keyAlias`, `keyPassword` — git-ignored) and run:
+
+```bash
+SERVER_URL=https://your.host scripts/ci.sh apk
+```
+
+Without a keystore, Gradle falls back to the debug key so `flutter run --release` keeps
+working. Such a build is fine to try out and useless to hand anybody: it cannot be
+installed over a real release, and `scripts/ci.sh apk` will not produce one.
 
 ## Status
 
