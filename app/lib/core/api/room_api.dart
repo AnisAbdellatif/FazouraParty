@@ -82,9 +82,15 @@ class RoomApi {
     }
 
     if (response.statusCode == 200) return true;
-    // Only the server's own "no" counts. A 500 or a proxy's 502 says nothing
-    // about whether the party is still going.
-    if (response.statusCode == 404) return false;
+    // Only the server's own "no" counts, and it has to say so in the body. A
+    // bare 404 is what a server too old to know this route answers, and what a
+    // captive portal answers to everything — neither has any idea whether the
+    // party is still going, and forgetting the room on their say-so would take
+    // the host's only way back in.
+    if (response.statusCode == 404 &&
+        _decode(response.body)['code'] == 'room_not_found') {
+      return false;
+    }
     return null;
   }
 

@@ -143,6 +143,18 @@ void main() {
         expect(await ask((_) async => http.Response('boom', 500)), isNull);
       });
 
+      // The exact shape of a deploy in progress: the app updated before the
+      // server did, and Phoenix answers 404 to a route it has never heard of.
+      test('when a 404 did not come from the room itself', () async {
+        expect(
+          await ask(
+            (_) async =>
+                http.Response('{"errors":{"detail":"Not Found"}}', 404),
+          ),
+          isNull,
+        );
+      });
+
       test('when something in between answered', () async {
         expect(
           await ask((_) async => http.Response('<html>bad gateway', 502)),
