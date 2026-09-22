@@ -1,7 +1,7 @@
 name: fazoura_party
 description: "Fazoura Party — party trivia with wagers. Android and Web client."
 publish_to: 'none'
-version: 0.1.2+3
+version: 0.1.3+4
 
 environment:
   sdk: ^3.13.2
