@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `9.1`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
+**Protocol version: `9.2`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -91,6 +91,28 @@ photos), `422 {"code": "empty_pack"}`. HTTP error bodies carry `code` and `messa
 
 **LAN:** the host app creates the room in-process; no HTTP call. The resulting `room_code` and
 `host_token` have the same shape.
+
+#### `GET /api/rooms/:code` — is the room I remember still there?
+
+A host's device keeps its `host_token` for as long as the token is valid (§3.3), and a room
+can be gone long before that: 30 seconds after the last person leaves, or the moment the
+host's connection drops with anybody else connected, which hands the role on and retires
+the token. So a device that remembers hosting a room asks before offering to take it back.
+
+The token travels in an **`x-host-token` header**, not the path, so it stays out of access
+logs. Cloud only; a LAN host never stored a token to ask about.
+
+```json
+200 {"room_code": "K7QX2M", "phase": "question", "players": 4}
+404 {"code": "room_not_found"}
+```
+
+`404` covers every no: there is no such room, the room has ended, the token was never
+valid, or the role has since moved on. A caller without the room's *current* host token is
+never told that a room exists, so this cannot be used to find live games by guessing codes.
+
+A client must treat only a `404` as "forget this room". A request that failed to complete
+means the answer is unknown, and a remembered room is worth more than a network blip.
 
 ### 3.2 Room code *(provisional — open item §10.5)*
 

@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../shared/navigation.dart';
-
 import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../core/providers/lan_providers.dart';
 import '../../core/providers/room_tokens.dart';
 import '../../shared/describe_error.dart';
+import '../../shared/navigation.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
 import '../../shared/widgets/update_banner.dart';
@@ -134,13 +133,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final fz = FzTheme.of(context);
-    // A room this device still holds the host token for, offered until it
-    // stops working or ages out (PROTOCOL.md §3.3).
-    final hosted = ref
-        .watch(roomTokensProvider)
-        .value
-        ?.where((room) => room.hostToken != null)
-        .firstOrNull;
+    // A room this device still holds the host token for *and* the server says
+    // is still running. Holding the token is not enough: it outlives the room
+    // by up to a day (PROTOCOL.md §3.3).
+    final hosted = ref.watch(resumableRoomProvider).value;
 
     return Scaffold(
       body: FzPage(

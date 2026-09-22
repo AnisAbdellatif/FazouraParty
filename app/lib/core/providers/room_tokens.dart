@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 export '../storage/room_token_store.dart' show RoomToken;
 
 import '../storage/room_token_store.dart';
+import 'connection_providers.dart';
 
 part 'room_tokens.g.dart';
 
@@ -51,4 +52,38 @@ class RoomTokens extends _$RoomTokens {
     await write();
     state = AsyncData(await _store.list());
   }
+}
+
+/// The room the home screen may offer to take back, or null.
+///
+/// Holding a `host_token` is not the same as still having a room. The token is
+/// good for 24 hours; the room it opened may have ended in thirty seconds, and
+/// the role moves on the instant the host's connection drops with anybody else
+/// connected. The host screen forgets the room on every way out it can see —
+/// the room closing, a deliberate leave, a back gesture — but a tab that is
+/// closed or an app that is swiped away runs none of that, and the offer then
+/// outlives the party by a day.
+///
+/// So the host asks (PROTOCOL.md §3.1). A definite "no such room" is the only
+/// answer that forgets it: a device that could not reach the server keeps the
+/// offer, because a remembered room is worth more than a blip on the way to it.
+@Riverpod(keepAlive: true)
+Future<RoomToken?> resumableRoom(Ref ref) async {
+  final rooms = await ref.watch(roomTokensProvider.future);
+  final hosted = rooms.where((room) => room.hostToken != null).firstOrNull;
+  if (hosted == null) return null;
+
+  final alive = await ref
+      .read(roomApiProvider)
+      .hostRoomAlive(hosted.code, hosted.hostToken!);
+  if (alive == false) {
+    // Straight to the store rather than through [RoomTokens]: writing through
+    // the provider this build watches would restart the build it is inside,
+    // and the two take turns forever. Nothing else reads the list — every
+    // other use of [RoomTokens] is a write — so there is no second copy to go
+    // stale, and the next launch reads the store anyway.
+    await ref.read(roomTokenStoreProvider).drop(hosted.code);
+    return null;
+  }
+  return hosted;
 }

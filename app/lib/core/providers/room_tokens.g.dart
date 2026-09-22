@@ -127,3 +127,94 @@ abstract class _$RoomTokens extends $AsyncNotifier<List<RoomToken>> {
     return element.handleCreate(ref, build);
   }
 }
+
+/// The room the home screen may offer to take back, or null.
+///
+/// Holding a `host_token` is not the same as still having a room. The token is
+/// good for 24 hours; the room it opened may have ended in thirty seconds, and
+/// the role moves on the instant the host's connection drops with anybody else
+/// connected. The host screen forgets the room on every way out it can see —
+/// the room closing, a deliberate leave, a back gesture — but a tab that is
+/// closed or an app that is swiped away runs none of that, and the offer then
+/// outlives the party by a day.
+///
+/// So the host asks (PROTOCOL.md §3.1). A definite "no such room" is the only
+/// answer that forgets it: a device that could not reach the server keeps the
+/// offer, because a remembered room is worth more than a blip on the way to it.
+/// Kept alive deliberately: forgetting a dead room writes through
+/// [RoomTokens], which this watches, so the build runs a second time and
+/// settles on null. An auto-disposing provider can be torn down between those
+/// two runs and never produce a value at all.
+
+@ProviderFor(resumableRoom)
+final resumableRoomProvider = ResumableRoomProvider._();
+
+/// The room the home screen may offer to take back, or null.
+///
+/// Holding a `host_token` is not the same as still having a room. The token is
+/// good for 24 hours; the room it opened may have ended in thirty seconds, and
+/// the role moves on the instant the host's connection drops with anybody else
+/// connected. The host screen forgets the room on every way out it can see —
+/// the room closing, a deliberate leave, a back gesture — but a tab that is
+/// closed or an app that is swiped away runs none of that, and the offer then
+/// outlives the party by a day.
+///
+/// So the host asks (PROTOCOL.md §3.1). A definite "no such room" is the only
+/// answer that forgets it: a device that could not reach the server keeps the
+/// offer, because a remembered room is worth more than a blip on the way to it.
+/// Kept alive deliberately: forgetting a dead room writes through
+/// [RoomTokens], which this watches, so the build runs a second time and
+/// settles on null. An auto-disposing provider can be torn down between those
+/// two runs and never produce a value at all.
+
+final class ResumableRoomProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<RoomToken?>,
+          RoomToken?,
+          FutureOr<RoomToken?>
+        >
+    with $FutureModifier<RoomToken?>, $FutureProvider<RoomToken?> {
+  /// The room the home screen may offer to take back, or null.
+  ///
+  /// Holding a `host_token` is not the same as still having a room. The token is
+  /// good for 24 hours; the room it opened may have ended in thirty seconds, and
+  /// the role moves on the instant the host's connection drops with anybody else
+  /// connected. The host screen forgets the room on every way out it can see —
+  /// the room closing, a deliberate leave, a back gesture — but a tab that is
+  /// closed or an app that is swiped away runs none of that, and the offer then
+  /// outlives the party by a day.
+  ///
+  /// So the host asks (PROTOCOL.md §3.1). A definite "no such room" is the only
+  /// answer that forgets it: a device that could not reach the server keeps the
+  /// offer, because a remembered room is worth more than a blip on the way to it.
+  /// Kept alive deliberately: forgetting a dead room writes through
+  /// [RoomTokens], which this watches, so the build runs a second time and
+  /// settles on null. An auto-disposing provider can be torn down between those
+  /// two runs and never produce a value at all.
+  ResumableRoomProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'resumableRoomProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$resumableRoomHash();
+
+  @$internal
+  @override
+  $FutureProviderElement<RoomToken?> $createElement($ProviderPointer pointer) =>
+      $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<RoomToken?> create(Ref ref) {
+    return resumableRoom(ref);
+  }
+}
+
+String _$resumableRoomHash() => r'eb34d85d69b300263a5f8bce02e8e0d6d17b1113';

@@ -79,6 +79,11 @@ defmodule FazouraWeb.FallbackController do
   def call(conn, {:error, :empty_pack}),
     do: error(conn, :unprocessable_entity, "empty_pack", "That quiz has no questions.")
 
+  # Also the answer when the host token was wrong: a caller who cannot open the
+  # room is not told one exists (PROTOCOL.md §3.1).
+  def call(conn, {:error, :room_not_found}),
+    do: error(conn, :not_found, "room_not_found", "That room does not exist or has ended.")
+
   def call(conn, {:error, %Ecto.Changeset{} = changeset}) do
     error(conn, :unprocessable_entity, "invalid_quiz", "The quiz has errors.", %{
       errors: Ecto.Changeset.traverse_errors(changeset, &translate_error/1)

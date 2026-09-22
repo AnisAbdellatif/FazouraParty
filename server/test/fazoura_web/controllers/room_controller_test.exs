@@ -113,4 +113,86 @@ defmodule FazouraWeb.RoomControllerTest do
   test "GET /health", %{conn: conn} do
     assert json_response(get(conn, ~p"/health"), 200) == %{"status" => "ok"}
   end
+
+  describe "GET /api/rooms/:code" do
+    setup %{conn: conn} do
+      %{"room_code" => code, "host_token" => token} =
+        conn |> post(~p"/api/rooms", %{quiz_id: "general-knowledge"}) |> json_response(201)
+
+      %{code: code, token: token}
+    end
+
+    test "tells the host the room they remember is still there", %{
+      conn: conn,
+      code: code,
+      token: token
+    } do
+      body =
+        conn
+        |> put_req_header("x-host-token", token)
+        |> get(~p"/api/rooms/#{code}")
+        |> json_response(200)
+
+      assert body == %{"room_code" => code, "phase" => "lobby", "players" => 0}
+    end
+
+    test "404 once the room has ended", %{conn: conn, code: code, token: token} do
+      assert Fazoura.Rooms.shutdown_all() >= 1
+
+      assert %{"code" => "room_not_found"} =
+               conn
+               |> put_req_header("x-host-token", token)
+               |> get(~p"/api/rooms/#{code}")
+               |> json_response(404)
+    end
+
+    test "404 for a room that never existed", %{conn: conn, token: token} do
+      assert %{"code" => "room_not_found"} =
+               conn
+               |> put_req_header("x-host-token", token)
+               |> get(~p"/api/rooms/ZZZZZZ")
+               |> json_response(404)
+    end
+
+    # The point of the header: without the current token this says nothing at
+    # all, so live room codes cannot be found by guessing.
+    test "404 without a token, and with somebody else\'s", %{
+      conn: conn,
+      code: code
+    } do
+      assert %{"code" => "room_not_found"} =
+               conn |> get(~p"/api/rooms/#{code}") |> json_response(404)
+
+      %{"host_token" => other} =
+        conn |> post(~p"/api/rooms", %{quiz_id: "general-knowledge"}) |> json_response(201)
+
+      assert %{"code" => "room_not_found"} =
+               conn
+               |> put_req_header("x-host-token", other)
+               |> get(~p"/api/rooms/#{code}")
+               |> json_response(404)
+    end
+
+    test "404 once the role has moved on, so a demoted host forgets the room", %{
+      conn: conn,
+      code: code,
+      token: token
+    } do
+      # A host who drops with somebody else connected is replaced, and the
+      # generation bump retires their token (PROTOCOL.md §3.4).
+      {:ok, _reply, _pid} = Fazoura.Rooms.join(code, self(), %{"display_name" => "Sam"})
+
+      host = spawn(fn -> Process.sleep(:infinity) end)
+      {:ok, _reply, _pid} = Fazoura.Rooms.join(code, host, %{"host_token" => token})
+      Process.exit(host, :kill)
+      # Let the room notice the monitor fire before asking.
+      Process.sleep(50)
+
+      assert %{"code" => "room_not_found"} =
+               conn
+               |> put_req_header("x-host-token", token)
+               |> get(~p"/api/rooms/#{code}")
+               |> json_response(404)
+    end
+  end
 end

@@ -117,6 +117,32 @@ defmodule Fazoura.Rooms.RoomServer do
     {:reply, summary, state}
   end
 
+  # Read-only: does this device's host token still open this room?
+  #
+  # A room can be gone long before the token that opened it expires — empty for
+  # 30 s, or the host demoted the moment anybody else was connected — so the
+  # home screen asks before offering to take it back (PROTOCOL.md §3.3).
+  #
+  # A caller without the current token is told the room does not exist rather
+  # than that their token is wrong, so this cannot be used to find live rooms by
+  # guessing codes, and a demoted host cannot use it to confirm the room is
+  # still running.
+  def handle_call({:status, host_token}, _from, state) do
+    reply =
+      if current_host_token?(state, host_token) do
+        {:ok,
+         %{
+           room_code: state.game.room_code,
+           phase: Atom.to_string(state.game.phase),
+           players: map_size(state.game.players)
+         }}
+      else
+        {:error, :room_not_found}
+      end
+
+    {:reply, reply, state}
+  end
+
   def handle_call(:tick, _from, state) do
     case advance(state) do
       {:ok, state} -> {:reply, :ok, state}
@@ -146,6 +172,20 @@ defmodule Fazoura.Rooms.RoomServer do
   # The host connection that handed the role away keeps its socket, its player id
   # and its score, but loses its powers — so it acts as that player from now on,
   # and host intents get `not_host` like anyone else's (PROTOCOL.md §3.4).
+  # The same test `authenticate/3` makes, without joining anything: the token has
+  # to verify, name this room, and belong to the generation currently in force.
+  defp current_host_token?(state, token) when is_binary(token) do
+    case Phoenix.Token.verify(FazouraWeb.Endpoint, "host", token, max_age: @token_max_age_s) do
+      {:ok, {code, generation}} ->
+        code == state.game.room_code and generation == state.generation
+
+      _ ->
+        false
+    end
+  end
+
+  defp current_host_token?(_state, _token), do: false
+
   defp handle_intent(%{held_by_host_conn?: false} = state, :host, intent) do
     case state.demoted_player_id do
       nil -> {:reply, {:error, :not_host}, state}

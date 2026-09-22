@@ -99,6 +99,17 @@ defmodule Fazoura.Rooms do
     length(pids)
   end
 
+  @doc """
+  Whether `host_token` still opens the live room `code`, and what it is doing.
+
+  `{:error, :room_not_found}` covers both "no such room" and "not with that
+  token", deliberately: the caller is a device asking whether the room it
+  remembers is still worth offering, and either answer means forget it
+  (PROTOCOL.md §3.3).
+  """
+  @spec status(String.t(), String.t() | nil) :: {:ok, map()} | {:error, :room_not_found}
+  def status(code, host_token), do: call(code, {:status, host_token})
+
   @doc "Forces timer/expiry evaluation now. Used by tests with an injected clock."
   @spec tick(String.t()) :: :ok | {:error, :room_not_found}
   def tick(code), do: call(code, :tick)

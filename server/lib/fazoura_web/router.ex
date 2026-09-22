@@ -12,6 +12,10 @@ defmodule FazouraWeb.Router do
     plug FazouraWeb.Plugs.RateLimit, bucket: :rooms, limit: 20, window_ms: 60_000
   end
 
+  pipeline :room_status do
+    plug FazouraWeb.Plugs.RateLimit, bucket: :room_status, limit: 60, window_ms: 60_000
+  end
+
   pipeline :upload do
     plug FazouraWeb.Plugs.RateLimit, bucket: :images, limit: 60, window_ms: 60_000
   end
@@ -61,6 +65,15 @@ defmodule FazouraWeb.Router do
     pipe_through [:api, :create_room]
 
     post "/rooms", RoomController, :create
+  end
+
+  # Metered although it is a read: an unknown code costs a registry miss, but a
+  # real one reaches the room's own process, and that process is running a live
+  # game. Generous enough that the app's one call per launch never notices.
+  scope "/api", FazouraWeb do
+    pipe_through [:api, :room_status]
+
+    get "/rooms/:code", RoomController, :show
   end
 
   scope "/api", FazouraWeb do

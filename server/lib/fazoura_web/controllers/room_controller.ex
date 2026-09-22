@@ -35,6 +35,16 @@ defmodule FazouraWeb.RoomController do
     end
   end
 
+  # GET /api/rooms/:code (PROTOCOL.md §3.1). The host token travels in a header
+  # rather than the path, so it stays out of access logs and referrers.
+  def show(conn, %{"code" => code}) do
+    token = conn |> get_req_header("x-host-token") |> List.first()
+
+    with {:ok, status} <- Rooms.status(code, token) do
+      json(conn, status)
+    end
+  end
+
   defp created(conn, room_code, host_token) do
     conn
     |> put_status(:created)

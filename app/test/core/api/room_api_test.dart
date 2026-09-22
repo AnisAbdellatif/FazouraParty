@@ -80,4 +80,75 @@ void main() {
       throwsA(isA<GameError>().having((e) => e.code, 'code', 'pack_not_found')),
     );
   });
+
+  group('hostRoomAlive', () {
+    Future<bool?> ask(
+      Future<http.Response> Function(http.Request) handler, {
+      void Function(http.Request)? onRequest,
+    }) {
+      final api = RoomApi(
+        baseUrl: 'http://localhost:4000',
+        client: MockClient((request) async {
+          onRequest?.call(request);
+          return handler(request);
+        }),
+      );
+      return api.hostRoomAlive('K7QX2M', 'signed');
+    }
+
+    test('the token goes in a header, never the path', () async {
+      late http.Request captured;
+      await ask(
+        (_) async => http.Response(jsonEncode({'room_code': 'K7QX2M'}), 200),
+        onRequest: (request) => captured = request,
+      );
+
+      expect(captured.method, 'GET');
+      expect(captured.url.toString(), 'http://localhost:4000/api/rooms/K7QX2M');
+      expect(captured.headers['x-host-token'], 'signed');
+    });
+
+    test('200 means the party is still going', () async {
+      expect(
+        await ask(
+          (_) async => http.Response(
+            jsonEncode({
+              'room_code': 'K7QX2M',
+              'phase': 'question',
+              'players': 4,
+            }),
+            200,
+          ),
+        ),
+        isTrue,
+      );
+    });
+
+    test('404 is the one answer that means forget it', () async {
+      expect(
+        await ask(
+          (_) async =>
+              http.Response(jsonEncode({'code': 'room_not_found'}), 404),
+        ),
+        isFalse,
+      );
+    });
+
+    group('says it does not know rather than guessing', () {
+      test('when the network is gone', () async {
+        expect(await ask((_) async => throw Exception('offline')), isNull);
+      });
+
+      test('when the server broke', () async {
+        expect(await ask((_) async => http.Response('boom', 500)), isNull);
+      });
+
+      test('when something in between answered', () async {
+        expect(
+          await ask((_) async => http.Response('<html>bad gateway', 502)),
+          isNull,
+        );
+      });
+    });
+  });
 }

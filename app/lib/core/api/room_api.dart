@@ -57,6 +57,37 @@ class RoomApi {
     );
   }
 
+  /// `GET /api/rooms/:code` — whether this device's `hostToken` still opens
+  /// that room (PROTOCOL.md §3.1).
+  ///
+  /// True it is there, false it is gone, and **null when the answer could not
+  /// be had** — no network, a server that did not respond, anything but a
+  /// definite `404`. The caller uses that to decide whether to forget the
+  /// room, and forgetting one over a blip on the way to the party would be
+  /// worse than briefly offering one that has ended.
+  Future<bool?> hostRoomAlive(String code, String hostToken) async {
+    final base = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+    final http.Response response;
+    try {
+      response = await _client
+          .get(
+            Uri.parse('$base/api/rooms/$code'),
+            headers: {'x-host-token': hostToken, 'accept': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 6));
+    } on Object {
+      return null;
+    }
+
+    if (response.statusCode == 200) return true;
+    // Only the server's own "no" counts. A 500 or a proxy's 502 says nothing
+    // about whether the party is still going.
+    if (response.statusCode == 404) return false;
+    return null;
+  }
+
   void close() => _client.close();
 
   static Map<String, dynamic> _decode(String body) {
