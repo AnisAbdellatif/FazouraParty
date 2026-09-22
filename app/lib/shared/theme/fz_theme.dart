@@ -20,6 +20,13 @@ abstract final class FzColors {
   /// The lift at the top of the radial background.
   static const bgGlow = Color(0xFF14403A);
   static const panel = Color(0x0FFBF6EC);
+
+  /// The mat behind a question's photo. Near-opaque warm white rather than the
+  /// translucent [panel]: photos are letterboxed to fit (`BoxFit.contain`), and
+  /// over the dark page that made a diagram, a product shot or anything else
+  /// on a white ground read as a hole with the subject floating in it. A light
+  /// mat gives it an edge, the way a print has one.
+  static const photoMat = Color(0xF7FBF6EC);
   static const line = Color(0x24FBF6EC);
   static const ok = Color(0xFF4FD39A);
 

@@ -23,12 +23,15 @@ class QuestionPhoto extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fz = FzTheme.of(context);
+    // Everything drawn here sits on the light mat, not on the page, so it takes
+    // the page's own dark teal rather than the usual pale ink — which would be
+    // invisible against it.
     Widget error(BuildContext context, Object error, StackTrace? stack) =>
         Padding(
           padding: const EdgeInsets.all(24),
           child: Text(
             'Photo unavailable',
-            style: fz.m(11, color: FzColors.dim),
+            style: fz.m(11, color: FzColors.bg.withValues(alpha: .55)),
           ),
         );
 
@@ -37,8 +40,9 @@ class QuestionPhoto extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxHeight, minHeight: 80),
         child: Container(
+          key: const Key('photoMat'),
           width: double.infinity,
-          color: FzColors.panel,
+          color: FzColors.photoMat,
           alignment: Alignment.center,
           child: bytes != null
               ? Image.memory(
@@ -55,7 +59,7 @@ class QuestionPhoto extends StatelessWidget {
                       ? child
                       : const Padding(
                           padding: EdgeInsets.all(28),
-                          child: CircularProgressIndicator(),
+                          child: CircularProgressIndicator(color: FzColors.bg),
                         ),
                   errorBuilder: error,
                 ),
