@@ -122,7 +122,7 @@ void main() {
     expect(find.byKey(const Key('gameSettingsEditor')), findsNothing);
     expect(
       textByKey(tester, 'lobbyGameSummary').data,
-      'General Knowledge · 5 questions · 45s each · difficulty bonus',
+      'General Knowledge · 5 questions · 45s each · difficulty scoring',
     );
   });
 }

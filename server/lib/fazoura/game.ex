@@ -9,17 +9,26 @@ defmodule Fazoura.Game do
 
   alias Fazoura.Game.{Answer, Pack}
 
-  @protocol_version 8
-  # Points = wager × multiplier when the difficulty bonus is on (PROTOCOL.md §9).
-  @multipliers %{"easy" => 1, "medium" => 2, "hard" => 3}
+  @protocol_version 9
+  # Points per question by difficulty (PROTOCOL.md §9). A wrong answer costs more on an
+  # easy question than on a hard one: you are expected to know the easy ones, and a hard
+  # one is worth a guess. Letting the question go by costs @skip_points whatever its
+  # difficulty, so saying nothing is never the cheapest way out of a question you should
+  # have known.
+  @points %{
+    "easy" => %{right: 10, wrong: -20},
+    "medium" => %{right: 25, wrong: -10},
+    "hard" => %{right: 50, wrong: -5}
+  }
+  # Every question scores the same when the host turns difficulty scoring off.
+  @flat_points %{right: 10, wrong: -10}
+  @skip_points -10
   @min_time_limit_ms 10_000
   @max_time_limit_ms 120_000
   @default_time_limit_ms 30_000
   @max_players 100
   @max_name_length 20
   @max_answer_length 100
-  @min_wager 1
-  @max_wager 10
   @difficulties ~w(easy medium hard)
 
   @type phase :: :lobby | :question | :scoring | :leaderboard | :finished
@@ -43,11 +52,12 @@ defmodule Fazoura.Game do
           connected: boolean(),
           avatar_hue: non_neg_integer()
         }
+  @type points :: %{right: integer(), wrong: integer()}
   @type submission :: %{
           answer: String.t(),
-          wager: pos_integer(),
           auto_correct: boolean(),
-          override: boolean() | nil
+          override: boolean() | nil,
+          points: points()
         }
 
   @type t :: %__MODULE__{
@@ -71,7 +81,8 @@ defmodule Fazoura.Game do
           question_order: [non_neg_integer()],
           shuffle_questions?: boolean(),
           players: %{String.t() => player()},
-          submissions: %{String.t() => submission()}
+          submissions: %{String.t() => submission()},
+          asked: MapSet.t(String.t())
         }
 
   @enforce_keys [:room_code, :pack, :settings]
@@ -91,7 +102,10 @@ defmodule Fazoura.Game do
     paused_remaining_ms: nil,
     host_player_id: nil,
     players: %{},
-    submissions: %{}
+    submissions: %{},
+    # Who was in the room when the current question started. Only they can be
+    # charged for not answering it — a late joiner never saw it (PROTOCOL.md §9).
+    asked: MapSet.new()
   ]
 
   @spec protocol_version() :: pos_integer()
@@ -231,16 +245,14 @@ defmodule Fazoura.Game do
          :ok <- require_running(game),
          :ok <- require_before_deadline(game, now),
          :ok <- require_no_submission(game, id),
-         {:ok, answer} <- validate_answer(payload["answer"]),
-         {:ok, wager} <- validate_wager(payload["wager"]) do
+         {:ok, answer} <- validate_answer(payload["answer"]) do
       question = current_question(game)
 
       submission = %{
         answer: answer,
-        wager: wager,
         auto_correct: Answer.correct?(answer, question.accepted_answers),
         override: nil,
-        multiplier: multiplier(game, question)
+        points: points(game, question)
       }
 
       {:ok, put_in(game.submissions[id], submission)}
@@ -344,6 +356,7 @@ defmodule Fazoura.Game do
            deadline: nil,
            paused_remaining_ms: nil,
            submissions: %{},
+           asked: MapSet.new(),
            players: players,
            game_number: game.game_number + 1,
            question_offset: 0,
@@ -386,16 +399,24 @@ defmodule Fazoura.Game do
 
   @spec delta(submission()) :: integer()
   def delta(submission) do
-    points = submission.wager * Map.get(submission, :multiplier, 1)
-    if correct?(submission), do: points, else: -points
+    points = Map.get(submission, :points, @flat_points)
+    if correct?(submission), do: points.right, else: points.wrong
   end
 
-  @doc "Score multiplier for `question` under the current settings."
-  @spec multiplier(t(), Pack.Question.t()) :: pos_integer()
-  def multiplier(%__MODULE__{settings: %{difficulty_multiplier: true}}, question),
-    do: Map.fetch!(@multipliers, question.difficulty)
+  @doc """
+  What `question` is worth under the current settings: what a right answer earns and what
+  a wrong one costs. Fixed per question when the player submits, so settings cannot move
+  a score after the fact and an override recomputes with the same numbers.
+  """
+  @spec points(t(), Pack.Question.t()) :: points()
+  def points(%__MODULE__{settings: %{difficulty_multiplier: true}}, question),
+    do: Map.fetch!(@points, question.difficulty)
 
-  def multiplier(_game, _question), do: 1
+  def points(_game, _question), do: @flat_points
+
+  @doc "What letting a question go by costs, whatever its difficulty."
+  @spec skip_points() :: integer()
+  def skip_points, do: @skip_points
 
   defp correct?(%{override: nil, auto_correct: auto}), do: auto
   defp correct?(%{override: override}), do: override
@@ -407,17 +428,30 @@ defmodule Fazoura.Game do
         question_index: index,
         deadline: now + game.settings.time_limit_ms,
         paused_remaining_ms: nil,
-        submissions: %{}
+        submissions: %{},
+        asked: MapSet.new(Map.keys(game.players))
     }
   end
 
   defp score_question(game) do
     players =
-      Enum.reduce(game.submissions, game.players, fn {id, submission}, players ->
-        update_in(players, [id, :score], &(&1 + delta(submission)))
+      Enum.reduce(Map.keys(game.players), game.players, fn id, players ->
+        case question_delta(game, id) do
+          nil -> players
+          change -> update_in(players, [id, :score], &(&1 + change))
+        end
       end)
 
     %{game | phase: :scoring, players: players, deadline: nil, paused_remaining_ms: nil}
+  end
+
+  # What this question did to `id`: their submission's delta, the skip penalty if they
+  # were asked and said nothing, or nothing at all for someone who joined mid-question.
+  defp question_delta(game, id) do
+    case game.submissions[id] do
+      nil -> if MapSet.member?(game.asked, id), do: @skip_points
+      submission -> delta(submission)
+    end
   end
 
   defp after_leaderboard(game, now) do
@@ -461,11 +495,6 @@ defmodule Fazoura.Game do
   end
 
   defp validate_answer(_answer), do: {:error, :invalid_answer}
-
-  defp validate_wager(wager) when is_integer(wager) and wager in @min_wager..@max_wager,
-    do: {:ok, wager}
-
-  defp validate_wager(_wager), do: {:error, :invalid_wager}
 
   defp validate_override(%{"player_id" => id, "correct" => correct})
        when is_binary(id) and is_boolean(correct),
@@ -611,9 +640,11 @@ defmodule Fazoura.Game do
   end
 
   defp question_view(game, question) do
+    points = points(game, question)
+
     question
     |> Map.take([:id, :type, :prompt, :image_url, :time_limit_ms, :difficulty])
-    |> Map.put(:multiplier, multiplier(game, question))
+    |> Map.put(:points, Map.put(points, :skipped, @skip_points))
   end
 
   defp players_view(game) do
@@ -635,18 +666,20 @@ defmodule Fazoura.Game do
     |> Enum.sort_by(&{-&1.score, String.downcase(&1.name)})
   end
 
+  # Everyone the question was put to gets a row, so the scoring screen never has to know
+  # what saying nothing costs: `answer: nil` is the player who let it go by.
   defp submissions_view(game) do
     for player <- sorted_players(game),
-        submission = game.submissions[player.id] do
+        change = question_delta(game, player.id) do
+      submission = game.submissions[player.id]
+
       %{
         player_id: player.id,
-        answer: submission.answer,
-        wager: submission.wager,
-        auto_correct: submission.auto_correct,
-        override: submission.override,
-        correct: correct?(submission),
-        multiplier: Map.get(submission, :multiplier, 1),
-        delta: delta(submission)
+        answer: submission[:answer],
+        auto_correct: submission[:auto_correct] || false,
+        override: submission[:override],
+        correct: submission != nil and correct?(submission),
+        delta: change
       }
     end
   end
@@ -679,23 +712,34 @@ defmodule Fazoura.Game do
   end
 
   defp do_you_view(game, id, question) do
-    submission = question && game.submissions[id]
-    scored? = game.phase in [:scoring, :leaderboard]
-
     %{
       role: "player",
       player_id: id,
       # Filled in by the room shell for the one recipient who has just been given
       # the role (PROTOCOL.md §5.1); the game itself has no tokens.
       host_token: nil,
-      submission:
-        submission &&
-          %{
-            answer: submission.answer,
-            wager: submission.wager,
-            correct: if(scored?, do: correct?(submission)),
-            delta: if(scored?, do: delta(submission))
-          }
+      submission: own_submission_view(game, id, question)
     }
+  end
+
+  # The recipient's own submission, or — from scoring on — the row that tells a player
+  # who said nothing what that cost them.
+  defp own_submission_view(_game, nil, _question), do: nil
+
+  defp own_submission_view(game, id, question) do
+    scored? = game.phase in [:scoring, :leaderboard]
+
+    case question && game.submissions[id] do
+      nil ->
+        if scored? and MapSet.member?(game.asked, id),
+          do: %{answer: nil, correct: false, delta: @skip_points}
+
+      submission ->
+        %{
+          answer: submission.answer,
+          correct: if(scored?, do: correct?(submission)),
+          delta: if(scored?, do: delta(submission))
+        }
+    end
   end
 end

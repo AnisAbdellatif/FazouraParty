@@ -18,7 +18,6 @@ String describeError(Object error) {
     'empty_pack' => 'That quiz has no playable questions.',
     'already_submitted' => 'You already answered this question.',
     'invalid_answer' => 'Answers must be 1–100 characters.',
-    'invalid_wager' => 'Wager must be between 1 and 10.',
     'paused' => 'The game is paused.',
     'not_paused' => 'The game is not paused.',
     'no_submission' => 'That player did not answer.',

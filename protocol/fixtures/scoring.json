@@ -1,95 +1,97 @@
 {
+  "points": [
+    {
+      "difficulty": "easy",
+      "bonus": true,
+      "points": { "right": 10, "wrong": -20, "skipped": -10 }
+    },
+    {
+      "difficulty": "medium",
+      "bonus": true,
+      "points": { "right": 25, "wrong": -10, "skipped": -10 }
+    },
+    {
+      "difficulty": "hard",
+      "bonus": true,
+      "points": { "right": 50, "wrong": -5, "skipped": -10 }
+    },
+    {
+      "difficulty": "hard",
+      "bonus": false,
+      "points": { "right": 10, "wrong": -10, "skipped": -10 }
+    },
+    {
+      "difficulty": "easy",
+      "bonus": false,
+      "points": { "right": 10, "wrong": -10, "skipped": -10 }
+    }
+  ],
   "delta": [
+    { "difficulty": "easy", "bonus": true, "correct": true, "delta": 10 },
+    { "difficulty": "easy", "bonus": true, "correct": false, "delta": -20 },
+    { "difficulty": "medium", "bonus": true, "correct": true, "delta": 25 },
+    { "difficulty": "medium", "bonus": true, "correct": false, "delta": -10 },
+    { "difficulty": "hard", "bonus": true, "correct": true, "delta": 50 },
+    { "difficulty": "hard", "bonus": true, "correct": false, "delta": -5 },
+    { "difficulty": "hard", "bonus": false, "correct": true, "delta": 10 },
+    { "difficulty": "easy", "bonus": false, "correct": false, "delta": -10 }
+  ],
+  "skipped": [
     {
-      "wager": 1,
-      "correct": true,
-      "delta": 1
+      "name": "an easy question nobody should miss still only costs 10",
+      "difficulty": "easy",
+      "bonus": true,
+      "score_before_question": 30,
+      "delta": -10,
+      "score_after_scoring": 20
     },
     {
-      "wager": 10,
-      "correct": true,
-      "delta": 10
+      "name": "skipping a hard question costs more than guessing at it",
+      "difficulty": "hard",
+      "bonus": true,
+      "score_before_question": 0,
+      "delta": -10,
+      "score_after_scoring": -10
     },
     {
-      "wager": 7,
-      "correct": false,
-      "delta": -7
-    },
-    {
-      "wager": 10,
-      "correct": false,
-      "delta": -10
+      "name": "difficulty scoring off changes nothing about skipping",
+      "difficulty": "medium",
+      "bonus": false,
+      "score_before_question": 5,
+      "delta": -10,
+      "score_after_scoring": -5
     }
   ],
   "override": [
     {
       "name": "host marks a typo correct",
+      "difficulty": "medium",
+      "bonus": true,
       "score_before_question": 5,
-      "wager": 7,
       "auto_correct": false,
       "override": true,
-      "score_after_scoring": -2,
-      "score_after_override": 12
+      "score_after_scoring": -5,
+      "score_after_override": 30
     },
     {
       "name": "host marks an auto-correct answer wrong",
+      "difficulty": "easy",
+      "bonus": true,
       "score_before_question": 0,
-      "wager": 3,
       "auto_correct": true,
       "override": false,
-      "score_after_scoring": 3,
-      "score_after_override": -3
+      "score_after_scoring": 10,
+      "score_after_override": -20
     },
     {
       "name": "override equal to auto result changes nothing",
+      "difficulty": "hard",
+      "bonus": true,
       "score_before_question": 4,
-      "wager": 2,
       "auto_correct": true,
       "override": true,
-      "score_after_scoring": 6,
-      "score_after_override": 6
+      "score_after_scoring": 54,
+      "score_after_override": 54
     }
-  ],
-  "multiplier": [
-    {
-      "difficulty": "easy",
-      "bonus": true,
-      "wager": 5,
-      "correct": true,
-      "multiplier": 1,
-      "delta": 5
-    },
-    {
-      "difficulty": "medium",
-      "bonus": true,
-      "wager": 4,
-      "correct": false,
-      "multiplier": 2,
-      "delta": -8
-    },
-    {
-      "difficulty": "hard",
-      "bonus": true,
-      "wager": 3,
-      "correct": true,
-      "multiplier": 3,
-      "delta": 9
-    },
-    {
-      "difficulty": "hard",
-      "bonus": false,
-      "wager": 3,
-      "correct": true,
-      "multiplier": 1,
-      "delta": 3
-    }
-  ],
-  "invalid_wagers": [
-    0,
-    11,
-    -1,
-    5.5,
-    "5",
-    null
   ]
 }

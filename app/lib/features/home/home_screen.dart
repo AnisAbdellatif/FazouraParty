@@ -231,7 +231,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: 22),
               Text(
                 'فزورة  fazoura (n.) — a riddle.\n'
-                'one phone each, one wager each,\n'
+                'one phone each, one answer each,\n'
                 'ten questions of shouting.',
                 style: fz.m(
                   15,

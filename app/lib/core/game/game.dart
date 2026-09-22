@@ -18,19 +18,28 @@ import 'pack.dart';
 /// Must equal `Fazoura.Game.protocol_version/0` and the version the client
 /// sends: a host that answers a different number refuses every join
 /// (PROTOCOL.md §4.1).
-const protocolVersion = 8;
+const protocolVersion = 9;
 const minTimeLimitMs = 10000;
 const maxTimeLimitMs = 120000;
 const defaultTimeLimitMs = 30000;
 const maxPlayers = 100;
 const maxNameLength = 20;
 const maxAnswerLength = 100;
-const minWager = 1;
-const maxWager = 10;
 const supportedDifficulties = ['easy', 'medium', 'hard'];
 
-/// Points = wager x multiplier when the difficulty bonus is on (§9).
-const _multipliers = {'easy': 1, 'medium': 2, 'hard': 3};
+/// Points per question by difficulty, used when difficulty scoring is on (§9).
+/// A wrong answer costs more on an easy question than on a hard one.
+const _pointsByDifficulty = {
+  'easy': (right: 10, wrong: -20),
+  'medium': (right: 25, wrong: -10),
+  'hard': (right: 50, wrong: -5),
+};
+
+/// Every question scores the same when difficulty scoring is off.
+const _flatPoints = (right: 10, wrong: -10);
+
+/// What letting a question go by costs, whatever its difficulty (§9).
+const skipPoints = -10;
 
 enum GamePhase {
   lobby,
@@ -98,30 +107,29 @@ class GamePlayer {
 class GameSubmission {
   const GameSubmission({
     required this.answer,
-    required this.wager,
     required this.autoCorrect,
-    required this.multiplier,
+    required this.points,
     this.overrideVerdict,
   });
 
   final String answer;
-  final int wager;
   final bool autoCorrect;
-  final int multiplier;
+
+  /// What the question was worth when this was submitted, so settings cannot
+  /// move a score after the fact and an override recomputes the same way (§9).
+  final ({int right, int wrong}) points;
 
   /// Null until the host overrides; then it wins over [autoCorrect].
   final bool? overrideVerdict;
 
   bool get correct => overrideVerdict ?? autoCorrect;
 
-  /// `+wager x multiplier` if correct, else negative (§9).
-  int get delta => correct ? wager * multiplier : -(wager * multiplier);
+  int get delta => correct ? points.right : points.wrong;
 
   GameSubmission withOverride(bool verdict) => GameSubmission(
     answer: answer,
-    wager: wager,
     autoCorrect: autoCorrect,
-    multiplier: multiplier,
+    points: points,
     overrideVerdict: verdict,
   );
 }
@@ -186,6 +194,10 @@ class Game {
 
   final Map<String, GamePlayer> players = {};
   final Map<String, GameSubmission> submissions = {};
+
+  /// Who was in the room when the current question started. Only they can be
+  /// charged for not answering it — a late joiner never saw it (§9).
+  final Set<String> asked = {};
 
   /// Whole pack, at the first question's time limit (clamped to the range).
   static GameSettings _defaultSettings(Pack pack) {
@@ -345,14 +357,12 @@ class Game {
     }
 
     final answer = _validateAnswer(payload['answer']);
-    final wager = _validateWager(payload['wager']);
     final question = currentQuestion!;
 
     submissions[id] = GameSubmission(
       answer: answer,
-      wager: wager,
       autoCorrect: answerIsCorrect(answer, question.acceptedAnswers),
-      multiplier: multiplierFor(question),
+      points: pointsFor(question),
     );
   }
 
@@ -502,6 +512,7 @@ class Game {
     deadline = null;
     pausedRemainingMs = null;
     submissions.clear();
+    asked.clear();
     gameNumber += 1;
   }
 
@@ -519,15 +530,25 @@ class Game {
     deadline = now + settings.timeLimitMs;
     pausedRemainingMs = null;
     submissions.clear();
+    asked
+      ..clear()
+      ..addAll(players.keys);
+  }
+
+  /// What the current question did to [id]: their submission's delta, the skip
+  /// penalty if they were asked and said nothing, or nothing at all for
+  /// someone who joined mid-question (§9).
+  int? questionDelta(String id) {
+    final submission = submissions[id];
+    if (submission != null) return submission.delta;
+    return asked.contains(id) ? skipPoints : null;
   }
 
   void _scoreQuestion() {
-    for (final entry in submissions.entries) {
-      final player = players[entry.key];
-      if (player != null) {
-        players[entry.key] = player.copyWith(
-          score: player.score + entry.value.delta,
-        );
+    for (final id in players.keys.toList()) {
+      final change = questionDelta(id);
+      if (change != null) {
+        players[id] = players[id]!.copyWith(score: players[id]!.score + change);
       }
     }
     phase = GamePhase.scoring;
@@ -548,17 +569,11 @@ class Game {
     return trimmed;
   }
 
-  static int _validateWager(Object? wager) {
-    if (wager is! int || wager < minWager || wager > maxWager) {
-      throw const GameRuleError('invalid_wager');
-    }
-    return wager;
-  }
-
-  /// Score multiplier for [question] under the current settings (§9).
-  int multiplierFor(PackQuestion question) => settings.difficultyMultiplier
-      ? (_multipliers[question.difficulty] ?? 1)
-      : 1;
+  /// What [question] is worth under the current settings (§9).
+  ({int right, int wrong}) pointsFor(PackQuestion question) =>
+      settings.difficultyMultiplier
+      ? (_pointsByDifficulty[question.difficulty] ?? _flatPoints)
+      : _flatPoints;
 
   /// The shuffled pack is played from [questionOffset], wrapping around, at
   /// the host's chosen time limit (per-question pack limits are ignored, §6.2).
@@ -646,7 +661,11 @@ class Game {
     'image_url': question.imageUrl,
     'time_limit_ms': question.timeLimitMs,
     'difficulty': question.difficulty,
-    'multiplier': multiplierFor(question),
+    'points': {
+      'right': pointsFor(question).right,
+      'wrong': pointsFor(question).wrong,
+      'skipped': skipPoints,
+    },
   };
 
   List<Map<String, dynamic>> _playersView() {
@@ -683,16 +702,14 @@ class Game {
 
   List<Map<String, dynamic>> _submissionsView() => [
     for (final player in _sortedPlayers())
-      if (submissions[player.id] case final submission?)
+      if (questionDelta(player.id) case final change?)
         {
           'player_id': player.id,
-          'answer': submission.answer,
-          'wager': submission.wager,
-          'auto_correct': submission.autoCorrect,
-          'override': submission.overrideVerdict,
-          'correct': submission.correct,
-          'multiplier': submission.multiplier,
-          'delta': submission.delta,
+          'answer': submissions[player.id]?.answer,
+          'auto_correct': submissions[player.id]?.autoCorrect ?? false,
+          'override': submissions[player.id]?.overrideVerdict,
+          'correct': submissions[player.id]?.correct ?? false,
+          'delta': change,
         },
   ];
 
@@ -708,6 +725,9 @@ class Game {
 
     final submission = question == null || id == null ? null : submissions[id];
     final scored = phase == GamePhase.scoring || phase == GamePhase.leaderboard;
+    // From scoring on, a player who said nothing is told what that cost them.
+    final skipped =
+        scored && submission == null && id != null && asked.contains(id);
 
     return {
       'role': role,
@@ -715,14 +735,19 @@ class Game {
       // Filled in by the room shell for the one recipient who was just given
       // the role; the game itself has no tokens.
       'host_token': null,
-      'submission': submission == null
-          ? null
-          : {
-              'answer': submission.answer,
-              'wager': submission.wager,
-              'correct': scored ? submission.correct : null,
-              'delta': scored ? submission.delta : null,
-            },
+      'submission': switch (submission) {
+        final s? => {
+          'answer': s.answer,
+          'correct': scored ? s.correct : null,
+          'delta': scored ? s.delta : null,
+        },
+        _ when skipped => {
+          'answer': null,
+          'correct': false,
+          'delta': skipPoints,
+        },
+        _ => null,
+      },
     };
   }
 }

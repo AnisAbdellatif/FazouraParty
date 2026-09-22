@@ -88,7 +88,7 @@ void main() {
   test('intents before joining throw not_joined', () async {
     final connection = PhoenixGameConnection(baseUrl: 'http://localhost:4000');
     await expectLater(
-      connection.submit('x', 1),
+      connection.submit('x'),
       throwsA(
         isA<GameError>().having((e) => e.code, 'code', GameError.notJoined),
       ),

@@ -24,7 +24,7 @@ abstract interface class GameConnection {
   /// Pass [displayName] for the host to also play (PROTOCOL.md §4.1).
   Future<JoinResult> joinAsHost(String roomCode, String hostToken, {String? displayName});
 
-  Future<void> submit(String answer, int wager);
+  Future<void> submit(String answer);
 
   Future<void> hostNext();
   Future<void> hostPause();

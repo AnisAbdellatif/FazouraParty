@@ -31,7 +31,7 @@ Benchee.run(
     # Validation, normalization and the match, for one answer.
     "submit" => fn game ->
       {:ok, _} =
-        Game.handle(game, {:player, "p1"}, {:submit, %{"answer" => "Tunis", "wager" => 7}}, t0)
+        Game.handle(game, {:player, "p1"}, {:submit, %{"answer" => "Tunis"}}, t0)
     end,
 
     # Closing the question: folds the score delta over every submission at once.

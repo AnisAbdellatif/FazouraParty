@@ -675,7 +675,7 @@ class _QuizCard extends StatelessWidget {
       ...quiz.tags.take(3),
       'Version ${quiz.version}',
       if (quiz.hasPhotos) 'Photos',
-      if (quiz.defaultSettings.difficultyMultiplier) 'Difficulty bonus',
+      if (quiz.defaultSettings.difficultyMultiplier) 'Difficulty scoring',
     ].join(' · ');
 
     return Material(

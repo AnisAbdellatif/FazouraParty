@@ -18,7 +18,7 @@
     {
       "actor": "host",
       "join": {
-        "protocol_version": 8,
+        "protocol_version": 9,
         "host_token": "$host_token"
       },
       "expect": {
@@ -32,7 +32,7 @@
     {
       "actor": "sam",
       "join": {
-        "protocol_version": 8,
+        "protocol_version": 9,
         "display_name": "Sam"
       },
       "expect": {
@@ -45,7 +45,7 @@
     {
       "actor": "alex",
       "join": {
-        "protocol_version": 8,
+        "protocol_version": 9,
         "display_name": "alex"
       },
       "expect": {
@@ -58,7 +58,7 @@
     {
       "actor": "dup",
       "join": {
-        "protocol_version": 8,
+        "protocol_version": 9,
         "display_name": "SAM"
       },
       "expect": {
@@ -72,8 +72,7 @@
       "actor": "sam",
       "push": "submit",
       "payload": {
-        "answer": "x",
-        "wager": 5
+        "answer": "x"
       },
       "expect": {
         "status": "error",
@@ -151,8 +150,7 @@
       "actor": "host",
       "push": "submit",
       "payload": {
-        "answer": "Canberra",
-        "wager": 10
+        "answer": "Canberra"
       },
       "expect": {
         "status": "error",
@@ -165,13 +163,12 @@
       "actor": "sam",
       "push": "submit",
       "payload": {
-        "answer": "Canberra",
-        "wager": 11
+        "answer": "   "
       },
       "expect": {
         "status": "error",
         "response": {
-          "code": "invalid_wager"
+          "code": "invalid_answer"
         }
       }
     },
@@ -179,8 +176,7 @@
       "actor": "sam",
       "push": "submit",
       "payload": {
-        "answer": "  canberra ",
-        "wager": 7
+        "answer": "  canberra "
       },
       "expect": {
         "status": "ok"
@@ -190,8 +186,7 @@
       "actor": "sam",
       "push": "submit",
       "payload": {
-        "answer": "Sydney",
-        "wager": 1
+        "answer": "Sydney"
       },
       "expect": {
         "status": "error",
@@ -204,8 +199,7 @@
       "actor": "alex",
       "push": "submit",
       "payload": {
-        "answer": "Canbera",
-        "wager": 4
+        "answer": "Canbera"
       },
       "expect": {
         "status": "ok"
@@ -217,7 +211,6 @@
         "you": {
           "submission": {
             "answer": "Canbera",
-            "wager": 4,
             "correct": null,
             "delta": null
           }
@@ -238,12 +231,12 @@
         "players": [
           {
             "name": "Sam",
-            "score": 7,
+            "score": 10,
             "has_submitted": true
           },
           {
             "name": "alex",
-            "score": -4,
+            "score": -10,
             "has_submitted": true
           }
         ]
@@ -274,18 +267,18 @@
       "expect_state": {
         "players": [
           {
-            "name": "Sam",
-            "score": 7
+            "name": "alex",
+            "score": 10
           },
           {
-            "name": "alex",
-            "score": 4
+            "name": "Sam",
+            "score": 10
           }
         ],
         "you": {
           "submission": {
             "correct": true,
-            "delta": 4
+            "delta": 10
           }
         }
       }

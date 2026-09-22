@@ -112,7 +112,9 @@ _Question _$QuestionFromJson(Map<String, dynamic> json) => _Question(
   imageUrl: json['image_url'] as String?,
   timeLimitMs: (json['time_limit_ms'] as num).toInt(),
   difficulty: json['difficulty'] as String? ?? 'easy',
-  multiplier: (json['multiplier'] as num?)?.toInt() ?? 1,
+  points: json['points'] == null
+      ? const QuestionPoints()
+      : QuestionPoints.fromJson(json['points'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$QuestionToJson(_Question instance) => <String, dynamic>{
@@ -122,7 +124,7 @@ Map<String, dynamic> _$QuestionToJson(_Question instance) => <String, dynamic>{
   'image_url': instance.imageUrl,
   'time_limit_ms': instance.timeLimitMs,
   'difficulty': instance.difficulty,
-  'multiplier': instance.multiplier,
+  'points': instance.points.toJson(),
 };
 
 const _$QuestionTypeEnumMap = {
@@ -170,10 +172,23 @@ Map<String, dynamic> _$YouToJson(_You instance) => <String, dynamic>{
 
 const _$RoleEnumMap = {Role.host: 'host', Role.player: 'player'};
 
+_QuestionPoints _$QuestionPointsFromJson(Map<String, dynamic> json) =>
+    _QuestionPoints(
+      right: (json['right'] as num?)?.toInt() ?? 10,
+      wrong: (json['wrong'] as num?)?.toInt() ?? -10,
+      skipped: (json['skipped'] as num?)?.toInt() ?? -10,
+    );
+
+Map<String, dynamic> _$QuestionPointsToJson(_QuestionPoints instance) =>
+    <String, dynamic>{
+      'right': instance.right,
+      'wrong': instance.wrong,
+      'skipped': instance.skipped,
+    };
+
 _OwnSubmission _$OwnSubmissionFromJson(Map<String, dynamic> json) =>
     _OwnSubmission(
-      answer: json['answer'] as String,
-      wager: (json['wager'] as num).toInt(),
+      answer: json['answer'] as String?,
       correct: json['correct'] as bool?,
       delta: (json['delta'] as num?)?.toInt(),
     );
@@ -181,7 +196,6 @@ _OwnSubmission _$OwnSubmissionFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$OwnSubmissionToJson(_OwnSubmission instance) =>
     <String, dynamic>{
       'answer': instance.answer,
-      'wager': instance.wager,
       'correct': instance.correct,
       'delta': instance.delta,
     };
@@ -189,12 +203,10 @@ Map<String, dynamic> _$OwnSubmissionToJson(_OwnSubmission instance) =>
 _SubmissionView _$SubmissionViewFromJson(Map<String, dynamic> json) =>
     _SubmissionView(
       playerId: json['player_id'] as String,
-      answer: json['answer'] as String,
-      wager: (json['wager'] as num).toInt(),
+      answer: json['answer'] as String?,
       autoCorrect: json['auto_correct'] as bool?,
       overrideVerdict: json['override'] as bool?,
       correct: json['correct'] as bool?,
-      multiplier: (json['multiplier'] as num?)?.toInt() ?? 1,
       delta: (json['delta'] as num?)?.toInt(),
     );
 
@@ -202,10 +214,8 @@ Map<String, dynamic> _$SubmissionViewToJson(_SubmissionView instance) =>
     <String, dynamic>{
       'player_id': instance.playerId,
       'answer': instance.answer,
-      'wager': instance.wager,
       'auto_correct': instance.autoCorrect,
       'override': instance.overrideVerdict,
       'correct': instance.correct,
-      'multiplier': instance.multiplier,
       'delta': instance.delta,
     };

@@ -22,7 +22,7 @@ import '../../shared/widgets/reveal_summary.dart';
 import '../../shared/widgets/standings.dart';
 import '../finished/finished_view.dart';
 import '../leaderboard/leaderboard_view.dart'
-    show deltasFor, playersWithoutSubmission, wagerLabel;
+    show answeredSubmissions, deltasFor, playersWithoutSubmission;
 import '../lobby/game_settings_editor.dart';
 import 'host_exit_dialog.dart';
 import '../lobby/lobby_view.dart';
@@ -459,9 +459,10 @@ class _HostSubmissions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fz = FzTheme.of(context);
-    final submissions = state.submissions ?? const <SubmissionView>[];
+    final submissions = answeredSubmissions(state);
     final playersById = {for (final p in state.players) p.id: p};
     final missing = playersWithoutSubmission(state);
+    final deltas = deltasFor(state);
 
     return Column(
       key: const Key('hostSubmissions'),
@@ -493,6 +494,7 @@ class _HostSubmissions extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 8),
             child: _NoSubmissionRow(
               player: player,
+              delta: deltas[player.id],
               isYou: player.id == state.you.playerId,
             ),
           ),
@@ -503,9 +505,14 @@ class _HostSubmissions extends StatelessWidget {
 
 /// A player who didn't answer, shown so the host sees the whole room.
 class _NoSubmissionRow extends StatelessWidget {
-  const _NoSubmissionRow({required this.player, required this.isYou});
+  const _NoSubmissionRow({
+    required this.player,
+    required this.delta,
+    required this.isYou,
+  });
 
   final PlayerSummary player;
+  final int? delta;
   final bool isYou;
 
   @override
@@ -558,7 +565,10 @@ class _NoSubmissionRow extends StatelessWidget {
               ],
             ),
           ),
-          Text('0', style: fz.m(14, color: FzColors.dim)),
+          // Letting a question go by has a price of its own (§9), and it is
+          // the server's number, not one this screen works out.
+          if (delta != null)
+            Text(formatDelta(delta!), style: fz.m(14, color: FzColors.ac2)),
         ],
       ),
     );
@@ -584,7 +594,6 @@ class _SubmissionRow extends StatelessWidget {
     final correct = submission.correct ?? submission.autoCorrect ?? false;
     final name = player?.name ?? submission.playerId;
     final details = <String>[
-      wagerLabel(submission),
       if (submission.autoCorrect != null)
         'auto ${submission.autoCorrect! ? '✓' : '✗'}',
       if (submission.overrideVerdict != null) 'corrected',
@@ -634,9 +643,9 @@ class _SubmissionRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     FzDirection(
-                      text: submission.answer,
+                      text: submission.answer ?? '',
                       child: Text(
-                        submission.answer,
+                        submission.answer ?? '',
                         style: fz.h(16, weight: FontWeight.w700),
                       ),
                     ),

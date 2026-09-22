@@ -9,6 +9,7 @@ import '../../core/providers/config_providers.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../core/time/server_clock.dart';
 import '../../shared/describe_error.dart';
+import '../../shared/format.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/countdown.dart';
 import '../../shared/widgets/fz.dart';
@@ -16,10 +17,7 @@ import '../../shared/widgets/fz_direction.dart';
 import '../../shared/widgets/question_photo.dart';
 import '../../shared/widgets/submitted_dots.dart';
 
-const minWager = 1;
-const maxWager = 10;
 const maxAnswerLength = 100;
-const _defaultWager = 5;
 
 /// How far before the deadline a typed-but-unsent answer is locked in on its
 /// own. The server refuses a submission that reaches it at or after the
@@ -27,8 +25,9 @@ const _defaultWager = 5;
 const autoSubmitLeadMs = 700;
 
 /// Question stage: prompt, server-clock timer and, for anyone playing, the
-/// answer field, wager slider and "Lock it in". Inputs are replaced by a
-/// locked-in card once a submission is sent or the snapshot shows one.
+/// answer field, what the question is worth and "Lock it in". Inputs are
+/// replaced by a locked-in card once a submission is sent or the snapshot
+/// shows one.
 ///
 /// An answer that has been typed but not locked in is sent automatically just
 /// before the timer runs out, so nobody loses an answer to the clock.
@@ -53,9 +52,8 @@ class PlayerQuestionView extends ConsumerStatefulWidget {
 
 class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
   final _answerController = TextEditingController();
-  int _wager = _defaultWager;
   bool _sending = false;
-  ({String answer, int wager})? _sent;
+  String? _sent;
   String? _error;
   Timer? _autoSubmit;
 
@@ -73,7 +71,6 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
     if (oldWidget.state.gameNumber != widget.state.gameNumber ||
         oldWidget.state.question?.id != widget.state.question?.id) {
       _answerController.clear();
-      _wager = _defaultWager;
       _sending = false;
       _sent = null;
       _error = null;
@@ -124,33 +121,29 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
     _submit();
   }
 
-  /// Points per wager unit for this question (protocol v4, §9).
-  int get _multiplier => widget.state.question?.multiplier ?? 1;
-
   Future<void> _submit() async {
     final answer = _answerController.text.trim();
     if (answer.isEmpty || answer.characters.length > maxAnswerLength) {
       setState(() => _error = 'Answers must be 1–$maxAnswerLength characters.');
       return;
     }
-    final wager = _wager;
     setState(() {
       _sending = true;
       _error = null;
     });
     try {
-      await ref.read(gameConnectionProvider).submit(answer, wager);
+      await ref.read(gameConnectionProvider).submit(answer);
       if (!mounted) return;
       setState(() {
         _sending = false;
-        _sent = (answer: answer, wager: wager);
+        _sent = answer;
       });
     } catch (error) {
       if (!mounted) return;
       setState(() {
         _sending = false;
         if (error is GameError && error.code == 'already_submitted') {
-          _sent = (answer: answer, wager: wager);
+          _sent = answer;
         }
         _error = describeError(error);
       });
@@ -164,9 +157,7 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
     final question = state.question;
     final submission = state.you.submission;
     final paused = state.pausedRemainingMs != null;
-    final lockedIn = submission != null
-        ? (answer: submission.answer, wager: submission.wager)
-        : _sent;
+    final lockedIn = submission?.answer ?? _sent;
     final answered = state.players.where((p) => p.hasSubmitted).length;
 
     return FzBody(
@@ -196,10 +187,7 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
               (state.settings?.difficultyMultiplier ?? false)) ...[
             Align(
               alignment: Alignment.centerLeft,
-              child: _DifficultyBadge(
-                difficulty: question.difficulty,
-                multiplier: question.multiplier,
-              ),
+              child: _DifficultyBadge(difficulty: question.difficulty),
             ),
             const SizedBox(height: 14),
           ],
@@ -242,15 +230,19 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
               ),
             )
           else if (lockedIn != null)
-            _LockedIn(answer: lockedIn.answer, wager: lockedIn.wager)
+            _LockedIn(answer: lockedIn)
           else
-            ..._inputs(fz, paused: paused),
+            ..._inputs(fz, points: question?.points, paused: paused),
         ],
       ),
     );
   }
 
-  List<Widget> _inputs(FzTheme fz, {required bool paused}) {
+  List<Widget> _inputs(
+    FzTheme fz, {
+    required QuestionPoints? points,
+    required bool paused,
+  }) {
     final busy = _sending;
     return [
       FzTypingDirection(
@@ -272,53 +264,7 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
         ),
       ),
       const SizedBox(height: 22),
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const FzEyebrow('Wager'),
-                const SizedBox(height: 6),
-                Text(
-                  '+${_wager * _multiplier} if right · '
-                  '−${_wager * _multiplier} if wrong',
-                  key: const Key('wagerHint'),
-                  style: fz.m(11, color: FzColors.dim),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            '$_wager',
-            key: const Key('wagerValue'),
-            style: fz.m(40, color: FzColors.ac, height: 1),
-          ),
-        ],
-      ),
-      const SizedBox(height: 4),
-      Slider(
-        key: const Key('wagerSlider'),
-        value: _wager.toDouble(),
-        min: minWager.toDouble(),
-        max: maxWager.toDouble(),
-        divisions: maxWager - minWager,
-        label: '$_wager',
-        onChanged: busy
-            ? null
-            : (value) => setState(() => _wager = value.round()),
-      ),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text('1 · safe', style: fz.m(10, color: FzColors.faint)),
-            Text('10 · all in', style: fz.m(10, color: FzColors.faint)),
-          ],
-        ),
-      ),
+      if (points != null) _Stakes(points: points),
       const SizedBox(height: 18),
       if (_error != null)
         Padding(
@@ -344,18 +290,65 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
   }
 }
 
-/// "HARD ×3" pill shown when the difficulty bonus is on.
-class _DifficultyBadge extends StatelessWidget {
-  const _DifficultyBadge({required this.difficulty, required this.multiplier});
+/// What the question is worth, straight from the server (§9). Three numbers,
+/// no arithmetic: what a right answer earns, what a wrong one costs, and what
+/// saying nothing costs.
+class _Stakes extends StatelessWidget {
+  const _Stakes({required this.points});
 
-  final String difficulty;
-  final int multiplier;
+  final QuestionPoints points;
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (multiplier) {
-      >= 3 => FzColors.ac2,
-      2 => FzColors.ac,
+    return Row(
+      key: const Key('stakes'),
+      children: [
+        _Stake(label: 'RIGHT', value: points.right, color: FzColors.ok),
+        _Stake(label: 'WRONG', value: points.wrong, color: FzColors.ac2),
+        _Stake(label: 'NO ANSWER', value: points.skipped, color: FzColors.dim),
+      ],
+    );
+  }
+}
+
+class _Stake extends StatelessWidget {
+  const _Stake({required this.label, required this.value, required this.color});
+
+  final String label;
+  final int value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final fz = FzTheme.of(context);
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: fz.m(9.5, color: FzColors.faint, tracking: .14)),
+          const SizedBox(height: 4),
+          Text(
+            formatDelta(value),
+            key: Key('stake-${label.toLowerCase().replaceAll(' ', '-')}'),
+            style: fz.m(22, color: color, height: 1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "HARD" pill shown when difficulty scoring is on.
+class _DifficultyBadge extends StatelessWidget {
+  const _DifficultyBadge({required this.difficulty});
+
+  final String difficulty;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (difficulty) {
+      'hard' => FzColors.ac2,
+      'medium' => FzColors.ac,
       _ => FzColors.ok,
     };
     return Container(
@@ -366,7 +359,7 @@ class _DifficultyBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        '${difficulty.toUpperCase()} ×$multiplier',
+        difficulty.toUpperCase(),
         style: FzTheme.of(context).m(9.5, color: color, tracking: .14),
       ),
     );
@@ -374,10 +367,9 @@ class _DifficultyBadge extends StatelessWidget {
 }
 
 class _LockedIn extends StatelessWidget {
-  const _LockedIn({required this.answer, required this.wager});
+  const _LockedIn({required this.answer});
 
   final String answer;
-  final int wager;
 
   @override
   Widget build(BuildContext context) {
@@ -404,8 +396,6 @@ class _LockedIn extends StatelessWidget {
                 style: fz.h(17),
               ),
             ),
-            const SizedBox(height: 4),
-            Text('Wager $wager', style: fz.m(11, color: FzColors.ac)),
           ],
         ),
       ),

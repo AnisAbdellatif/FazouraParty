@@ -70,10 +70,11 @@ class LeaderboardView extends StatelessWidget {
   }
 }
 
-/// "wager 3", or "wager 3 ×3" when the difficulty bonus multiplied it.
-String wagerLabel(SubmissionView submission) => submission.multiplier > 1
-    ? 'wager ${submission.wager} ×${submission.multiplier}'
-    : 'wager ${submission.wager}';
+/// The rows for people who actually answered.
+List<SubmissionView> answeredSubmissions(RoomState state) => [
+  for (final s in state.submissions ?? const <SubmissionView>[])
+    if (s.answer != null) s,
+];
 
 /// Score change per player for the question just scored.
 Map<String, int> deltasFor(RoomState state) => {
@@ -92,11 +93,15 @@ class _VerdictCard extends StatelessWidget {
     final s = submission;
     final (title, color) = switch (s) {
       null => ("You didn't answer", FzColors.dim),
+      OwnSubmission(answer: null) => (
+        "You didn't answer${s.delta == null ? '' : ' ${formatDelta(s.delta!)}'}",
+        FzColors.dim,
+      ),
       OwnSubmission(correct: true) => (
-        '${formatDelta(s.delta ?? s.wager)} — nice',
+        '${formatDelta(s.delta ?? 0)} — nice',
         FzColors.ok,
       ),
-      _ => ('Not quite ${formatDelta(s.delta ?? -s.wager)}', FzColors.ac2),
+      _ => ('Not quite ${formatDelta(s.delta ?? 0)}', FzColors.ac2),
     };
     return FzEnter(
       rise: true,
@@ -108,9 +113,9 @@ class _VerdictCard extends StatelessWidget {
             Text(title, style: fz.h(17, color: color)),
             const SizedBox(height: 7),
             Text(
-              s == null
-                  ? 'No wager, no change.'
-                  : 'You said "${s.answer}" · wager ${s.wager}',
+              s?.answer == null
+                  ? 'The question went by without you.'
+                  : 'You said "${s!.answer}"',
               style: fz.m(11, color: FzColors.dim, height: 1.4),
             ),
           ],
@@ -130,8 +135,8 @@ class RevealedSubmissions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fz = FzTheme.of(context);
-    final submissions = state.submissions ?? const <SubmissionView>[];
     final playersById = {for (final p in state.players) p.id: p};
+    final deltas = deltasFor(state);
 
     return Column(
       key: const Key('revealedSubmissions'),
@@ -148,7 +153,7 @@ class RevealedSubmissions extends StatelessWidget {
               style: fz.m(12, color: FzColors.dim),
             ),
           ),
-        for (final submission in submissions)
+        for (final submission in answeredSubmissions(state))
           Padding(
             padding: const EdgeInsets.only(bottom: 7),
             child: _SubmissionResultRow(
@@ -162,6 +167,7 @@ class RevealedSubmissions extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 7),
             child: _NoAnswerRow(
               player: player,
+              delta: deltas[player.id],
               isYou: player.id == state.you.playerId,
             ),
           ),
@@ -172,20 +178,28 @@ class RevealedSubmissions extends StatelessWidget {
 
 /// Players the question passed by, in standings order.
 ///
-/// The host only sends a `submissions` entry for someone who answered
-/// (PROTOCOL.md §5.1), so these are derived from `players[].has_submitted`,
-/// which is accurate from `scoring` on. Listing them keeps the reveal a roll
-/// call of the whole room rather than only the people who scored.
-List<PlayerSummary> playersWithoutSubmission(RoomState state) => [
-  for (final player in state.players)
-    if (!player.hasSubmitted) player,
-];
+/// These are the `submissions` rows the host sent with no answer (PROTOCOL.md
+/// §5.1), so a player who joined mid-question — who was never asked and is not
+/// charged for it — is correctly left out. Listing the rest keeps the reveal a
+/// roll call of the whole room rather than only the people who scored.
+List<PlayerSummary> playersWithoutSubmission(RoomState state) {
+  final byId = {for (final player in state.players) player.id: player};
+  return [
+    for (final s in state.submissions ?? const <SubmissionView>[])
+      if (s.answer == null) ?byId[s.playerId],
+  ];
+}
 
-/// A player who let the question go by: no answer, no wager, no change.
+/// A player who let the question go by: no answer, and what that cost them.
 class _NoAnswerRow extends StatelessWidget {
-  const _NoAnswerRow({required this.player, required this.isYou});
+  const _NoAnswerRow({
+    required this.player,
+    required this.delta,
+    required this.isYou,
+  });
 
   final PlayerSummary player;
+  final int? delta;
   final bool isYou;
 
   @override
@@ -239,9 +253,10 @@ class _NoAnswerRow extends StatelessWidget {
               ],
             ),
           ),
-          // Explicitly zero rather than blank: the row exists to say the score
-          // did not move, which is different from having no row at all.
-          Text('0', style: fz.m(15, color: FzColors.dim)),
+          // Letting a question go by has a price of its own (§9), and it is
+          // the host's number, not one this screen works out.
+          if (delta != null)
+            Text(formatDelta(delta!), style: fz.m(15, color: FzColors.ac2)),
         ],
       ),
     );
@@ -310,8 +325,7 @@ class _SubmissionResultRow extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   [
-                    submission.answer,
-                    wagerLabel(submission),
+                    submission.answer ?? '',
                     if (submission.overrideVerdict != null) 'corrected by host',
                   ].join(' · '),
                   style: fz.m(11, color: FzColors.dim, height: 1.3),

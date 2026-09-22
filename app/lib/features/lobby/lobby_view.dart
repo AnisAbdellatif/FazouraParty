@@ -117,7 +117,7 @@ class LobbyView extends StatelessWidget {
                               if (state.settings != null)
                                 '${state.settings!.timeLimitMs ~/ 1000}s each',
                               if (state.settings?.difficultyMultiplier ?? false)
-                                'difficulty bonus',
+                                'difficulty scoring',
                             ].join(' · '),
                       key: const Key('lobbyGameSummary'),
                       style: fz.h(15, height: 1.3),

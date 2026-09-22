@@ -71,47 +71,39 @@ void main() {
     };
   }
 
-  Slider slider(WidgetTester tester) =>
-      tester.widget<Slider>(find.byKey(const Key('wagerSlider')));
-
   String text(WidgetTester tester, String key) =>
       tester.widget<Text>(find.byKey(Key(key))).data!;
 
-  testWidgets('wager slider is bounded to 1..10 and shows the value', (
-    tester,
-  ) async {
-    await pumpView(tester, questionStateForPlayer());
-
-    expect(slider(tester).min, 1);
-    expect(slider(tester).max, 10);
-    expect(slider(tester).divisions, 9);
-    expect(text(tester, 'wagerValue'), '5');
-
-    slider(tester).onChanged!(10);
-    await tester.pump();
-    expect(text(tester, 'wagerValue'), '10');
-    expect(text(tester, 'wagerHint'), '+10 if right · −10 if wrong');
-
-    slider(tester).onChanged!(1);
-    await tester.pump();
-    expect(text(tester, 'wagerValue'), '1');
-  });
-
-  testWidgets('submit sends answer and wager, then locks in', (tester) async {
+  testWidgets('submit sends the answer, then locks in', (tester) async {
     await pumpView(tester, questionStateForPlayer());
 
     await tester.enterText(find.byKey(const Key('answerField')), ' Canberra ');
-    slider(tester).onChanged!(6);
     await tester.pump();
     await tester.tap(find.byKey(const Key('submitButton')));
     await tester.pump();
 
-    expect(fake.submissions, [(answer: 'Canberra', wager: 6)]);
+    expect(fake.submissions, ['Canberra']);
     expect(find.byKey(const Key('ownSubmission')), findsOneWidget);
     expect(find.text('Your answer: Canberra'), findsOneWidget);
-    expect(find.text('Wager 6'), findsOneWidget);
     expect(find.byKey(const Key('answerField')), findsNothing);
     expect(find.byKey(const Key('submitButton')), findsNothing);
+  });
+
+  testWidgets('the stakes shown are the ones the host sent', (tester) async {
+    final base = questionStateForPlayer();
+    await pumpView(
+      tester,
+      base.copyWith(
+        question: base.question!.copyWith(
+          difficulty: 'hard',
+          points: const QuestionPoints(right: 50, wrong: -5, skipped: -10),
+        ),
+      ),
+    );
+
+    expect(text(tester, 'stake-right'), '+50');
+    expect(text(tester, 'stake-wrong'), '−5');
+    expect(text(tester, 'stake-no-answer'), '−10');
   });
 
   testWidgets('empty answer is not submitted', (tester) async {
@@ -130,14 +122,13 @@ void main() {
     await pumpView(
       tester,
       questionStateForPlayer(
-        submission: const OwnSubmission(answer: 'Canberra', wager: 7),
+        submission: const OwnSubmission(answer: 'Canberra'),
       ),
     );
 
     expect(find.text('Your answer: Canberra'), findsOneWidget);
-    expect(find.text('Wager 7'), findsOneWidget);
     expect(find.byKey(const Key('answerField')), findsNothing);
-    expect(find.byKey(const Key('wagerSlider')), findsNothing);
+    expect(find.byKey(const Key('stakes')), findsNothing);
   });
 
   testWidgets(
@@ -180,29 +171,69 @@ void main() {
     },
   );
 
-  testWidgets('difficulty bonus shows the badge and multiplied points', (
+  testWidgets('the stakes row fits a phone at its widest numbers', (
     tester,
   ) async {
+    // Three labelled numbers in a Row is the one thing here that can overflow,
+    // and a phone in portrait is the narrowest it has to survive.
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final base = questionStateForPlayer();
+    fake = FakeGameConnection(initialState: base);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [gameConnectionProvider.overrideWithValue(fake)],
+        child: MaterialApp(
+          home: Scaffold(
+            body: PlayerQuestionView(
+              state: base.copyWith(
+                question: base.question!.copyWith(
+                  difficulty: 'medium',
+                  points: const QuestionPoints(
+                    right: 100,
+                    wrong: -100,
+                    skipped: -100,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(text(tester, 'stake-no-answer'), '−100');
+  });
+
+  testWidgets('difficulty scoring shows the badge', (tester) async {
     final base = questionStateForPlayer();
     await pumpView(
       tester,
       base.copyWith(
-        question: base.question!.copyWith(difficulty: 'hard', multiplier: 3),
+        question: base.question!.copyWith(
+          difficulty: 'hard',
+          points: const QuestionPoints(right: 50, wrong: -5, skipped: -10),
+        ),
         settings: base.settings!.copyWith(difficultyMultiplier: true),
       ),
     );
 
-    expect(find.text('HARD ×3'), findsOneWidget);
-    slider(tester).onChanged!(4);
-    await tester.pump();
-    expect(text(tester, 'wagerHint'), '+12 if right · −12 if wrong');
+    expect(find.text('HARD'), findsOneWidget);
+    expect(text(tester, 'stake-right'), '+50');
   });
 
-  testWidgets('no badge without the difficulty bonus', (tester) async {
+  testWidgets('no badge without difficulty scoring, and flat stakes', (
+    tester,
+  ) async {
     await pumpView(tester, questionStateForPlayer());
 
     expect(find.byKey(const Key('difficultyBadge')), findsNothing);
-    expect(text(tester, 'wagerHint'), '+5 if right · −5 if wrong');
+    expect(text(tester, 'stake-right'), '+10');
+    expect(text(tester, 'stake-wrong'), '−10');
   });
 
   testWidgets('a paused question disables Lock it in', (tester) async {
@@ -225,7 +256,6 @@ void main() {
     final advance = await pumpTimed(tester, const Duration(seconds: 10));
 
     await tester.enterText(find.byKey(const Key('answerField')), ' Canberra ');
-    slider(tester).onChanged!(8);
     await tester.pump();
 
     await advance(const Duration(seconds: 5));
@@ -235,10 +265,9 @@ void main() {
       const Duration(seconds: 5) - const Duration(milliseconds: 700),
     );
 
-    expect(fake.submissions, [(answer: 'Canberra', wager: 8)]);
+    expect(fake.submissions, ['Canberra']);
     expect(find.byKey(const Key('ownSubmission')), findsOneWidget);
     expect(find.text('Your answer: Canberra'), findsOneWidget);
-    expect(find.text('Wager 8'), findsOneWidget);
   });
 
   testWidgets('an empty field is not submitted when the time runs out', (

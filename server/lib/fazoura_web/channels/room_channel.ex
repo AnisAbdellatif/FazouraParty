@@ -19,7 +19,6 @@ defmodule FazouraWeb.RoomChannel do
     not_host: "Only the host can do that.",
     not_player: "Only players can do that.",
     invalid_answer: "Answers must be 1–100 characters.",
-    invalid_wager: "Wager must be a whole number from 1 to 10.",
     already_submitted: "You already answered this question.",
     unknown_player: "No such player in this room.",
     no_submission: "That player didn't answer this question.",

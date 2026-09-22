@@ -59,7 +59,7 @@ class LanGameConnection implements GameConnection {
   }) => _inner.joinAsHost(roomCode, hostToken, displayName: displayName);
 
   @override
-  Future<void> submit(String answer, int wager) => _inner.submit(answer, wager);
+  Future<void> submit(String answer) => _inner.submit(answer);
 
   @override
   Future<void> hostNext() => _inner.hostNext();

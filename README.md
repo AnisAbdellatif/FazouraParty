@@ -3,9 +3,9 @@
 > **فزورة** *fazoura* (n.) — a riddle.
 
 A party trivia game for a room full of people with their own phones. One person hosts,
-everyone else joins with a six-character code, and each question is answered **with a
-wager**: bet 1–10 points on how sure you are. Right, you gain them; wrong, you lose them.
-Shouting follows.
+everyone else joins with a six-character code, and every question is worth what its
+difficulty says — but getting an easy one wrong costs you more than missing a hard one, and
+saying nothing costs you either way. Shouting follows.
 
 The host is also a player, so nobody — host included — sees the correct answers or anyone
 else's guess until the question closes. After that the host can override the automatic
@@ -99,7 +99,7 @@ Registry and restarts the VPS over SSH. See [`deploy/README.md`](deploy/README.m
 
 ## Status
 
-Cloud mode works end to end: host, join, wager, score, override, rematch, a quiz library
+Cloud mode works end to end: host, join, score, override, rematch, a quiz library
 with photos, and an admin dashboard. **LAN mode** — hosting a game with no internet at
 all — is the next milestone, and the protocol is already shaped for it: the client talks
 to a `GameConnection` interface with no idea which transport is underneath.

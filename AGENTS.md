@@ -38,11 +38,11 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 
 ## 4. Server authority & game rules
 
-- **The server is authoritative.** Clients send intents only (`join`, `submit`, `next_question`, `override`, ...). All validation — wager range, phase, host permissions, one submission per question — happens server-side. Never trust client-computed scores or correctness.
-- Wager is an integer 1–10. Correct → `+wager`, incorrect → `−wager`.
-- **Game settings:** before a game starts (lobby), the host sets the number of questions (1..pool size), the time per question (10–120 s, applies to every question) and the difficulty bonus toggle.
+- **The server is authoritative.** Clients send intents only (`join`, `submit`, `next_question`, `override`, ...). All validation — answer, phase, host permissions, one submission per question — happens server-side. Never trust client-computed scores or correctness.
+- **No wager.** A question is worth what its difficulty says, and a wrong answer costs *more* on an easy question than on a hard one: easy +10 / −20, medium +25 / −10, hard +50 / −5. Letting a question go by costs 10 whatever its difficulty, so silence is never the cheapest way out of a hard one. The server sends these numbers with the question (`question.points`); no client ever computes a score.
+- **Game settings:** before a game starts (lobby), the host sets the number of questions (1..pool size), the time per question (10–120 s, applies to every question) and the difficulty scoring toggle.
 - **Several quizzes per round:** the host selects 1–10 quizzes with one `host_select_quiz`, and the round's questions are drawn at random from all of them merged into one pool (`protocol/PROTOCOL.md` §6.4). A selection may mix stored quizzes with documents held on the device; lobby settings come from the first one chosen; selecting again replaces the whole selection.
-- **Difficulty bonus:** pack questions have a difficulty (easy/medium/hard). With the toggle on, points are wager × 1 / 2 / 3; off (default), wager × 1.
+- **Difficulty scoring:** pack questions have a difficulty (easy/medium/hard). With the toggle on, the table above applies; off (default), every question is flat +10 / −10. The skip penalty is 10 either way. The setting is still called `difficulty_multiplier` on the wire and in stored quizzes — renaming it would mean a quiz-format bump and a database migration for no change in behaviour.
 - **Avatar colours** are random, assigned by the server per player (spread apart within a room), so every device shows the same colour for the same player. Clients must not derive colours locally.
 - **Rematch:** after a game finishes, the host can start a new game in the same room — same players and settings, scores reset, continuing through the pack. No new room is created.
 - Answer matching v1: normalize (trim, collapse whitespace, case-fold, strip diacritics) then exact match against `accepted_answers`. **No fuzzy/Levenshtein matching.** Host override is the second pass.
@@ -92,7 +92,7 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 
 ## 8. Testing
 
-- Pure scoring/wager/override/matching logic: unit tests on **both** sides.
+- Pure scoring/override/matching logic: unit tests on **both** sides.
 - Protocol contract tests: the same fixtures in `protocol/fixtures/` are replayed against every implementation.
 - Phoenix Channel tests for join / submit / next / override flows.
 - Flutter widget tests with mocked providers.

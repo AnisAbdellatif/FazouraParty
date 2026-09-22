@@ -33,7 +33,7 @@ abstract interface class GameConnection {
     String? displayName,
   });
 
-  Future<void> submit(String answer, int wager);
+  Future<void> submit(String answer);
 
   Future<void> hostNext();
   Future<void> hostPause();

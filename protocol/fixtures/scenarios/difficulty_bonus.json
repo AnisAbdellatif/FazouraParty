@@ -39,7 +39,7 @@
     {
       "actor": "host",
       "join": {
-        "protocol_version": 8,
+        "protocol_version": 9,
         "host_token": "$host_token"
       },
       "expect": {
@@ -49,7 +49,7 @@
     {
       "actor": "sam",
       "join": {
-        "protocol_version": 8,
+        "protocol_version": 9,
         "display_name": "Sam"
       },
       "expect": {
@@ -140,7 +140,11 @@
         "question": {
           "id": "q1",
           "difficulty": "easy",
-          "multiplier": 1
+          "points": {
+            "right": 10,
+            "wrong": -20,
+            "skipped": -10
+          }
         }
       }
     },
@@ -148,8 +152,7 @@
       "actor": "sam",
       "push": "submit",
       "payload": {
-        "answer": "a",
-        "wager": 5
+        "answer": "a"
       },
       "expect": {
         "status": "ok"
@@ -170,14 +173,13 @@
         "players": [
           {
             "name": "Sam",
-            "score": 5
+            "score": 10
           }
         ],
         "submissions": [
           {
             "player_id": "$player_id:sam",
-            "multiplier": 1,
-            "delta": 5
+            "delta": 10
           }
         ]
       }
@@ -205,7 +207,11 @@
         "question": {
           "id": "q2",
           "difficulty": "hard",
-          "multiplier": 3
+          "points": {
+            "right": 50,
+            "wrong": -5,
+            "skipped": -10
+          }
         }
       }
     },
@@ -213,8 +219,7 @@
       "actor": "sam",
       "push": "submit",
       "payload": {
-        "answer": "b",
-        "wager": 3
+        "answer": "b"
       },
       "expect": {
         "status": "ok"
@@ -235,22 +240,20 @@
         "players": [
           {
             "name": "Sam",
-            "score": 14
+            "score": 60
           }
         ],
         "submissions": [
           {
             "player_id": "$player_id:sam",
-            "wager": 3,
-            "multiplier": 3,
             "correct": true,
-            "delta": 9
+            "delta": 50
           }
         ],
         "you": {
           "submission": {
             "correct": true,
-            "delta": 9
+            "delta": 50
           }
         }
       }
@@ -272,14 +275,13 @@
         "players": [
           {
             "name": "Sam",
-            "score": -4
+            "score": 5
           }
         ],
         "submissions": [
           {
-            "multiplier": 3,
             "correct": false,
-            "delta": -9
+            "delta": -5
           }
         ]
       }
@@ -307,7 +309,11 @@
         "question": {
           "id": "q3",
           "difficulty": "medium",
-          "multiplier": 2
+          "points": {
+            "right": 25,
+            "wrong": -10,
+            "skipped": -10
+          }
         }
       }
     },
@@ -315,8 +321,7 @@
       "actor": "sam",
       "push": "submit",
       "payload": {
-        "answer": "nope",
-        "wager": 4
+        "answer": "nope"
       },
       "expect": {
         "status": "ok"
@@ -336,13 +341,12 @@
         "players": [
           {
             "name": "Sam",
-            "score": -12
+            "score": -5
           }
         ],
         "submissions": [
           {
-            "multiplier": 2,
-            "delta": -8
+            "delta": -10
           }
         ]
       }
@@ -456,7 +460,11 @@
         "question": {
           "id": "q1",
           "difficulty": "easy",
-          "multiplier": 1
+          "points": {
+            "right": 10,
+            "wrong": -10,
+            "skipped": -10
+          }
         }
       }
     }

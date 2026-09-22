@@ -484,7 +484,7 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Difficulty bonus', style: fz.h(15)),
+                  Text('Difficulty scoring', style: fz.h(15)),
                   const SizedBox(height: 4),
                   Text(
                     'On by default when this quiz is hosted',

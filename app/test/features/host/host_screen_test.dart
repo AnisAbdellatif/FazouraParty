@@ -50,12 +50,11 @@ void main() {
       expect(find.byType(Switch), findsNothing);
 
       await tester.enterText(find.byKey(const Key('answerField')), 'Canberra');
-      tester.widget<Slider>(find.byKey(const Key('wagerSlider'))).onChanged!(6);
       await tester.pump();
       await tester.tap(find.byKey(const Key('submitButton')));
       await tester.pump();
 
-      expect(fake.submissions, [(answer: 'Canberra', wager: 6)]);
+      expect(fake.submissions, ['Canberra']);
       expect(find.byKey(const Key('ownSubmission')), findsOneWidget);
       expect(find.byKey(const Key('answerField')), findsNothing);
 
@@ -157,9 +156,9 @@ void main() {
       await pumpHost(tester, scoringStateForHost());
 
       // Every submission carries its own change for this question...
-      expect(inRow('p_3f9a', find.text('−7')), findsOneWidget);
-      expect(inRow('p_b2c1', find.text('+4')), findsOneWidget);
-      expect(inRow(hostPlayerId, find.text('−2')), findsOneWidget);
+      expect(inRow('p_3f9a', find.text('−10')), findsOneWidget);
+      expect(inRow('p_b2c1', find.text('+10')), findsOneWidget);
+      expect(inRow(hostPlayerId, find.text('−10')), findsOneWidget);
 
       // ...and the cumulative standings are held back, or "Show standings"
       // would advance to a screen the host is already looking at.
@@ -167,7 +166,7 @@ void main() {
       expect(find.byKey(const ValueKey('player-p_3f9a')), findsNothing);
     });
 
-    testWidgets('a player who skipped is listed with 0, not correctable', (
+    testWidgets('a player who skipped is listed, and is not correctable', (
       tester,
     ) async {
       final base = scoringStateForHost();
@@ -180,7 +179,10 @@ void main() {
           ],
           submissions: [
             for (final s in base.submissions!)
-              if (s.playerId != 'p_b2c1') s,
+              if (s.playerId == 'p_b2c1')
+                s.copyWith(answer: null, correct: false, delta: -10)
+              else
+                s,
           ],
         ),
       );
@@ -206,6 +208,15 @@ void main() {
 
       // Two answered, so exactly two rows are correctable.
       expect(find.byType(Switch), findsNWidgets(2));
+
+      // The skip costs what the server said it costs, not nothing.
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('no-submission-p_b2c1')),
+          matching: find.text('−10'),
+        ),
+        findsOneWidget,
+      );
 
       // Tapping the row does nothing at all.
       await tester.tap(find.byKey(const ValueKey('no-submission-p_b2c1')));
@@ -261,13 +272,13 @@ void main() {
       expect(find.byKey(const ValueKey('player-p_3f9a')), findsOneWidget);
       expect(find.byKey(const ValueKey('player-p_b2c1')), findsOneWidget);
 
-      // Sam's total is -7 (a plain hyphen, straight from the score) and his
-      // change is −7 (formatDelta's true minus) — two different things that
+      // Sam's total is -10 (a plain hyphen, straight from the score) and his
+      // change is −10 (formatDelta's true minus) — two different things that
       // happen to coincide on the first question.
-      expect(inStanding('p_3f9a', find.text('-7')), findsOneWidget);
-      expect(inStanding('p_3f9a', find.text('−7')), findsOneWidget);
-      expect(inStanding('p_b2c1', find.text('4')), findsOneWidget);
-      expect(inStanding('p_b2c1', find.text('+4')), findsOneWidget);
+      expect(inStanding('p_3f9a', find.text('-10')), findsOneWidget);
+      expect(inStanding('p_3f9a', find.text('−10')), findsOneWidget);
+      expect(inStanding('p_b2c1', find.text('10')), findsOneWidget);
+      expect(inStanding('p_b2c1', find.text('+10')), findsOneWidget);
     });
   });
 }

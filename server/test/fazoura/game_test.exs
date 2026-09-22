@@ -34,20 +34,79 @@ defmodule Fazoura.GameTest do
 
   defp host(game, intent, now \\ @t0), do: Game.handle(game, :host, intent, now)
 
-  defp submit(game, id, answer, wager, now \\ @t0),
-    do: Game.handle(game, {:player, id}, {:submit, %{"answer" => answer, "wager" => wager}}, now)
+  defp submit(game, id, answer, now \\ @t0),
+    do: Game.handle(game, {:player, id}, {:submit, %{"answer" => answer}}, now)
 
-  describe "wager scoring (fixtures)" do
-    for %{"wager" => wager, "correct" => correct, "delta" => delta} <- @scoring["delta"] do
-      test "wager #{wager}, correct=#{correct} -> #{delta}" do
-        submission = %{
-          answer: "x",
-          wager: unquote(wager),
-          auto_correct: unquote(correct),
-          override: nil
-        }
+  # One question of `difficulty`, with difficulty scoring on or off.
+  defp graded_game(difficulty, bonus, score \\ 0) do
+    pack =
+      Pack.from_map(%{
+        "title" => "T",
+        "questions" => [
+          %{
+            "id" => "q1",
+            "prompt" => "?",
+            "difficulty" => difficulty,
+            "accepted_answers" => ["Right"],
+            "time_limit_ms" => 10_000
+          }
+        ]
+      })
 
-        assert Game.delta(submission) == unquote(delta)
+    {:ok, game} = Game.add_player(Game.new("ROOM42", pack), "sam", "Sam")
+    game = put_in(game.players["sam"].score, score)
+    game |> configure(1, 10_000, bonus) |> ok!() |> host(:next) |> ok!()
+  end
+
+  describe "difficulty scoring (fixtures)" do
+    for c <- @scoring["points"] do
+      test "#{c["difficulty"]}, difficulty scoring #{c["bonus"]} is worth #{inspect(c["points"])}" do
+        c = unquote(Macro.escape(c))
+        game = graded_game(c["difficulty"], c["bonus"])
+        points = c["points"]
+
+        assert Game.view(game, :host, @t0).question.points == %{
+                 right: points["right"],
+                 wrong: points["wrong"],
+                 skipped: points["skipped"]
+               }
+      end
+    end
+
+    for c <- @scoring["delta"] do
+      test "#{c["difficulty"]}, bonus #{c["bonus"]}, correct=#{c["correct"]} -> #{c["delta"]}" do
+        c = unquote(Macro.escape(c))
+        answer = if c["correct"], do: "Right", else: "Wrong"
+
+        game =
+          graded_game(c["difficulty"], c["bonus"])
+          |> submit("sam", answer)
+          |> ok!()
+          |> host(:next)
+          |> ok!()
+
+        assert game.players["sam"].score == c["delta"]
+        assert [%{delta: delta, correct: correct}] = Game.view(game, :host, @t0).submissions
+        assert {delta, correct} == {c["delta"], c["correct"]}
+      end
+    end
+
+    for %{"name" => name} = c <- @scoring["skipped"] do
+      test "skipped: #{name}" do
+        c = unquote(Macro.escape(c))
+
+        game =
+          graded_game(c["difficulty"], c["bonus"], c["score_before_question"])
+          |> host(:next)
+          |> ok!()
+
+        assert game.players["sam"].score == c["score_after_scoring"]
+
+        # A player who said nothing still gets a row, with no answer to show.
+        view = Game.view(game, {:player, "sam"}, @t0)
+        assert [%{player_id: "sam", answer: nil, correct: false, delta: delta}] = view.submissions
+        assert delta == c["delta"]
+        assert view.you.submission == %{answer: nil, correct: false, delta: c["delta"]}
       end
     end
 
@@ -56,10 +115,13 @@ defmodule Fazoura.GameTest do
         c = unquote(Macro.escape(c))
         answer = if c["auto_correct"], do: "Right", else: "Wrong"
 
-        game = game_with_players(["sam"])
-        game = put_in(game.players["sam"].score, c["score_before_question"])
-        game = game |> host(:next) |> ok!() |> submit("sam", answer, c["wager"]) |> ok!()
-        game = game |> host(:next) |> ok!()
+        game =
+          graded_game(c["difficulty"], c["bonus"], c["score_before_question"])
+          |> submit("sam", answer)
+          |> ok!()
+          |> host(:next)
+          |> ok!()
+
         assert game.players["sam"].score == c["score_after_scoring"]
 
         payload = %{"player_id" => "sam", "correct" => c["override"]}
@@ -68,13 +130,24 @@ defmodule Fazoura.GameTest do
       end
     end
 
-    for wager <- @scoring["invalid_wagers"] do
-      test "rejects wager #{inspect(wager)}" do
-        game = game_with_players(["sam"]) |> host(:next) |> ok!()
+    test "a player who joined mid-question is not charged for it" do
+      game = graded_game("easy", true)
+      {:ok, game} = Game.add_player(game, "late", "Late")
+      game = game |> host(:next) |> ok!()
 
-        assert submit(game, "sam", "Right", unquote(Macro.escape(wager))) ==
-                 {:error, :invalid_wager}
-      end
+      assert game.players["sam"].score == -10
+      assert game.players["late"].score == 0
+
+      # ...and has no row at all, rather than an empty one.
+      assert [%{player_id: "sam"}] = Game.view(game, :host, @t0).submissions
+      assert Game.view(game, {:player, "late"}, @t0).you.submission == nil
+    end
+
+    test "not answering cannot be overridden" do
+      game = graded_game("easy", true) |> host(:next) |> ok!()
+
+      assert host(game, {:override, %{"player_id" => "sam", "correct" => true}}) ==
+               {:error, :no_submission}
     end
   end
 
@@ -116,12 +189,12 @@ defmodule Fazoura.GameTest do
 
     test "tick scores the question once the deadline passes" do
       game =
-        game_with_players(["sam"]) |> host(:next) |> ok!() |> submit("sam", "right", 3) |> ok!()
+        game_with_players(["sam"]) |> host(:next) |> ok!() |> submit("sam", "right") |> ok!()
 
       assert Game.tick(game, @t0 + 9_999).phase == :question
       scored = Game.tick(game, @t0 + 10_000)
       assert scored.phase == :scoring
-      assert scored.players["sam"].score == 3
+      assert scored.players["sam"].score == 10
     end
 
     test "pause freezes the timer and resume restores the remaining time" do
@@ -131,7 +204,7 @@ defmodule Fazoura.GameTest do
       assert {paused.deadline, paused.paused_remaining_ms} == {nil, 6_000}
       assert host(paused, :pause) == {:error, :paused}
       assert Game.tick(paused, @t0 + 999_999).phase == :question
-      assert submit(paused, "sam", "Right", 5) == {:error, :paused}
+      assert submit(paused, "sam", "Right") == {:error, :paused}
 
       resumed = paused |> host(:resume, @t0 + 50_000) |> ok!()
       assert {resumed.deadline, resumed.paused_remaining_ms} == {@t0 + 56_000, nil}
@@ -151,19 +224,19 @@ defmodule Fazoura.GameTest do
     end
 
     test "one submission per player, before the deadline", %{game: game} do
-      game = game |> submit("sam", "Right", 5) |> ok!()
-      assert submit(game, "sam", "Right", 5) == {:error, :already_submitted}
-      assert submit(game, "alex", "Right", 5, @t0 + 10_000) == {:error, :invalid_phase}
+      game = game |> submit("sam", "Right") |> ok!()
+      assert submit(game, "sam", "Right") == {:error, :already_submitted}
+      assert submit(game, "alex", "Right", @t0 + 10_000) == {:error, :invalid_phase}
     end
 
     test "answer must be 1-100 chars", %{game: game} do
-      assert submit(game, "sam", "  ", 5) == {:error, :invalid_answer}
-      assert submit(game, "sam", String.duplicate("a", 101), 5) == {:error, :invalid_answer}
-      assert submit(game, "sam", 42, 5) == {:error, :invalid_answer}
+      assert submit(game, "sam", "  ") == {:error, :invalid_answer}
+      assert submit(game, "sam", String.duplicate("a", 101)) == {:error, :invalid_answer}
+      assert submit(game, "sam", 42) == {:error, :invalid_answer}
     end
 
     test "override errors", %{game: game} do
-      game = game |> submit("sam", "Right", 5) |> ok!()
+      game = game |> submit("sam", "Right") |> ok!()
 
       assert host(game, {:override, %{"player_id" => "sam", "correct" => false}}) ==
                {:error, :invalid_phase}
@@ -317,36 +390,6 @@ defmodule Fazoura.GameTest do
       assert {question.id, question.difficulty} == {"q3", "hard"}
     end
 
-    for c <- ProtocolFixtures.load!("scoring.json")["multiplier"] do
-      test "#{c["difficulty"]}, bonus #{c["bonus"]}: wager #{c["wager"]} -> #{c["delta"]}" do
-        c = unquote(Macro.escape(c))
-
-        pack =
-          Pack.from_map(%{
-            "title" => "T",
-            "questions" => [
-              %{
-                "id" => "q1",
-                "prompt" => "?",
-                "difficulty" => c["difficulty"],
-                "accepted_answers" => ["Right"],
-                "time_limit_ms" => 10_000
-              }
-            ]
-          })
-
-        {:ok, game} = Game.add_player(Game.new("ROOM42", pack), "sam", "Sam")
-        game = game |> configure(1, 10_000, c["bonus"]) |> ok!() |> host(:next) |> ok!()
-        assert Game.view(game, :host, @t0).question.multiplier == c["multiplier"]
-        answer = if c["correct"], do: "Right", else: "Wrong"
-        game = game |> submit("sam", answer, c["wager"]) |> ok!() |> host(:next) |> ok!()
-
-        assert game.players["sam"].score == c["delta"]
-        assert [%{multiplier: m, delta: d}] = Game.view(game, :host, @t0).submissions
-        assert {m, d} == {c["multiplier"], c["delta"]}
-      end
-    end
-
     test "unknown difficulties are rejected when loading a pack" do
       assert_raise ArgumentError, fn ->
         Pack.from_map(%{
@@ -379,10 +422,12 @@ defmodule Fazoura.GameTest do
 
       game = game |> configure(2, 10_000) |> ok!()
 
-      game = game |> host(:next) |> ok!() |> submit("sam", "Right", 7) |> ok!()
+      game = game |> host(:next) |> ok!() |> submit("sam", "Right") |> ok!()
       game = Enum.reduce(1..6, game, fn _, g -> g |> host(:next) |> ok!() end)
       assert game.phase == :finished
-      assert game.players["sam"].score == 7
+      # One right (+10) and one let go by (-10) for Sam; alex answered neither.
+      assert game.players["sam"].score == 0
+      assert game.players["alex"].score == -20
 
       assert Game.handle(game, {:player, "sam"}, :rematch, @t0) == {:error, :not_host}
 
@@ -407,7 +452,7 @@ defmodule Fazoura.GameTest do
         game_with_players(["sam", "alex"])
         |> host(:next)
         |> ok!()
-        |> submit("sam", "Right", 4)
+        |> submit("sam", "Right")
         |> ok!()
 
       player = Game.view(game, {:player, "alex"}, @t0)
@@ -417,7 +462,7 @@ defmodule Fazoura.GameTest do
       assert Enum.find(player.players, &(&1.id == "sam")).has_submitted
 
       own = Game.view(game, {:player, "sam"}, @t0)
-      assert own.you.submission == %{answer: "Right", wager: 4, correct: nil, delta: nil}
+      assert own.you.submission == %{answer: "Right", correct: nil, delta: nil}
 
       host_view = Game.view(game, :host, @t0)
       assert host_view.accepted_answers == nil
@@ -426,7 +471,11 @@ defmodule Fazoura.GameTest do
 
       scored = game |> host(:next) |> ok!() |> Game.view({:player, "alex"}, @t0)
       assert scored.accepted_answers == ["Right"]
-      assert [%{player_id: "sam", correct: true, delta: 4}] = scored.submissions
+
+      assert [
+               %{player_id: "sam", correct: true, delta: 10},
+               %{player_id: "alex", answer: nil, correct: false, delta: -10}
+             ] = scored.submissions
     end
 
     test "a playing host submits, sees nothing early, and can override their own answer" do
@@ -435,9 +484,9 @@ defmodule Fazoura.GameTest do
       assert Game.add_player(game, "x", "HANA") == {:error, :name_taken}
 
       game = game |> host(:next) |> ok!()
-      game = game |> host({:submit, %{"answer" => "Rigth", "wager" => 6}}) |> ok!()
+      game = game |> host({:submit, %{"answer" => "Rigth"}}) |> ok!()
 
-      assert host(game, {:submit, %{"answer" => "Right", "wager" => 6}}) ==
+      assert host(game, {:submit, %{"answer" => "Right"}}) ==
                {:error, :already_submitted}
 
       during = Game.view(game, :host, @t0)
@@ -447,19 +496,22 @@ defmodule Fazoura.GameTest do
                role: "host",
                player_id: "hana",
                host_token: nil,
-               submission: %{answer: "Rigth", wager: 6, correct: nil, delta: nil}
+               submission: %{answer: "Rigth", correct: nil, delta: nil}
              }
 
       assert [%{id: "hana", is_host: true, has_submitted: true}, %{id: "sam", is_host: false}] =
                during.players
 
       game = game |> host(:next) |> ok!()
-      assert game.players["hana"].score == -6
+      assert game.players["hana"].score == -10
       assert Game.view(game, :host, @t0).accepted_answers == ["Right"]
 
       game = game |> host({:override, %{"player_id" => "hana", "correct" => true}}) |> ok!()
-      assert game.players["hana"].score == 6
-      assert Game.view(game, {:player, "sam"}, @t0).you.submission == nil
+      assert game.players["hana"].score == 10
+
+      # Sam let the question go by, and is told what that cost rather than nothing.
+      assert Game.view(game, {:player, "sam"}, @t0).you.submission ==
+               %{answer: nil, correct: false, delta: -10}
     end
 
     test "players are sorted by score desc, then name case-insensitively" do

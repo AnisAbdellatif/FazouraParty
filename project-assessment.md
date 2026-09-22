@@ -14,7 +14,7 @@
 
 ## 1. Summary
 
-A real-time, host-driven trivia party game in the style of Sporcle Party, targeting **Android and Web** at launch. A host runs the room, players join from their own devices, answer each question with a confidence wager, and a live leaderboard tracks the party.
+A real-time, host-driven trivia party game in the style of Sporcle Party, targeting **Android and Web** at launch. A host runs the room, players join from their own devices, answer each question under difficulty-based scoring, and a live leaderboard tracks the party.
 
 Two hosting modes are planned: **Cloud** (our backend owns the game) and **LAN** (an Android device hosts locally, no internet). Cloud mode is the primary path and covers almost all real-world use; LAN mode is a differentiator with a real but bounded cost.
 
@@ -29,7 +29,7 @@ Two hosting modes are planned: **Cloud** (our backend owns the game) and **LAN**
 **Goals (v1)**
 - Host creates a room, dozens of players join by code/link.
 - Host controls pacing and can override correctness of any submission.
-- Confidence wager scoring (1–10 points per question), validated server-side.
+- Difficulty-based scoring (a wrong easy answer costs more than a wrong hard one), validated server-side.
 - Live leaderboard.
 - Text and text+photo questions.
 - Custom packs, pack sharing between users, and a community pack library.
@@ -58,7 +58,7 @@ Two hosting modes are planned: **Cloud** (our backend owns the game) and **LAN**
 - Toggle any submission correct ↔ incorrect (typos, spelling variants, ambiguous phrasing). Score deltas re-apply immediately and the leaderboard re-broadcasts.
 
 ### 3.3 Gameplay
-- **Wager:** player sets 1–10 before/with their answer. Correct → +wager, incorrect → −wager. Scores may go negative (decide: floor at 0 or allow negatives — flag as open item).
+- **Scoring:** by question difficulty — easy +10 / −20, medium +25 / −10, hard +50 / −5, and −10 for no answer at all (protocol v9; wagers were removed). Scores may go negative.
 - **Answer matching:** automatic first pass (case/whitespace/diacritic normalization + accepted-answer list), host override as the second pass. No fuzzy/Levenshtein matching in v1 — it creates arguments faster than it settles them; the host override covers the same ground.
 - **Leaderboard:** updated after each question is scored, pushed to all clients.
 - **Question types:** `text`, `text_photo`.
@@ -96,7 +96,7 @@ Phoenix endpoint ──► RoomServer (GenServer, one per active room)
                      Postgres (Ecto): users, packs, questions, shares
 ```
 
-- **Server is authoritative.** Clients only send intents (`join`, `submit`, `next_question`, `override`); the RoomServer validates and broadcasts resulting state. The wager mechanic makes this non-negotiable — a client-trusted implementation is trivially cheatable.
+- **Server is authoritative.** Clients only send intents (`join`, `submit`, `next_question`, `override`); the RoomServer validates and broadcasts resulting state. Scoring makes this non-negotiable — a client-trusted implementation is trivially cheatable.
 - ~~**Phoenix Presence** tracks connected players.~~ **Not used.** The `RoomServer` monitors each
   joined channel process and derives `connected` from that. State views are per-recipient, and
   the LAN host has to mirror the behaviour exactly; Presence earns its keep across nodes, which
@@ -123,7 +123,7 @@ Phoenix endpoint ──► RoomServer (GenServer, one per active room)
 abstract class GameConnection {
   Stream<RoomState> get state;
   Future<void> join(String roomCode, String displayName);
-  Future<void> submit(String answer, int wager);
+  Future<void> submit(String answer);
   Future<void> hostNext();
   Future<void> hostOverride(String playerId, bool correct);
   Future<void> leave();
@@ -198,7 +198,7 @@ room_code, host_id, mode, pack_snapshot (questions copied at room start)
 phase            (lobby | question | scoring | leaderboard | finished)
 question_index, timer_deadline
 players          %{player_id => %{name, score, connected?}}
-submissions      %{player_id => %{answer, wager, auto_correct?, override}}
+submissions      %{player_id => %{answer, points, auto_correct?, override}}
 ```
 
 *Snapshotting the pack at room start* means an owner editing a pack mid-game can't corrupt a running room.
@@ -228,7 +228,7 @@ submissions      %{player_id => %{answer, wager, auto_correct?, override}}
 ([PROTOCOL.md](protocol/PROTOCOL.md)). Changes are breaking and bump the version.
 
 **Phase 1 — Cloud MVP · done**
-Rooms, channels, scoring, wagers, host override, pause/resume, rematch, difficulty bonus,
+Rooms, channels, scoring, host override, pause/resume, rematch, difficulty scoring,
 server-assigned avatar hues; Flutter host and player screens; built-in quiz; deployed from CI.
 
 **Phase 2 — Content · done, minus moderation**
@@ -252,7 +252,7 @@ performance work on the web bundle.
 - **Flutter/Riverpod:** feature-first folder structure, `riverpod_generator` + `freezed` for immutable state, no `BuildContext`-dependent lookups, providers consume `GameConnection` only.
 - **Elixir:** `mix format`, `credo`, `dialyzer` in CI; game logic in pure functions (`RoomState.apply(event)`) with the GenServer as a thin shell, so scoring is unit-testable without processes.
 - **Tests:**
-  - Pure scoring/wager/override logic — unit tests on both sides.
+  - Pure scoring/override logic — unit tests on both sides.
   - Protocol contract tests — the same `protocol/fixtures/` replayed against every
     implementation: the Phoenix channel scenario-by-scenario, the Flutter client against the
     wire shape it decodes and encodes, and the LAN host when it exists.
@@ -294,8 +294,8 @@ Cloud mode works end to end and is deployed from CI.
 
 | Area | State |
 |---|---|
-| Protocol v4 | All 7 intents and both server events implemented on **both** sides |
-| Gameplay | Wagers, scoring, negatives, difficulty bonus, host override, pause/resume, rematch, avatar hues |
+| Protocol v9 | All 7 intents and both server events implemented on **both** sides |
+| Gameplay | Difficulty scoring, negatives, skip penalty, host override, pause/resume, rematch, avatar hues |
 | Rooms | GenServer per room, monitored connections, host-timeout and finished expiry, drain-on-shutdown |
 | Quizzes | Local editor, private inline hosting, publish/unpublish via `x-owner-key`, tags, search, photos |
 | Admin | Three LiveViews at `/admin`; 404s unless both credentials are set |

@@ -117,7 +117,7 @@ Payload:
 
 ```json
 {
-  "protocol_version": 4,
+  "protocol_version": 9,
   "display_name": "Sam",
   "player_token": null,
   "host_token": null
@@ -170,7 +170,7 @@ Join error codes: `unsupported_protocol_version`, `room_not_found`, `invalid_tok
 
 | Event | Sender | Payload | Allowed phase | Effect |
 |---|---|---|---|---|
-| `submit` | player, or playing host | `{"answer": string, "wager": int}` | `question` (not paused) | Records the player's one submission for the current question |
+| `submit` | player, or playing host | `{"answer": string}` | `question` (not paused) | Records the player's one submission for the current question |
 | `host_next` | host | `{}` | any except `finished` | Advances the phase (§6) |
 | `host_pause` | host | `{}` | `question` (not paused) | Freezes the timer |
 | `host_resume` | host | `{}` | `question` (paused) | Restarts the timer |
@@ -186,11 +186,10 @@ Successful intents reply `{"status": "ok", "response": {}}` and — if state cha
 
 `submit` rules:
 - `answer`: trimmed, 1–100 characters.
-- `wager`: integer, **1–10** inclusive.
 - **One submission per player per question.** A second submit is rejected.
 - Rejected after the deadline even if the phase transition has not happened yet.
 
-Intent error codes: `invalid_phase`, `not_host`, `not_player`, `invalid_answer`, `invalid_wager`,
+Intent error codes: `invalid_phase`, `not_host`, `not_player`, `invalid_answer`,
 `already_submitted`, `unknown_player`, `no_submission`, `paused`, `not_paused`,
 `invalid_settings` (question count outside 1..`max_question_count`, time limit outside
 `min_time_limit_ms`..`max_time_limit_ms`, or any field missing or of the wrong type),
@@ -219,7 +218,7 @@ it per socket rather than broadcasting one identical payload.
 
 ```json
 {
-  "protocol_version": 4,
+  "protocol_version": 9,
   "room_code": "K7QX2M",
   "mode": "cloud",
   "phase": "question",
@@ -246,7 +245,7 @@ it per socket rather than broadcasting one identical payload.
     "image_url": null,
     "time_limit_ms": 30000,
     "difficulty": "easy",
-    "multiplier": 1
+    "points": {"right": 10, "wrong": -10, "skipped": -10}
   },
   "deadline": 1789502430000,
   "paused_remaining_ms": null,
@@ -260,7 +259,7 @@ it per socket rather than broadcasting one identical payload.
     "role": "player",
     "player_id": "p_3f9a",
     "host_token": null,
-    "submission": {"answer": "Canberra", "wager": 7, "correct": null, "delta": null}
+    "submission": {"answer": "Canberra", "correct": null, "delta": null}
   },
 
   "submissions": null
@@ -269,14 +268,14 @@ it per socket rather than broadcasting one identical payload.
 
 | Field | Type | Notes |
 |---|---|---|
-| `protocol_version` | int | Always `4` |
+| `protocol_version` | int | Always `9` |
 | `mode` | `"cloud"` \| `"lan"` | |
 | `phase` | `"lobby"` \| `"question"` \| `"scoring"` \| `"leaderboard"` \| `"finished"` | §6 |
 | `server_time` | timestamp | Host clock when the snapshot was built. Clients compute `offset = server_time - local_now` and render timers from `deadline - (local_now + offset)` |
 | `pack_titles` | string[] | Titles of the selected quizzes, in the order the host chose them. Empty while none are selected (§6.4) |
 | `question_count` | int | Questions in the current game; always equals `settings.question_count` |
 | `game_number` | int | 1 for the first game in the room, +1 on every rematch. Question ids repeat across games, so clients key per-question UI state on (`game_number`, `question_index`) |
-| `settings` | object | Always present. `question_count`, `time_limit_ms` (applied to every question, overriding the pack), `difficulty_multiplier` (bool), `difficulties` (selected question difficulties), `available_difficulties` (difficulty values present in the pack), plus the bounds `max_question_count` (number of questions matching the selected difficulties), `min_time_limit_ms`, `max_time_limit_ms` |
+| `settings` | object | Always present. `question_count`, `time_limit_ms` (applied to every question, overriding the pack), `difficulty_multiplier` (bool — difficulty scoring on/off, §9), `difficulties` (selected question difficulties), `available_difficulties` (difficulty values present in the pack), plus the bounds `max_question_count` (number of questions matching the selected difficulties), `min_time_limit_ms`, `max_time_limit_ms` |
 | `question_index` | int \| null | 0-based; `null` in `lobby` |
 | `question` | object \| null | `null` in `lobby` and `finished` |
 | `question.type` | `"text"` \| `"text_photo"` | `image_url` is non-null only for `text_photo` |
@@ -287,28 +286,31 @@ it per socket rather than broadcasting one identical payload.
 | `players[].is_host` | bool | `true` for the playing host |
 | `players[].avatar_hue` | int | 0–359. Picked at random by the host implementation when the player is added, kept as far as possible from hues already in the room; stable for the player's lifetime so every client shows the same colour |
 | `question.difficulty` | `"easy"` \| `"medium"` \| `"hard"` | From the pack; `"easy"` when the pack doesn't say |
-| `question.multiplier` | int | Points multiplier for this question: `1` when `settings.difficulty_multiplier` is off, else easy `1`, medium `2`, hard `3` (§9) |
+| `question.points` | object | What this question is worth: `{"right": int, "wrong": int, "skipped": int}` (§9). Clients display these; they never compute them |
 | `you` | object | The recipient's own view: `role` (`"host"` \| `"player"`), `player_id`, `host_token`, `submission` |
 | `you.player_id` | string \| null | `null` only for a host who is not playing |
 | `you.host_token` | string \| null | Non-null **only** in the snapshot that follows a transfer or promotion, and only to the recipient who now holds the role (§3.4). The client replaces its stored token with it; every other client sees `null` |
-| `you.submission` | object \| null | Recipient's own submission for the current question; `correct`/`delta` are `null` until `scoring` |
+| `you.submission` | object \| null | Recipient's own submission for the current question; `correct`/`delta` are `null` until `scoring`. From `scoring` on it is also present with `answer: null` for a player who was asked and did not answer, carrying the skip penalty as its `delta` |
 | `submissions` | array \| null | §7 |
 
 `submissions` entries (everyone, in `scoring`/`leaderboard` only):
 
 ```json
-{"player_id": "p_3f9a", "answer": "canbera", "wager": 7,
- "auto_correct": false, "override": true, "correct": true, "multiplier": 1, "delta": 7}
+{"player_id": "p_3f9a", "answer": "canbera",
+ "auto_correct": false, "override": true, "correct": true, "delta": 25}
 ```
 
-All seven fields are always present and non-null except `override`. Entries are ordered like
-`players`.
+There is one entry per player the question was **asked** of — everyone in the room when it
+started, whether or not they answered — ordered like `players`. A player who joined
+mid-question has no entry. All fields are always present and non-null except `override` and
+`answer`.
 
-- `auto_correct` — result of automatic matching (§8).
+- `answer` — `null` for a player who let the question go by; `delta` is then the skip
+  penalty (§9) and `correct` is `false`.
+- `auto_correct` — result of automatic matching (§8); `false` when there is no answer.
 - `override` — `null` if the host has not overridden, else the host's verdict.
 - `correct` — effective verdict: `override ?? auto_correct`.
-- `multiplier` — the question's multiplier at the time of the submission.
-- `delta` — `+wager × multiplier` if `correct`, else `-wager × multiplier`.
+- `delta` — what this question did to the player's score (§9).
 
 ### 5.2 `room_closed`
 
@@ -430,10 +432,26 @@ Punctuation is **not** stripped. Test cases: [`fixtures/normalize.json`](fixture
 
 ## 9. Scoring
 
-- `delta = (correct ? +1 : -1) × wager × multiplier`
-- `multiplier` = 1, unless `settings.difficulty_multiplier` is on: easy 1, medium 2, hard 3.
-  It is fixed per question when the player submits (settings can't change mid-game), and
-  host overrides recompute with the same multiplier.
+There is no wager. A question is worth a fixed number of points set by its difficulty, and
+a wrong answer costs **more** on an easy question than on a hard one.
+
+| `settings.difficulty_multiplier` | difficulty | right | wrong | no answer |
+|---|---|---|---|---|
+| `true` | easy | **+10** | **−20** | **−10** |
+| `true` | medium | **+25** | **−10** | **−10** |
+| `true` | hard | **+50** | **−5** | **−10** |
+| `false` | any | **+10** | **−10** | **−10** |
+
+- You are expected to know the easy ones, so guessing at one is expensive; a hard one is
+  cheap to attempt. Saying nothing costs 10 whatever the difficulty, so silence is never
+  the cheapest way out of a hard question — and on easy questions it beats a wrong guess.
+- The values are fixed per question when the player submits (settings can't change
+  mid-game), and host overrides recompute with the same numbers.
+- The skip penalty applies to every player who was in the room when the question started
+  and did not answer, connected or not. A player who **joined mid-question** is not
+  charged: they never saw it.
+- Not-answering cannot be overridden (`no_submission`, §7).
+- `question.points` carries all three numbers to the client, which never computes them.
 - Scores **may go negative** *(provisional — open item §10.2)*.
 - Cases: [`fixtures/scoring.json`](fixtures/scoring.json).
 
@@ -460,7 +478,7 @@ Scenario format:
   "pack": { "title": "...", "questions": [ { "id", "type", "prompt", "accepted_answers", "time_limit_ms" } ] },
   "steps": [
     {"actor": "host",  "join": {...},                 "expect": {"status": "ok", "response": {...}}},
-    {"actor": "sam",   "push": "submit", "payload": {...}, "expect": {"status": "error", "response": {"code": "invalid_wager"}}},
+    {"actor": "sam",   "push": "submit", "payload": {...}, "expect": {"status": "error", "response": {"code": "invalid_answer"}}},
     {"advance_clock_ms": 30000},
     {"actor": "sam",   "expect_state": { ...partial RoomState... }}
   ]
@@ -488,5 +506,7 @@ Confirmed by the project owner on 2026-09-15.
 | Host role (added in v5) | Transferable to a connected player, and passed on automatically if the host drops; each change issues a fresh `host_token` and invalidates the old one; a room with nobody in it ends after 30 s rather than lingering for the old 10-minute host timeout |
 
 | Several quizzes per round (added in v8) | The host selects 1–10 quizzes and the round draws its questions at random from all of them merged into one pool; `pack_title` became `pack_titles` |
+
+| Wagers removed (added in v9) | No wager: a question scores by difficulty (easy +10 / −20, medium +25 / −10, hard +50 / −5), letting one go by costs 10, and `settings.difficulty_multiplier` now switches difficulty scoring on and off rather than a multiplier |
 
 Changing any of these is a protocol version bump.

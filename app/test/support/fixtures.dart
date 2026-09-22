@@ -5,7 +5,7 @@ import 'package:fazoura_party/core/models/models.dart';
 /// The `state` example from PROTOCOL.md §5.1.
 const roomStateExampleJson = '''
 {
-  "protocol_version": 7,
+  "protocol_version": 9,
   "room_code": "K7QX2M",
   "mode": "cloud",
   "phase": "question",
@@ -33,7 +33,7 @@ const roomStateExampleJson = '''
     "image_url": null,
     "time_limit_ms": 30000,
     "difficulty": "easy",
-    "multiplier": 1
+    "points": {"right": 10, "wrong": -10, "skipped": -10}
   },
   "deadline": 1789502430000,
   "paused_remaining_ms": null,
@@ -47,7 +47,7 @@ const roomStateExampleJson = '''
     "role": "player",
     "player_id": "p_3f9a",
     "host_token": null,
-    "submission": {"answer": "Canberra", "wager": 7, "correct": null, "delta": null}
+    "submission": {"answer": "Canberra", "correct": null, "delta": null}
   },
 
   "submissions": null
@@ -56,8 +56,8 @@ const roomStateExampleJson = '''
 
 /// The `submissions` entry example from PROTOCOL.md §5.1.
 const submissionExampleJson = '''
-{"player_id": "p_3f9a", "answer": "canbera", "wager": 7,
- "auto_correct": false, "override": true, "correct": true, "multiplier": 1, "delta": 7}
+{"player_id": "p_3f9a", "answer": "canbera",
+ "auto_correct": false, "override": true, "correct": true, "delta": 25}
 ''';
 
 RoomState exampleRoomState() => RoomState.fromJson(
@@ -125,14 +125,14 @@ RoomState scoringStateForHost() {
       PlayerSummary(
         id: 'p_b2c1',
         name: 'Alex',
-        score: 4,
+        score: 10,
         connected: false,
         hasSubmitted: true,
       ),
       PlayerSummary(
         id: hostPlayerId,
         name: 'Hana',
-        score: -2,
+        score: -10,
         connected: true,
         hasSubmitted: true,
         isHost: true,
@@ -140,7 +140,7 @@ RoomState scoringStateForHost() {
       PlayerSummary(
         id: 'p_3f9a',
         name: 'Sam',
-        score: -7,
+        score: -10,
         connected: true,
         hasSubmitted: true,
       ),
@@ -148,37 +148,29 @@ RoomState scoringStateForHost() {
     you: const You(
       role: Role.host,
       playerId: hostPlayerId,
-      submission: OwnSubmission(
-        answer: 'Canbra',
-        wager: 2,
-        correct: false,
-        delta: -2,
-      ),
+      submission: OwnSubmission(answer: 'Canbra', correct: false, delta: -10),
     ),
     submissions: const [
       SubmissionView(
         playerId: 'p_3f9a',
         answer: 'canbera',
-        wager: 7,
         autoCorrect: false,
         correct: false,
-        delta: -7,
+        delta: -10,
       ),
       SubmissionView(
         playerId: 'p_b2c1',
         answer: 'Canberra',
-        wager: 4,
         autoCorrect: true,
         correct: true,
-        delta: 4,
+        delta: 10,
       ),
       SubmissionView(
         playerId: hostPlayerId,
         answer: 'Canbra',
-        wager: 2,
         autoCorrect: false,
         correct: false,
-        delta: -2,
+        delta: -10,
       ),
     ],
   );

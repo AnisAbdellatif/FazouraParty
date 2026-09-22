@@ -51,7 +51,8 @@ abstract class GameSettings with _$GameSettings {
     required int timeLimitMs,
     required int maxQuestionCount,
 
-    /// Harder questions score wager × 2 (medium) or × 3 (hard) (protocol v4).
+    /// Difficulty scoring: a question is worth what its difficulty says, and a
+    /// wrong answer costs more on an easy one than a hard one (§9).
     @Default(false) bool difficultyMultiplier,
     @Default(<String>['easy', 'medium', 'hard']) List<String> difficulties,
     @Default(<String>['easy', 'medium', 'hard'])
@@ -76,8 +77,8 @@ abstract class Question with _$Question {
     /// "easy" | "medium" | "hard" (protocol v4).
     @Default('easy') String difficulty,
 
-    /// Points multiplier: 1 unless the difficulty bonus is on (§9).
-    @Default(1) int multiplier,
+    /// What this question is worth (§9). The server decides; clients display.
+    @Default(QuestionPoints()) QuestionPoints points,
   }) = _Question;
 
   factory Question.fromJson(Map<String, dynamic> json) =>
@@ -122,16 +123,30 @@ abstract class You with _$You {
   factory You.fromJson(Map<String, dynamic> json) => _$YouFromJson(json);
 }
 
+/// What a question is worth (PROTOCOL.md §9): what a right answer earns, what a
+/// wrong one costs, and what letting it go by costs. Always sent by the server,
+/// so no client ever encodes the scoring rules.
+@freezed
+abstract class QuestionPoints with _$QuestionPoints {
+  const factory QuestionPoints({
+    @Default(10) int right,
+    @Default(-10) int wrong,
+    @Default(-10) int skipped,
+  }) = _QuestionPoints;
+
+  factory QuestionPoints.fromJson(Map<String, dynamic> json) =>
+      _$QuestionPointsFromJson(json);
+}
+
 /// The recipient's own submission for the current question.
 /// [correct] and [delta] are `null` until `scoring`.
+///
+/// From `scoring` on it is also present with a null [answer] for a player who was
+/// asked and did not answer, carrying the skip penalty as its [delta].
 @freezed
 abstract class OwnSubmission with _$OwnSubmission {
-  const factory OwnSubmission({
-    required String answer,
-    required int wager,
-    bool? correct,
-    int? delta,
-  }) = _OwnSubmission;
+  const factory OwnSubmission({String? answer, bool? correct, int? delta}) =
+      _OwnSubmission;
 
   factory OwnSubmission.fromJson(Map<String, dynamic> json) =>
       _$OwnSubmissionFromJson(json);
@@ -145,15 +160,16 @@ abstract class OwnSubmission with _$OwnSubmission {
 abstract class SubmissionView with _$SubmissionView {
   const factory SubmissionView({
     required String playerId,
-    required String answer,
-    required int wager,
+
+    /// `null` for a player who let the question go by; [delta] is then the skip
+    /// penalty and [correct] is false.
+    String? answer,
     bool? autoCorrect,
 
     /// Wire key `override` (renamed in Dart: a field named `override` shadows
     /// the `@override` annotation in generated code).
     @JsonKey(name: 'override') bool? overrideVerdict,
     bool? correct,
-    @Default(1) int multiplier,
     int? delta,
   }) = _SubmissionView;
 

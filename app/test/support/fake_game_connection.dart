@@ -19,7 +19,7 @@ class FakeGameConnection implements GameConnection {
 
   final List<({String roomCode, String displayName, String? playerToken})>
   joins = [];
-  final List<({String answer, int wager})> submissions = [];
+  final List<String> submissions = [];
   final List<({String playerId, bool correct})> overrides = [];
   int nextCalls = 0;
   final List<String> transfers = [];
@@ -85,8 +85,8 @@ class FakeGameConnection implements GameConnection {
   }
 
   @override
-  Future<void> submit(String answer, int wager) async {
-    submissions.add((answer: answer, wager: wager));
+  Future<void> submit(String answer) async {
+    submissions.add(answer);
     if (intentError != null) throw intentError!;
   }
 

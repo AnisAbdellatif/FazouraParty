@@ -129,7 +129,7 @@ void main() {
       final host = join({'host_token': room.hostToken});
 
       room.handle(host.client, 'host_next', {});
-      room.handle(sam.client, 'submit', {'answer': 'Right', 'wager': 5});
+      room.handle(sam.client, 'submit', {'answer': 'Right'});
       room.leave(sam.client);
 
       expect(room.game.players[sam.reply.playerId]!.connected, isFalse);
@@ -142,7 +142,6 @@ void main() {
       // rejoining rather than starting again (§4.1).
       expect(back.client.you['submission'], {
         'answer': 'Right',
-        'wager': 5,
         'correct': null,
         'delta': null,
       });
@@ -187,13 +186,13 @@ void main() {
         final sam = join({'display_name': 'Sam'});
 
         room.handle(host.client, 'host_next', {});
-        room.handle(sam.client, 'submit', {'answer': 'Right', 'wager': 6});
+        room.handle(sam.client, 'submit', {'answer': 'Right'});
         room.handle(host.client, 'host_next', {});
         room.leave(sam.client);
 
         final players = (host.client.latest['players'] as List)
             .cast<Map<String, dynamic>>();
-        expect(players.single['score'], 6);
+        expect(players.single['score'], 10);
         expect(players.single['connected'], isFalse);
       },
     );
@@ -258,7 +257,7 @@ void main() {
       );
       // Still a player, and still able to play.
       room.handle(sam.client, 'host_next', {});
-      room.handle(host.client, 'submit', {'answer': 'Right', 'wager': 3});
+      room.handle(host.client, 'submit', {'answer': 'Right'});
       expect(room.game.submissions, hasLength(1));
     });
 
@@ -390,14 +389,14 @@ void main() {
       final host = join({'host_token': room.hostToken});
       final sam = join({'display_name': 'Sam'});
       room.handle(host.client, 'host_next', {});
-      room.handle(sam.client, 'submit', {'answer': 'Right', 'wager': 8});
+      room.handle(sam.client, 'submit', {'answer': 'Right'});
 
       clock += 10000;
       room.tick();
 
       expect(room.game.phase, GamePhase.scoring);
       expect(sam.client.latest['phase'], 'scoring');
-      expect(room.game.players[sam.reply.playerId]!.score, 8);
+      expect(room.game.players[sam.reply.playerId]!.score, 10);
     });
   });
 

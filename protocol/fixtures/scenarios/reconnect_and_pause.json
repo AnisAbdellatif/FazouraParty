@@ -28,7 +28,7 @@
     {
       "actor": "host",
       "join": {
-        "protocol_version": 8,
+        "protocol_version": 9,
         "host_token": "$host_token"
       },
       "expect": {
@@ -38,7 +38,7 @@
     {
       "actor": "sam",
       "join": {
-        "protocol_version": 8,
+        "protocol_version": 9,
         "display_name": "Sam"
       },
       "expect": {
@@ -70,8 +70,7 @@
       "actor": "sam",
       "push": "submit",
       "payload": {
-        "answer": "Four",
-        "wager": 10
+        "answer": "Four"
       },
       "expect": {
         "status": "ok"
@@ -132,7 +131,7 @@
     {
       "actor": "sam",
       "join": {
-        "protocol_version": 8,
+        "protocol_version": 9,
         "player_token": "$player_token:sam"
       },
       "expect": {
@@ -151,8 +150,7 @@
         "you": {
           "player_id": "$player_id:sam",
           "submission": {
-            "answer": "Four",
-            "wager": 10
+            "answer": "Four"
           }
         }
       }
@@ -210,7 +208,7 @@
     {
       "actor": "late",
       "join": {
-        "protocol_version": 8,
+        "protocol_version": 9,
         "display_name": "Late"
       },
       "expect": {
@@ -231,6 +229,38 @@
             "score": 0
           }
         ]
+      }
+    },
+    {
+      "advance_clock_ms": 30000
+    },
+    {
+      "actor": "late",
+      "expect_state": {
+        "phase": "scoring",
+        "players": [
+          {
+            "name": "Late",
+            "score": 0
+          },
+          {
+            "name": "Sam",
+            "score": 0
+          }
+        ],
+        "submissions": [
+          {
+            "player_id": "$player_id:sam",
+            "answer": null,
+            "auto_correct": false,
+            "override": null,
+            "correct": false,
+            "delta": -10
+          }
+        ],
+        "you": {
+          "submission": null
+        }
       }
     }
   ]

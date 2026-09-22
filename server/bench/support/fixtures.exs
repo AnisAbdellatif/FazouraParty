@@ -21,7 +21,7 @@ defmodule Fazoura.Bench.Fixtures do
 
   def t0, do: @t0
 
-  @doc "A pack of `count` questions, cycling difficulty so the multiplier path varies."
+  @doc "A pack of `count` questions, cycling difficulty so every scoring path is exercised."
   def pack(count \\ 20, title \\ "Bench") do
     Pack.from_map(%{
       "title" => title,
@@ -90,7 +90,7 @@ defmodule Fazoura.Bench.Fixtures do
     answer = if :erlang.phash2(id, 2) == 0, do: "  Tūnis ", else: "Carthage"
 
     {:ok, game} =
-      Game.handle(game, {:player, id}, {:submit, %{"answer" => answer, "wager" => 7}}, now)
+      Game.handle(game, {:player, id}, {:submit, %{"answer" => answer}}, now)
 
     game
   end

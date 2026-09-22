@@ -12,7 +12,7 @@ void main() {
     test('parses the spec example', () {
       final state = RoomState.fromJson(json);
 
-      expect(state.protocolVersion, 7);
+      expect(state.protocolVersion, 9);
       expect(state.roomCode, 'K7QX2M');
       expect(state.mode, Mode.cloud);
       expect(state.phase, Phase.question);
@@ -27,6 +27,7 @@ void main() {
           type: QuestionType.text,
           prompt: 'What is the capital of Australia?',
           timeLimitMs: 30000,
+          points: QuestionPoints(right: 10, wrong: -10, skipped: -10),
         ),
       );
       expect(state.deadline, 1789502430000);
@@ -47,7 +48,7 @@ void main() {
         const You(
           role: Role.player,
           playerId: 'p_3f9a',
-          submission: OwnSubmission(answer: 'Canberra', wager: 7),
+          submission: OwnSubmission(answer: 'Canberra'),
         ),
       );
       expect(state.submissions, isNull);
@@ -84,11 +85,10 @@ void main() {
       const SubmissionView(
         playerId: 'p_3f9a',
         answer: 'canbera',
-        wager: 7,
         autoCorrect: false,
         overrideVerdict: true,
         correct: true,
-        delta: 7,
+        delta: 25,
       ),
     );
     expect(view.toJson(), json);
@@ -152,8 +152,8 @@ void main() {
 
   test('GameError parses an error reply response', () {
     expect(
-      GameError.fromJson({'code': 'invalid_wager', 'message': 'nope'}),
-      const GameError(code: 'invalid_wager', message: 'nope'),
+      GameError.fromJson({'code': 'invalid_answer', 'message': 'nope'}),
+      const GameError(code: 'invalid_answer', message: 'nope'),
     );
   });
 

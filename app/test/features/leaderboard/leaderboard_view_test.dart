@@ -13,17 +13,12 @@ RoomState scoringStateForSam() {
     you: const You(
       role: Role.player,
       playerId: 'p_3f9a',
-      submission: OwnSubmission(
-        answer: 'canbera',
-        wager: 7,
-        correct: false,
-        delta: -7,
-      ),
+      submission: OwnSubmission(answer: 'canbera', correct: false, delta: -10),
     ),
     submissions: [
       for (final s in base.submissions!)
         s.playerId == hostPlayerId
-            ? s.copyWith(overrideVerdict: true, correct: true, delta: 2)
+            ? s.copyWith(overrideVerdict: true, correct: true, delta: 10)
             : s,
     ],
   );
@@ -57,7 +52,7 @@ void main() {
     await pumpView(tester, scoringStateForSam());
 
     expect(find.text('Answers revealed'), findsOneWidget);
-    expect(find.text('Not quite −7'), findsOneWidget);
+    expect(find.text('Not quite −10'), findsOneWidget);
     final section = find.byKey(const Key('revealedSubmissions'));
     expect(section, findsOneWidget);
 
@@ -84,13 +79,13 @@ void main() {
 
     // Sam (recipient).
     expect(inRow('p_3f9a', find.text('Sam (you)')), findsOneWidget);
-    expect(inRow('p_3f9a', find.text('canbera · wager 7')), findsOneWidget);
-    expect(inRow('p_3f9a', find.text('−7')), findsOneWidget);
+    expect(inRow('p_3f9a', find.text('canbera')), findsOneWidget);
+    expect(inRow('p_3f9a', find.text('−10')), findsOneWidget);
 
     // Alex.
     expect(inRow('p_b2c1', find.text('Alex')), findsOneWidget);
-    expect(inRow('p_b2c1', find.text('Canberra · wager 4')), findsOneWidget);
-    expect(inRow('p_b2c1', find.text('+4')), findsOneWidget);
+    expect(inRow('p_b2c1', find.text('Canberra')), findsOneWidget);
+    expect(inRow('p_b2c1', find.text('+10')), findsOneWidget);
 
     // Hana (host), corrected by the host.
     expect(inRow(hostPlayerId, find.text('Hana')), findsOneWidget);
@@ -102,10 +97,10 @@ void main() {
       findsOneWidget,
     );
     expect(
-      inRow(hostPlayerId, find.text('Canbra · wager 2 · corrected by host')),
+      inRow(hostPlayerId, find.text('Canbra · corrected by host')),
       findsOneWidget,
     );
-    expect(inRow(hostPlayerId, find.text('+2')), findsOneWidget);
+    expect(inRow(hostPlayerId, find.text('+10')), findsOneWidget);
     expect(inRow('p_b2c1', find.textContaining('corrected')), findsNothing);
 
     // Read-only.
@@ -118,7 +113,7 @@ void main() {
   ) async {
     final state = scoringStateForSam();
     await pumpView(tester, state);
-    expect(inRow('p_b2c1', find.text('+4')), findsOneWidget);
+    expect(inRow('p_b2c1', find.text('+10')), findsOneWidget);
 
     await pumpView(
       tester,
@@ -126,15 +121,15 @@ void main() {
         submissions: [
           for (final s in state.submissions!)
             s.playerId == 'p_b2c1'
-                ? s.copyWith(overrideVerdict: false, correct: false, delta: -4)
+                ? s.copyWith(overrideVerdict: false, correct: false, delta: -10)
                 : s,
         ],
       ),
     );
 
-    expect(inRow('p_b2c1', find.text('−4')), findsOneWidget);
+    expect(inRow('p_b2c1', find.text('−10')), findsOneWidget);
     expect(
-      inRow('p_b2c1', find.text('Canberra · wager 4 · corrected by host')),
+      inRow('p_b2c1', find.text('Canberra · corrected by host')),
       findsOneWidget,
     );
   });
@@ -145,8 +140,20 @@ void main() {
     await pumpView(
       tester,
       scoringStateForSam().copyWith(
-        you: const You(role: Role.player, playerId: 'p_3f9a'),
-        submissions: const [],
+        you: const You(
+          role: Role.player,
+          playerId: 'p_3f9a',
+          submission: OwnSubmission(correct: false, delta: -10),
+        ),
+        submissions: [
+          for (final p in scoringStateForSam().players)
+            SubmissionView(
+              playerId: p.id,
+              autoCorrect: false,
+              correct: false,
+              delta: -10,
+            ),
+        ],
         players: [
           for (final p in scoringStateForSam().players)
             p.copyWith(hasSubmitted: false),
@@ -155,14 +162,14 @@ void main() {
     );
 
     // A question everyone let pass is still a roll call of the room, not a
-    // blank panel: each player gets a row saying their score didn't move.
+    // blank panel: each player gets a row, and it costs them all the same.
     expect(find.byKey(const ValueKey('result-p_3f9a')), findsNothing);
     expect(find.byKey(const ValueKey('no-answer-p_3f9a')), findsOneWidget);
     expect(find.byKey(const ValueKey('no-answer-p_b2c1')), findsOneWidget);
     expect(find.text('No answer'), findsNWidgets(3));
-    expect(find.text('0'), findsNWidgets(3));
+    expect(find.text('−10'), findsNWidgets(3));
     expect(find.text('Nobody answered'), findsNothing);
-    expect(find.text("You didn't answer"), findsOneWidget);
+    expect(find.text("You didn't answer −10"), findsOneWidget);
   });
 
   testWidgets('"Nobody answered" is only for an empty room', (tester) async {
@@ -196,8 +203,8 @@ void main() {
       await pumpView(tester, scoringStateForSam());
 
       // Each answer carries its own gain or loss...
-      expect(inRow('p_3f9a', find.text('−7')), findsOneWidget);
-      expect(inRow('p_b2c1', find.text('+4')), findsOneWidget);
+      expect(inRow('p_3f9a', find.text('−10')), findsOneWidget);
+      expect(inRow('p_b2c1', find.text('+10')), findsOneWidget);
 
       // ...and no running totals, so the host's "Show standings" has something
       // left to reveal.
@@ -212,14 +219,17 @@ void main() {
       await pumpView(
         tester,
         base.copyWith(
-          // Alex let this one go: no submission entry, has_submitted false.
+          // Alex let this one go: her row comes back with no answer on it.
           players: [
             for (final p in base.players)
               p.id == 'p_b2c1' ? p.copyWith(hasSubmitted: false) : p,
           ],
           submissions: [
             for (final s in base.submissions!)
-              if (s.playerId != 'p_b2c1') s,
+              if (s.playerId == 'p_b2c1')
+                s.copyWith(answer: null, correct: false, delta: -10)
+              else
+                s,
           ],
         ),
       );
@@ -228,12 +238,11 @@ void main() {
       expect(find.byKey(const ValueKey('result-p_b2c1')), findsNothing);
       expect(find.byKey(const ValueKey('no-answer-p_b2c1')), findsOneWidget);
 
-      // Zero, explicitly, so "your score didn't move" reads differently from
-      // "you weren't in the room".
+      // The skip has a price of its own, and it is the host's number.
       expect(
         find.descendant(
           of: find.byKey(const ValueKey('no-answer-p_b2c1')),
-          matching: find.text('0'),
+          matching: find.text('−10'),
         ),
         findsOneWidget,
       );
@@ -247,11 +256,11 @@ void main() {
         scoringStateForSam().copyWith(phase: Phase.leaderboard),
       );
 
-      // Sam's score is -7 and his change was −7; the standing row shows both.
-      expect(inStanding('p_3f9a', find.text('-7')), findsOneWidget);
-      expect(inStanding('p_3f9a', find.text('−7')), findsOneWidget);
-      expect(inStanding('p_b2c1', find.text('4')), findsOneWidget);
-      expect(inStanding('p_b2c1', find.text('+4')), findsOneWidget);
+      // Sam's score is -10 and his change was −10; the row shows both.
+      expect(inStanding('p_3f9a', find.text('-10')), findsOneWidget);
+      expect(inStanding('p_3f9a', find.text('−10')), findsOneWidget);
+      expect(inStanding('p_b2c1', find.text('10')), findsOneWidget);
+      expect(inStanding('p_b2c1', find.text('+10')), findsOneWidget);
 
       // The answers are still available, below the standings.
       expect(find.byKey(const Key('revealedSubmissions')), findsOneWidget);

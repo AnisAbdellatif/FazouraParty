@@ -49,16 +49,33 @@ void host(Game game, String event, [Map<String, dynamic> payload = const {}]) =>
 void hostAt(Game game, String event, int now) =>
     game.handle(const HostActor(), event, const {}, now);
 
-void submit(
-  Game game,
-  String id,
-  Object? answer,
-  Object? wager, [
-  int now = t0,
-]) => game.handle(PlayerActor(id), 'submit', {
-  'answer': answer,
-  'wager': wager,
-}, now);
+void submit(Game game, String id, Object? answer, [int now = t0]) =>
+    game.handle(PlayerActor(id), 'submit', {'answer': answer}, now);
+
+/// One question of [difficulty], with difficulty scoring on or off.
+Game gradedGame(String difficulty, bool bonus, [int score = 0]) {
+  final game = Game(
+    roomCode: 'ROOM42',
+    pack: Pack.fromMap({
+      'title': 'T',
+      'questions': [
+        {
+          'id': 'q1',
+          'prompt': '?',
+          'difficulty': difficulty,
+          'accepted_answers': ['Right'],
+          'time_limit_ms': 10000,
+        },
+      ],
+    }),
+    shuffleQuestions: false,
+  );
+  game.addPlayer('sam', 'Sam');
+  game.players['sam'] = game.players['sam']!.copyWith(score: score);
+  configure(game, 1, 10000, bonus);
+  host(game, 'host_next');
+  return game;
+}
 
 void configure(
   Game game,
@@ -78,17 +95,59 @@ Matcher throwsCode(String code) =>
 void main() {
   final scoring = ProtocolFixtures.load('scoring.json');
 
-  group('wager scoring (fixtures)', () {
+  group('difficulty scoring (fixtures)', () {
+    for (final entry in scoring['points'] as List) {
+      final c = entry as Map<String, dynamic>;
+      test('${c['difficulty']}, difficulty scoring ${c['bonus']}', () {
+        final game = gradedGame(c['difficulty'] as String, c['bonus'] as bool);
+        final view = game.view(const HostActor(), t0);
+
+        expect((view['question'] as Map)['points'], c['points']);
+      });
+    }
+
     for (final entry in scoring['delta'] as List) {
       final c = entry as Map<String, dynamic>;
-      test('wager ${c['wager']}, correct=${c['correct']} -> ${c['delta']}', () {
-        final submission = GameSubmission(
-          answer: 'x',
-          wager: c['wager'] as int,
-          autoCorrect: c['correct'] as bool,
-          multiplier: 1,
+      final correct = c['correct'] as bool;
+      test('${c['difficulty']}, bonus ${c['bonus']}, correct=$correct', () {
+        final game = gradedGame(c['difficulty'] as String, c['bonus'] as bool);
+        submit(game, 'sam', correct ? 'Right' : 'Wrong');
+        host(game, 'host_next');
+
+        expect(game.players['sam']!.score, c['delta']);
+        final rows = game.view(const HostActor(), t0)['submissions'] as List;
+        expect((rows.single as Map)['delta'], c['delta']);
+      });
+    }
+
+    for (final entry in scoring['skipped'] as List) {
+      final c = entry as Map<String, dynamic>;
+      test('skipped: ${c['name']}', () {
+        final game = gradedGame(
+          c['difficulty'] as String,
+          c['bonus'] as bool,
+          c['score_before_question'] as int,
         );
-        expect(submission.delta, c['delta']);
+        host(game, 'host_next');
+        expect(game.players['sam']!.score, c['score_after_scoring']);
+
+        // A player who said nothing still gets a row, with no answer to show.
+        final view = game.view(const PlayerActor('sam'), t0);
+        expect(view['submissions'], [
+          {
+            'player_id': 'sam',
+            'answer': null,
+            'auto_correct': false,
+            'override': null,
+            'correct': false,
+            'delta': c['delta'],
+          },
+        ]);
+        expect((view['you'] as Map)['submission'], {
+          'answer': null,
+          'correct': false,
+          'delta': c['delta'],
+        });
       });
     }
 
@@ -96,13 +155,13 @@ void main() {
       final c = entry as Map<String, dynamic>;
       test('override: ${c['name']}', () {
         final autoCorrect = c['auto_correct'] as bool;
-        final game = gameWithPlayers(['sam']);
-        game.players['sam'] = game.players['sam']!.copyWith(
-          score: c['score_before_question'] as int,
+        final game = gradedGame(
+          c['difficulty'] as String,
+          c['bonus'] as bool,
+          c['score_before_question'] as int,
         );
 
-        host(game, 'host_next');
-        submit(game, 'sam', autoCorrect ? 'Right' : 'Wrong', c['wager']);
+        submit(game, 'sam', autoCorrect ? 'Right' : 'Wrong');
         host(game, 'host_next');
         expect(game.players['sam']!.score, c['score_after_scoring']);
 
@@ -114,16 +173,31 @@ void main() {
       });
     }
 
-    for (final wager in scoring['invalid_wagers'] as List) {
-      test('rejects wager $wager', () {
-        final game = gameWithPlayers(['sam']);
-        host(game, 'host_next');
-        expect(
-          () => submit(game, 'sam', 'Right', wager),
-          throwsCode('invalid_wager'),
-        );
-      });
-    }
+    test('a player who joined mid-question is not charged for it', () {
+      final game = gradedGame('easy', true);
+      game.addPlayer('late', 'Late');
+      host(game, 'host_next');
+
+      expect(game.players['sam']!.score, -10);
+      expect(game.players['late']!.score, 0);
+
+      // ...and has no row at all, rather than an empty one.
+      final rows = game.view(const HostActor(), t0)['submissions'] as List;
+      expect(rows.map((r) => (r as Map)['player_id']), ['sam']);
+      final late = game.view(const PlayerActor('late'), t0);
+      expect((late['you'] as Map)['submission'], isNull);
+    });
+
+    test('not answering cannot be overridden', () {
+      final game = gradedGame('easy', true);
+      host(game, 'host_next');
+
+      expect(
+        () =>
+            host(game, 'host_override', {'player_id': 'sam', 'correct': true}),
+        throwsCode('no_submission'),
+      );
+    });
   });
 
   group('players', () {
@@ -183,13 +257,13 @@ void main() {
     test('tick scores the question once the deadline passes', () {
       final game = gameWithPlayers(['sam']);
       host(game, 'host_next');
-      submit(game, 'sam', 'right', 3);
+      submit(game, 'sam', 'right');
 
       game.tick(t0 + 9999);
       expect(game.phase, GamePhase.question);
       game.tick(t0 + 10000);
       expect(game.phase, GamePhase.scoring);
-      expect(game.players['sam']!.score, 3);
+      expect(game.players['sam']!.score, 10);
     });
 
     test('pause freezes the timer and resume restores the remaining time', () {
@@ -201,7 +275,7 @@ void main() {
       expect(() => host(game, 'host_pause'), throwsCode('paused'));
       game.tick(t0 + 999999);
       expect(game.phase, GamePhase.question);
-      expect(() => submit(game, 'sam', 'Right', 5), throwsCode('paused'));
+      expect(() => submit(game, 'sam', 'Right'), throwsCode('paused'));
 
       hostAt(game, 'host_resume', t0 + 50000);
       expect((game.deadline, game.pausedRemainingMs), (t0 + 56000, null));
@@ -236,28 +310,28 @@ void main() {
     });
 
     test('one submission per player, before the deadline', () {
-      submit(game, 'sam', 'Right', 5);
+      submit(game, 'sam', 'Right');
       expect(
-        () => submit(game, 'sam', 'Right', 5),
+        () => submit(game, 'sam', 'Right'),
         throwsCode('already_submitted'),
       );
       expect(
-        () => submit(game, 'alex', 'Right', 5, t0 + 10000),
+        () => submit(game, 'alex', 'Right', t0 + 10000),
         throwsCode('invalid_phase'),
       );
     });
 
     test('answer must be 1-100 chars', () {
-      expect(() => submit(game, 'sam', '  ', 5), throwsCode('invalid_answer'));
+      expect(() => submit(game, 'sam', '  '), throwsCode('invalid_answer'));
       expect(
-        () => submit(game, 'sam', 'a' * 101, 5),
+        () => submit(game, 'sam', 'a' * 101),
         throwsCode('invalid_answer'),
       );
-      expect(() => submit(game, 'sam', 42, 5), throwsCode('invalid_answer'));
+      expect(() => submit(game, 'sam', 42), throwsCode('invalid_answer'));
     });
 
     test('override errors', () {
-      submit(game, 'sam', 'Right', 5);
+      submit(game, 'sam', 'Right');
       expect(
         () =>
             host(game, 'host_override', {'player_id': 'sam', 'correct': false}),
@@ -445,7 +519,7 @@ void main() {
     });
   });
 
-  group('question count and difficulty bonus', () {
+  group('question count and difficulty scoring', () {
     test('the round can use the full pack size', () {
       final game = gameWithPlayers(['sam'], 25);
       expect(game.settings.questionCount, 25);
@@ -458,54 +532,6 @@ void main() {
       configure(game, 25, 30000);
       expect(game.settings.questionCount, 25);
     });
-
-    for (final entry in scoring['multiplier'] as List) {
-      final c = entry as Map<String, dynamic>;
-      test('${c['difficulty']}, bonus ${c['bonus']}: '
-          'wager ${c['wager']} -> ${c['delta']}', () {
-        final game = Game(
-          roomCode: 'ROOM42',
-          shuffleQuestions: false,
-          pack: Pack.fromMap({
-            'title': 'T',
-            'questions': [
-              {
-                'id': 'q1',
-                'prompt': '?',
-                'difficulty': c['difficulty'],
-                'accepted_answers': ['Right'],
-                'time_limit_ms': 10000,
-              },
-            ],
-          }),
-        );
-        game.addPlayer('sam', 'Sam');
-        configure(game, 1, 10000, c['bonus']);
-        host(game, 'host_next');
-        expect(
-          (game.view(const HostActor(), t0)['question']
-              as Map<String, dynamic>)['multiplier'],
-          c['multiplier'],
-        );
-
-        submit(
-          game,
-          'sam',
-          c['correct'] as bool ? 'Right' : 'Wrong',
-          c['wager'],
-        );
-        host(game, 'host_next');
-
-        expect(game.players['sam']!.score, c['delta']);
-        final submissions =
-            game.view(const HostActor(), t0)['submissions'] as List;
-        final only = submissions.single as Map<String, dynamic>;
-        expect(
-          (only['multiplier'], only['delta']),
-          (c['multiplier'], c['delta']),
-        );
-      });
-    }
 
     test('unknown difficulties are rejected when loading a pack', () {
       expect(
@@ -556,12 +582,14 @@ void main() {
       configure(game, 2, 10000);
 
       host(game, 'host_next');
-      submit(game, 'sam', 'Right', 7);
+      submit(game, 'sam', 'Right');
       for (var i = 0; i < 6; i++) {
         host(game, 'host_next');
       }
       expect(game.phase, GamePhase.finished);
-      expect(game.players['sam']!.score, 7);
+      // One right (+10) and one let go by (-10) for Sam; alex answered neither.
+      expect(game.players['sam']!.score, 0);
+      expect(game.players['alex']!.score, -20);
 
       expect(
         () => game.handle(const PlayerActor('sam'), 'host_rematch', {}, t0),
@@ -604,7 +632,7 @@ void main() {
     test("players never see answers or others' submissions before scoring", () {
       final game = gameWithPlayers(['sam', 'alex']);
       host(game, 'host_next');
-      submit(game, 'sam', 'Right', 4);
+      submit(game, 'sam', 'Right');
 
       final player = game.view(const PlayerActor('alex'), t0);
       expect(player['accepted_answers'], isNull);
@@ -620,7 +648,6 @@ void main() {
       final own = game.view(const PlayerActor('sam'), t0);
       expect((own['you'] as Map<String, dynamic>)['submission'], {
         'answer': 'Right',
-        'wager': 4,
         'correct': null,
         'delta': null,
       });
@@ -640,9 +667,12 @@ void main() {
       expect(scored['accepted_answers'], ['Right']);
       final submissions = (scored['submissions'] as List)
           .cast<Map<String, dynamic>>();
-      expect(submissions.single['player_id'], 'sam');
-      expect(submissions.single['correct'], isTrue);
-      expect(submissions.single['delta'], 4);
+      expect(submissions.map((s) => s['player_id']), ['sam', 'alex']);
+      expect(submissions.first['correct'], isTrue);
+      expect(submissions.first['delta'], 10);
+      // alex never answered, so her row carries the skip penalty instead.
+      expect(submissions.last['answer'], isNull);
+      expect(submissions.last['delta'], -10);
     });
 
     test(
@@ -658,9 +688,9 @@ void main() {
         expect(() => game.addPlayer('x', 'HANA'), throwsCode('name_taken'));
 
         host(game, 'host_next');
-        host(game, 'submit', {'answer': 'Rigth', 'wager': 6});
+        host(game, 'submit', {'answer': 'Rigth'});
         expect(
-          () => host(game, 'submit', {'answer': 'Right', 'wager': 6}),
+          () => host(game, 'submit', {'answer': 'Right'}),
           throwsCode('already_submitted'),
         );
 
@@ -673,12 +703,7 @@ void main() {
           'role': 'host',
           'player_id': 'hana',
           'host_token': null,
-          'submission': {
-            'answer': 'Rigth',
-            'wager': 6,
-            'correct': null,
-            'delta': null,
-          },
+          'submission': {'answer': 'Rigth', 'correct': null, 'delta': null},
         });
         final players = (during['players'] as List)
             .cast<Map<String, dynamic>>();
@@ -688,15 +713,18 @@ void main() {
         expect(players[1]['is_host'], isFalse);
 
         host(game, 'host_next');
-        expect(game.players['hana']!.score, -6);
+        expect(game.players['hana']!.score, -10);
         expect(game.view(const HostActor(), t0)['accepted_answers'], ['Right']);
 
         host(game, 'host_override', {'player_id': 'hana', 'correct': true});
-        expect(game.players['hana']!.score, 6);
+        expect(game.players['hana']!.score, 10);
+
+        // Sam let the question go by, and is told what that cost rather than
+        // nothing.
         expect(
           (game.view(const PlayerActor('sam'), t0)['you']
               as Map<String, dynamic>)['submission'],
-          isNull,
+          {'answer': null, 'correct': false, 'delta': -10},
         );
       },
     );
@@ -784,7 +812,7 @@ void main() {
         'image_url',
         'time_limit_ms',
         'difficulty',
-        'multiplier',
+        'points',
       });
       expect(((view['players'] as List).first as Map).keys.toSet(), {
         'id',

@@ -18,7 +18,7 @@
     {
       "actor": "host",
       "join": {
-        "protocol_version": 8,
+        "protocol_version": 9,
         "host_token": "$host_token",
         "display_name": "Hana"
       },
@@ -33,7 +33,7 @@
     {
       "actor": "sam",
       "join": {
-        "protocol_version": 8,
+        "protocol_version": 9,
         "display_name": "Sam"
       },
       "expect": {
@@ -43,7 +43,7 @@
     {
       "actor": "copycat",
       "join": {
-        "protocol_version": 8,
+        "protocol_version": 9,
         "display_name": "hana"
       },
       "expect": {
@@ -99,8 +99,7 @@
       "actor": "host",
       "push": "submit",
       "payload": {
-        "answer": "Canbera",
-        "wager": 6
+        "answer": "Canbera"
       },
       "expect": {
         "status": "ok"
@@ -110,8 +109,7 @@
       "actor": "host",
       "push": "submit",
       "payload": {
-        "answer": "Canberra",
-        "wager": 6
+        "answer": "Canberra"
       },
       "expect": {
         "status": "error",
@@ -124,8 +122,7 @@
       "actor": "sam",
       "push": "submit",
       "payload": {
-        "answer": "canberra",
-        "wager": 5
+        "answer": "canberra"
       },
       "expect": {
         "status": "ok"
@@ -150,7 +147,6 @@
         "you": {
           "submission": {
             "answer": "Canbera",
-            "wager": 6,
             "correct": null,
             "delta": null
           }
@@ -175,11 +171,11 @@
         "players": [
           {
             "name": "Sam",
-            "score": 5
+            "score": 10
           },
           {
             "name": "Hana",
-            "score": -6
+            "score": -10
           }
         ],
         "submissions": [
@@ -189,7 +185,7 @@
             "auto_correct": true,
             "override": null,
             "correct": true,
-            "delta": 5
+            "delta": 10
           },
           {
             "player_id": "$player_id:host",
@@ -197,13 +193,13 @@
             "auto_correct": false,
             "override": null,
             "correct": false,
-            "delta": -6
+            "delta": -10
           }
         ],
         "you": {
           "submission": {
             "correct": false,
-            "delta": -6
+            "delta": -10
           }
         }
       }
@@ -225,11 +221,11 @@
         "players": [
           {
             "name": "Hana",
-            "score": 6
+            "score": 10
           },
           {
             "name": "Sam",
-            "score": 5
+            "score": 10
           }
         ],
         "submissions": [
@@ -237,7 +233,7 @@
             "player_id": "$player_id:host",
             "override": true,
             "correct": true,
-            "delta": 6
+            "delta": 10
           },
           {
             "player_id": "$player_id:sam",
@@ -251,7 +247,7 @@
       "disconnect": true
     },
     {
-      "_comment": "Sam is the only one left, so the room promotes him rather than sitting hostless (PROTOCOL.md §3.4). His snapshot carries the new host_token, sent to him alone.",
+      "_comment": "Sam is the only one left, so the room promotes him rather than sitting hostless (PROTOCOL.md \u00a73.4). His snapshot carries the new host_token, sent to him alone.",
       "actor": "sam",
       "expect_state": {
         "players": [
@@ -272,10 +268,10 @@
       }
     },
     {
-      "_comment": "The old host's token belonged to the previous generation and no longer verifies (§3.3), so a former host cannot take the room back.",
+      "_comment": "The old host's token belonged to the previous generation and no longer verifies (\u00a73.3), so a former host cannot take the room back.",
       "actor": "ghost",
       "join": {
-        "protocol_version": 8,
+        "protocol_version": 9,
         "host_token": "$host_token"
       },
       "expect": {

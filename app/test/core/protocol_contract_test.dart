@@ -4,8 +4,6 @@ library;
 import 'package:fazoura_party/core/connection/game_connection.dart';
 import 'package:fazoura_party/core/connection/phoenix_game_connection.dart';
 import 'package:fazoura_party/core/models/models.dart';
-import 'package:fazoura_party/features/player_question/player_question_view.dart'
-    show maxWager, minWager;
 import 'package:fazoura_party/shared/describe_error.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -143,66 +141,75 @@ void main() {
   group('scoring.json (PROTOCOL.md §9)', () {
     final scoring = ProtocolFixtures.load('scoring.json');
 
-    test('the wager bounds the client offers match the invalid cases', () {
-      final invalid = (scoring['invalid_wagers'] as List).cast<Object?>();
+    test('a Question carries the stakes the host sent, and computes none', () {
+      for (final case_ in (scoring['points'] as List)) {
+        final map = case_ as Map<String, dynamic>;
+        final points = map['points'] as Map<String, dynamic>;
 
-      for (final wager in invalid) {
-        if (wager is! int) continue; // non-integers cannot reach the slider
+        final question = Question.fromJson({
+          'id': 'q_1',
+          'type': 'text',
+          'prompt': '?',
+          'time_limit_ms': 30000,
+          'difficulty': map['difficulty'],
+          'points': points,
+        });
+
         expect(
-          wager < minWager || wager > maxWager,
-          isTrue,
+          (
+            question.points.right,
+            question.points.wrong,
+            question.points.skipped,
+          ),
+          (points['right'], points['wrong'], points['skipped']),
           reason:
-              'wager $wager is rejected by the server but selectable in the UI',
+              'the ${map['difficulty']} stakes are the host\'s to state, and '
+              'this is the whole of what the client knows about scoring',
         );
       }
-
-      // The fixture's integer rejections must sit immediately outside the
-      // range, otherwise the slider and the server disagree about the edges.
-      expect(invalid, contains(minWager - 1));
-      expect(invalid, contains(maxWager + 1));
     });
 
-    test('the delta the client renders matches wager x multiplier', () {
-      for (final case_ in (scoring['multiplier'] as List)) {
+    test('a skipped row decodes as an answerless row, not a missing one', () {
+      for (final case_ in (scoring['skipped'] as List)) {
         final map = case_ as Map<String, dynamic>;
-        final wager = map['wager'] as int;
-        final multiplier = map['multiplier'] as int;
-        final correct = map['correct'] as bool;
-        final expected = map['delta'] as int;
 
-        // What player_question_view shows as "+N if right / -N if wrong".
-        final shown = wager * multiplier;
-        expect(
-          correct ? shown : -shown,
-          expected,
-          reason: 'multiplier case ${map['difficulty']} renders the wrong hint',
-        );
+        final view = SubmissionView.fromJson({
+          'player_id': 'p_1',
+          'answer': null,
+          'auto_correct': false,
+          'override': null,
+          'correct': false,
+          'delta': map['delta'],
+        });
+
+        expect(view.answer, isNull, reason: map['name'] as String);
+        expect(view.correct, isFalse);
+        expect(view.delta, map['delta']);
       }
     });
 
     test('a SubmissionView decodes the override cases it will be sent', () {
       for (final case_ in (scoring['override'] as List)) {
         final map = case_ as Map<String, dynamic>;
-        final wager = map['wager'] as int;
         final overridden = map['override'] as bool;
+        final delta =
+            (map['score_after_override'] as int) -
+            (map['score_before_question'] as int);
 
         final view = SubmissionView.fromJson({
           'player_id': 'p_1',
           'answer': 'whatever',
-          'wager': wager,
           'auto_correct': map['auto_correct'],
           'override': overridden,
           'correct': overridden,
-          'multiplier': 1,
-          'delta': overridden ? wager : -wager,
+          'delta': delta,
         });
 
         expect(view.overrideVerdict, overridden, reason: map['name'] as String);
         expect(view.correct, overridden);
         expect(
           view.delta,
-          (map['score_after_override'] as int) -
-              (map['score_before_question'] as int),
+          delta,
           reason: '${map['name']}: delta must be the score change it caused',
         );
       }
@@ -358,12 +365,9 @@ Map<String, dynamic>? _encodeIntent(
 ) {
   switch (event) {
     case 'submit':
-      final wager = payload['wager'];
-      if (wager is! int) return null;
-      return PhoenixGameConnection.submitPayload(
-        payload['answer'] as String,
-        wager,
-      );
+      final answer = payload['answer'];
+      if (answer is! String) return null;
+      return PhoenixGameConnection.submitPayload(answer);
     case 'host_override':
       return PhoenixGameConnection.overridePayload(
         payload['player_id'] as String,

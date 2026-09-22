@@ -20,7 +20,7 @@ class PhoenixGameConnection implements GameConnection {
     PhoenixSocket Function(String endpoint)? socketFactory,
   }) : _socketFactory = socketFactory ?? PhoenixSocket.new;
 
-  static const int protocolVersion = 8;
+  static const int protocolVersion = 9;
 
   /// `phx_join` payload (PROTOCOL.md §4.1).
   static Map<String, dynamic> joinPayload({
@@ -37,9 +37,8 @@ class PhoenixGameConnection implements GameConnection {
   /// Intent payloads (PROTOCOL.md §4.2). Kept as statics so the contract test
   /// can hold them to `protocol/fixtures` without opening a socket; the intent
   /// methods below are their only production callers.
-  static Map<String, dynamic> submitPayload(String answer, int wager) => {
+  static Map<String, dynamic> submitPayload(String answer) => {
     'answer': answer,
-    'wager': wager,
   };
 
   static Map<String, dynamic> overridePayload(String playerId, bool correct) =>
@@ -165,8 +164,7 @@ class PhoenixGameConnection implements GameConnection {
   }
 
   @override
-  Future<void> submit(String answer, int wager) =>
-      _push('submit', submitPayload(answer, wager));
+  Future<void> submit(String answer) => _push('submit', submitPayload(answer));
 
   @override
   Future<void> hostNext() => _push('host_next', const {});
