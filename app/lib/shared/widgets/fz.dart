@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/fz_theme.dart';
+import 'fz_motion.dart';
 
 /// Deep teal radial glow with the design's amber lattice woven over it.
 class FzBackground extends StatelessWidget {
@@ -462,6 +463,10 @@ class _FzBlinkState extends State<FzBlink> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    // The only animation in the app that never stops, so the one that matters
+    // most to anybody who asked for less of them.
+    if (reduceMotion(context)) return widget.child;
+
     return FadeTransition(
       opacity: Tween<double>(
         begin: 1,
@@ -474,18 +479,37 @@ class _FzBlinkState extends State<FzBlink> with SingleTickerProviderStateMixin {
 
 /// One-shot entrance: fade + scale from .92 (the design's `pop`), or a 10px
 /// rise when [rise] is true.
+///
+/// [delay] holds it still first, so a list can be given one per row and land
+/// as a run rather than all at once. The delay is folded into the one
+/// animation as a leading flat stretch, which keeps this a single cheap
+/// `TweenAnimationBuilder` and means nothing is left pending if the widget
+/// goes away early.
 class FzEnter extends StatelessWidget {
-  const FzEnter({super.key, required this.child, this.rise = false});
+  const FzEnter({
+    super.key,
+    required this.child,
+    this.rise = false,
+    this.delay = Duration.zero,
+  });
 
   final Widget child;
   final bool rise;
+  final Duration delay;
+
+  static const _travel = Duration(milliseconds: 240);
 
   @override
   Widget build(BuildContext context) {
+    if (reduceMotion(context)) return child;
+
+    final total = delay + _travel;
+    final start = delay.inMicroseconds / total.inMicroseconds;
+
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 240),
-      curve: Curves.easeOut,
+      duration: total,
+      curve: Interval(start, 1, curve: Curves.easeOut),
       builder: (context, t, child) => Opacity(
         opacity: t,
         child: rise

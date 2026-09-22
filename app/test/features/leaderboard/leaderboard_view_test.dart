@@ -255,6 +255,9 @@ void main() {
         tester,
         scoringStateForSam().copyWith(phase: Phase.leaderboard),
       );
+      // Scores run up to their new total rather than appearing at it, so the
+      // assertions below are about where the counting stops.
+      await tester.pumpAndSettle();
 
       // Sam's score is -10 and his change was −10; the row shows both.
       expect(inStanding('p_3f9a', find.text('-10')), findsOneWidget);

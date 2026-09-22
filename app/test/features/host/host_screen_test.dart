@@ -266,6 +266,8 @@ void main() {
         tester,
         scoringStateForHost().copyWith(phase: Phase.leaderboard),
       );
+      // Scores run up to their new total rather than appearing at it.
+      await tester.pumpAndSettle();
 
       // The screen "Show standings" leads to: a row per player carrying the
       // running total, with the change that produced it beside it.

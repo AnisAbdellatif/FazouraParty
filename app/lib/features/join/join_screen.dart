@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/navigation.dart';
+
 import '../../core/lan/lan_host.dart' show defaultLanPort;
 import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
@@ -151,9 +153,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
       if (!mounted) return;
       unawaited(
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(
-            builder: (_) => PlayerGameScreen(roomCode: code),
-          ),
+          FzPageRoute<void>(builder: (_) => PlayerGameScreen(roomCode: code)),
         ),
       );
     } catch (error) {

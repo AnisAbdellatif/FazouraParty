@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/navigation.dart';
+
 import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../core/providers/lan_providers.dart';
@@ -58,7 +60,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (!mounted) return;
       setState(() => _creating = false);
       await Navigator.of(context).push(
-        MaterialPageRoute<void>(
+        FzPageRoute<void>(
           builder: (_) => host_screen.HostScreen(roomCode: created.roomCode),
         ),
       );
@@ -77,9 +79,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _openSettings() async {
     await settings.loadLibrary();
     if (!mounted) return;
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => settings.SettingsScreen()));
+    await Navigator.of(context)
+        .push(FzPageRoute<void>(builder: (_) => settings.SettingsScreen()));
   }
 
   /// Opens the quiz editor, which is a chunk of its own: the photo pipeline
@@ -105,7 +106,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       if (!mounted) return;
       setState(() => _creating = false);
       await Navigator.of(context).push(
-        MaterialPageRoute<void>(
+        FzPageRoute<void>(
           builder: (_) => host_screen.HostScreen(roomCode: room.code),
         ),
       );
@@ -178,9 +179,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               onPressed: _creating
                   ? null
                   : () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const JoinScreen(),
-                      ),
+                      FzPageRoute<void>(builder: (_) => const JoinScreen()),
                     ),
             ),
             const SizedBox(height: 11),

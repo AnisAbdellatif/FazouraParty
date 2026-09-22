@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/navigation.dart';
+
 import '../../core/models/models.dart';
 import '../../core/providers/quiz_providers.dart';
 import '../../core/quizzes/quiz_library.dart';
@@ -26,7 +28,7 @@ const maxSelectedQuizzes = 10;
 /// they were picked, or null if the host backed out. Never empty.
 Future<List<QuizChoice>?> showQuizBrowser(BuildContext context) {
   return Navigator.of(context).push<List<QuizChoice>>(
-    MaterialPageRoute(
+    FzPageRoute(
       builder: (_) => QuizBrowserScreen(
         onEdit: (context, quiz) async {
           await editor.loadLibrary();

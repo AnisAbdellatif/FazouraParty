@@ -183,7 +183,11 @@ class PlayerGrid extends StatelessWidget {
             for (final player in players)
               SizedBox(
                 width: width,
+                // Keyed, or inserting a name alphabetically would re-run the
+                // entrance for every card after it and the lobby would flash
+                // each time somebody joined.
                 child: FzEnter(
+                  key: ValueKey('lobby-${player.id}'),
                   child: _PlayerCard(player: player, isYou: player.id == youId),
                 ),
               ),

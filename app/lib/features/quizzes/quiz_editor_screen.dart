@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/navigation.dart';
+
 import '../../core/models/models.dart';
 import '../../core/providers/quiz_providers.dart';
 import '../../core/quizzes/quiz_library.dart';
@@ -27,7 +29,7 @@ const difficulties = ['easy', 'medium', 'hard'];
 /// or null if the editor was closed without a successful save.
 Future<LocalQuiz?> showQuizEditor(BuildContext context, {LocalQuiz? existing}) {
   return Navigator.of(context).push<LocalQuiz>(
-    MaterialPageRoute(builder: (_) => QuizEditorScreen(existing: existing)),
+    FzPageRoute(builder: (_) => QuizEditorScreen(existing: existing)),
   );
 }
 

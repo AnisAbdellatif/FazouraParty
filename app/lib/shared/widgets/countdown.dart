@@ -7,6 +7,7 @@ import '../../core/providers/config_providers.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../core/time/server_clock.dart';
 import '../theme/fz_theme.dart';
+import 'fz_motion.dart';
 
 /// Question timer from the absolute server [deadline] corrected by the server
 /// clock offset, or the frozen [pausedRemainingMs]. With [timeLimitMs] it
@@ -81,10 +82,17 @@ class _CountdownState extends ConsumerState<Countdown> {
         : seconds <= 5
         ? FzColors.ac2
         : FzColors.ac;
-    final label = Text(
-      paused ? 'PAUSED · ${seconds}s' : '$seconds',
-      key: const Key('countdown'),
-      style: fz.m(15, color: color),
+    final urgent = !paused && seconds <= 5;
+    // Each of the last five seconds lands with a kick. Trigger is null the rest
+    // of the time, which is what keeps the clock still until it matters.
+    final label = FzPop(
+      trigger: urgent ? seconds : null,
+      scale: 1.3,
+      child: Text(
+        paused ? 'PAUSED · ${seconds}s' : '$seconds',
+        key: const Key('countdown'),
+        style: fz.m(15, color: color),
+      ),
     );
 
     final limit = widget.timeLimitMs;

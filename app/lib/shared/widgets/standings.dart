@@ -5,6 +5,7 @@ import '../format.dart';
 import '../theme/fz_theme.dart';
 import 'fz.dart';
 import 'fz_direction.dart';
+import 'fz_motion.dart';
 
 /// Pink "HOST" tag for the playing host.
 class HostBadge extends StatelessWidget {
@@ -55,11 +56,14 @@ class Standings extends StatelessWidget {
         child: Text('No players yet.', style: fz.m(12, color: FzColors.dim)),
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    // Keyed by player so a row that changed rank can be recognised between
+    // frames and slid there rather than snapped — overtaking somebody is the
+    // best thing that happens in a trivia game.
+    return FzReorder(
       children: [
         for (final (index, player) in players.indexed)
           Padding(
+            key: ValueKey('standing-${player.id}'),
             padding: const EdgeInsets.only(bottom: 8),
             child: _StandingRow(
               rank: index + 1,
@@ -180,8 +184,13 @@ class _StandingRow extends StatelessWidget {
           if (showScores)
             SizedBox(
               width: 52,
-              child: Text(
-                '${player.score}',
+              // Counts from what the score was before this question to what it
+              // is now. The delta is the host's number, so the starting point
+              // is known rather than remembered from a previous build — which
+              // matters because this screen was only just put on screen.
+              child: FzCountUp(
+                from: player.score - (delta ?? 0),
+                to: player.score,
                 textAlign: TextAlign.right,
                 style: fz.m(17),
               ),

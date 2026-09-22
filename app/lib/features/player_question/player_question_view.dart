@@ -15,6 +15,7 @@ import '../../shared/widgets/countdown.dart';
 import '../../shared/widgets/fz.dart';
 import '../../shared/widgets/fz_direction.dart';
 import '../../shared/widgets/question_photo.dart';
+import '../../shared/widgets/fz_motion.dart';
 import '../../shared/widgets/submitted_dots.dart';
 
 const maxAnswerLength = 100;
@@ -55,6 +56,11 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
   bool _sending = false;
   String? _sent;
   String? _error;
+
+  /// Counts refusals rather than reading [_error], so the same message twice
+  /// running still shakes. Being told "too long" once and silently the second
+  /// time reads as the app having stopped listening.
+  int _refusals = 0;
   Timer? _autoSubmit;
 
   @override
@@ -124,7 +130,10 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
   Future<void> _submit() async {
     final answer = _answerController.text.trim();
     if (answer.isEmpty || answer.characters.length > maxAnswerLength) {
-      setState(() => _error = 'Answers must be 1–$maxAnswerLength characters.');
+      setState(() {
+        _error = 'Answers must be 1–$maxAnswerLength characters.';
+        _refusals++;
+      });
       return;
     }
     setState(() {
@@ -146,6 +155,7 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
           _sent = answer;
         }
         _error = describeError(error);
+        _refusals++;
       });
     }
   }
@@ -245,22 +255,27 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
   }) {
     final busy = _sending;
     return [
-      FzTypingDirection(
-        controller: _answerController,
-        child: TextField(
-          key: const Key('answerField'),
+      // The design's `shake`: an answer the host would not take says so by
+      // moving, which is read before the line of text underneath it is.
+      FzShake(
+        trigger: _error == null ? null : _refusals,
+        child: FzTypingDirection(
           controller: _answerController,
-          enabled: !busy,
-          maxLength: maxAnswerLength,
-          style: fz.h(20, weight: FontWeight.w700),
-          decoration: const InputDecoration(
-            hintText: 'Type your answer',
-            counterText: '',
+          child: TextField(
+            key: const Key('answerField'),
+            controller: _answerController,
+            enabled: !busy,
+            maxLength: maxAnswerLength,
+            style: fz.h(20, weight: FontWeight.w700),
+            decoration: const InputDecoration(
+              hintText: 'Type your answer',
+              counterText: '',
+            ),
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) {
+              if (!busy && !paused) _submit();
+            },
           ),
-          textInputAction: TextInputAction.done,
-          onSubmitted: (_) {
-            if (!busy && !paused) _submit();
-          },
         ),
       ),
       const SizedBox(height: 22),

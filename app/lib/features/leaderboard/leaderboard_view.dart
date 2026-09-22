@@ -70,6 +70,11 @@ class LeaderboardView extends StatelessWidget {
   }
 }
 
+/// How long the row at [index] waits before landing. Capped at eight rows:
+/// beyond that the stagger stops adding drama and starts adding waiting.
+Duration _landing(int index) =>
+    Duration(milliseconds: 55 * (index > 8 ? 8 : index));
+
 /// The rows for people who actually answered.
 List<SubmissionView> answeredSubmissions(RoomState state) => [
   for (final s in state.submissions ?? const <SubmissionView>[])
@@ -153,22 +158,33 @@ class RevealedSubmissions extends StatelessWidget {
               style: fz.m(12, color: FzColors.dim),
             ),
           ),
-        for (final submission in answeredSubmissions(state))
+        // The verdicts land one after another rather than all at once, so the
+        // room reads the roll call instead of being handed it. Capped, or a
+        // full room would spend two seconds dealing itself out.
+        for (final (index, submission) in answeredSubmissions(state).indexed)
           Padding(
             padding: const EdgeInsets.only(bottom: 7),
-            child: _SubmissionResultRow(
-              submission: submission,
-              player: playersById[submission.playerId],
-              isYou: submission.playerId == state.you.playerId,
+            child: FzEnter(
+              rise: true,
+              delay: _landing(index),
+              child: _SubmissionResultRow(
+                submission: submission,
+                player: playersById[submission.playerId],
+                isYou: submission.playerId == state.you.playerId,
+              ),
             ),
           ),
-        for (final player in playersWithoutSubmission(state))
+        for (final (index, player) in playersWithoutSubmission(state).indexed)
           Padding(
             padding: const EdgeInsets.only(bottom: 7),
-            child: _NoAnswerRow(
-              player: player,
-              delta: deltas[player.id],
-              isYou: player.id == state.you.playerId,
+            child: FzEnter(
+              rise: true,
+              delay: _landing(answeredSubmissions(state).length + index),
+              child: _NoAnswerRow(
+                player: player,
+                delta: deltas[player.id],
+                isYou: player.id == state.you.playerId,
+              ),
             ),
           ),
       ],
