@@ -26,11 +26,11 @@ class PlayerGameScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.listen(roomClosedProvider, (_, next) {
-      if (next.hasValue) {
+      if (next != null) {
         unawaited(ref.read(roomTokensProvider.notifier).drop(roomCode));
       }
     });
-    final closedReason = ref.watch(roomClosedProvider).value;
+    final closedReason = ref.watch(roomClosedProvider);
     final snapshot = ref.watch(roomStateProvider);
 
     return PopScope(

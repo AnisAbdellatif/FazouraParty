@@ -141,10 +141,6 @@ abstract class _$RoomTokens extends $AsyncNotifier<List<RoomToken>> {
 /// So the host asks (PROTOCOL.md §3.1). A definite "no such room" is the only
 /// answer that forgets it: a device that could not reach the server keeps the
 /// offer, because a remembered room is worth more than a blip on the way to it.
-/// Kept alive deliberately: forgetting a dead room writes through
-/// [RoomTokens], which this watches, so the build runs a second time and
-/// settles on null. An auto-disposing provider can be torn down between those
-/// two runs and never produce a value at all.
 
 @ProviderFor(resumableRoom)
 final resumableRoomProvider = ResumableRoomProvider._();
@@ -162,10 +158,6 @@ final resumableRoomProvider = ResumableRoomProvider._();
 /// So the host asks (PROTOCOL.md §3.1). A definite "no such room" is the only
 /// answer that forgets it: a device that could not reach the server keeps the
 /// offer, because a remembered room is worth more than a blip on the way to it.
-/// Kept alive deliberately: forgetting a dead room writes through
-/// [RoomTokens], which this watches, so the build runs a second time and
-/// settles on null. An auto-disposing provider can be torn down between those
-/// two runs and never produce a value at all.
 
 final class ResumableRoomProvider
     extends
@@ -188,10 +180,6 @@ final class ResumableRoomProvider
   /// So the host asks (PROTOCOL.md §3.1). A definite "no such room" is the only
   /// answer that forgets it: a device that could not reach the server keeps the
   /// offer, because a remembered room is worth more than a blip on the way to it.
-  /// Kept alive deliberately: forgetting a dead room writes through
-  /// [RoomTokens], which this watches, so the build runs a second time and
-  /// settles on null. An auto-disposing provider can be torn down between those
-  /// two runs and never produce a value at all.
   ResumableRoomProvider._()
     : super(
         from: null,
@@ -217,4 +205,4 @@ final class ResumableRoomProvider
   }
 }
 
-String _$resumableRoomHash() => r'eb34d85d69b300263a5f8bce02e8e0d6d17b1113';
+String _$resumableRoomHash() => r'c9fc8d57fd328246784db3e057f9765383ac982c';

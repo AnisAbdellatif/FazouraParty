@@ -46,9 +46,43 @@ Stream<RoomState> roomState(Ref ref) => ref.watch(gameConnectionProvider).state;
 Stream<ConnectionStatus> connectionStatus(Ref ref) =>
     ref.watch(gameConnectionProvider).status;
 
+/// Why the current room ended, or null while it is still running.
+///
+/// A plain value rather than an `AsyncValue`, and that is the whole point: an
+/// `AsyncValue` keeps its last data while it refreshes, so hosting a second
+/// game handed the new session the *previous* game's ending on its first
+/// frame. The room opened straight onto "the host ended the party", and the
+/// listener that forgets a dead room threw away the new room's host token on
+/// the way past. A restart cleared it, which is what made it look intermittent.
+///
+/// Building a new connection resets this to null synchronously, so there is no
+/// frame in which the old answer is visible.
 @Riverpod(keepAlive: true)
-Future<RoomClosedReason> roomClosed(Ref ref) =>
-    ref.watch(gameConnectionProvider).closed;
+class RoomClosed extends _$RoomClosed {
+  @override
+  RoomClosedReason? build() {
+    final connection = ref.watch(gameConnectionProvider);
+
+    // `onDispose` runs before each rebuild as well as at the end, so a late
+    // answer from a connection that has since been replaced cannot land on the
+    // session that replaced it.
+    var current = true;
+    ref.onDispose(() => current = false);
+
+    unawaited(
+      connection.closed.then(
+        (reason) {
+          if (current) state = reason;
+        },
+        // A connection that never says why is the same as one still running:
+        // the screens have nothing to show and nothing to forget.
+        onError: (Object _) {},
+      ),
+    );
+
+    return null;
+  }
+}
 
 /// `server_time - local_now`, recomputed whenever a new snapshot arrives.
 @Riverpod(keepAlive: true)

@@ -187,17 +187,45 @@ final class ConnectionStatusProvider
 
 String _$connectionStatusHash() => r'42509d261d747d49d03743d3abeef5885ed1ca85';
 
-@ProviderFor(roomClosed)
+/// Why the current room ended, or null while it is still running.
+///
+/// A plain value rather than an `AsyncValue`, and that is the whole point: an
+/// `AsyncValue` keeps its last data while it refreshes, so hosting a second
+/// game handed the new session the *previous* game's ending on its first
+/// frame. The room opened straight onto "the host ended the party", and the
+/// listener that forgets a dead room threw away the new room's host token on
+/// the way past. A restart cleared it, which is what made it look intermittent.
+///
+/// Building a new connection resets this to null synchronously, so there is no
+/// frame in which the old answer is visible.
+
+@ProviderFor(RoomClosed)
 final roomClosedProvider = RoomClosedProvider._();
 
+/// Why the current room ended, or null while it is still running.
+///
+/// A plain value rather than an `AsyncValue`, and that is the whole point: an
+/// `AsyncValue` keeps its last data while it refreshes, so hosting a second
+/// game handed the new session the *previous* game's ending on its first
+/// frame. The room opened straight onto "the host ended the party", and the
+/// listener that forgets a dead room threw away the new room's host token on
+/// the way past. A restart cleared it, which is what made it look intermittent.
+///
+/// Building a new connection resets this to null synchronously, so there is no
+/// frame in which the old answer is visible.
 final class RoomClosedProvider
-    extends
-        $FunctionalProvider<
-          AsyncValue<RoomClosedReason>,
-          RoomClosedReason,
-          FutureOr<RoomClosedReason>
-        >
-    with $FutureModifier<RoomClosedReason>, $FutureProvider<RoomClosedReason> {
+    extends $NotifierProvider<RoomClosed, RoomClosedReason?> {
+  /// Why the current room ended, or null while it is still running.
+  ///
+  /// A plain value rather than an `AsyncValue`, and that is the whole point: an
+  /// `AsyncValue` keeps its last data while it refreshes, so hosting a second
+  /// game handed the new session the *previous* game's ending on its first
+  /// frame. The room opened straight onto "the host ended the party", and the
+  /// listener that forgets a dead room threw away the new room's host token on
+  /// the way past. A restart cleared it, which is what made it look intermittent.
+  ///
+  /// Building a new connection resets this to null synchronously, so there is no
+  /// frame in which the old answer is visible.
   RoomClosedProvider._()
     : super(
         from: null,
@@ -214,17 +242,48 @@ final class RoomClosedProvider
 
   @$internal
   @override
-  $FutureProviderElement<RoomClosedReason> $createElement(
-    $ProviderPointer pointer,
-  ) => $FutureProviderElement(pointer);
+  RoomClosed create() => RoomClosed();
 
-  @override
-  FutureOr<RoomClosedReason> create(Ref ref) {
-    return roomClosed(ref);
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(RoomClosedReason? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<RoomClosedReason?>(value),
+    );
   }
 }
 
-String _$roomClosedHash() => r'7678b8b84deb6a1f58b8ba8b25021d8df12ec6d8';
+String _$roomClosedHash() => r'96f28271c9460215ff3fc8751a66dc3793cfec09';
+
+/// Why the current room ended, or null while it is still running.
+///
+/// A plain value rather than an `AsyncValue`, and that is the whole point: an
+/// `AsyncValue` keeps its last data while it refreshes, so hosting a second
+/// game handed the new session the *previous* game's ending on its first
+/// frame. The room opened straight onto "the host ended the party", and the
+/// listener that forgets a dead room threw away the new room's host token on
+/// the way past. A restart cleared it, which is what made it look intermittent.
+///
+/// Building a new connection resets this to null synchronously, so there is no
+/// frame in which the old answer is visible.
+
+abstract class _$RoomClosed extends $Notifier<RoomClosedReason?> {
+  RoomClosedReason? build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<RoomClosedReason?, RoomClosedReason?>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<RoomClosedReason?, RoomClosedReason?>,
+              RoomClosedReason?,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}
 
 /// `server_time - local_now`, recomputed whenever a new snapshot arrives.
 

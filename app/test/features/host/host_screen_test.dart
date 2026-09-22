@@ -1,3 +1,4 @@
+import 'package:fazoura_party/core/connection/game_connection.dart';
 import 'package:fazoura_party/core/models/models.dart';
 import 'package:fazoura_party/core/providers/connection_providers.dart';
 import 'package:fazoura_party/features/host/host_screen.dart';
@@ -282,5 +283,51 @@ void main() {
       expect(inStanding('p_b2c1', find.text('10')), findsOneWidget);
       expect(inStanding('p_b2c1', find.text('+10')), findsOneWidget);
     });
+  });
+
+  // The bug this covers: hosting a second game in one run of the app opened
+  // straight onto "the host ended the party", because the ending of the
+  // *previous* game was still the latest value the screen could see.
+  testWidgets('a second game does not open on the last one ending', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final first = FakeGameConnection(initialState: lobbyStateWithQuiz());
+    final second = FakeGameConnection(initialState: lobbyStateWithQuiz());
+    final connections = [first, second];
+    var built = 0;
+
+    final container = ProviderContainer.test(
+      overrides: [
+        gameConnectionProvider.overrideWith((ref) => connections[built++]),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    Future<void> pump() => tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: HostScreen(roomCode: 'K7QX2M')),
+      ),
+    );
+
+    await pump();
+    await tester.pump();
+
+    // The host ends the party.
+    first.closedCompleter.complete(RoomClosedReason.closed);
+    await tester.pumpAndSettle();
+    expect(find.text('The host ended the party.'), findsOneWidget);
+
+    // They start another one: `_hostGame` builds a fresh connection.
+    container.invalidate(gameConnectionProvider);
+    await pump();
+    await tester.pumpAndSettle();
+
+    expect(find.text('The host ended the party.'), findsNothing);
+    expect(find.byKey(const Key('backHomeButton')), findsNothing);
   });
 }

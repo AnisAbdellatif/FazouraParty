@@ -47,12 +47,12 @@ class HostScreen extends ConsumerWidget {
     // on the home screen is the only way a host gets back in (PROTOCOL.md
     // §3.3), and offering it once the room is gone can only produce an error.
     ref.listen(roomClosedProvider, (_, next) {
-      if (next.hasValue) {
+      if (next != null) {
         unawaited(ref.read(roomTokensProvider.notifier).drop(roomCode));
       }
     });
 
-    final closedReason = ref.watch(roomClosedProvider).value;
+    final closedReason = ref.watch(roomClosedProvider);
     final snapshot = ref.watch(roomStateProvider);
 
     // Leaving is the one action here that can end everyone else's game, so it
