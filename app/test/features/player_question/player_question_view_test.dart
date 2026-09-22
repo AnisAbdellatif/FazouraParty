@@ -1,4 +1,5 @@
 import 'package:fazoura_party/core/models/models.dart';
+import 'package:fazoura_party/core/providers/config_providers.dart';
 import 'package:fazoura_party/core/providers/connection_providers.dart';
 import 'package:fazoura_party/features/player_question/player_question_view.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +28,47 @@ void main() {
       ),
     );
     await tester.pump();
+  }
+
+  /// Pumps a question with [left] on the clock, driven by a clock the test
+  /// owns. The returned function moves that clock and the widget's timers
+  /// together, so the auto-submit fires when it really would.
+  Future<Future<void> Function(Duration)> pumpTimed(
+    WidgetTester tester,
+    Duration left, {
+    bool paused = false,
+  }) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final start = DateTime.utc(2026, 1, 1, 12);
+    var now = start;
+    final state = questionStateForPlayer().copyWith(
+      serverTime: start.millisecondsSinceEpoch,
+      deadline: paused ? null : start.add(left).millisecondsSinceEpoch,
+      pausedRemainingMs: paused ? left.inMilliseconds : null,
+    );
+
+    fake = FakeGameConnection(initialState: state);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          gameConnectionProvider.overrideWithValue(fake),
+          clockProvider.overrideWithValue(() => now),
+        ],
+        child: MaterialApp(
+          home: Scaffold(body: PlayerQuestionView(state: state)),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    return (Duration step) async {
+      now = now.add(step);
+      await tester.pump(step);
+      await tester.pump();
+    };
   }
 
   Slider slider(WidgetTester tester) =>
@@ -175,5 +217,55 @@ void main() {
     expect(find.text('Paused'), findsOneWidget);
     expect(find.text('PAUSED · 8s'), findsOneWidget);
     expect(isEnabled(tester, const Key('submitButton')), isFalse);
+  });
+
+  testWidgets('a typed answer is locked in just before the deadline', (
+    tester,
+  ) async {
+    final advance = await pumpTimed(tester, const Duration(seconds: 10));
+
+    await tester.enterText(find.byKey(const Key('answerField')), ' Canberra ');
+    slider(tester).onChanged!(8);
+    await tester.pump();
+
+    await advance(const Duration(seconds: 5));
+    expect(fake.submissions, isEmpty, reason: 'still time on the clock');
+
+    await advance(
+      const Duration(seconds: 5) - const Duration(milliseconds: 700),
+    );
+
+    expect(fake.submissions, [(answer: 'Canberra', wager: 8)]);
+    expect(find.byKey(const Key('ownSubmission')), findsOneWidget);
+    expect(find.text('Your answer: Canberra'), findsOneWidget);
+    expect(find.text('Wager 8'), findsOneWidget);
+  });
+
+  testWidgets('an empty field is not submitted when the time runs out', (
+    tester,
+  ) async {
+    final advance = await pumpTimed(tester, const Duration(seconds: 10));
+
+    await tester.enterText(find.byKey(const Key('answerField')), '   ');
+    await advance(const Duration(milliseconds: 9300));
+
+    expect(fake.submissions, isEmpty);
+    expect(find.byKey(const Key('submitError')), findsNothing);
+    expect(find.byKey(const Key('answerField')), findsOneWidget);
+  });
+
+  testWidgets('a paused question has no deadline to answer before', (
+    tester,
+  ) async {
+    final advance = await pumpTimed(
+      tester,
+      const Duration(seconds: 10),
+      paused: true,
+    );
+
+    await tester.enterText(find.byKey(const Key('answerField')), 'Canberra');
+    await advance(const Duration(minutes: 1));
+
+    expect(fake.submissions, isEmpty);
   });
 }
