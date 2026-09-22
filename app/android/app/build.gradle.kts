@@ -42,6 +42,23 @@ android {
         // is and what Android installs it as cannot drift apart.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // `--target-platform` in `scripts/ci.sh apk` picks which ABIs Flutter's own
+        // engine and snapshot are built for. This says the same thing to everything
+        // else — see the packaging block below for why both are needed.
+        ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
+    }
+
+    // Native libraries that arrive inside a plugin's AAR are already built, so
+    // `abiFilters` does not reach them: an x86_64 `libdartjni.so` was still being
+    // packaged with no `libflutter.so` beside it. An x86_64 device reads that
+    // directory as "this APK supports me", installs, and then crashes on launch for
+    // want of the engine. Dropping the directory is what makes the APK say arm-only,
+    // so such a device declines it cleanly instead.
+    packaging {
+        jniLibs {
+            excludes += setOf("**/x86/**", "**/x86_64/**", "**/mips*/**")
+        }
     }
 
     signingConfigs {
