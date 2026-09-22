@@ -16,7 +16,7 @@ defmodule Fazoura.Game do
   # difficulty, so saying nothing is never the cheapest way out of a question you should
   # have known.
   @points %{
-    "easy" => %{right: 10, wrong: -20},
+    "easy" => %{right: 10, wrong: -15},
     "medium" => %{right: 25, wrong: -10},
     "hard" => %{right: 50, wrong: -5}
   }

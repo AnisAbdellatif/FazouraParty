@@ -106,7 +106,7 @@ won't be stored.
 | `type` | **required** | `"text"` or `"text_photo"`. Nothing else exists yet. |
 | `prompt` | **required** | 1–280 characters. The question as players see it. |
 | `accepted_answers` | **required** | 1–10 strings, each 1–100 characters. See §4 — this is the field that decides whether the quiz is fun. |
-| `difficulty` | recommended | `"easy"`, `"medium"` or `"hard"`. Defaults to `"easy"`. Only matters when the host turns difficulty scoring on, where it sets what the question is worth: easy +10 / −20, medium +25 / −10, hard +50 / −5. |
+| `difficulty` | recommended | `"easy"`, `"medium"` or `"hard"`. Defaults to `"easy"`. Only matters when the host turns difficulty scoring on, where it sets what the question is worth: easy +10 / −15, medium +25 / −10, hard +50 / −5. |
 | `image` | see §3 | **Required for `text_photo`, must be `null` (or absent) for `text`.** |
 | `explanation` | optional | ≤ 280 characters, shown after the reveal in a later release. `null` is fine. |
 | `time_limit_ms` | skip it | Reserved for per-question overrides; rooms ignore it today. |

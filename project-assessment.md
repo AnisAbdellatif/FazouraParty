@@ -58,7 +58,7 @@ Two hosting modes are planned: **Cloud** (our backend owns the game) and **LAN**
 - Toggle any submission correct ↔ incorrect (typos, spelling variants, ambiguous phrasing). Score deltas re-apply immediately and the leaderboard re-broadcasts.
 
 ### 3.3 Gameplay
-- **Scoring:** by question difficulty — easy +10 / −20, medium +25 / −10, hard +50 / −5, and −10 for no answer at all (protocol v9; wagers were removed). Scores may go negative.
+- **Scoring:** by question difficulty — easy +10 / −15, medium +25 / −10, hard +50 / −5, and −10 for no answer at all (protocol v9; wagers were removed). Scores may go negative.
 - **Answer matching:** automatic first pass (case/whitespace/diacritic normalization + accepted-answer list), host override as the second pass. No fuzzy/Levenshtein matching in v1 — it creates arguments faster than it settles them; the host override covers the same ground.
 - **Leaderboard:** updated after each question is scored, pushed to all clients.
 - **Question types:** `text`, `text_photo`.

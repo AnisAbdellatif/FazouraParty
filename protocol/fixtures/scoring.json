@@ -3,7 +3,7 @@
     {
       "difficulty": "easy",
       "bonus": true,
-      "points": { "right": 10, "wrong": -20, "skipped": -10 }
+      "points": { "right": 10, "wrong": -15, "skipped": -10 }
     },
     {
       "difficulty": "medium",
@@ -28,7 +28,7 @@
   ],
   "delta": [
     { "difficulty": "easy", "bonus": true, "correct": true, "delta": 10 },
-    { "difficulty": "easy", "bonus": true, "correct": false, "delta": -20 },
+    { "difficulty": "easy", "bonus": true, "correct": false, "delta": -15 },
     { "difficulty": "medium", "bonus": true, "correct": true, "delta": 25 },
     { "difficulty": "medium", "bonus": true, "correct": false, "delta": -10 },
     { "difficulty": "hard", "bonus": true, "correct": true, "delta": 50 },
@@ -81,7 +81,7 @@
       "auto_correct": true,
       "override": false,
       "score_after_scoring": 10,
-      "score_after_override": -20
+      "score_after_override": -15
     },
     {
       "name": "override equal to auto result changes nothing",

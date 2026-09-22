@@ -437,7 +437,7 @@ a wrong answer costs **more** on an easy question than on a hard one.
 
 | `settings.difficulty_multiplier` | difficulty | right | wrong | no answer |
 |---|---|---|---|---|
-| `true` | easy | **+10** | **−20** | **−10** |
+| `true` | easy | **+10** | **−15** | **−10** |
 | `true` | medium | **+25** | **−10** | **−10** |
 | `true` | hard | **+50** | **−5** | **−10** |
 | `false` | any | **+10** | **−10** | **−10** |
@@ -507,6 +507,6 @@ Confirmed by the project owner on 2026-09-15.
 
 | Several quizzes per round (added in v8) | The host selects 1–10 quizzes and the round draws its questions at random from all of them merged into one pool; `pack_title` became `pack_titles` |
 
-| Wagers removed (added in v9) | No wager: a question scores by difficulty (easy +10 / −20, medium +25 / −10, hard +50 / −5), letting one go by costs 10, and `settings.difficulty_multiplier` now switches difficulty scoring on and off rather than a multiplier |
+| Wagers removed (added in v9) | No wager: a question scores by difficulty (easy +10 / −15, medium +25 / −10, hard +50 / −5), letting one go by costs 10, and `settings.difficulty_multiplier` now switches difficulty scoring on and off rather than a multiplier |
 
 Changing any of these is a protocol version bump.

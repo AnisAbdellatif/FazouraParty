@@ -142,7 +142,7 @@
           "difficulty": "easy",
           "points": {
             "right": 10,
-            "wrong": -20,
+            "wrong": -15,
             "skipped": -10
           }
         }

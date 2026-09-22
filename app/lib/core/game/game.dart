@@ -30,7 +30,7 @@ const supportedDifficulties = ['easy', 'medium', 'hard'];
 /// Points per question by difficulty, used when difficulty scoring is on (§9).
 /// A wrong answer costs more on an easy question than on a hard one.
 const _pointsByDifficulty = {
-  'easy': (right: 10, wrong: -20),
+  'easy': (right: 10, wrong: -15),
   'medium': (right: 25, wrong: -10),
   'hard': (right: 50, wrong: -5),
 };

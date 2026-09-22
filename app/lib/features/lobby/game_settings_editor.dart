@@ -213,7 +213,7 @@ class _GameSettingsEditorState extends ConsumerState<GameSettingsEditor> {
                     Text('Difficulty scoring', style: fz.h(15)),
                     const SizedBox(height: 4),
                     Text(
-                      'Easy +10 / −20 · medium +25 / −10 · hard +50 / −5.\n'
+                      'Easy +10 / −15 · medium +25 / −10 · hard +50 / −5.\n'
                       'Off, every question is +10 / −10.',
                       style: fz.m(11, color: FzColors.dim, height: 1.4),
                     ),
