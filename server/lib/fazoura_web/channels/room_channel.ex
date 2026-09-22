@@ -70,8 +70,11 @@ defmodule FazouraWeb.RoomChannel do
     {:stop, :normal, socket}
   end
 
+  # The major only. A server may be several minors ahead of a phone that has not
+  # taken an update yet, and refusing it would end the party over a difference
+  # the client does not need to know about (PROTOCOL.md §1).
   defp check_protocol_version(%{"protocol_version" => version}) do
-    if version == Game.protocol_version(), do: :ok, else: {:error, :unsupported_protocol_version}
+    if version == Game.protocol_major(), do: :ok, else: {:error, :unsupported_protocol_version}
   end
 
   defp check_protocol_version(_params), do: {:error, :unsupported_protocol_version}

@@ -1,5 +1,5 @@
 {
-  "name": "host plays: no early reveal, host ends the question, corrects own answer; losing the host promotes the remaining player",
+  "name": "host plays: no early reveal, the question ends when everyone has answered, host corrects own answer; losing the host promotes the remaining player",
   "pack": {
     "title": "Fixture Pack",
     "questions": [
@@ -119,16 +119,7 @@
       }
     },
     {
-      "actor": "sam",
-      "push": "submit",
-      "payload": {
-        "answer": "canberra"
-      },
-      "expect": {
-        "status": "ok"
-      }
-    },
-    {
+      "_comment": "The host has answered and Sam has not. A playing host gets no earlier look than anyone else: no accepted answers, no other player's submission, not even a verdict on its own (§7).",
       "actor": "host",
       "expect_state": {
         "phase": "question",
@@ -141,7 +132,7 @@
           },
           {
             "name": "Sam",
-            "has_submitted": true
+            "has_submitted": false
           }
         ],
         "you": {
@@ -154,11 +145,33 @@
       }
     },
     {
-      "actor": "host",
-      "push": "host_next",
-      "payload": {},
+      "actor": "sam",
+      "push": "submit",
+      "payload": {
+        "answer": "canberra"
+      },
       "expect": {
         "status": "ok"
+      }
+    },
+    {
+      "_comment": "Both have answered, so there is nobody left to wait for and the question ends itself — the host never touches host_next (PROTOCOL.md §6).",
+      "actor": "host",
+      "expect_state": {
+        "phase": "scoring",
+        "accepted_answers": [
+          "Canberra"
+        ],
+        "players": [
+          {
+            "name": "Sam",
+            "score": 10
+          },
+          {
+            "name": "Hana",
+            "score": -10
+          }
+        ]
       }
     },
     {
@@ -247,7 +260,7 @@
       "disconnect": true
     },
     {
-      "_comment": "Sam is the only one left, so the room promotes him rather than sitting hostless (PROTOCOL.md \u00a73.4). His snapshot carries the new host_token, sent to him alone.",
+      "_comment": "Sam is the only one left, so the room promotes him rather than sitting hostless (PROTOCOL.md §3.4). His snapshot carries the new host_token, sent to him alone.",
       "actor": "sam",
       "expect_state": {
         "players": [
@@ -268,7 +281,7 @@
       }
     },
     {
-      "_comment": "The old host's token belonged to the previous generation and no longer verifies (\u00a73.3), so a former host cannot take the room back.",
+      "_comment": "The old host's token belonged to the previous generation and no longer verifies (§3.3), so a former host cannot take the room back.",
       "actor": "ghost",
       "join": {
         "protocol_version": 9,

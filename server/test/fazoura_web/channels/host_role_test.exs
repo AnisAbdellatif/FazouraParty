@@ -22,7 +22,7 @@ defmodule FazouraWeb.HostRoleTest do
     |> join(
       FazouraWeb.RoomChannel,
       "room:" <> code,
-      Map.put(payload, "protocol_version", Game.protocol_version())
+      Map.put(payload, "protocol_version", Game.protocol_major())
     )
   end
 

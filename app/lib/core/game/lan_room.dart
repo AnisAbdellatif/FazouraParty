@@ -155,7 +155,9 @@ class LanRoom {
   /// join error code (§4.1); the caller replies with it and does not connect.
   LanJoinReply join(LanConnection connection, Map<String, dynamic> params) {
     if (_closed) throw const GameRuleError('room_not_found');
-    if (params['protocol_version'] != protocolVersion) {
+    // The major only: a phone that has not taken an update yet must not be
+    // thrown out of a party over a minor it need not know about (§1.1).
+    if (params['protocol_version'] != protocolMajor) {
       throw const GameRuleError('unsupported_protocol_version');
     }
 
@@ -168,9 +170,9 @@ class LanRoom {
     _emptySince = null;
     switch (actor) {
       case HostActor():
-        game.setConnected(game.hostPlayerId, true);
+        game.setConnected(game.hostPlayerId, true, _now());
       case PlayerActor(:final id):
-        game.setConnected(id, true);
+        game.setConnected(id, true, _now());
     }
 
     _broadcast();
@@ -237,10 +239,10 @@ class LanRoom {
 
     switch (actor) {
       case HostActor():
-        game.setConnected(game.hostPlayerId, false);
+        game.setConnected(game.hostPlayerId, false, _now());
         _promoteHost();
       case PlayerActor(:final id):
-        game.setConnected(id, false);
+        game.setConnected(id, false, _now());
     }
     if (_connections.isEmpty) _emptySince = _now();
     _broadcast();

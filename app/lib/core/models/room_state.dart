@@ -11,6 +11,11 @@ part 'room_state.g.dart';
 abstract class RoomState with _$RoomState {
   const factory RoomState({
     required int protocolVersion,
+
+    /// Which revision of [protocolVersion] the host implements (§1.1). Nothing
+    /// branches on it; it is here so a snapshot round-trips faithfully and so
+    /// a LAN host on an older build can be told apart from the cloud.
+    int? protocolMinor,
     required String roomCode,
     required Mode mode,
     required Phase phase,

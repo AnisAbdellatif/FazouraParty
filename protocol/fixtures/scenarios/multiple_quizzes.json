@@ -303,14 +303,6 @@
       }
     },
     {
-      "actor": "host",
-      "push": "host_next",
-      "payload": {},
-      "expect": {
-        "status": "ok"
-      }
-    },
-    {
       "actor": "sam",
       "expect_state": {
         "phase": "question",
@@ -361,14 +353,6 @@
       "payload": {
         "answer": "hist one"
       },
-      "expect": {
-        "status": "ok"
-      }
-    },
-    {
-      "actor": "host",
-      "push": "host_next",
-      "payload": {},
       "expect": {
         "status": "ok"
       }

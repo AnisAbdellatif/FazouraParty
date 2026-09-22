@@ -15,7 +15,7 @@ defmodule FazouraWeb.RoomChannelTest do
     |> join(
       FazouraWeb.RoomChannel,
       "room:" <> code,
-      Map.put(payload, "protocol_version", Fazoura.Game.protocol_version())
+      Map.put(payload, "protocol_version", Fazoura.Game.protocol_major())
     )
   end
 

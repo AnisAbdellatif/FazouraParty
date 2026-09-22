@@ -28,7 +28,7 @@ void main() {
           hostToken: 'host-tok',
         ),
         {
-          'protocol_version': PhoenixGameConnection.protocolVersion,
+          'protocol_version': PhoenixGameConnection.protocolMajor,
           'display_name': 'Hana',
           'player_token': null,
           'host_token': 'host-tok',
@@ -38,7 +38,7 @@ void main() {
 
     test('non-playing host join sends a null display_name', () {
       expect(PhoenixGameConnection.joinPayload(hostToken: 'host-tok'), {
-        'protocol_version': PhoenixGameConnection.protocolVersion,
+        'protocol_version': PhoenixGameConnection.protocolMajor,
         'display_name': null,
         'player_token': null,
         'host_token': 'host-tok',
@@ -56,7 +56,7 @@ void main() {
           const JoinResult(role: Role.host, playerId: 'p_host'),
         ),
         {
-          'protocol_version': PhoenixGameConnection.protocolVersion,
+          'protocol_version': PhoenixGameConnection.protocolMajor,
           'display_name': null,
           'player_token': null,
           'host_token': 'host-tok',
@@ -76,7 +76,7 @@ void main() {
           ),
         ),
         {
-          'protocol_version': PhoenixGameConnection.protocolVersion,
+          'protocol_version': PhoenixGameConnection.protocolMajor,
           'display_name': null,
           'player_token': 'player-tok',
           'host_token': null,

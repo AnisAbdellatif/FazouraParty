@@ -188,13 +188,117 @@ defmodule Fazoura.GameTest do
     end
 
     test "tick scores the question once the deadline passes" do
+      # Kim never answers, so the question runs its clock rather than ending the
+      # moment Sam is done.
       game =
-        game_with_players(["sam"]) |> host(:next) |> ok!() |> submit("sam", "right") |> ok!()
+        game_with_players(["sam", "kim"])
+        |> host(:next)
+        |> ok!()
+        |> submit("sam", "right")
+        |> ok!()
 
       assert Game.tick(game, @t0 + 9_999).phase == :question
       scored = Game.tick(game, @t0 + 10_000)
       assert scored.phase == :scoring
       assert scored.players["sam"].score == 10
+      assert scored.players["kim"].score == -10
+    end
+
+    test "the question ends the moment the last player answers" do
+      game = game_with_players(["sam", "kim"]) |> host(:next) |> ok!()
+
+      one = game |> submit("sam", "right") |> ok!()
+      assert one.phase == :question, "still waiting on kim"
+
+      both = one |> submit("kim", "right", @t0 + 1) |> ok!()
+      assert both.phase == :scoring
+      assert both.deadline == nil
+      assert both.players["sam"].score == 10
+    end
+
+    test "a room nobody answered in runs its clock down" do
+      # Everyone gone and nothing submitted: the pack must not race past
+      # unattended, so only the deadline ends this.
+      game =
+        game_with_players(["sam"])
+        |> host(:next)
+        |> ok!()
+        |> Game.set_connected("sam", false, @t0)
+
+      assert Game.tick(game, @t0 + 9_999).phase == :question
+      assert Game.tick(game, @t0 + 10_000).phase == :scoring
+    end
+
+    test "a dropped player is waited out for the grace, then stops holding the room" do
+      game =
+        game_with_players(["sam", "kim"])
+        |> host(:next)
+        |> ok!()
+        |> Game.set_connected("kim", false, @t0)
+        |> submit("sam", "right", @t0 + 1)
+        |> ok!()
+
+      assert game.phase == :question, "kim may still be coming back"
+      assert Game.tick(game, @t0 + 4_999).phase == :question
+
+      # The grace runs from the disconnect, not from the last submission.
+      scored = Game.tick(game, @t0 + 5_000)
+      assert scored.phase == :scoring
+      assert scored.players["kim"].score == -10
+    end
+
+    test "a player who reconnects inside the grace still gets the question" do
+      game =
+        game_with_players(["sam", "kim"])
+        |> host(:next)
+        |> ok!()
+        |> Game.set_connected("kim", false, @t0)
+        |> submit("sam", "right", @t0 + 1)
+        |> ok!()
+        |> Game.set_connected("kim", true, @t0 + 4_000)
+
+      assert Game.tick(game, @t0 + 9_000).phase == :question
+      assert game |> submit("kim", "right", @t0 + 9_000) |> ok!() |> then(& &1.phase) == :scoring
+    end
+
+    test "the grace is not renewed by flapping" do
+      game =
+        game_with_players(["sam", "kim"])
+        |> host(:next)
+        |> ok!()
+        |> Game.set_connected("kim", false, @t0)
+        |> Game.set_connected("kim", false, @t0 + 4_000)
+        |> submit("sam", "right", @t0 + 1)
+        |> ok!()
+
+      assert Game.tick(game, @t0 + 5_000).phase == :scoring
+    end
+
+    test "a paused question never ends itself" do
+      game =
+        game_with_players(["sam", "kim"])
+        |> host(:next)
+        |> ok!()
+        |> Game.set_connected("kim", false, @t0)
+        |> submit("sam", "right", @t0 + 1)
+        |> ok!()
+        |> host(:pause, @t0 + 2)
+        |> ok!()
+
+      assert Game.tick(game, @t0 + 60_000).phase == :question
+      assert Game.deadline(game) == nil
+    end
+
+    test "the timer wakes for a grace that expires before the deadline" do
+      game =
+        game_with_players(["sam", "kim"])
+        |> host(:next)
+        |> ok!()
+        |> Game.set_connected("kim", false, @t0)
+        |> submit("sam", "right", @t0 + 1)
+        |> ok!()
+
+      assert Game.deadline(game) == @t0 + 5_000, "the grace, not the far-off deadline"
     end
 
     test "pause freezes the timer and resume restores the remaining time" do

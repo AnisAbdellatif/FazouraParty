@@ -3,6 +3,8 @@ library;
 
 import 'package:fazoura_party/core/connection/game_connection.dart';
 import 'package:fazoura_party/core/connection/phoenix_game_connection.dart';
+import 'package:fazoura_party/core/game/game.dart'
+    show protocolMajor, protocolMinor;
 import 'package:fazoura_party/core/models/models.dart';
 import 'package:fazoura_party/shared/describe_error.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +22,13 @@ import '../support/protocol_fixtures.dart';
 /// has a human-readable message for every error code they produce. Those are
 /// precisely the places where a hand-copied fixture would drift unnoticed.
 void main() {
+  // The cloud client and the LAN engine each write their own major — the
+  // client so it carries no dependency on the engine. They have to agree, or a
+  // LAN host would refuse the very client shipped beside it (PROTOCOL.md §1.1).
+  test('the client and the LAN host claim the same protocol major', () {
+    expect(PhoenixGameConnection.protocolMajor, protocolMajor);
+  });
+
   group('scenarios/*.json decode into RoomState (PROTOCOL.md §5.1)', () {
     for (final entry in ProtocolFixtures.scenarios()) {
       test('${entry.name}: ${entry.scenario['name']}', () {
@@ -97,11 +106,11 @@ void main() {
 
           expect(
             join['protocol_version'],
-            PhoenixGameConnection.protocolVersion,
+            PhoenixGameConnection.protocolMajor,
             reason:
                 '${entry.name} joins with protocol_version '
                 '${join['protocol_version']}, the client sends '
-                '${PhoenixGameConnection.protocolVersion}',
+                '${PhoenixGameConnection.protocolMajor}',
           );
         }
       }
@@ -254,7 +263,8 @@ Map<String, dynamic> _completeSnapshot(Object? partial) {
   final players = expected['players'] as List?;
 
   return <String, dynamic>{
-    'protocol_version': PhoenixGameConnection.protocolVersion,
+    'protocol_version': PhoenixGameConnection.protocolMajor,
+    'protocol_minor': protocolMinor,
     'room_code': 'K7QX2M',
     'mode': 'cloud',
     'phase': 'lobby',

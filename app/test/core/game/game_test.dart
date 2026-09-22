@@ -255,7 +255,9 @@ void main() {
     });
 
     test('tick scores the question once the deadline passes', () {
-      final game = gameWithPlayers(['sam']);
+      // Kim never answers, so the question runs its clock rather than ending
+      // the moment Sam is done.
+      final game = gameWithPlayers(['sam', 'kim']);
       host(game, 'host_next');
       submit(game, 'sam', 'right');
 
@@ -264,6 +266,106 @@ void main() {
       game.tick(t0 + 10000);
       expect(game.phase, GamePhase.scoring);
       expect(game.players['sam']!.score, 10);
+      expect(game.players['kim']!.score, -10);
+    });
+
+    test('the question ends the moment the last player answers', () {
+      final game = gameWithPlayers(['sam', 'kim']);
+      host(game, 'host_next');
+
+      submit(game, 'sam', 'right');
+      expect(game.phase, GamePhase.question, reason: 'still waiting on kim');
+
+      submit(game, 'kim', 'right', t0 + 1);
+      expect(game.phase, GamePhase.scoring);
+      expect(game.deadline, isNull);
+      expect(game.players['sam']!.score, 10);
+    });
+
+    test('a room nobody answered in runs its clock down', () {
+      // Everyone gone and nothing submitted: the pack must not race past
+      // unattended, so only the deadline ends this.
+      final game = gameWithPlayers(['sam']);
+      host(game, 'host_next');
+      game.setConnected('sam', false, t0);
+
+      game.tick(t0 + 9999);
+      expect(game.phase, GamePhase.question);
+      game.tick(t0 + 10000);
+      expect(game.phase, GamePhase.scoring);
+    });
+
+    test('a dropped player is waited out, then stops holding the room', () {
+      final game = gameWithPlayers(['sam', 'kim']);
+      host(game, 'host_next');
+      game.setConnected('kim', false, t0);
+      submit(game, 'sam', 'right', t0 + 1);
+
+      expect(
+        game.phase,
+        GamePhase.question,
+        reason: 'kim may still be coming back',
+      );
+      game.tick(t0 + 4999);
+      expect(game.phase, GamePhase.question);
+
+      // The grace runs from the disconnect, not from the last submission.
+      game.tick(t0 + 5000);
+      expect(game.phase, GamePhase.scoring);
+      expect(game.players['kim']!.score, -10);
+    });
+
+    test(
+      'a player who reconnects inside the grace still gets the question',
+      () {
+        final game = gameWithPlayers(['sam', 'kim']);
+        host(game, 'host_next');
+        game.setConnected('kim', false, t0);
+        submit(game, 'sam', 'right', t0 + 1);
+        game.setConnected('kim', true, t0 + 4000);
+
+        game.tick(t0 + 9000);
+        expect(game.phase, GamePhase.question);
+
+        submit(game, 'kim', 'right', t0 + 9000);
+        expect(game.phase, GamePhase.scoring);
+      },
+    );
+
+    test('the grace is not renewed by flapping', () {
+      final game = gameWithPlayers(['sam', 'kim']);
+      host(game, 'host_next');
+      game.setConnected('kim', false, t0);
+      game.setConnected('kim', false, t0 + 4000);
+      submit(game, 'sam', 'right', t0 + 1);
+
+      game.tick(t0 + 5000);
+      expect(game.phase, GamePhase.scoring);
+    });
+
+    test('a paused question never ends itself', () {
+      final game = gameWithPlayers(['sam', 'kim']);
+      host(game, 'host_next');
+      game.setConnected('kim', false, t0);
+      submit(game, 'sam', 'right', t0 + 1);
+      game.handle(const HostActor(), 'host_pause', const {}, t0 + 2);
+
+      game.tick(t0 + 60000);
+      expect(game.phase, GamePhase.question);
+      expect(game.timerDeadline, isNull);
+    });
+
+    test('the timer wakes for a grace that expires before the deadline', () {
+      final game = gameWithPlayers(['sam', 'kim']);
+      host(game, 'host_next');
+      game.setConnected('kim', false, t0);
+      submit(game, 'sam', 'right', t0 + 1);
+
+      expect(
+        game.timerDeadline,
+        t0 + 5000,
+        reason: 'the grace, not the far-off deadline',
+      );
     });
 
     test('pause freezes the timer and resume restores the remaining time', () {
@@ -778,6 +880,7 @@ void main() {
 
       expect(view.keys.toSet(), {
         'protocol_version',
+        'protocol_minor',
         'room_code',
         'mode',
         'phase',
@@ -830,7 +933,7 @@ void main() {
         'submission',
       });
       expect(view['mode'], 'lan');
-      expect(view['protocol_version'], protocolVersion);
+      expect(view['protocol_version'], protocolMajor);
       expect(view['server_time'], t0);
     });
   });

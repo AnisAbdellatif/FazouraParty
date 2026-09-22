@@ -94,7 +94,7 @@ class _Guest {
 
   Future<Map<String, dynamic>> join(String code, Map<String, dynamic> params) =>
       send('room:$code', 'phx_join', {
-        'protocol_version': protocolVersion,
+        'protocol_version': protocolMajor,
         ...params,
       });
 

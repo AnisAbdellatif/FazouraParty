@@ -15,10 +15,25 @@ import 'dart:math';
 import 'answer.dart';
 import 'pack.dart';
 
-/// Must equal `Fazoura.Game.protocol_version/0` and the version the client
-/// sends: a host that answers a different number refuses every join
-/// (PROTOCOL.md §4.1).
-const protocolVersion = 9;
+/// The compatibility boundary, and the only part of the version on the wire:
+/// a host accepts any client sharing its major and refuses the rest with
+/// `unsupported_protocol_version` (PROTOCOL.md §1.1, §4.1). Must equal
+/// `Fazoura.Game.protocol_major/0`.
+const protocolMajor = 9;
+
+/// Which revision of that major this implementation is. Reported in every
+/// snapshot and ignored by clients; it exists so a LAN host built from an
+/// older tag can be told apart from the cloud. Must equal
+/// `Fazoura.Game.protocol_minor/0`.
+const protocolMinor = 1;
+
+/// How long a question keeps waiting for a player whose connection has gone.
+/// A locked screen or a walk past a thick wall drops the socket for a few
+/// seconds while the player is still standing there, and being dropped already
+/// costs them the skip penalty — losing the question to a blip as well would be
+/// the game's fault, not theirs. Must equal `Fazoura.Game`'s
+/// `@waiting_grace_ms` (PROTOCOL.md §6).
+const waitingGraceMs = 5000;
 const minTimeLimitMs = 10000;
 const maxTimeLimitMs = 120000;
 const defaultTimeLimitMs = 30000;
@@ -86,6 +101,7 @@ class GamePlayer {
     required this.name,
     this.score = 0,
     this.connected = false,
+    this.disconnectedAt,
     this.avatarHue = 0,
   });
 
@@ -93,13 +109,25 @@ class GamePlayer {
   final String name;
   final int score;
   final bool connected;
+
+  /// When their connection went away, so a question knows whether it is still
+  /// worth waiting for them. Never leaves the host.
+  final int? disconnectedAt;
   final int avatarHue;
 
-  GamePlayer copyWith({int? score, bool? connected}) => GamePlayer(
+  GamePlayer copyWith({
+    int? score,
+    bool? connected,
+    int? disconnectedAt,
+    bool clearDisconnectedAt = false,
+  }) => GamePlayer(
     id: id,
     name: name,
     score: score ?? this.score,
     connected: connected ?? this.connected,
+    disconnectedAt: clearDisconnectedAt
+        ? null
+        : disconnectedAt ?? this.disconnectedAt,
     avatarHue: avatarHue,
   );
 }
@@ -239,8 +267,15 @@ class Game {
 
   bool hasPlayer(String? id) => id != null && players.containsKey(id);
 
-  /// The next time [tick] must run, if any.
-  int? get timerDeadline => phase == GamePhase.question ? deadline : null;
+  /// The next time [tick] must run, if any: the question's own deadline, or a
+  /// disconnected player's grace running out before it, whichever is sooner.
+  int? get timerDeadline {
+    if (phase != GamePhase.question || pausedRemainingMs != null) return null;
+    final grace = _nextGraceExpiry;
+    if (deadline == null) return grace;
+    if (grace == null) return deadline;
+    return grace < deadline! ? grace : deadline;
+  }
 
   // --- Players -------------------------------------------------------------
 
@@ -267,10 +302,17 @@ class Game {
     hostPlayerId = id;
   }
 
-  void setConnected(String? id, bool connected) {
+  void setConnected(String? id, bool connected, int now) {
     if (id == null) return;
     final player = players[id];
-    if (player != null) players[id] = player.copyWith(connected: connected);
+    if (player == null) return;
+    players[id] = player.copyWith(
+      connected: connected,
+      // Kept from the first drop, not refreshed: a phone flapping between two
+      // access points must not renew its own grace indefinitely.
+      disconnectedAt: connected ? null : player.disconnectedAt ?? now,
+      clearDisconnectedAt: connected,
+    );
   }
 
   bool _nameTaken(String name) {
@@ -364,6 +406,51 @@ class Game {
       autoCorrect: answerIsCorrect(answer, question.acceptedAnswers),
       points: pointsFor(question),
     );
+
+    _endQuestionIfNobodyLeft(now);
+  }
+
+  /// Nobody left to wait for: everyone the question was asked of has either
+  /// answered or been gone long enough that holding the room for them is only
+  /// making everybody else wait (PROTOCOL.md §6).
+  ///
+  /// At least one answer is required, so a room whose players have all
+  /// wandered off runs its clock down rather than racing through the pack
+  /// unattended.
+  void _endQuestionIfNobodyLeft(int now) {
+    if (phase != GamePhase.question || pausedRemainingMs != null) return;
+    if (submissions.isEmpty) return;
+    if (asked.every((id) => _answeredOrGone(id, now))) _scoreQuestion();
+  }
+
+  bool _answeredOrGone(String id, int now) =>
+      submissions.containsKey(id) || _gone(players[id], now);
+
+  /// A screen that locked, or a tunnel, drops the socket for a few seconds
+  /// while the player is still very much there — so a disconnection is not
+  /// immediately taken as an answer nobody is coming. Someone who actually
+  /// left stops counting once the grace is up.
+  bool _gone(GamePlayer? player, int now) {
+    if (player == null) return true;
+    if (player.connected) return false;
+    final since = player.disconnectedAt;
+    return since != null && now - since >= waitingGraceMs;
+  }
+
+  /// When a disconnected player's grace runs out, if that is sooner than the
+  /// question's own deadline — the room has to wake up and notice.
+  int? get _nextGraceExpiry {
+    int? soonest;
+    for (final id in asked) {
+      if (submissions.containsKey(id)) continue;
+      final player = players[id];
+      if (player == null || player.connected) continue;
+      final since = player.disconnectedAt;
+      if (since == null) continue;
+      final at = since + waitingGraceMs;
+      if (soonest == null || at < soonest) soonest = at;
+    }
+    return soonest;
   }
 
   void _next(int now) {
@@ -516,12 +603,18 @@ class Game {
     gameNumber += 1;
   }
 
-  /// Ends the current question if its deadline has passed. Call before
-  /// handling anything, so an intent can't slip in after time is up.
+  /// Ends the current question if its deadline has passed, or if there is
+  /// nobody left to wait for. Call before handling anything, so an intent
+  /// can't slip in after time is up.
   void tick(int now) {
-    if (phase == GamePhase.question && deadline != null && now >= deadline!) {
+    if (phase != GamePhase.question) return;
+    if (deadline != null && now >= deadline!) {
       _scoreQuestion();
+      return;
     }
+    // Not only after a submission: the last person the room was waiting for
+    // may be one whose grace has just run out, and nothing else would notice.
+    _endQuestionIfNobodyLeft(now);
   }
 
   void _startQuestion(int index, int now) {
@@ -623,7 +716,8 @@ class Game {
         phase == GamePhase.scoring || phase == GamePhase.leaderboard;
 
     return {
-      'protocol_version': protocolVersion,
+      'protocol_version': protocolMajor,
+      'protocol_minor': protocolMinor,
       'room_code': roomCode,
       'mode': mode,
       'phase': phase.wire,

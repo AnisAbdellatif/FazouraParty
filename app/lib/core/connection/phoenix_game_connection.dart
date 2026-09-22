@@ -20,7 +20,14 @@ class PhoenixGameConnection implements GameConnection {
     PhoenixSocket Function(String endpoint)? socketFactory,
   }) : _socketFactory = socketFactory ?? PhoenixSocket.new;
 
-  static const int protocolVersion = 9;
+  /// What this client sends as `protocol_version`: its major, which is the
+  /// whole of the compatibility check (PROTOCOL.md §1.1). A server several
+  /// minors ahead still takes it.
+  ///
+  /// Written out rather than imported from `core/game/game.dart`, so the cloud
+  /// client carries no dependency on the LAN engine. A test asserts the two
+  /// agree, which is what keeps them from drifting.
+  static const int protocolMajor = 9;
 
   /// `phx_join` payload (PROTOCOL.md §4.1).
   static Map<String, dynamic> joinPayload({
@@ -28,7 +35,7 @@ class PhoenixGameConnection implements GameConnection {
     String? playerToken,
     String? hostToken,
   }) => {
-    'protocol_version': protocolVersion,
+    'protocol_version': protocolMajor,
     'display_name': displayName,
     'player_token': playerToken,
     'host_token': hostToken,

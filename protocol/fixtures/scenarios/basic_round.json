@@ -196,6 +196,22 @@
       }
     },
     {
+      "_comment": "Only Sam has answered, so the question is still running and nobody sees an answer yet (§7).",
+      "actor": "sam",
+      "expect_state": {
+        "phase": "question",
+        "accepted_answers": null,
+        "submissions": null,
+        "you": {
+          "submission": {
+            "answer": "canberra",
+            "correct": null,
+            "delta": null
+          }
+        }
+      }
+    },
+    {
       "actor": "alex",
       "push": "submit",
       "payload": {
@@ -206,20 +222,21 @@
       }
     },
     {
+      "_comment": "alex has answered too, so there is nobody left to wait for and the question ends on the spot (PROTOCOL.md §6).",
       "actor": "alex",
       "expect_state": {
+        "phase": "scoring",
+        "accepted_answers": [
+          "Canberra"
+        ],
         "you": {
           "submission": {
             "answer": "Canbera",
-            "correct": null,
-            "delta": null
+            "correct": false,
+            "delta": -10
           }
-        },
-        "submissions": null
+        }
       }
-    },
-    {
-      "advance_clock_ms": 30000
     },
     {
       "actor": "sam",

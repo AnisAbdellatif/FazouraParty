@@ -146,7 +146,8 @@
             "skipped": -10
           }
         }
-      }
+      },
+      "_comment": "Sam is the only player, so answering ends the question without the host touching anything (PROTOCOL.md §6)."
     },
     {
       "actor": "sam",
@@ -154,14 +155,6 @@
       "payload": {
         "answer": "a"
       },
-      "expect": {
-        "status": "ok"
-      }
-    },
-    {
-      "actor": "host",
-      "push": "host_next",
-      "payload": {},
       "expect": {
         "status": "ok"
       }
@@ -221,14 +214,6 @@
       "payload": {
         "answer": "b"
       },
-      "expect": {
-        "status": "ok"
-      }
-    },
-    {
-      "actor": "host",
-      "push": "host_next",
-      "payload": {},
       "expect": {
         "status": "ok"
       }
@@ -323,14 +308,6 @@
       "payload": {
         "answer": "nope"
       },
-      "expect": {
-        "status": "ok"
-      }
-    },
-    {
-      "actor": "host",
-      "push": "host_next",
-      "payload": {},
       "expect": {
         "status": "ok"
       }

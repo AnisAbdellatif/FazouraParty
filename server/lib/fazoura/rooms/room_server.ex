@@ -318,15 +318,15 @@ defmodule Fazoura.Rooms.RoomServer do
 
     case actor do
       :host ->
-        %{state | game: set_host_connected(state.game, true)}
+        %{state | game: set_host_connected(state.game, true, state.now.())}
 
       {:player, id} ->
-        %{state | game: Game.set_connected(state.game, id, true)}
+        %{state | game: Game.set_connected(state.game, id, true, state.now.())}
     end
   end
 
-  defp set_host_connected(game, connected?),
-    do: Game.set_connected(game, game.host_player_id, connected?)
+  defp set_host_connected(game, connected?, now),
+    do: Game.set_connected(game, game.host_player_id, connected?, now)
 
   defp remove_conn(state, actor) do
     # Another socket may still be acting as the same player, in which case
@@ -347,10 +347,10 @@ defmodule Fazoura.Rooms.RoomServer do
   defp maybe_promote(state, {:player, _id}), do: state
 
   defp mark_disconnected(state, :host),
-    do: put_game(state, set_host_connected(state.game, false))
+    do: put_game(state, set_host_connected(state.game, false, state.now.()))
 
   defp mark_disconnected(state, {:player, id}),
-    do: put_game(state, Game.set_connected(state.game, id, false))
+    do: put_game(state, Game.set_connected(state.game, id, false, state.now.()))
 
   # The host's connection is gone: rather than leave the room hostless until it
   # times out, hand the role to someone who is still here (PROTOCOL.md §3.4).

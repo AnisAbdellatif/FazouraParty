@@ -135,7 +135,7 @@ void main() {
       room = LanRoom.create(pack: const Pack.empty(), shuffleQuestions: false);
       host = _Client();
       room.join(host, {
-        'protocol_version': protocolVersion,
+        'protocol_version': protocolMajor,
         'host_token': room.hostToken,
       });
     });

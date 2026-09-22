@@ -217,7 +217,7 @@ void main() {
       );
       host = _Client();
       room.join(host, {
-        'protocol_version': protocolVersion,
+        'protocol_version': protocolMajor,
         'host_token': room.hostToken,
       });
     });
@@ -258,7 +258,7 @@ void main() {
     test('only the host may choose the quiz', () {
       final sam = _Client();
       room.join(sam, {
-        'protocol_version': protocolVersion,
+        'protocol_version': protocolMajor,
         'display_name': 'Sam',
       });
 

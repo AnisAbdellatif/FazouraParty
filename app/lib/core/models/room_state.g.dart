@@ -8,6 +8,7 @@ part of 'room_state.dart';
 
 _RoomState _$RoomStateFromJson(Map<String, dynamic> json) => _RoomState(
   protocolVersion: (json['protocol_version'] as num).toInt(),
+  protocolMinor: (json['protocol_minor'] as num?)?.toInt(),
   roomCode: json['room_code'] as String,
   mode: $enumDecode(_$ModeEnumMap, json['mode']),
   phase: $enumDecode(_$PhaseEnumMap, json['phase']),
@@ -45,6 +46,7 @@ _RoomState _$RoomStateFromJson(Map<String, dynamic> json) => _RoomState(
 Map<String, dynamic> _$RoomStateToJson(_RoomState instance) =>
     <String, dynamic>{
       'protocol_version': instance.protocolVersion,
+      'protocol_minor': instance.protocolMinor,
       'room_code': instance.roomCode,
       'mode': _$ModeEnumMap[instance.mode]!,
       'phase': _$PhaseEnumMap[instance.phase]!,

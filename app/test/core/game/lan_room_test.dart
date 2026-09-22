@@ -65,7 +65,7 @@ void main() {
   tearDown(() => room.close(LanCloseReason.shutdown));
 
   Map<String, dynamic> joinParams([Map<String, dynamic> extra = const {}]) => {
-    'protocol_version': protocolVersion,
+    'protocol_version': protocolMajor,
     ...extra,
   };
 
@@ -89,7 +89,7 @@ void main() {
     test('the version is checked before anything else', () {
       expect(
         () => room.join(_Client(), {
-          'protocol_version': protocolVersion - 1,
+          'protocol_version': protocolMajor - 1,
           'display_name': 'Sam',
         }),
         _throwsCode('unsupported_protocol_version'),
@@ -126,6 +126,10 @@ void main() {
 
     test('rejoining with the token reclaims the same player and score', () {
       final sam = join({'display_name': 'Sam'});
+      // Kim never answers. Without somebody still owing an answer, Sam's
+      // submission would end the question (§6) and the round trip below would
+      // be through a scored question rather than a live one.
+      join({'display_name': 'Kim'});
       final host = join({'host_token': room.hostToken});
 
       room.handle(host.client, 'host_next', {});

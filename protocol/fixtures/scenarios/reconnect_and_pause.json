@@ -46,6 +46,17 @@
       }
     },
     {
+      "_comment": "Kim never answers a single question. Without somebody still owing an answer, Sam submitting would end the question on the spot (§6) and there would be no running timer left to pause.",
+      "actor": "kim",
+      "join": {
+        "protocol_version": 9,
+        "display_name": "Kim"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
       "actor": "old",
       "join": {
         "protocol_version": 3,
@@ -84,6 +95,11 @@
       "actor": "host",
       "expect_state": {
         "players": [
+          {
+            "name": "Kim",
+            "connected": true,
+            "has_submitted": false
+          },
           {
             "name": "Sam",
             "connected": false,
@@ -175,6 +191,11 @@
             "name": "Sam",
             "score": 10,
             "connected": true
+          },
+          {
+            "name": "Kim",
+            "score": -10,
+            "connected": true
           }
         ]
       }
@@ -227,6 +248,10 @@
           {
             "name": "Late",
             "score": 0
+          },
+          {
+            "name": "Kim",
+            "score": -10
           }
         ]
       }
@@ -246,11 +271,23 @@
           {
             "name": "Sam",
             "score": 0
+          },
+          {
+            "name": "Kim",
+            "score": -20
           }
         ],
         "submissions": [
           {
             "player_id": "$player_id:sam",
+            "answer": null,
+            "auto_correct": false,
+            "override": null,
+            "correct": false,
+            "delta": -10
+          },
+          {
+            "player_id": "$player_id:kim",
             "answer": null,
             "auto_correct": false,
             "override": null,

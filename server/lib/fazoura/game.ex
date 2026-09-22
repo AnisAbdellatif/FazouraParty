@@ -9,7 +9,14 @@ defmodule Fazoura.Game do
 
   alias Fazoura.Game.{Answer, Pack}
 
-  @protocol_version 9
+  # The protocol is versioned major.minor (PROTOCOL.md §1). The major is the
+  # compatibility boundary and the only part on the wire: a client may play
+  # against any server sharing its major, so a change that adds nothing a client
+  # must understand — a new server-side rule, a field nobody has to read — moves
+  # the minor and leaves every installed app working. Changing or removing
+  # anything a client already relies on moves the major, and that is a cutover.
+  @protocol_major 9
+  @protocol_minor 1
   # Points per question by difficulty (PROTOCOL.md §9). A wrong answer costs more on an
   # easy question than on a hard one: you are expected to know the easy ones, and a hard
   # one is worth a guess. Letting the question go by costs @skip_points whatever its
@@ -23,6 +30,13 @@ defmodule Fazoura.Game do
   # Every question scores the same when the host turns difficulty scoring off.
   @flat_points %{right: 10, wrong: -10}
   @skip_points -10
+  # How long a question keeps waiting for a player whose connection has gone.
+  # A locked screen or a walk past a thick wall drops the socket for a few
+  # seconds while the player is still standing there, and being dropped already
+  # costs them the skip penalty — losing the question to a blip as well would be
+  # the game's fault, not theirs. Longer than a reconnect, far shorter than the
+  # shortest question.
+  @waiting_grace_ms 5_000
   @min_time_limit_ms 10_000
   @max_time_limit_ms 120_000
   @default_time_limit_ms 30_000
@@ -50,6 +64,9 @@ defmodule Fazoura.Game do
           name: String.t(),
           score: integer(),
           connected: boolean(),
+          # When their connection went away, so a question knows whether it is
+          # still worth waiting for them. Never leaves the server.
+          disconnected_at: integer() | nil,
           avatar_hue: non_neg_integer()
         }
   @type points :: %{right: integer(), wrong: integer()}
@@ -108,8 +125,13 @@ defmodule Fazoura.Game do
     asked: MapSet.new()
   ]
 
-  @spec protocol_version() :: pos_integer()
-  def protocol_version, do: @protocol_version
+  @doc "The compatibility boundary: clients sharing this major may play."
+  @spec protocol_major() :: pos_integer()
+  def protocol_major, do: @protocol_major
+
+  @doc "Which revision of that major this server implements."
+  @spec protocol_minor() :: non_neg_integer()
+  def protocol_minor, do: @protocol_minor
 
   @spec new(String.t(), Pack.t(), keyword()) :: t()
   def new(room_code, %Pack{} = pack, opts \\ []) do
@@ -188,7 +210,14 @@ defmodule Fazoura.Game do
   def add_player(_game, _id, _name, _avatar_hue), do: {:error, :invalid_name}
 
   defp new_player(id, name, avatar_hue),
-    do: %{id: id, name: name, score: 0, connected: false, avatar_hue: avatar_hue}
+    do: %{
+      id: id,
+      name: name,
+      score: 0,
+      connected: false,
+      disconnected_at: nil,
+      avatar_hue: avatar_hue
+    }
 
   @doc """
   A random avatar hue (0..359), kept as far as possible from hues already used in
@@ -226,9 +255,21 @@ defmodule Fazoura.Game do
   @spec player?(t(), String.t() | nil) :: boolean()
   def player?(game, id), do: Map.has_key?(game.players, id)
 
-  @spec set_connected(t(), String.t(), boolean()) :: t()
-  def set_connected(game, id, connected?) do
-    if player?(game, id), do: put_in(game.players[id].connected, connected?), else: game
+  @spec set_connected(t(), String.t(), boolean(), integer()) :: t()
+  def set_connected(game, id, connected?, now) do
+    if player?(game, id) do
+      update_in(game.players[id], fn player ->
+        %{
+          player
+          | connected: connected?,
+            # Kept from the first drop, not refreshed: a phone flapping between
+            # two access points must not renew its own grace indefinitely.
+            disconnected_at: if(connected?, do: nil, else: player.disconnected_at || now)
+        }
+      end)
+    else
+      game
+    end
   end
 
   defp name_taken?(game, name) do
@@ -255,7 +296,9 @@ defmodule Fazoura.Game do
         points: points(game, question)
       }
 
-      {:ok, put_in(game.submissions[id], submission)}
+      answered = put_in(game.submissions[id], submission)
+
+      {:ok, maybe_end_question(answered, now)}
     end
   end
 
@@ -382,17 +425,34 @@ defmodule Fazoura.Game do
 
   def handle(_game, _actor, _intent, _now), do: {:error, :invalid_payload}
 
-  @doc "Ends the current question if its deadline has passed. Call before handling anything."
+  @doc """
+  Ends the current question if its deadline has passed, or if there is nobody
+  left to wait for. Call before handling anything.
+  """
   @spec tick(t(), integer()) :: t()
   def tick(%__MODULE__{phase: :question, deadline: deadline} = game, now)
       when is_integer(deadline) and now >= deadline,
       do: score_question(game)
 
+  # Not only after a submission: the last person the room was waiting for may be
+  # one whose grace has just run out, and nothing else would notice.
+  def tick(%__MODULE__{phase: :question, paused_remaining_ms: nil} = game, now),
+    do: maybe_end_question(game, now)
+
   def tick(game, _now), do: game
 
-  @doc "The next time `tick/2` must run, if any."
+  @doc """
+  The next time `tick/2` must run, if any: the question's own deadline, or a
+  disconnected player's grace running out before it, whichever comes first.
+  """
   @spec deadline(t()) :: integer() | nil
-  def deadline(%__MODULE__{phase: :question, deadline: deadline}), do: deadline
+  def deadline(%__MODULE__{phase: :question, paused_remaining_ms: nil} = game) do
+    case Enum.reject([game.deadline | grace_expiries(game)], &is_nil/1) do
+      [] -> nil
+      times -> Enum.min(times)
+    end
+  end
+
   def deadline(_game), do: nil
 
   ## Scoring
@@ -431,6 +491,47 @@ defmodule Fazoura.Game do
         submissions: %{},
         asked: MapSet.new(Map.keys(game.players))
     }
+  end
+
+  # Nobody left to wait for: everyone the question was asked of has either
+  # answered or been gone long enough that holding the room for them is only
+  # making everybody else wait (PROTOCOL.md §6).
+  #
+  # At least one answer is required, so a room whose players have all wandered
+  # off runs its clock down rather than racing through the pack unattended.
+  defp maybe_end_question(%__MODULE__{phase: :question} = game, now) do
+    if map_size(game.submissions) > 0 and
+         Enum.all?(game.asked, &answered_or_gone?(game, &1, now)),
+       do: score_question(game),
+       else: game
+  end
+
+  defp maybe_end_question(game, _now), do: game
+
+  defp answered_or_gone?(game, id, now),
+    do: Map.has_key?(game.submissions, id) or gone?(game.players[id], now)
+
+  # A screen that locked, or a tunnel, drops the socket for a few seconds while
+  # the player is still very much there — so a disconnection is not immediately
+  # taken as an answer nobody is coming. Someone who actually left stops
+  # counting once the grace is up.
+  defp gone?(nil, _now), do: true
+  defp gone?(%{connected: true}, _now), do: false
+  defp gone?(%{disconnected_at: nil}, _now), do: false
+  defp gone?(%{disconnected_at: at}, now), do: now - at >= @waiting_grace_ms
+
+  defp grace_expiries(game) do
+    game.asked
+    |> Enum.reject(&Map.has_key?(game.submissions, &1))
+    |> Enum.flat_map(fn id ->
+      case game.players[id] do
+        %{connected: false, disconnected_at: at} when is_integer(at) ->
+          [at + @waiting_grace_ms]
+
+        _ ->
+          []
+      end
+    end)
   end
 
   defp score_question(game) do
@@ -603,7 +704,8 @@ defmodule Fazoura.Game do
     revealed? = game.phase in [:scoring, :leaderboard]
 
     %{
-      protocol_version: @protocol_version,
+      protocol_version: @protocol_major,
+      protocol_minor: @protocol_minor,
       room_code: game.room_code,
       mode: Atom.to_string(game.mode),
       phase: Atom.to_string(game.phase),
@@ -653,10 +755,18 @@ defmodule Fazoura.Game do
     game
     |> sorted_players()
     |> Enum.map(fn p ->
-      Map.merge(p, %{
+      # Listed field by field rather than merged over the player, so anything
+      # the server keeps for its own bookkeeping — `disconnected_at` — cannot
+      # reach a broadcast just by existing on the struct (PROTOCOL.md §5.1).
+      %{
+        id: p.id,
+        name: p.name,
+        score: p.score,
+        connected: p.connected,
+        avatar_hue: p.avatar_hue,
         has_submitted: tracks_submissions? and Map.has_key?(game.submissions, p.id),
         is_host: p.id == game.host_player_id
-      })
+      }
     end)
   end
 

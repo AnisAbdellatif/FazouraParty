@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `8`** · Status: **FROZEN** (changes are breaking — see AGENTS.md §3)
+**Protocol version: `9.1`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -11,15 +11,36 @@ form of this spec.
 
 ## 1. Conventions
 
+### 1.1 Versioning
+
+The protocol is versioned `major.minor`, and **only the major is on the wire**:
+`protocol_version` in a join and in every `RoomState` is the major, and the server reports
+its minor alongside as `protocol_minor`.
+
+| | Changes | Effect on a client |
+|---|---|---|
+| **major** | A message, field or value a client already relies on is changed or removed | Cutover. A host refuses a join whose major differs, with `unsupported_protocol_version` |
+| **minor** | Anything a correct client of that major already copes with: a new host-side rule, a field it may ignore, a new optional payload key | None. Old and new clients both play |
+
+A host accepts any client sharing its major, whatever the minor — a phone that has not taken
+an update yet must not be thrown out of a party over a difference it does not need to know
+about. Both host implementations must be on the same `major.minor`: the minor is what tells
+you whether a LAN host built from an older tag behaves exactly like the cloud.
+
+Ending a question as soon as everyone has answered (§6) is the example to reason from. A
+client already has to handle the question ending at any moment, because `host_next` ends it —
+so nothing a client does needed to change, and it was a minor.
+
 - All payloads are JSON objects. Keys are `snake_case`.
 - Timestamps are **integers, milliseconds since the Unix epoch, UTC**.
 - IDs (`player_id`, `question_id`) are opaque strings. Clients must not parse them.
-- Unknown keys in a payload must be ignored by the receiver (forward-compatible additions are
-  still announced by a version bump, but must not crash old readers).
+- Unknown keys in a payload must be ignored by the receiver. Adding one is a minor bump
+  precisely because an old reader is required to ignore it rather than crash.
 - `null` and an absent key mean the same thing for optional fields.
-- Enum-valued strings (`phase`, `type`, `mode`, `role`, error `code`) may gain values only
-  with a version bump. A client that receives an unknown value should keep the previous
-  state and log it, not crash.
+- Enum-valued strings (`phase`, `type`, `mode`, `role`, error `code`) may gain values with a
+  minor bump, because a client that receives an unknown value is required to keep the
+  previous state and log it rather than crash. Changing or removing an existing value is a
+  major.
 
 ## 2. Transport
 
@@ -219,6 +240,7 @@ it per socket rather than broadcasting one identical payload.
 ```json
 {
   "protocol_version": 9,
+  "protocol_minor": 1,
   "room_code": "K7QX2M",
   "mode": "cloud",
   "phase": "question",
@@ -268,7 +290,8 @@ it per socket rather than broadcasting one identical payload.
 
 | Field | Type | Notes |
 |---|---|---|
-| `protocol_version` | int | Always `9` |
+| `protocol_version` | int | The host's major — `9` (§1.1) |
+| `protocol_minor` | int | Which revision of that major the host implements. A client may ignore it |
 | `mode` | `"cloud"` \| `"lan"` | |
 | `phase` | `"lobby"` \| `"question"` \| `"scoring"` \| `"leaderboard"` \| `"finished"` | §6 |
 | `server_time` | timestamp | Host clock when the snapshot was built. Clients compute `offset = server_time - local_now` and render timers from `deadline - (local_now + offset)` |
@@ -331,7 +354,7 @@ waiting to die (§3.4).
 ## 6. Phase machine
 
 ```
-lobby ──host_next──► question ──host_next / deadline──► scoring ──host_next──► leaderboard
+lobby ──host_next──► question ──host_next / deadline / all answered──► scoring ──host_next──► leaderboard
                         ▲                                                         │
                         └───────────────host_next (more questions)────────────────┤
                                                                                   │
@@ -342,6 +365,7 @@ lobby ──host_next──► question ──host_next / deadline──► scor
 |---|---|
 | `lobby → question` | `question_index = 0`, `deadline = now + settings.time_limit_ms` |
 | `question → scoring` | Timer stops. Every submission is auto-matched and its `delta` applied to the player's score. Players without a submission get no delta |
+| `question → scoring` (all answered) | Same. Triggered the moment nobody is left to wait for — see below |
 | `scoring → leaderboard` | None (overrides still allowed) |
 | `leaderboard → question` | `question_index += 1`, new deadline, previous submissions discarded from state |
 | `leaderboard → finished` | When question `settings.question_count` was just scored |
@@ -350,6 +374,16 @@ lobby ──host_next──► question ──host_next / deadline──► scor
 
 `host_next` while `question` is active ends the question early. Starting a room with a pack of
 zero questions is rejected at creation.
+
+**A question also ends as soon as there is nobody left to wait for**: every player it was
+asked of has either submitted or been disconnected for longer than a **5 s grace**. The grace
+is what keeps a locked screen or a walk past a thick wall from costing someone their question —
+a dropped socket is not an answer. At least one submission is required, so a room everybody
+has wandered away from runs its clock down rather than racing through the pack unattended. A
+paused question never ends this way.
+
+The host's own clock is unchanged: `deadline` is still the absolute time the question would
+end on its own, and a client must not assume it will get there.
 
 ### 6.1 Overrides
 
