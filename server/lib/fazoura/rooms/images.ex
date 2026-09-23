@@ -10,6 +10,8 @@ defmodule Fazoura.Rooms.Images do
 
   use GenServer
 
+  alias Fazoura.Uploads
+
   @table __MODULE__
 
   @type image :: {key :: String.t(), content_type :: String.t(), binary()}
@@ -21,7 +23,7 @@ defmodule Fazoura.Rooms.Images do
     do: Base.url_encode64(:crypto.strong_rand_bytes(18), padding: false) <> "." <> ext
 
   @spec url(String.t()) :: String.t()
-  def url(key), do: FazouraWeb.Endpoint.url() <> "/api/room-images/" <> key
+  def url(key), do: Uploads.public_url() <> "/api/room-images/" <> key
 
   @spec put([image()]) :: :ok
   def put(images) do

@@ -26,7 +26,17 @@ defmodule Fazoura.Uploads do
   def path(key), do: "/uploads/" <> key
 
   @spec url(String.t()) :: String.t()
-  def url(key), do: FazouraWeb.Endpoint.url() <> path(key)
+  def url(key), do: public_url() <> path(key)
+
+  @doc """
+  The origin a photo link starts with: `:public_url` when set, otherwise the endpoint's
+  own URL. Only the local stack sets it — there the endpoint says `https://localhost`,
+  which a phone on the same Wi-Fi cannot reach, so `scripts/ci.sh up` points photo links
+  at the machine's LAN address instead. Just the links: the endpoint keeps `localhost`,
+  which is what lets a browser on `localhost` still open the socket.
+  """
+  @spec public_url() :: String.t()
+  def public_url, do: Application.get_env(:fazoura, :public_url) || FazouraWeb.Endpoint.url()
 
   @doc "Reads a previously stored upload by its generated key."
   @spec read(String.t()) :: {:ok, binary()} | :error

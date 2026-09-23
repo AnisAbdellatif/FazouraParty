@@ -393,6 +393,26 @@ compose() {
     "$@"
 }
 
+# This machine's address on the local network, or nothing. A private (RFC 1918)
+# address wins over whatever the default route uses, because that is what a
+# phone on home Wi-Fi is on — a laptop plugged into another network as well
+# routes through that one. Docker bridges and VPN tunnels are never it. macOS
+# has no `ip`, so it asks the usual Wi-Fi/Ethernet ports. Set PUBLIC_URL to
+# skip the guess.
+lan_address() {
+  local address=""
+  if have ip; then
+    address="$(ip -4 -o addr show scope global 2>/dev/null |
+      awk '$2 !~ /^(docker|br-|veth|virbr|tailscale|wg|tun)/ { sub("/.*", "", $4); print $4 }' |
+      grep -E '^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)' | head -n 1)"
+    [ -n "$address" ] ||
+      address="$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')"
+  elif have ipconfig; then
+    address="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"
+  fi
+  printf '%s' "$address"
+}
+
 up() {
   step "Local stack"
 
@@ -402,7 +422,14 @@ up() {
     fail "app/build/web is missing — run 'scripts/ci.sh app' first"
   fi
 
-  compose up --build --wait
+  # Photo links are absolute, so they have to name an address the device
+  # showing them can reach — a phone on the Wi-Fi cannot reach localhost.
+  local lan public_url="${PUBLIC_URL:-}"
+  if [ -z "$public_url" ]; then
+    lan="$(lan_address)"
+    public_url="http://${lan:-localhost}:4000"
+  fi
+  PUBLIC_URL="$public_url" compose up --build --wait
   # Migrations and the built-in quizzes, exactly as a deploy runs them.
   compose run --rm --no-TTY app bin/fazoura eval 'Fazoura.Release.setup()'
 
@@ -411,14 +438,16 @@ up() {
     http://localhost:4000/health >/dev/null
   ok "healthy"
 
-  cat <<'EOF'
+  cat <<EOF
 
   The app, the API and the WebSocket are all on http://localhost:4000
   Admin dashboard:  http://localhost:4000/admin  (admin / admin)
   Postgres:         localhost:5433  (user fazoura, password local-development-only)
+  Photo links:      $public_url
 
   To point a client you are developing at it:
     cd app && flutter run -d chrome --dart-define=SERVER_URL=http://localhost:4000
+  From a phone on the same Wi-Fi, set the server to $public_url
 
   Logs:   docker compose --env-file deploy/local.env -f deploy/compose.yaml -f deploy/compose.local.yaml logs -f app
   Stop:   scripts/ci.sh down

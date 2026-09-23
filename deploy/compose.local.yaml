@@ -56,16 +56,15 @@ services:
     environment:
       DATABASE_URL: postgres://fazoura:local-development-only@db:5432/fazoura
       SECRET_KEY_BASE: local-development-only-secret-key-base-at-least-64-bytes-long-xxxxxx
-      # Absolute URLs (photo links) are built from this, so it must match how the
-      # browser reaches the app. It must stay `localhost`: prod.exs turns on
-      # force_ssl with `localhost` and `127.0.0.1` excluded, so any other value
-      # here would redirect every plain-http request to https, which nothing
-      # terminates without Caddy.
-      #
-      # Photo URLs are still written as https://localhost/... — absolute URLs come
-      # from the endpoint's :url config, which production fixes to https. Fetch
-      # them from http://localhost:4000 instead; everything else behaves normally.
+      # The endpoint's own host, which WebSocket origin checks are made against:
+      # a browser on http://localhost:4000 is allowed in because of it.
       PHX_HOST: localhost
+      # Where photo links point. The endpoint's URL would make them
+      # https://localhost/..., which is nothing a phone can open, so
+      # `scripts/ci.sh up` sets this to the machine's LAN address. Run the stack
+      # some other way and it falls back to plain localhost, which is enough for
+      # a browser on this machine.
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:4000}
       # The dashboard is worth having locally; production sets real credentials.
       ADMIN_USERNAME: admin
       ADMIN_PASSWORD: admin
