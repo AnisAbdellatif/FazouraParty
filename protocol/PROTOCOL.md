@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `9.4`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
+**Protocol version: `9.5`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -38,6 +38,11 @@ of it simply does not call it. `GET /api/rooms/:code` (§3.1) was 9.2 and
 9.4 changed what `host_next` does to a running question: rather than scoring it on the spot,
 the host pulls its `deadline` in to a short closing window (§6). A client already renders
 whatever deadline the latest snapshot carries, so nothing had to change there either.
+
+9.5 added public rooms (§3.5): an optional `listed` key on room creation, `GET /api/rooms`,
+the `host_set_listed` intent, a `listed` field in every `RoomState` and the `quiz_not_public`
+and `cloud_only` error codes. A client that has never heard of them ignores the field and
+never sends the rest.
 
 **This is semver's major and minor, and there is deliberately no patch.** The number
 exists to answer one question — does this host behave exactly like that one? — and the
@@ -90,6 +95,8 @@ Pushes from the host (§5) have `ref = null`.
 
 **Cloud:** `POST /api/rooms` with an empty body to create the room before choosing anything.
 The host then selects the quizzes to play in the lobby with `host_select_quiz` (§6.4).
+`{"listed": true}` creates it on the public room list instead (§3.5); `listed` may accompany
+any of the bodies below and must be a boolean (`422 invalid_payload` otherwise).
 
 For backwards compatibility the endpoint also accepts a **single** quiz body and snapshots it
 immediately: `{"quiz_id": "<uuid or built-in slug>"}` for a stored (public) quiz (`pack_id` is
@@ -104,7 +111,8 @@ possible through `host_select_quiz`.
 
 Errors: `404 {"code": "quiz_not_found"}` (unknown quiz id), `422 {"code": "invalid_quiz"}`
 (inline quiz fails validation), `413 image_too_large` / `415 unsupported_image` (inline
-photos), `422 {"code": "empty_pack"}`. HTTP error bodies carry `code` and `message`; clients branch on
+photos), `422 {"code": "empty_pack"}`, `422 {"code": "quiz_not_public"}` (`listed` with an
+inline `quiz`). HTTP error bodies carry `code` and `message`; clients branch on
 `code` only.
 
 **LAN:** the host app creates the room in-process; no HTTP call. The resulting `room_code` and
@@ -183,6 +191,36 @@ still there:
 A host that is also playing keeps its `player_id`, score and submissions when it loses the
 role; it simply becomes an ordinary player.
 
+### 3.5 Public rooms
+
+A room is joined by its code unless its host **lists** it, which puts it on a public list
+anyone can join from. The host chooses when creating the room (`listed` in §3.1) and may
+change it in the lobby with `host_set_listed` (§4.2); every `RoomState` says which it is.
+Cloud only — a LAN host has no list to be on, and refuses `host_set_listed` with
+`cloud_only`.
+
+**A listed room plays published quizzes only**: stored ones, selected by `quiz_id`. Strangers
+choose a room by what it is playing, so everything the list shows has been read by a person
+before it was published. Selecting an inline quiz in a listed room is refused with
+`quiz_not_public`, and so is listing a room that already has one selected — the host swaps
+it for published quizzes first.
+
+#### `GET /api/rooms` — rooms anyone can join
+
+```json
+200 {"rooms": [
+  {"room_code": "K7QX2M", "phase": "lobby", "pack_titles": ["Capitals"],
+   "player_count": 3, "question_index": null, "question_count": 10}
+]}
+```
+
+Listed rooms only, in any phase: a player can join a game in progress and plays from the
+next question (§9). Rooms waiting to start come first, then the busiest; full rooms are
+left out, and the list holds at most 50. `pack_titles` is empty while the host is still
+choosing. **No names**, the host's included: the list is read by strangers, and a quiz
+title is the only text on it a person has reviewed. No token is needed, and a room joined
+by code never appears, so this says nothing about rooms nobody chose to list.
+
 ## 4. Client → host
 
 ### 4.1 `phx_join` on `room:<CODE>`
@@ -254,6 +292,7 @@ Join error codes: `unsupported_protocol_version`, `room_not_found`, `invalid_tok
 | `host_rematch` | host | `{}` | `finished` | Starts a new game in the same room (§6.3) |
 | `host_transfer` | host | `{"player_id": string}` | any | Hands the host role to a connected player (§3.4) |
 | `host_close` | host | `{}` | any | Ends the room now: every client gets `room_closed: closed` |
+| `host_set_listed` | host | `{"listed": bool}` | `lobby` | Puts the room on the public list, or takes it off (§3.5). Cloud only |
 
 Successful intents reply `{"status": "ok", "response": {}}` and — if state changed — trigger a
 `state` push to every connected client.
@@ -268,7 +307,8 @@ Intent error codes: `invalid_phase`, `not_host`, `not_player`, `invalid_answer`,
 `invalid_settings` (question count outside 1..`max_question_count`, time limit outside
 `min_time_limit_ms`..`max_time_limit_ms`, or any field missing or of the wrong type),
 `not_connected` (`host_transfer` naming a player who is not currently connected, or the
-host itself), `invalid_payload` (unknown event, or a payload with missing/mistyped fields
+host itself), `quiz_not_public` (an inline quiz in a listed room, §3.5), `cloud_only`
+(`host_set_listed` on a LAN host), `invalid_payload` (unknown event, or a payload with missing/mistyped fields
 not covered by a more specific code).
 
 Every error `response` is `{"code": string, "message": string}`. `message` is human-readable
@@ -296,6 +336,7 @@ it per socket rather than broadcasting one identical payload.
   "protocol_minor": 3,
   "room_code": "K7QX2M",
   "mode": "cloud",
+  "listed": false,
   "phase": "question",
   "server_time": 1789502400000,
 
@@ -346,6 +387,7 @@ it per socket rather than broadcasting one identical payload.
 | `protocol_version` | int | The host's major — `9` (§1.1) |
 | `protocol_minor` | int | Which revision of that major the host implements. A client may ignore it |
 | `mode` | `"cloud"` \| `"lan"` | |
+| `listed` | bool | On the public room list (§3.5). Always `false` from a LAN host |
 | `phase` | `"lobby"` \| `"question"` \| `"scoring"` \| `"leaderboard"` \| `"finished"` | §6 |
 | `server_time` | timestamp | Host clock when the snapshot was built. Clients compute `offset = server_time - local_now` and render timers from `deadline - (local_now + offset)` |
 | `pack_titles` | string[] | Titles of the selected quizzes, in the order the host chose them. Empty while none are selected (§6.4) |

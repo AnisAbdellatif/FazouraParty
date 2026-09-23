@@ -16,6 +16,9 @@ defmodule Fazoura.Rooms do
   # above any real party's needs and only bites a flood.
   @max_rooms 500
 
+  # The public list is for picking a room, not for browsing every game on the node.
+  @max_listed 50
+
   @doc """
   Starts a room for `pack`. Options: `:now` (0-arity fun returning epoch ms, for tests),
   `:mode` (`:cloud` | `:lan`), `:image_keys` (private-quiz photos in
@@ -85,6 +88,21 @@ defmodule Fazoura.Rooms do
       end
     end)
     |> Enum.sort_by(& &1.code)
+  end
+
+  @doc """
+  Every room its host chose to list (PROTOCOL.md §3.5): rooms waiting to start
+  first, then the busiest. Full rooms are left out — there is nothing to join. Read
+  from the registry, where each room keeps its own entry current, so this calls no
+  room at all.
+  """
+  @spec listed() :: [map()]
+  def listed do
+    Fazoura.Rooms.Registry
+    |> Registry.select([{{:_, :_, :"$1"}, [{:"/=", :"$1", nil}], [:"$1"]}])
+    |> Enum.reject(&(&1.player_count >= Fazoura.Game.max_players()))
+    |> Enum.sort_by(&{&1.phase != "lobby", -&1.player_count, &1.room_code})
+    |> Enum.take(@max_listed)
   end
 
   @doc """

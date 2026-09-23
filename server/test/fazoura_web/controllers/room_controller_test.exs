@@ -110,6 +110,50 @@ defmodule FazouraWeb.RoomControllerTest do
     end
   end
 
+  describe "public rooms" do
+    test "a listed room is on GET /api/rooms, and one joined by code is not", %{conn: conn} do
+      listed = conn |> post(~p"/api/rooms", %{listed: true}) |> json_response(201)
+      code_only = conn |> post(~p"/api/rooms", %{}) |> json_response(201)
+      also_code_only = conn |> post(~p"/api/rooms", %{listed: false}) |> json_response(201)
+
+      rooms = conn |> get(~p"/api/rooms") |> json_response(200) |> Map.fetch!("rooms")
+      codes = Enum.map(rooms, & &1["room_code"])
+
+      assert listed["room_code"] in codes
+      refute code_only["room_code"] in codes
+      refute also_code_only["room_code"] in codes
+
+      entry = Enum.find(rooms, &(&1["room_code"] == listed["room_code"]))
+
+      # Nothing anybody typed: the list is read by strangers.
+      assert entry == %{
+               "room_code" => listed["room_code"],
+               "phase" => "lobby",
+               "pack_titles" => [],
+               "player_count" => 0,
+               "question_index" => nil,
+               "question_count" => 0
+             }
+    end
+
+    test "a stored quiz can open a listed room; one sent inline cannot", %{conn: conn} do
+      assert %{"room_code" => _} =
+               conn
+               |> post(~p"/api/rooms", %{quiz_id: "general-knowledge", listed: true})
+               |> json_response(201)
+
+      assert %{"code" => "quiz_not_public"} =
+               conn
+               |> post(~p"/api/rooms", %{quiz: QuizFixtures.quiz_params(), listed: true})
+               |> json_response(422)
+    end
+
+    test "listed must be a boolean", %{conn: conn} do
+      assert %{"code" => "invalid_payload"} =
+               conn |> post(~p"/api/rooms", %{listed: "yes"}) |> json_response(422)
+    end
+  end
+
   test "GET /health", %{conn: conn} do
     assert json_response(get(conn, ~p"/health"), 200) == %{"status" => "ok"}
   end

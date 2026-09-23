@@ -83,6 +83,9 @@
 <p>Everyone in the room sees each player's display name and score. After each question, the host and the players see the answers that were given. None of this is written to a database: it is deleted when the room closes, which happens shortly after everyone leaves or a few minutes after the game ends, and whenever the server restarts.</p>
 <p>When a private quiz is hosted, the app sends it — photos included — to the server with the request to open the room. It is held in memory for as long as that room exists and is never stored.</p>
 
+<h3>Public rooms</h3>
+<p>A host can choose to show a room in the app's list of public rooms, so that people they don't know can find it and join. The list shows only which library quizzes the room is playing, how far along the game is and how many people are in it — never anyone's name. Once somebody joins, they see the other players' display names and scores like anyone else in the room. A public room can only play quizzes from the public library, which we have read. A room is public only if its host switches this on, and the host can switch it off again before the game starts.</p>
+
 <h3>Local network games</h3>
 <p>When a game is hosted on a local network, the players' devices talk directly to the host's device. Nothing about that game passes through our server.</p>
 
@@ -132,8 +135,9 @@
   <li><strong>Nothing reaches the public library unread.</strong> Every quiz offered for publication is looked at by a person first, and anything sexual, hateful, violent or otherwise unsuitable is refused.</li>
   <li><strong>Anyone can report a public quiz</strong> from inside the app, including from the game itself, and we answer reports within about a day.</li>
   <li><strong>Photos are stripped of camera and location data</strong> on the device before they are ever sent.</li>
+  <li><strong>Rooms are private unless the host lists them.</strong> A public room lets strangers join, so the list shows no names and plays only quizzes we have read. There is no chat: the only things players send each other are display names and answers.</li>
 </ul>
-<p>Publishing a quiz is different from playing one: it goes to strangers, it stays up until somebody removes it, and we read it first. If you are under 13, please ask a parent before publishing a quiz or sending us a report.</p>
+<p>Publishing a quiz is different from playing one: it goes to strangers, it stays up until somebody removes it, and we read it first. If you are under 13, please ask a parent before publishing a quiz, sending us a report, or hosting or joining a public room.</p>
 <p>If you believe we hold anything about a child that we shouldn't, email <a href="mailto:contact@anisabdellatif.me">contact@anisabdellatif.me</a> and we'll remove it.</p>
 
 <h2>Why we're allowed to do this, and how long we keep it</h2>

@@ -6,9 +6,10 @@ import '../../shared/widgets/fz.dart';
 import '../join/join_screen.dart' show validateDisplayName;
 
 /// Result of [showHostSetupDialog]: [displayName] is null when the host does
-/// not play along, and [overLan] hosts the room on this device instead of the
-/// cloud server.
-typedef HostSetup = ({String? displayName, bool overLan});
+/// not play along, [overLan] hosts the room on this device instead of the
+/// cloud server, and [listed] puts a cloud room on the public list
+/// (PROTOCOL.md §3.5). Never both.
+typedef HostSetup = ({String? displayName, bool overLan, bool listed});
 
 /// Bottom sheet asking whether the host plays along and under which name.
 /// Returns null if dismissed.
@@ -32,6 +33,7 @@ class _HostSetupDialogState extends State<HostSetupDialog> {
   final _nameController = TextEditingController();
   bool _playAlong = true;
   bool _overLan = false;
+  bool _listed = false;
 
   @override
   void dispose() {
@@ -44,6 +46,7 @@ class _HostSetupDialogState extends State<HostSetupDialog> {
     Navigator.of(context).pop<HostSetup>((
       displayName: _playAlong ? _nameController.text.trim() : null,
       overLan: _overLan,
+      listed: _listed && !_overLan,
     ));
   }
 
@@ -89,6 +92,21 @@ class _HostSetupDialogState extends State<HostSetupDialog> {
               textInputAction: TextInputAction.done,
               onFieldSubmitted: (_) => _confirm(),
               validator: _playAlong ? validateDisplayName : null,
+            ),
+            const SizedBox(height: 8),
+            // A room on this Wi-Fi has no public list to be on.
+            SwitchListTile(
+              key: const Key('listedSwitch'),
+              contentPadding: EdgeInsets.zero,
+              title: Text('Show in public rooms', style: fz.h(16)),
+              subtitle: Text(
+                _overLan ? 'Only for rooms hosted online.' : 'Anyone can find it and join. Plays library quizzes only.',
+                style: fz.m(11.5, color: FzColors.dim),
+              ),
+              value: _listed && !_overLan,
+              onChanged: _overLan
+                  ? null
+                  : (value) => setState(() => _listed = value),
             ),
             // Hidden on Web, where a browser cannot open a listening socket.
             if (lanHostingSupported) ...[

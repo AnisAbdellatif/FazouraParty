@@ -101,5 +101,8 @@ class LanGameConnection implements GameConnection {
   Future<void> hostClose() => _inner.hostClose();
 
   @override
+  Future<void> hostSetListed(bool listed) => _inner.hostSetListed(listed);
+
+  @override
   Future<void> leave() => _inner.leave();
 }

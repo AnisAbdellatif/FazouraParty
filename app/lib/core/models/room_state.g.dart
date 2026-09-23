@@ -11,6 +11,7 @@ _RoomState _$RoomStateFromJson(Map<String, dynamic> json) => _RoomState(
   protocolMinor: (json['protocol_minor'] as num?)?.toInt(),
   roomCode: json['room_code'] as String,
   mode: $enumDecode(_$ModeEnumMap, json['mode']),
+  listed: json['listed'] as bool? ?? false,
   phase: $enumDecode(_$PhaseEnumMap, json['phase']),
   serverTime: (json['server_time'] as num).toInt(),
   packTitles:
@@ -49,6 +50,7 @@ Map<String, dynamic> _$RoomStateToJson(_RoomState instance) =>
       'protocol_minor': instance.protocolMinor,
       'room_code': instance.roomCode,
       'mode': _$ModeEnumMap[instance.mode]!,
+      'listed': instance.listed,
       'phase': _$PhaseEnumMap[instance.phase]!,
       'server_time': instance.serverTime,
       'pack_titles': instance.packTitles,

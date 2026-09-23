@@ -12,6 +12,7 @@ import '../../shared/widgets/fz.dart';
 import '../../shared/widgets/update_banner.dart';
 import '../host/host_setup_dialog.dart';
 import '../join/join_screen.dart';
+import '../public_rooms/public_rooms_screen.dart';
 
 // Everything a guest following a link never opens. Joining a game is the one
 // path that has to be quick, and hosting, writing a quiz and settings between
@@ -38,7 +39,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     try {
       final created = setup.overLan
           ? await _createLanRoom()
-          : await ref.read(roomApiProvider).createRoom();
+          : await ref.read(roomApiProvider).createRoom(listed: setup.listed);
       await host_screen.loadLibrary();
       ref.invalidate(gameConnectionProvider);
       // Remembered before the join, not after: a host who closes the tab on
@@ -176,6 +177,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ? null
                   : () => Navigator.of(context).push(
                       FzPageRoute<void>(builder: (_) => const JoinScreen()),
+                    ),
+            ),
+            const SizedBox(height: 11),
+            FzButton(
+              key: const Key('publicRoomsButton'),
+              label: 'Public rooms',
+              trailing: 'browse',
+              kind: FzButtonKind.outline,
+              onPressed: _creating
+                  ? null
+                  : () => Navigator.of(context).push(
+                      FzPageRoute<void>(
+                        builder: (_) => const PublicRoomsScreen(),
+                      ),
                     ),
             ),
             const SizedBox(height: 11),

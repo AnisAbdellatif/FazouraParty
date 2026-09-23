@@ -64,6 +64,11 @@ abstract interface class GameConnection {
   /// role on instead.
   Future<void> hostClose();
 
+  /// Lobby only: puts the room on the public list, or takes it off (§3.5).
+  /// Refused with `quiz_not_public` while a quiz from this device is selected,
+  /// and with `cloud_only` by a LAN host.
+  Future<void> hostSetListed(bool listed);
+
   Future<void> leave();
 }
 

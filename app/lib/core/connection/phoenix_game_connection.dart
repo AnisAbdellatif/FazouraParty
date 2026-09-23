@@ -221,6 +221,10 @@ class PhoenixGameConnection implements GameConnection {
   Future<void> hostClose() => _push('host_close', const {});
 
   @override
+  Future<void> hostSetListed(bool listed) =>
+      _push('host_set_listed', {'listed': listed});
+
+  @override
   Future<void> leave() async {
     if (_left) return;
     _left = true;

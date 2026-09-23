@@ -34,6 +34,11 @@ String describeError(Object error) {
     'image_too_large' => 'That photo is too big (2 MB max).',
     'unsupported_image' => 'Use a JPEG, PNG or WebP photo.',
     'invalid_quiz' => error.message ?? 'The quiz has errors.',
+    // Also what reporting a question from a quiz nobody published answers, so
+    // the server's own words are the right ones in either place.
+    'quiz_not_public' =>
+      error.message ?? 'A public room plays quizzes from the library only.',
+    'cloud_only' => 'Only an online room can be listed publicly.',
     GameError.connectionFailed => 'Could not reach the game server.',
     GameError.timeout => 'The game server did not answer.',
     _ => error.message ?? 'Something went wrong (${error.code}).',

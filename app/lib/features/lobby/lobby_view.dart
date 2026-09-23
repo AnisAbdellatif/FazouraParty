@@ -17,11 +17,16 @@ class LobbyView extends StatelessWidget {
     this.footer,
     this.settingsEditor,
     this.lanAddress,
+    this.listingControl,
   });
 
   final RoomState state;
   final Widget? footer;
   final Widget? settingsEditor;
+
+  /// The host's switch for the public room list (PROTOCOL.md §3.5). Everyone
+  /// else is only told whether the room is on it.
+  final Widget? listingControl;
 
   /// `<ip>:<port>` of this device when hosting over LAN. Guests need it as well
   /// as the code, because there is no server for them to look the room up on.
@@ -71,6 +76,17 @@ class LobbyView extends StatelessWidget {
               ),
             ],
           ),
+          if (listingControl case final control?) ...[
+            const SizedBox(height: 10),
+            control,
+          ] else if (state.listed) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Public room — anyone can find it and join.',
+              key: const Key('lobbyListedNote'),
+              style: fz.m(11.5, color: FzColors.ac),
+            ),
+          ],
           if (lanAddress case final address?) ...[
             const SizedBox(height: 14),
             const FzEyebrow('On this Wi-Fi'),

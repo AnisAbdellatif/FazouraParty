@@ -30,7 +30,9 @@ defmodule FazouraWeb.RoomChannel do
     empty_pack: "That quiz has no playable questions.",
     invalid_quiz: "That quiz could not be loaded.",
     quiz_not_found: "That quiz is gone or no longer shared with you.",
-    not_connected: "That player isn't connected right now."
+    not_connected: "That player isn't connected right now.",
+    quiz_not_public: "A public room plays quizzes from the library only.",
+    cloud_only: "Only an online room can be listed publicly."
   }
 
   @impl true
@@ -89,6 +91,7 @@ defmodule FazouraWeb.RoomChannel do
   defp to_intent("host_rematch", _payload), do: {:ok, :rematch}
   defp to_intent("host_transfer", payload), do: {:ok, {:transfer, payload}}
   defp to_intent("host_close", _payload), do: {:ok, :close}
+  defp to_intent("host_set_listed", payload), do: {:ok, {:set_listed, payload}}
   defp to_intent(_event, _payload), do: {:error, :invalid_payload}
 
   defp error(code), do: %{code: Atom.to_string(code), message: Map.fetch!(@error_messages, code)}

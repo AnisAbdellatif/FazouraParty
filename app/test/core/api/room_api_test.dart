@@ -163,4 +163,87 @@ void main() {
       });
     });
   });
+
+  test('createRoom asks for a listed room when told to', () async {
+    late http.Request captured;
+    final api = RoomApi(
+      baseUrl: 'http://localhost:4000',
+      client: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({'room_code': 'K7QX2M', 'host_token': 'signed'}),
+          201,
+        );
+      }),
+    );
+
+    await api.createRoom(listed: true);
+    expect(jsonDecode(captured.body), {'listed': true});
+  });
+
+  test('listRooms reads the public list, skipping what it cannot', () async {
+    late http.Request captured;
+    final api = RoomApi(
+      baseUrl: 'http://localhost:4000/',
+      client: MockClient((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({
+            'rooms': [
+              {
+                'room_code': 'K7QX2M',
+                'phase': 'question',
+                'pack_titles': ['Capitals'],
+                'player_count': 3,
+                'question_index': 2,
+                'question_count': 10,
+              },
+              // A phase from a later minor: that room is left out, not the list.
+              {
+                'room_code': 'ZZZZZZ',
+                'phase': 'intermission',
+                'pack_titles': <String>[],
+                'player_count': 1,
+                'question_index': null,
+                'question_count': 0,
+              },
+            ],
+          }),
+          200,
+        );
+      }),
+    );
+
+    final rooms = await api.listRooms();
+
+    expect(captured.method, 'GET');
+    expect(captured.url.toString(), 'http://localhost:4000/api/rooms');
+    expect(rooms, [
+      const PublicRoom(
+        roomCode: 'K7QX2M',
+        phase: Phase.question,
+        packTitles: ['Capitals'],
+        playerCount: 3,
+        questionIndex: 2,
+        questionCount: 10,
+      ),
+    ]);
+  });
+
+  test('listRooms says the server could not be reached', () async {
+    final api = RoomApi(
+      baseUrl: 'http://localhost:4000',
+      client: MockClient((_) async => throw Exception('offline')),
+    );
+    expect(
+      api.listRooms,
+      throwsA(
+        isA<GameError>().having(
+          (e) => e.code,
+          'code',
+          GameError.connectionFailed,
+        ),
+      ),
+    );
+  });
 }

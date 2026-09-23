@@ -960,6 +960,14 @@ void main() {
       );
     });
 
+    test('a LAN host has no public list to put a room on', () {
+      final game = gameWithPlayers(['sam']);
+      expect(
+        () => host(game, 'host_set_listed', {'listed': true}),
+        throwsCode('cloud_only'),
+      );
+    });
+
     test('the snapshot carries every field PROTOCOL.md §5.1 names', () {
       final game = gameWithPlayers(['sam']);
       host(game, 'host_next');
@@ -970,6 +978,7 @@ void main() {
         'protocol_minor',
         'room_code',
         'mode',
+        'listed',
         'phase',
         'server_time',
         'pack_titles',
@@ -1020,6 +1029,7 @@ void main() {
         'submission',
       });
       expect(view['mode'], 'lan');
+      expect(view['listed'], false);
       expect(view['protocol_version'], protocolMajor);
       expect(view['server_time'], t0);
     });

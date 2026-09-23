@@ -148,6 +148,7 @@ class _HostPhase extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final fz = FzTheme.of(context);
     final connection = ref.watch(gameConnectionProvider);
 
     Future<void> run(Future<void> Function() intent) async {
@@ -168,6 +169,23 @@ class _HostPhase extends ConsumerWidget {
       Phase.lobby => LobbyView(
         state: state,
         lanAddress: lanAddress,
+        // A room on this Wi-Fi has no public list to be on (§3.5).
+        listingControl: state.mode == Mode.lan
+            ? null
+            : SwitchListTile(
+                key: const Key('lobbyListedSwitch'),
+                contentPadding: EdgeInsets.zero,
+                title: Text('Show in public rooms', style: fz.h(15)),
+                subtitle: Text(
+                  state.listed
+                      ? 'Anyone can find it and join. Library quizzes only.'
+                      : 'Only people with the code can join.',
+                  style: fz.m(11, color: FzColors.dim),
+                ),
+                value: state.listed,
+                onChanged: (value) =>
+                    run(() => connection.hostSetListed(value)),
+              ),
         settingsEditor: state.packTitles.isEmpty || state.settings == null
             ? null
             : GameSettingsEditor(
@@ -229,7 +247,8 @@ class _HostPhase extends ConsumerWidget {
   ) async {
     await browser.loadLibrary();
     if (!context.mounted) return;
-    final choices = await browser.showQuizBrowser(context);
+    final listed = ref.read(roomStateProvider).value?.listed ?? false;
+    final choices = await browser.showQuizBrowser(context, libraryOnly: listed);
     if (!context.mounted || choices == null || choices.isEmpty) return;
     final isLan = ref.read(hostedLanRoomProvider) != null;
 

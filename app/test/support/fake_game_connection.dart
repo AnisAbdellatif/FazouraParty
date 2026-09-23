@@ -146,6 +146,14 @@ class FakeGameConnection implements GameConnection {
     closeCalls += 1;
   }
 
+  final listedCalls = <bool>[];
+
+  @override
+  Future<void> hostSetListed(bool listed) async {
+    if (intentError != null) throw intentError!;
+    listedCalls.add(listed);
+  }
+
   @override
   Future<void> leave() async => leaveCalls++;
 }

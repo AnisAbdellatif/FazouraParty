@@ -166,4 +166,18 @@ void main() {
     expect(roomRequests, [<String, dynamic>{}]);
     expect(fake.hostJoins.single.displayName, isNull);
   });
+
+  testWidgets('can put the room on the public list', (tester) async {
+    await pumpHome(tester);
+    await tester.tap(find.byKey(const Key('hostGameButton')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('playAlongSwitch')));
+    await tester.tap(find.byKey(const Key('listedSwitch')));
+    await tester.tap(find.byKey(const Key('createRoomButton')));
+    await settle(tester);
+
+    expect(roomRequests, [
+      {'listed': true},
+    ]);
+  });
 }

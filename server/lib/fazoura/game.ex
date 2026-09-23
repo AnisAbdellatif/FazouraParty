@@ -16,7 +16,7 @@ defmodule Fazoura.Game do
   # the minor and leaves every installed app working. Changing or removing
   # anything a client already relies on moves the major, and that is a cutover.
   @protocol_major 9
-  @protocol_minor 4
+  @protocol_minor 5
   # Points per question by difficulty (PROTOCOL.md §9). A wrong answer costs more on an
   # easy question than on a hard one: you are expected to know the easy ones, and a hard
   # one is worth a guess. Letting the question go by costs @skip_points whatever its
@@ -64,6 +64,7 @@ defmodule Fazoura.Game do
           | {:configure, map()}
           | :rematch
           | {:transfer, map()}
+          | {:set_listed, map()}
   @type error :: {:error, atom()}
 
   @type player :: %{
@@ -120,6 +121,10 @@ defmodule Fazoura.Game do
     question_order: [],
     shuffle_questions?: true,
     mode: :cloud,
+    # Whether the room shows in the public room list (PROTOCOL.md §3.5). A listed
+    # room plays published quizzes only, so everything a stranger browsing the
+    # list can see has been read by a person first.
+    listed: false,
     phase: :lobby,
     question_index: nil,
     deadline: nil,
@@ -140,6 +145,10 @@ defmodule Fazoura.Game do
   @spec protocol_minor() :: non_neg_integer()
   def protocol_minor, do: @protocol_minor
 
+  @doc "Most players one room holds."
+  @spec max_players() :: pos_integer()
+  def max_players, do: @max_players
+
   @doc "How long a question stays open once the host has ended it."
   @spec closing_window_ms() :: pos_integer()
   def closing_window_ms, do: @closing_window_ms
@@ -150,6 +159,8 @@ defmodule Fazoura.Game do
       room_code: room_code,
       pack: pack,
       mode: Keyword.get(opts, :mode, :cloud),
+      # A LAN host has no list to be on.
+      listed: Keyword.get(opts, :listed, false) and Keyword.get(opts, :mode, :cloud) == :cloud,
       settings: default_settings(pack),
       question_order:
         shuffled_order(
@@ -162,23 +173,30 @@ defmodule Fazoura.Game do
 
   @doc "Selects the quiz for a lobby, replacing any previous selection."
   @spec select_quiz(t(), Pack.t()) :: {:ok, t()} | error()
-  def select_quiz(%__MODULE__{phase: :lobby} = game, %Pack{questions: questions} = pack)
-      when questions != [] do
-    {:ok,
-     %{
-       game
-       | pack: pack,
-         settings: default_settings(pack),
-         question_offset: 0,
-         question_order:
-           shuffled_order(
-             question_indices(pack, default_settings(pack).difficulties),
-             game.shuffle_questions?
-           )
-     }}
-  end
+  def select_quiz(%__MODULE__{phase: :lobby} = game, %Pack{} = pack) do
+    cond do
+      pack.questions == [] ->
+        {:error, :empty_pack}
 
-  def select_quiz(%__MODULE__{phase: :lobby}, _pack), do: {:error, :empty_pack}
+      # A listed room plays published quizzes only (PROTOCOL.md §3.5).
+      game.listed and not published?(pack) ->
+        {:error, :quiz_not_public}
+
+      true ->
+        {:ok,
+         %{
+           game
+           | pack: pack,
+             settings: default_settings(pack),
+             question_offset: 0,
+             question_order:
+               shuffled_order(
+                 question_indices(pack, default_settings(pack).difficulties),
+                 game.shuffle_questions?
+               )
+         }}
+    end
+  end
 
   # Choosing what to play is a lobby-only thing; mid-game it is the phase that
   # is wrong, not the selection (PROTOCOL.md §4.2, §6.4).
@@ -423,6 +441,20 @@ defmodule Fazoura.Game do
   def handle(game, :host, {:select_quiz, %Pack{} = pack}, _now),
     do: select_quiz(game, pack)
 
+  # Listing is decided in the lobby, where nothing is being played yet, and only
+  # for what is already selected: a room with a quiz from somebody's device on it
+  # cannot go on the list until that quiz is swapped for published ones.
+  def handle(%{mode: :lan}, :host, {:set_listed, _payload}, _now), do: {:error, :cloud_only}
+
+  def handle(game, :host, {:set_listed, payload}, _now) do
+    with :ok <- require_phase(game, [:lobby]),
+         {:ok, listed} <- validate_listed(payload),
+         :ok <-
+           if(listed and not published?(game.pack), do: {:error, :quiz_not_public}, else: :ok) do
+      {:ok, %{game | listed: listed}}
+    end
+  end
+
   # Handing the role over is allowed in any phase: a host who has to leave
   # mid-question should not have to end the game to do it (PROTOCOL.md §3.4).
   # The room shell owns tokens and connections, so it decides who is eligible;
@@ -592,6 +624,14 @@ defmodule Fazoura.Game do
   defp require_player(game, id),
     do: if(player?(game, id), do: :ok, else: {:error, :unknown_player})
 
+  # Every question came from a stored quiz. Only those carry a `quiz_id`; an inline
+  # quiz was never published, so its questions have none. An empty lobby pack
+  # passes — there is nothing on it yet.
+  defp published?(%Pack{questions: questions}), do: Enum.all?(questions, & &1.quiz_id)
+
+  defp validate_listed(%{"listed" => listed}) when is_boolean(listed), do: {:ok, listed}
+  defp validate_listed(_payload), do: {:error, :invalid_payload}
+
   defp require_phase(game, phases),
     do: if(game.phase in phases, do: :ok, else: {:error, :invalid_phase})
 
@@ -732,6 +772,7 @@ defmodule Fazoura.Game do
       protocol_minor: @protocol_minor,
       room_code: game.room_code,
       mode: Atom.to_string(game.mode),
+      listed: game.listed,
       phase: Atom.to_string(game.phase),
       server_time: now,
       pack_titles: if(game.pack.questions == [], do: [], else: game.pack.titles),

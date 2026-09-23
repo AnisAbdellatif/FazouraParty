@@ -4,3 +4,4 @@ export 'join_result.dart';
 export 'quiz.dart';
 export 'room_state.dart';
 export 'local_quiz.dart';
+export 'public_room.dart';

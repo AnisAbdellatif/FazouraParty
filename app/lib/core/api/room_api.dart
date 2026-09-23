@@ -18,19 +18,22 @@ class RoomApi {
   /// `POST /api/rooms` → `{room_code, host_token}` (PROTOCOL.md §3.1).
   /// Hosts the stored quiz [quizId], or, when [inlineQuiz] is given, a
   /// private quiz sent whole with its photos (QUIZ_FORMAT.md §5.7).
+  /// With [listed], the room goes on the public list (§3.5) and plays
+  /// published quizzes only.
   /// Throws [GameError] (e.g. `quiz_not_found`) on failure.
   Future<CreatedRoom> createRoom({
     String? quizId,
     QuizDocument? inlineQuiz,
+    bool listed = false,
   }) async {
     final base = baseUrl.endsWith('/')
         ? baseUrl.substring(0, baseUrl.length - 1)
         : baseUrl;
-    final body = inlineQuiz != null
-        ? {'quiz': inlineQuiz.forInlineRoom().toJson()}
-        : quizId == null
-        ? <String, dynamic>{}
-        : {'quiz_id': quizId};
+    final body = <String, dynamic>{
+      'quiz': ?inlineQuiz?.forInlineRoom().toJson(),
+      if (inlineQuiz == null) 'quiz_id': ?quizId,
+      if (listed) 'listed': true,
+    };
     final http.Response response;
     try {
       response = await _client.post(
@@ -55,6 +58,52 @@ class RoomApi {
       code: code is String ? code : 'http_${response.statusCode}',
       message: message is String ? message : null,
     );
+  }
+
+  /// `GET /api/rooms` — the rooms their hosts chose to list (PROTOCOL.md
+  /// §3.5), best first. Throws [GameError] when the list cannot be had.
+  Future<List<PublicRoom>> listRooms() async {
+    final base = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+    final http.Response response;
+    try {
+      response = await _client
+          .get(
+            Uri.parse('$base/api/rooms'),
+            headers: {'accept': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 8));
+    } on Object {
+      throw const GameError(
+        code: GameError.connectionFailed,
+        message: 'Could not reach the game server.',
+      );
+    }
+
+    final decoded = _decode(response.body);
+    final rooms = decoded['rooms'];
+    if (response.statusCode != 200 || rooms is! List) {
+      final code = decoded['code'];
+      throw GameError(
+        code: code is String ? code : 'http_${response.statusCode}',
+        message: decoded['message'] is String
+            ? decoded['message'] as String
+            : null,
+      );
+    }
+    // One entry this build cannot read — a phase added in a later minor, say —
+    // costs that room its place on the list, not the whole list.
+    final listed = <PublicRoom>[];
+    for (final room in rooms) {
+      if (room is! Map<String, dynamic>) continue;
+      try {
+        listed.add(PublicRoom.fromJson(room));
+      } on Object {
+        continue;
+      }
+    }
+    return listed;
   }
 
   /// `GET /api/rooms/:code` — whether this device's `hostToken` still opens

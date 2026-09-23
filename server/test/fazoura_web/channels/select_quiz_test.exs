@@ -282,4 +282,35 @@ defmodule FazouraWeb.SelectQuizTest do
     [{pid, _}] = Registry.lookup(Fazoura.Rooms.Registry, socket.assigns.room_code)
     :sys.get_state(pid).game.pack.questions |> Enum.map(& &1.id)
   end
+
+  describe "a listed room (PROTOCOL.md §3.5)" do
+    defp listed_codes, do: Enum.map(Rooms.listed(), & &1.room_code)
+
+    test "the host puts it on the list and takes it off again", %{code: code, socket: host} do
+      refute code in listed_codes()
+
+      ref = push(host, "host_set_listed", %{"listed" => true})
+      assert_reply ref, :ok
+      assert_push "state", %{listed: true}
+      assert code in listed_codes()
+
+      {:ok, _, _} = join_room(code, %{"display_name" => "Sam"})
+      assert %{player_count: 1} = Enum.find(Rooms.listed(), &(&1.room_code == code))
+
+      ref = push(host, "host_set_listed", %{"listed" => false})
+      assert_reply ref, :ok
+      refute code in listed_codes()
+    end
+
+    test "turns away a quiz from somebody's device, and takes a published one", %{socket: host} do
+      ref = push(host, "host_set_listed", %{"listed" => true})
+      assert_reply ref, :ok
+
+      ref = select(host, [%{"quiz" => QuizFixtures.quiz_params()}])
+      assert_reply ref, :error, %{code: "quiz_not_public"}
+
+      ref = select(host, [%{"quiz_id" => stored!("Library", ["One?"]).id}])
+      assert_reply ref, :ok
+    end
+  end
 end

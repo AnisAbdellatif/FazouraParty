@@ -618,6 +618,62 @@ defmodule Fazoura.GameTest do
     end
   end
 
+  describe "listed rooms" do
+    # What `Quizzes.to_pack/1` gives a stored quiz: every question knows where it came from.
+    defp published(pack), do: %{pack | questions: Enum.map(pack.questions, &%{&1 | quiz_id: "q"})}
+
+    defp lobby(opts),
+      do: Game.new("ROOM42", %Pack{titles: [], questions: []}, opts)
+
+    test "plays published quizzes only" do
+      game = lobby(listed: true)
+
+      assert Game.handle(game, :host, {:select_quiz, pack()}, @t0) == {:error, :quiz_not_public}
+
+      assert {:ok, %Game{listed: true}} =
+               Game.handle(game, :host, {:select_quiz, published(pack())}, @t0)
+    end
+
+    test "a room joined by code plays anything" do
+      assert {:ok, _game} = lobby([]) |> Game.handle(:host, {:select_quiz, pack()}, @t0)
+    end
+
+    test "the host lists and unlists in the lobby, and the snapshot says which" do
+      game = lobby([]) |> host({:set_listed, %{"listed" => true}}) |> ok!()
+      assert Game.view(game, :host, @t0).listed == true
+
+      game = game |> host({:set_listed, %{"listed" => false}}) |> ok!()
+      assert Game.view(game, :host, @t0).listed == false
+    end
+
+    test "a quiz from somebody's device keeps the room off the list until it is swapped" do
+      game = lobby([]) |> host({:select_quiz, pack()}) |> ok!()
+      assert host(game, {:set_listed, %{"listed" => true}}) == {:error, :quiz_not_public}
+
+      game = game |> host({:select_quiz, published(pack())}) |> ok!()
+      assert {:ok, %Game{listed: true}} = host(game, {:set_listed, %{"listed" => true}})
+    end
+
+    test "only in the lobby, only with a boolean, and never on a LAN host" do
+      assert host(lobby([]), {:set_listed, %{"listed" => "yes"}}) == {:error, :invalid_payload}
+      assert host(lobby([]), {:set_listed, %{}}) == {:error, :invalid_payload}
+
+      playing = game_with_players(["sam"]) |> host(:next) |> ok!()
+      assert host(playing, {:set_listed, %{"listed" => true}}) == {:error, :invalid_phase}
+
+      lan = lobby(mode: :lan)
+      assert host(lan, {:set_listed, %{"listed" => true}}) == {:error, :cloud_only}
+      assert lobby(mode: :lan, listed: true).listed == false
+    end
+
+    test "players cannot list the room" do
+      {:ok, game} = Game.add_player(lobby([]), "sam", "Sam")
+
+      assert Game.handle(game, {:player, "sam"}, {:set_listed, %{"listed" => true}}, @t0) ==
+               {:error, :not_host}
+    end
+  end
+
   describe "views" do
     test "players never see answers or others' submissions before scoring" do
       game =

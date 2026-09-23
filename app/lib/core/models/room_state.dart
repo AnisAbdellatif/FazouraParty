@@ -18,6 +18,10 @@ abstract class RoomState with _$RoomState {
     int? protocolMinor,
     required String roomCode,
     required Mode mode,
+
+    /// On the public room list (PROTOCOL.md §3.5). A listed room plays
+    /// published quizzes only. Absent from a host older than 9.5.
+    @Default(false) bool listed,
     required Phase phase,
 
     /// Host clock (ms since epoch) when the snapshot was built.

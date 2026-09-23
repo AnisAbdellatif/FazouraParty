@@ -84,7 +84,12 @@ class RoomCodeInputFormatter extends TextInputFormatter {
 }
 
 class JoinScreen extends ConsumerStatefulWidget {
-  const JoinScreen({super.key});
+  const JoinScreen({super.key, this.initialCode});
+
+  /// A room picked from the public list (PROTOCOL.md §3.5): the code is
+  /// filled in, the name is what is left to type, and there is no LAN to ask
+  /// about — a listed room is always online.
+  final String? initialCode;
 
   @override
   ConsumerState<JoinScreen> createState() => _JoinScreenState();
@@ -103,6 +108,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
   @override
   void initState() {
     super.initState();
+    _codeController.text = widget.initialCode ?? '';
     _codeController.addListener(_onChanged);
     _nameController.addListener(_onChanged);
     _lanController.addListener(_onChanged);
@@ -196,12 +202,16 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
             children: [
               const SizedBox(height: 12),
               Text(
-                'Enter the\nroom code',
+                widget.initialCode == null
+                    ? 'Enter the\nroom code'
+                    : 'Join the\nroom',
                 style: fz.t(31, height: 1.16, tracking: -.03),
               ),
               const SizedBox(height: 10),
               Text(
-                'The host sees it on their screen.',
+                widget.initialCode == null
+                    ? 'The host sees it on their screen.'
+                    : 'A public room. Pick a name and you\u2019re in.',
                 style: fz.m(12, color: FzColors.dim),
               ),
               const SizedBox(height: 28),
@@ -209,6 +219,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
                 controller: _codeController,
                 focusNode: _codeFocus,
                 enabled: !_joining,
+                autofocus: widget.initialCode == null,
               ),
               const SizedBox(height: 28),
               const FzEyebrow('Your name'),
@@ -219,6 +230,7 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
                   key: const Key('displayNameField'),
                   controller: _nameController,
                   enabled: !_joining,
+                  autofocus: widget.initialCode != null,
                   style: fz.h(18, weight: FontWeight.w700),
                   decoration: const InputDecoration(
                     hintText: 'What should we call you?',
@@ -228,38 +240,40 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
                   validator: validateDisplayName,
                 ),
               ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                key: const Key('joinOverLanSwitch'),
-                contentPadding: EdgeInsets.zero,
-                title: Text('Host is on this Wi-Fi', style: fz.h(16)),
-                subtitle: Text(
-                  'For a party with no internet.',
-                  style: fz.m(11.5, color: FzColors.dim),
-                ),
-                value: _overLan,
-                onChanged: _joining
-                    ? null
-                    : (value) => setState(() => _overLan = value),
-              ),
-              if (_overLan) ...[
-                const SizedBox(height: 10),
-                TextFormField(
-                  key: const Key('lanAddressField'),
-                  controller: _lanController,
-                  enabled: !_joining,
-                  style: fz.h(18, weight: FontWeight.w700),
-                  keyboardType: TextInputType.url,
-                  autocorrect: false,
-                  decoration: InputDecoration(
-                    hintText: '192.168.1.20',
-                    helperText: 'The address on the host\u2019s screen',
-                    helperStyle: fz.m(11, color: FzColors.dim),
+              if (widget.initialCode == null) ...[
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  key: const Key('joinOverLanSwitch'),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Host is on this Wi-Fi', style: fz.h(16)),
+                  subtitle: Text(
+                    'For a party with no internet.',
+                    style: fz.m(11.5, color: FzColors.dim),
                   ),
-                  textInputAction: TextInputAction.done,
-                  onFieldSubmitted: (_) => _join(),
-                  validator: _overLan ? validateLanAddress : null,
+                  value: _overLan,
+                  onChanged: _joining
+                      ? null
+                      : (value) => setState(() => _overLan = value),
                 ),
+                if (_overLan) ...[
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    key: const Key('lanAddressField'),
+                    controller: _lanController,
+                    enabled: !_joining,
+                    style: fz.h(18, weight: FontWeight.w700),
+                    keyboardType: TextInputType.url,
+                    autocorrect: false,
+                    decoration: InputDecoration(
+                      hintText: '192.168.1.20',
+                      helperText: 'The address on the host\u2019s screen',
+                      helperStyle: fz.m(11, color: FzColors.dim),
+                    ),
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _join(),
+                    validator: _overLan ? validateLanAddress : null,
+                  ),
+                ],
               ],
               if (_error != null) ...[
                 const SizedBox(height: 16),
@@ -284,11 +298,13 @@ class _CodeBoxes extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.enabled,
+    required this.autofocus,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final bool enabled;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
@@ -325,7 +341,7 @@ class _CodeBoxes extends StatelessWidget {
                 controller: controller,
                 focusNode: focusNode,
                 enabled: enabled,
-                autofocus: true,
+                autofocus: autofocus,
                 showCursor: false,
                 enableInteractiveSelection: false,
                 autocorrect: false,

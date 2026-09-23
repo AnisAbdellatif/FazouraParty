@@ -52,6 +52,7 @@ defmodule Fazoura.Rooms.RoomServer do
     game =
       Game.new(code, Keyword.fetch!(opts, :pack),
         mode: Keyword.get(opts, :mode, :cloud),
+        listed: Keyword.get(opts, :listed, false),
         shuffle_questions?: Keyword.get(opts, :shuffle_questions?, true)
       )
 
@@ -75,14 +76,21 @@ defmodule Fazoura.Rooms.RoomServer do
       timer: nil
     }
 
-    {:ok, schedule(state)}
+    {:ok, state |> publish_listing() |> schedule()}
   end
 
   @impl true
   def handle_call({:join, pid, params}, _from, state) do
     case authenticate(state.game, state.generation, params) do
       {:ok, actor, reply, game} ->
-        state = state |> put_game(game) |> add_conn(pid, actor) |> broadcast() |> schedule()
+        state =
+          state
+          |> put_game(game)
+          |> add_conn(pid, actor)
+          |> broadcast()
+          |> publish_listing()
+          |> schedule()
+
         {:reply, {:ok, reply, self()}, state}
 
       {:error, _code} = error ->
@@ -291,12 +299,35 @@ defmodule Fazoura.Rooms.RoomServer do
   end
 
   defp select_quiz_intent(state, payload) do
-    with {:ok, pack, image_keys} <- resolve_selection(payload),
-         {:ok, game} <- Game.handle(state.game, :host, {:select_quiz, pack}, state.now.()) do
-      :ok = Images.attach(image_keys, self())
-      {:reply, :ok, update_game(state, game)}
+    with :ok <- inline_allowed(state.game, payload),
+         {:ok, pack, image_keys} <- resolve_selection(payload) do
+      apply_selection(state, pack, image_keys)
     else
       {:error, _code} = error -> {:reply, error, state}
+    end
+  end
+
+  # A listed room refuses an inline quiz before decoding it: its photos would only
+  # be thrown away again once the game said no (PROTOCOL.md §3.5).
+  defp inline_allowed(%Game{listed: true}, %{"quizzes" => quizzes}) when is_list(quizzes) do
+    if Enum.any?(quizzes, &match?(%{"quiz" => _}, &1)),
+      do: {:error, :quiz_not_public},
+      else: :ok
+  end
+
+  defp inline_allowed(_game, _payload), do: :ok
+
+  defp apply_selection(state, pack, image_keys) do
+    case Game.handle(state.game, :host, {:select_quiz, pack}, state.now.()) do
+      {:ok, game} ->
+        :ok = Images.attach(image_keys, self())
+        {:reply, :ok, update_game(state, game)}
+
+      # Nothing is holding these photos: without this they would sit in memory
+      # until the node restarts.
+      {:error, _code} = error ->
+        Images.delete(image_keys)
+        {:reply, error, state}
     end
   end
 
@@ -501,7 +532,34 @@ defmodule Fazoura.Rooms.RoomServer do
         true -> state.finished_at
       end
 
-    %{state | game: game, finished_at: finished_at} |> broadcast() |> schedule()
+    %{state | game: game, finished_at: finished_at}
+    |> broadcast()
+    |> publish_listing()
+    |> schedule()
+  end
+
+  # What the public room list shows for this room (PROTOCOL.md §3.5), kept as the
+  # room's value in the registry so `Fazoura.Rooms.listed/0` reads every room
+  # without calling any of them. `nil` for a room that is not listed. No names:
+  # the list is read by strangers, and a quiz title is the only text on it a
+  # person has reviewed.
+  defp publish_listing(state) do
+    game = state.game
+
+    listing =
+      if game.listed do
+        %{
+          room_code: game.room_code,
+          phase: Atom.to_string(game.phase),
+          pack_titles: if(game.pack.questions == [], do: [], else: game.pack.titles),
+          player_count: map_size(game.players),
+          question_index: game.question_index,
+          question_count: game.settings.question_count
+        }
+      end
+
+    Registry.update_value(Fazoura.Rooms.Registry, game.room_code, fn _ -> listing end)
+    state
   end
 
   defp broadcast(state) do

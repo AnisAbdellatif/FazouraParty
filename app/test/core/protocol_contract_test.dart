@@ -267,6 +267,7 @@ Map<String, dynamic> _completeSnapshot(Object? partial) {
     'protocol_minor': protocolMinor,
     'room_code': 'K7QX2M',
     'mode': 'cloud',
+    'listed': false,
     'phase': 'lobby',
     'server_time': 1789502400000,
     'pack_titles': ['Fixture Pack'],

@@ -95,6 +95,7 @@ defmodule FazouraWeb.Router do
   scope "/api", FazouraWeb do
     pipe_through [:api, :room_status]
 
+    get "/rooms", RoomController, :index
     get "/rooms/:code", RoomController, :show
   end
 

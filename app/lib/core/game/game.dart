@@ -25,7 +25,7 @@ const protocolMajor = 9;
 /// snapshot and ignored by clients; it exists so a LAN host built from an
 /// older tag can be told apart from the cloud. Must equal
 /// `Fazoura.Game.protocol_minor/0`.
-const protocolMinor = 4;
+const protocolMinor = 5;
 
 /// How long a question keeps waiting for a player whose connection has gone.
 /// A locked screen or a walk past a thick wall drops the socket for a few
@@ -387,6 +387,9 @@ class Game {
             _rematch();
           case 'host_transfer':
             _transfer(payload);
+          // A LAN host has no public list to be on (PROTOCOL.md §3.5).
+          case 'host_set_listed':
+            throw const GameRuleError('cloud_only');
           default:
             throw const GameRuleError('invalid_payload');
         }
@@ -742,6 +745,7 @@ class Game {
       'protocol_minor': protocolMinor,
       'room_code': roomCode,
       'mode': mode,
+      'listed': false,
       'phase': phase.wire,
       'server_time': now,
       'pack_titles': pack.questions.isEmpty ? const <String>[] : pack.titles,
