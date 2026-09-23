@@ -35,6 +35,16 @@ A cloud-only HTTP route is a minor too, for the same reason: a client that has n
 of it simply does not call it. `GET /api/rooms/:code` (§3.1) was 9.2 and
 `POST /api/rooms/:code/report` is 9.3.
 
+**This is semver's major and minor, and there is deliberately no patch.** The number
+exists to answer one question — does this host behave exactly like that one? — and the
+minor already answers it. A patch would mean "behaviour changed but nothing was added",
+which a reader still has to compare before trusting two hosts to agree, so it would be a
+third number carrying nothing the minor does not. A fix that brings an implementation in
+line with the spec it already claimed to follow is a minor: from the outside, the host now
+does something it did not do before, and that is exactly what a minor means here. A change
+with no observable effect at all — a typo, a clearer sentence, renumbered sections — moves
+neither number, because there is nothing for a reader to compare.
+
 - All payloads are JSON objects. Keys are `snake_case`.
 - Timestamps are **integers, milliseconds since the Unix epoch, UTC**.
 - IDs (`player_id`, `question_id`) are opaque strings. Clients must not parse them.
