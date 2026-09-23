@@ -32,6 +32,7 @@ void main() {
       'room_code_length': roomCodeLength,
       'empty_room_ttl_ms': emptyTtl.inMilliseconds,
       'finished_room_ttl_ms': finishedTtl.inMilliseconds,
+      'broadcast_interval_ms': broadcastInterval.inMilliseconds,
     };
 
     expect(ours, shared);

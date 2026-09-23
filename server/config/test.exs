@@ -23,6 +23,11 @@ config :fazoura, image_sweeper: [enabled: false]
 config :fazoura, moderation_sweeper: [enabled: false]
 config :fazoura, drain_ms: 0
 
+# Snapshots are still coalesced — queued behind the mailbox — but not paced: a test
+# acts faster than any person, and waiting out the gap would only make
+# `assert_receive` race it. The pacing has its own test.
+config :fazoura, broadcast_interval_ms: 0
+
 # Off by default: counters are per-IP and every test shares 127.0.0.1, so a suite that
 # grows would start tripping the limit rather than testing what it meant to. The
 # rate-limit tests turn it on for themselves.

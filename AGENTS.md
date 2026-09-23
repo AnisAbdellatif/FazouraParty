@@ -45,6 +45,11 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 - A minor is not a lighter review. The fixtures are the contract whether or not the number in them moved, so a behaviour change still lands in `protocol/fixtures/` and in both implementations together — and both hosts must always report the same `major.minor`.
 - Never add a transport-specific message or payload. Cloud (Phoenix) and LAN implementations must speak the identical contract.
 - Every state broadcast is a **complete `RoomState` snapshot, never a delta**.
+- **Broadcasts are paced, not one per change** (PROTOCOL.md §5.1): at most one every
+  `broadcast_interval_ms` (100 ms), the first after a quiet spell at once, and the cloud host
+  folds in whatever is already queued behind a change. A broadcast costs the square of the
+  room's size, so never add a path that pushes snapshots around it — ask for one
+  (`broadcast/1` in `RoomServer`, `_broadcast()` in `LanRoom`) and let the pacing send it.
 - Timers are broadcast as an absolute **server deadline timestamp**, never a countdown.
 
 ## 4. Server authority & game rules

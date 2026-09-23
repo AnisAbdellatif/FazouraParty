@@ -132,7 +132,11 @@ void main() {
     late _Client host;
 
     setUp(() {
-      room = LanRoom.create(pack: const Pack.empty(), shuffleQuestions: false);
+      room = LanRoom.create(
+        pack: const Pack.empty(),
+        shuffleQuestions: false,
+        broadcastGap: Duration.zero,
+      );
       host = _Client();
       room.join(host, {
         'protocol_version': protocolMajor,

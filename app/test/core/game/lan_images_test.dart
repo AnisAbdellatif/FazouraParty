@@ -214,6 +214,7 @@ void main() {
         pack: const Pack.empty(),
         imageBaseUrl: 'http://192.168.1.20:4040',
         shuffleQuestions: false,
+        broadcastGap: Duration.zero,
       );
       host = _Client();
       room.join(host, {

@@ -59,6 +59,7 @@ void main() {
       now: () => clock,
       random: Random(42),
       shuffleQuestions: false,
+      broadcastGap: Duration.zero,
     );
   });
 
@@ -340,6 +341,66 @@ void main() {
         _throwsCode('room_not_found'),
       );
     });
+  });
+
+  group('pacing', () {
+    // Real time, not the injected clock: pacing is delivery, not game time.
+    test(
+      'changes inside the gap share one snapshot, sent once it has passed',
+      () async {
+        final paced = LanRoom.create(
+          pack: _pack(),
+          now: () => clock,
+          random: Random(7),
+          broadcastGap: const Duration(milliseconds: 80),
+        );
+        addTearDown(() => paced.close(LanCloseReason.shutdown));
+        final host = _Client();
+        paced.join(host, {
+          'protocol_version': protocolMajor,
+          'host_token': paced.hostToken,
+        });
+        expect(host.states, hasLength(1), reason: 'a quiet room sends at once');
+
+        for (final name in ['Sam', 'Kim', 'Lee']) {
+          paced.join(_Client(), {
+            'protocol_version': protocolMajor,
+            'display_name': name,
+          });
+        }
+        expect(host.states, hasLength(1), reason: 'inside the gap: held back');
+
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        expect(host.states, hasLength(2));
+        expect(host.latest['players'], hasLength(3));
+      },
+    );
+
+    test(
+      'a room that closes with a snapshot pending sends nothing more',
+      () async {
+        final paced = LanRoom.create(
+          pack: _pack(),
+          now: () => clock,
+          random: Random(7),
+          broadcastGap: const Duration(milliseconds: 50),
+        );
+        final host = _Client();
+        paced.join(host, {
+          'protocol_version': protocolMajor,
+          'host_token': paced.hostToken,
+        });
+        paced.join(_Client(), {
+          'protocol_version': protocolMajor,
+          'display_name': 'Sam',
+        });
+        paced.close(LanCloseReason.closed);
+
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        expect(host.states, hasLength(1));
+        expect(host.closedReason, 'closed');
+      },
+    );
   });
 
   group('lifetime', () {

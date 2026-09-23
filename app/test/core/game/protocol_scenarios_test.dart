@@ -49,6 +49,7 @@ class _ScenarioRun {
     // The scripts name the question they expect next, so the pack has to be
     // played in its written order — `shuffle_questions?: false` on the server.
     shuffleQuestions: false,
+    broadcastGap: Duration.zero,
   );
 
   void run() {

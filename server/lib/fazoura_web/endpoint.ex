@@ -26,9 +26,19 @@ defmodule FazouraWeb.Endpoint do
   @doc "The largest websocket frame the room socket accepts."
   def max_frame_size, do: @max_frame_size
 
+  # Snapshots are compressed (permessage-deflate) for every client that offers it — a
+  # browser and the app's dart:io socket both do. A snapshot is mostly the player
+  # list, the same keys over and over, and the server sends one per player per change,
+  # so bandwidth is what a big room runs out of first. A LAN host's dart:io server
+  # already compresses by default. What a client sends may be compressed too; Bandit
+  # closes a connection whose frame inflates to more than 25 times its size.
   socket "/socket", FazouraWeb.UserSocket,
     # The address is what a ban from public rooms holds on to (FazouraWeb.ClientIp).
-    websocket: [connect_info: [:peer_data, :x_headers], max_frame_size: @max_frame_size],
+    websocket: [
+      connect_info: [:peer_data, :x_headers],
+      max_frame_size: @max_frame_size,
+      compress: true
+    ],
     longpoll: false
 
   # Admin dashboard LiveViews; the session carries the admin flag (Plugs.AdminAuth).

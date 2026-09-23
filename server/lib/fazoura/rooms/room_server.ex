@@ -3,7 +3,8 @@ defmodule Fazoura.Rooms.RoomServer do
   Thin process shell around `Fazoura.Game` for one room.
 
   Owns the game state, supplies the clock, tracks connected channel processes (by
-  monitoring them) and pushes a per-recipient `RoomState` to each after every change.
+  monitoring them) and pushes a per-recipient `RoomState` to each after every change —
+  coalesced, so changes that arrive together go out as one snapshot (PROTOCOL.md §5.1).
   Temporary: if it crashes, the room is gone and clients get `room_not_found`. Games do
   not survive a server restart (a v1 non-goal); `Fazoura.Rooms.Drain` at least makes the
   ending explicit.
@@ -21,6 +22,13 @@ defmodule Fazoura.Rooms.RoomServer do
   @empty_ttl_ms :timer.seconds(30)
   @finished_ttl_ms :timer.minutes(10)
 
+  # The shortest gap between two broadcasts. A broadcast is one snapshot per
+  # recipient, each the size of the whole room, so it costs the square of the
+  # player count, and every answer used to trigger one: 100 players answering at
+  # once was 100 × 101 snapshots. A change after a quiet spell still goes out at
+  # once; changes within the gap ride on the next one (PROTOCOL.md §5.1).
+  @broadcast_interval_ms 100
+
   def start_link(opts) do
     code = Keyword.fetch!(opts, :code)
     GenServer.start_link(__MODULE__, opts, name: {:via, Registry, {Fazoura.Rooms.Registry, code}})
@@ -31,7 +39,8 @@ defmodule Fazoura.Rooms.RoomServer do
   def constants do
     %{
       "empty_room_ttl_ms" => @empty_ttl_ms,
-      "finished_room_ttl_ms" => @finished_ttl_ms
+      "finished_room_ttl_ms" => @finished_ttl_ms,
+      "broadcast_interval_ms" => @broadcast_interval_ms
     }
   end
 
@@ -41,6 +50,11 @@ defmodule Fazoura.Rooms.RoomServer do
   def init(opts) do
     now = Keyword.get(opts, :now, fn -> System.os_time(:millisecond) end)
     code = Keyword.fetch!(opts, :code)
+
+    interval =
+      Keyword.get_lazy(opts, :broadcast_interval_ms, fn ->
+        Application.get_env(:fazoura, :broadcast_interval_ms, @broadcast_interval_ms)
+      end)
 
     game =
       Game.new(code, Keyword.fetch!(opts, :pack),
@@ -72,7 +86,15 @@ defmodule Fazoura.Rooms.RoomServer do
       banned: MapSet.new(),
       empty_since: now.(),
       finished_at: nil,
-      timer: nil
+      timer: nil,
+      # Snapshot pacing. `flush` is set while a broadcast is on its way — queued
+      # behind whatever is already in the mailbox, or waiting out the interval —
+      # and every change until it goes out rides on it. Measured on the monotonic
+      # clock, not `now`: this is delivery, not game time, and a test's frozen
+      # game clock must not hold snapshots back.
+      broadcast_interval_ms: interval,
+      flush: nil,
+      last_broadcast_at: nil
     }
 
     {:ok, state |> publish_listing() |> schedule()}
@@ -193,6 +215,8 @@ defmodule Fazoura.Rooms.RoomServer do
       {:close, reason, state} -> close(state, reason, :noreply)
     end
   end
+
+  def handle_info(:flush, state), do: {:noreply, push_snapshots(%{state | flush: nil})}
 
   # The server is going down (deploy, restart). Say so while the sockets are still
   # open, so clients show "the party ended" instead of a silent reconnect loop.
@@ -538,7 +562,29 @@ defmodule Fazoura.Rooms.RoomServer do
     state
   end
 
-  defp broadcast(state) do
+  # Asks for a broadcast rather than making one. It is sent as a message to this
+  # process, so everything already queued — a burst of answers — is applied first
+  # and goes out in the same snapshot; and no sooner than the interval after the
+  # last one, so a room under load sends at most a few a second whatever arrives.
+  # The snapshot is built when it is sent, from the state as it is then.
+  defp broadcast(%{flush: nil} = state) do
+    wait =
+      case state.last_broadcast_at do
+        nil -> 0
+        at -> at + state.broadcast_interval_ms - System.monotonic_time(:millisecond)
+      end
+
+    flush =
+      if wait > 0,
+        do: Process.send_after(self(), :flush, wait),
+        else: send(self(), :flush)
+
+    %{state | flush: flush}
+  end
+
+  defp broadcast(state), do: state
+
+  defp push_snapshots(state) do
     now = state.now.()
 
     for {pid, actor} <- state.conns do
@@ -551,7 +597,7 @@ defmodule Fazoura.Rooms.RoomServer do
     end
 
     # Delivered once: the token is only news to the client that just received it.
-    %{state | pending_tokens: %{}}
+    %{state | pending_tokens: %{}, last_broadcast_at: System.monotonic_time(:millisecond)}
   end
 
   # A connection that authenticated as host may no longer hold the role: after a

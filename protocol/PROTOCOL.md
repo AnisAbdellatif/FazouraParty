@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `9.6`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
+**Protocol version: `9.7`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -49,6 +49,10 @@ and the `removed` close reason, reporting a player through `POST /api/rooms/:cod
 the `name_not_allowed` and `banned` join errors, and blocked words in a public room's
 answers reaching other players as `***`. An older client shows an unknown close reason
 as the room ending and an unknown error by its message — both of which are true.
+
+9.7 lets a host send one snapshot for several changes (§5.1): at most one broadcast every
+`broadcast_interval_ms`, each carrying the latest state. A client never learned anything
+from how many snapshots arrived, only from what the last one said, so none had to change.
 
 **This is semver's major and minor, and there is deliberately no patch.** The number
 exists to answer one question — does this host behave exactly like that one? — and the
@@ -372,13 +376,24 @@ pushed:
 - to a client right after it joins,
 - to all clients after any state change (intent, timer expiry, connect/disconnect).
 
+**Changes that come close together share a snapshot.** A host sends a broadcast at most once
+every `broadcast_interval_ms` (100 ms). The first change after a quiet spell goes out at once;
+one inside the interval waits for it to pass and goes out together with everything else that
+changed meanwhile, built from the state as it is when it is sent. The cloud host also folds
+in whatever is already queued behind a change — forty answers landing at once are one
+broadcast, not forty. A client is owed the latest state, never one snapshot per change: every
+snapshot is complete, so a skipped intermediate one carried nothing the next does not.
+`you.host_token` waits for the snapshot that is actually sent. This is what keeps a large
+room affordable — a broadcast is one snapshot per player, each listing every player, so
+sending one per answer costs the square of the room's size, per answer.
+
 The payload is **tailored per recipient** (see §7 visibility rules), so implementations must build
 it per socket rather than broadcasting one identical payload.
 
 ```json
 {
   "protocol_version": 9,
-  "protocol_minor": 3,
+  "protocol_minor": 7,
   "room_code": "K7QX2M",
   "mode": "cloud",
   "listed": false,
@@ -653,7 +668,7 @@ all players then see that same shuffled order for the round (§6.4).
 |---|---|
 | `fixtures/normalize.json` | `normalize` input/output pairs + match cases |
 | `fixtures/scoring.json` | Delta and override recomputation cases |
-| `fixtures/constants.json` | Every fixed number both hosts must define identically — protocol version, grace, closing window, limits, room-code shape, room lifetimes. Each implementation's constants must equal it exactly |
+| `fixtures/constants.json` | Every fixed number both hosts must define identically — protocol version, grace, closing window, limits, room-code shape, room lifetimes, snapshot pacing. Each implementation's constants must equal it exactly |
 | `fixtures/scenarios/*.json` | Ordered intent → expected reply/state scripts, replayed against every host implementation |
 
 Scenario format:

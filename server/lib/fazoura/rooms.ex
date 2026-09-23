@@ -19,7 +19,8 @@ defmodule Fazoura.Rooms do
   @doc """
   Starts a room for `pack`. Options: `:now` (0-arity fun returning epoch ms, for tests),
   `:mode` (`:cloud` | `:lan`), `:image_keys` (private-quiz photos in
-  `Fazoura.Rooms.Images`, freed when the room exits).
+  `Fazoura.Rooms.Images`, freed when the room exits), `:broadcast_interval_ms` (the
+  shortest gap between two snapshots, `Fazoura.Rooms.RoomServer`).
   """
   @spec create(Pack.t(), keyword()) ::
           {:ok, String.t(), String.t()} | {:error, :empty_pack | :too_many_rooms}

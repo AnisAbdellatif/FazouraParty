@@ -11,4 +11,11 @@ defmodule FazouraWeb.WebsocketLimitsTest do
 
     assert options[:websocket][:max_frame_size] == FazouraWeb.Endpoint.max_frame_size()
   end
+
+  test "the room socket compresses what it sends" do
+    [{"/socket", FazouraWeb.UserSocket, options}] =
+      Enum.filter(FazouraWeb.Endpoint.__sockets__(), &(elem(&1, 0) == "/socket"))
+
+    assert options[:websocket][:compress]
+  end
 end

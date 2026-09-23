@@ -6,7 +6,7 @@ import 'package:fazoura_party/core/models/models.dart';
 const roomStateExampleJson = '''
 {
   "protocol_version": 9,
-  "protocol_minor": 6,
+  "protocol_minor": 7,
   "listed": false,
   "room_code": "K7QX2M",
   "mode": "cloud",
