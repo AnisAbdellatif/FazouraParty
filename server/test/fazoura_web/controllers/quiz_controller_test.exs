@@ -1,7 +1,7 @@
 defmodule FazouraWeb.QuizControllerTest do
   use FazouraWeb.ConnCase, async: false
 
-  alias Fazoura.{QuizFixtures, Quizzes}
+  alias Fazoura.QuizFixtures
   alias Fazoura.Quizzes.Review
 
   @owner QuizFixtures.owner_key()

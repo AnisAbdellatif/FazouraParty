@@ -268,11 +268,14 @@ defmodule FazouraWeb.SecurityTest do
 
   describe "body size" do
     test "a large body is refused on routes that never need one", %{conn: conn} do
+      # Which routes do need one, and why, is pinned in
+      # `FazouraWeb.Plugs.BodyLimitTest`; this is the other half — that the small
+      # default still bites everywhere else.
       conn =
         conn
         |> put_req_header("content-length", "2000000")
         |> put_req_header("x-owner-key", QuizFixtures.owner_key())
-        |> post(~p"/api/quizzes", QuizFixtures.quiz_params())
+        |> post(~p"/api/submissions", %{})
 
       assert %{"code" => "payload_too_large"} = json_response(conn, 413)
     end

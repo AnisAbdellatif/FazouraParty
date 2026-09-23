@@ -4,7 +4,11 @@ defmodule FazouraWeb.Plugs.BodyLimit do
 
       plug FazouraWeb.Plugs.BodyLimit,
         default: 1_000_000,
-        routes: %{["api", "rooms"] => 32_000_000}
+        routes: %{["api", "rooms"] => 32_000_000, ["api", "quizzes", :_] => 32_000_000}
+
+  A route is the request's `path_info`. A `:_` segment stands for one segment of any
+  value, which is how a route carrying an id gets a limit: `["api", "quizzes", :_]` is
+  `PUT /api/quizzes/<uuid>` and nothing longer.
 
   `Plug.Parsers` takes one `:length` for the whole endpoint, which has to be the largest
   any route needs — here 32 MB, for a private quiz sent inline with its photos. That
@@ -32,7 +36,7 @@ defmodule FazouraWeb.Plugs.BodyLimit do
 
   @impl true
   def call(conn, %{default: default, routes: routes}) do
-    limit = Map.get(routes, conn.path_info, default)
+    limit = limit_for(conn.path_info, routes, default)
 
     if declared_length(conn) > limit do
       conn
@@ -46,6 +50,26 @@ defmodule FazouraWeb.Plugs.BodyLimit do
       conn
     end
   end
+
+  # An exact route wins over one with a wildcard in it, so a specific limit can never be
+  # widened by a pattern that happens to also match.
+  defp limit_for(path, routes, default) do
+    case Map.fetch(routes, path) do
+      {:ok, limit} ->
+        limit
+
+      :error ->
+        Enum.find_value(routes, default, fn {route, limit} ->
+          matches?(route, path) && limit
+        end)
+    end
+  end
+
+  defp matches?(route, path) when length(route) == length(path) do
+    Enum.zip(route, path) |> Enum.all?(fn {segment, actual} -> segment in [:_, actual] end)
+  end
+
+  defp matches?(_route, _path), do: false
 
   defp declared_length(conn) do
     case Plug.Conn.get_req_header(conn, "content-length") do
