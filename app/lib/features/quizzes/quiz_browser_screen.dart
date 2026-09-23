@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/community_rules.dart';
 import '../../shared/navigation.dart';
 
 import '../../core/models/models.dart';
@@ -313,11 +314,12 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
 
   /// Public, or waiting to be, both go back to private. Anything else asks for
   /// review: a rejected quiz is private again, so its button offers another go.
-  Future<void> _togglePublished(LocalQuiz quiz) => _run(
-    () => ref
-        .read(quizLibraryProvider)
-        .setPublic(quiz, !(quiz.isPublished || quiz.inReview)),
-  );
+  Future<void> _togglePublished(LocalQuiz quiz) async {
+    final publish = !(quiz.isPublished || quiz.inReview);
+    // Publishing is creating content strangers will see: the rules first.
+    if (publish && !await ensureRulesAccepted(context, ref)) return;
+    await _run(() => ref.read(quizLibraryProvider).setPublic(quiz, publish));
+  }
 
   /// The line under a local card, when there is something to say about where
   /// the quiz stands with the server.

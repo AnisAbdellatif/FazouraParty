@@ -11,6 +11,8 @@ import '../../core/providers/connection_providers.dart';
 import '../../core/providers/lan_providers.dart';
 import '../../core/providers/quiz_providers.dart';
 import '../../core/providers/room_tokens.dart';
+import '../../shared/community_rules.dart';
+import '../players/player_actions.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/format.dart';
 import '../../shared/quiz_titles.dart';
@@ -112,10 +114,27 @@ class HostScreen extends ConsumerWidget {
                 GameTopBar(
                   label: 'Hosting',
                   onLeave: () => unawaited(leave()),
-                  trailing: SelectableText(
-                    roomCode,
-                    key: const Key('hostRoomCode'),
-                    style: fz.m(15, color: FzColors.ac2, tracking: .14),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (snapshot.value case final state?
+                          when closedReason == null &&
+                              anyPlayerActions(state)) ...[
+                        FzCircleButton(
+                          key: const Key('playersButton'),
+                          icon: Icons.people_outline,
+                          tooltip: 'Players',
+                          onPressed: () =>
+                              showPlayersSheet(context, roomCode: roomCode),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      SelectableText(
+                        roomCode,
+                        key: const Key('hostRoomCode'),
+                        style: fz.m(15, color: FzColors.ac2, tracking: .14),
+                      ),
+                    ],
                   ),
                 ),
                 const ConnectionBanner(),
@@ -169,6 +188,12 @@ class _HostPhase extends ConsumerWidget {
     return switch (state.phase) {
       Phase.lobby => LobbyView(
         state: state,
+        onPlayerTap: (player) => showPlayerActions(
+          context,
+          roomCode: state.roomCode,
+          state: state,
+          player: player,
+        ),
         lanAddress: lanAddress,
         // A room on this Wi-Fi has no public list to be on (§3.5).
         listingControl: state.mode == Mode.lan
@@ -184,8 +209,12 @@ class _HostPhase extends ConsumerWidget {
                   style: fz.m(11, color: FzColors.dim),
                 ),
                 value: state.listed,
-                onChanged: (value) =>
-                    run(() => connection.hostSetListed(value)),
+                onChanged: (value) async {
+                  // Going public puts this room in front of strangers, so it
+                  // is one of the places the rules are agreed to first.
+                  if (value && !await ensureRulesAccepted(context, ref)) return;
+                  await run(() => connection.hostSetListed(value));
+                },
               ),
         settingsEditor: state.packTitles.isEmpty || state.settings == null
             ? null

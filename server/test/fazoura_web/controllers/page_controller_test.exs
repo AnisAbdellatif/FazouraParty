@@ -8,6 +8,14 @@ defmodule FazouraWeb.PageControllerTest do
     assert get_resp_header(conn, "cache-control") == ["public, max-age=0, must-revalidate"]
   end
 
+  test "serves the community rules", %{conn: conn} do
+    conn = get(conn, "/rules")
+
+    assert html_response(conn, 200) =~ "Community Rules"
+    assert html_response(conn, 200) =~ "13 and over"
+    assert get_resp_header(conn, "set-cookie") == []
+  end
+
   test "sets no cookie", %{conn: conn} do
     # The policy says visitors get none; the page must not be the one that does.
     conn = get(conn, "/privacy")

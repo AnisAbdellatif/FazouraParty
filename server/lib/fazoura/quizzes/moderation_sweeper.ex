@@ -22,6 +22,7 @@ defmodule Fazoura.Quizzes.ModerationSweeper do
 
   require Logger
 
+  alias Fazoura.Moderation
   alias Fazoura.Quizzes.{Reports, Review}
 
   # Six hours rather than a day: this server restarts on every deploy, and a
@@ -57,12 +58,17 @@ defmodule Fazoura.Quizzes.ModerationSweeper do
 
   defp sweep(state) do
     opts = [retention_days: state.config[:retention_days]]
-    forgotten = %{reports: Reports.sweep(opts), submissions: Review.sweep(opts)}
+    players = Moderation.sweep(opts)
 
-    if forgotten.reports > 0 or forgotten.submissions > 0 do
+    forgotten =
+      Map.merge(%{reports: Reports.sweep(opts), submissions: Review.sweep(opts)}, players)
+
+    if Enum.any?(forgotten, fn {_what, count} -> count > 0 end) do
       Logger.info(
-        "swept #{forgotten.reports} answered report(s) and " <>
-          "#{forgotten.submissions} decided submission(s)"
+        "swept #{forgotten.reports} answered quiz report(s), " <>
+          "#{forgotten.submissions} decided submission(s), " <>
+          "#{forgotten.player_reports} answered player report(s), " <>
+          "#{forgotten.addresses} address hash(es) and #{forgotten.bans} expired ban(s)"
       )
     end
 
@@ -71,7 +77,7 @@ defmodule Fazoura.Quizzes.ModerationSweeper do
     error ->
       # Housekeeping: a failure must never take the server down with it.
       Logger.error("moderation sweep failed: #{Exception.message(error)}")
-      %{reports: 0, submissions: 0}
+      %{reports: 0, submissions: 0, player_reports: 0, addresses: 0, bans: 0}
   end
 
   defp schedule(state, interval) do

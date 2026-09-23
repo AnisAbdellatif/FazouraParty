@@ -16,7 +16,8 @@ defmodule FazouraWeb.Endpoint do
   ]
 
   socket "/socket", FazouraWeb.UserSocket,
-    websocket: true,
+    # The address is what a ban from public rooms holds on to (FazouraWeb.ClientIp).
+    websocket: [connect_info: [:peer_data, :x_headers]],
     longpoll: false
 
   # Admin dashboard LiveViews; the session carries the admin flag (Plugs.AdminAuth).

@@ -69,6 +69,10 @@ abstract interface class GameConnection {
   /// and with `cloud_only` by a LAN host.
   Future<void> hostSetListed(bool listed);
 
+  /// Takes a player out of the room (§4.2). Their connections are told
+  /// `removed`, and their token no longer lets them back in.
+  Future<void> hostRemovePlayer(String playerId);
+
   Future<void> leave();
 }
 
@@ -96,4 +100,6 @@ final class InlineQuizSelection extends QuizSelection {
 
 enum ConnectionStatus { connecting, connected, reconnecting, disconnected }
 
-enum RoomClosedReason { empty, closed, finished, shutdown, notFound }
+/// Why a room ended for this client (§5.2). [removed] is the host taking this
+/// one player out (§4.2): the room goes on without them.
+enum RoomClosedReason { empty, closed, finished, shutdown, notFound, removed }

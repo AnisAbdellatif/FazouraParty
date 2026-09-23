@@ -69,7 +69,7 @@ defmodule Fazoura.Rooms do
 
   @doc "Registers `pid` (a channel) in the room. Returns the join reply and the room pid."
   @spec join(String.t(), pid(), map()) :: {:ok, map(), pid()} | {:error, atom()}
-  def join(code, pid, params), do: call(code, {:join, pid, params})
+  def join(code, pid, params, meta \\ %{}), do: call(code, {:join, pid, params, meta})
 
   @spec intent(String.t(), pid(), Fazoura.Game.intent()) :: :ok | {:error, atom()}
   def intent(code, pid, intent), do: call(code, {:intent, pid, intent})
@@ -132,6 +132,28 @@ defmodule Fazoura.Rooms do
           | {:error, :room_not_found | :question_not_found | :quiz_not_public}
   def source_quiz(code, question_id, token),
     do: call(code, {:source_quiz, question_id, token})
+
+  @doc """
+  What a report about `player_id` keeps (PROTOCOL.md §3.5), for somebody in the room
+  holding either token it issued.
+  """
+  @spec player_report(String.t(), String.t(), String.t() | nil) ::
+          {:ok, Fazoura.Moderation.reported()} | {:error, atom()}
+  def player_report(code, player_id, token),
+    do: call(code, {:player_report, player_id, token})
+
+  @doc "Ends a live room, as its host closing it would. For an admin answering a report."
+  @spec close(String.t()) :: :ok | {:error, :room_not_found}
+  def close(code) do
+    case Registry.lookup(Fazoura.Rooms.Registry, code) do
+      [{pid, _value}] ->
+        send(pid, :admin_close)
+        :ok
+
+      [] ->
+        {:error, :room_not_found}
+    end
+  end
 
   @doc "Forces timer/expiry evaluation now. Used by tests with an injected clock."
   @spec tick(String.t()) :: :ok | {:error, :room_not_found}

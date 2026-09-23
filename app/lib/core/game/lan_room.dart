@@ -37,7 +37,10 @@ enum LanCloseReason {
   empty,
   closed,
   finished,
-  shutdown;
+  shutdown,
+
+  /// Not the room ending: one player taken out of it by the host (§4.2).
+  removed;
 
   String get wire => name;
 }
@@ -320,6 +323,11 @@ class LanRoom {
       return;
     }
 
+    if (event == 'host_remove_player') {
+      _handleRemove(actor, payload, now);
+      return;
+    }
+
     // Expire the question first, so a submit can't land after time is up even
     // if the timer callback hasn't run yet.
     game.tick(now);
@@ -411,6 +419,27 @@ class LanRoom {
     final outgoing = game.hostPlayerId;
     game.handle(_recipient(actor), 'host_transfer', payload, now);
     _grantHost(target, outgoing);
+    _afterChange(now);
+  }
+
+  /// The game forgets the player; the room tells their connections so and lets
+  /// go of them — a demoted host still playing as them among those (§4.2).
+  void _handleRemove(Actor actor, Map<String, dynamic> payload, int now) {
+    game.tick(now);
+    game.handle(_recipient(actor), 'host_remove_player', payload, now);
+    final removed = payload['player_id'] as String;
+    final gone = [
+      for (final entry in _connections.entries)
+        if (_recipient(entry.value) case PlayerActor(:final id)
+            when id == removed)
+          entry.key,
+    ];
+    for (final connection in gone) {
+      _connections.remove(connection);
+      connection.pushClosed(LanCloseReason.removed.wire);
+    }
+    if (_demotedPlayerId == removed) _demotedPlayerId = null;
+    if (_connections.isEmpty) _emptySince = now;
     _afterChange(now);
   }
 

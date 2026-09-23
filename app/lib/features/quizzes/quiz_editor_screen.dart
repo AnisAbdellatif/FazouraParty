@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/community_rules.dart';
 import '../../shared/navigation.dart';
 
 import '../../core/models/models.dart';
@@ -228,6 +229,12 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
         questions: [for (final question in _questions) question.toQuestion()],
       ),
     );
+
+    // Publishing is creating content strangers will see: the rules first.
+    if (_visibility == 'public' && !await ensureRulesAccepted(context, ref)) {
+      return;
+    }
+    if (!mounted) return;
 
     setState(() => _saving = true);
     try {

@@ -817,4 +817,46 @@ defmodule FazouraWeb.AdminLiveTest do
       assert html =~ "Steven Spielberg"
     end
   end
+
+  describe "reported players" do
+    @reporter "reporter-key-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+    defp report!(overrides \\ %{}) do
+      reported =
+        Map.merge(
+          %{room_code: "ROOM42", player_name: "Troll", answer: "rude", ip_hash: "hash-1"},
+          overrides
+        )
+
+      {:ok, report} = Fazoura.Moderation.report_player(reported, @reporter, %{"reason" => "hate"})
+      report
+    end
+
+    test "are listed, and a ban answers them", %{conn: conn} do
+      report = report!()
+      {:ok, view, html} = live(conn, ~p"/admin/reports")
+      assert html =~ "Troll"
+
+      view
+      |> element(~s(#player-report-#{report.id} button[phx-value-days="7"]))
+      |> render_click()
+
+      assert Fazoura.Moderation.banned?("hash-1")
+      refute render(view) =~ "player-report-#{report.id}"
+    end
+
+    test "a live room can be ended from its report", %{conn: conn} do
+      {:ok, code, _} = Rooms.create(QuizFixtures.pack())
+      report = report!(%{room_code: code})
+      [{pid, _}] = Registry.lookup(Fazoura.Rooms.Registry, code)
+      ref = Process.monitor(pid)
+      {:ok, view, _html} = live(conn, ~p"/admin/reports")
+
+      view
+      |> element(~s(#player-report-#{report.id} button[phx-click="end_room"]))
+      |> render_click()
+
+      assert_receive {:DOWN, ^ref, _, _, _}
+    end
+  end
 end

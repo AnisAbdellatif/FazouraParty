@@ -193,6 +193,16 @@ class HostCommand extends Command<int> {
         seat,
         resolve: (source) => resolveSelection(_context, source, lan: lan),
         onQuit: finish,
+        report: lan
+            ? null
+            : (player, reason, note) async => _context.rooms.reportRoom(
+                code,
+                reason: reason,
+                note: note,
+                playerId: player.id,
+                hostToken: hostToken,
+                ownerKey: await _context.ownerKey(),
+              ),
       )..attach(stdin);
       _context.output.say('[${seat.label}] type help for commands');
     }

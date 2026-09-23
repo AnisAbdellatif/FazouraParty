@@ -64,6 +64,12 @@ defmodule Fazoura.Rooms.RoomServer do
       # Players owed a fresh host_token in their next snapshot, by player id (or
       # `:host` for a host who isn't playing). Cleared once delivered.
       pending_tokens: %{},
+      # What moderation needs to know about who is here, by player id (or `:host`
+      # for a host who isn't playing): the keyed hash of their address, and whether
+      # it was banned from public rooms when they joined. Never broadcast; a report
+      # takes the hash, and a room that goes public keeps banned hosts out.
+      ip_hashes: %{},
+      banned: MapSet.new(),
       empty_since: now.(),
       finished_at: nil,
       timer: nil
@@ -73,21 +79,21 @@ defmodule Fazoura.Rooms.RoomServer do
   end
 
   @impl true
-  def handle_call({:join, pid, params}, _from, state) do
-    case authenticate(state.game, state.generation, params) do
-      {:ok, actor, reply, game} ->
-        state =
-          state
-          |> put_game(game)
-          |> add_conn(pid, actor)
-          |> broadcast()
-          |> publish_listing()
-          |> schedule()
+  def handle_call({:join, pid, params, meta}, _from, state) do
+    with :ok <- admit(state.game, meta),
+         {:ok, actor, reply, game} <- authenticate(state.game, state.generation, params) do
+      state =
+        state
+        |> put_game(game)
+        |> remember(actor, meta)
+        |> add_conn(pid, actor)
+        |> broadcast()
+        |> publish_listing()
+        |> schedule()
 
-        {:reply, {:ok, reply, self()}, state}
-
-      {:error, _code} = error ->
-        {:reply, error, state}
+      {:reply, {:ok, reply, self()}, state}
+    else
+      {:error, _code} = error -> {:reply, error, state}
     end
   end
 
@@ -137,6 +143,26 @@ defmodule Fazoura.Rooms.RoomServer do
     {:reply, source_quiz(state, question_id, token), state}
   end
 
+  # What a report about a player keeps (PROTOCOL.md §3.5): what was on the screen,
+  # and the hash a ban can act on. Asked by somebody in the room, like `source_quiz`.
+  def handle_call({:player_report, player_id, token}, _from, state) do
+    reply =
+      with :ok <- verify_member(state, token),
+           %{name: name} <- state.game.players[player_id] || {:error, :unknown_player} do
+        submission = state.game.submissions[player_id]
+
+        {:ok,
+         %{
+           room_code: state.game.room_code,
+           player_name: name,
+           answer: submission && submission.answer,
+           ip_hash: state.ip_hashes[player_id]
+         }}
+      end
+
+    {:reply, reply, state}
+  end
+
   def handle_call({:status, host_token}, _from, state) do
     reply =
       if current_host_token?(state, host_token) do
@@ -171,6 +197,9 @@ defmodule Fazoura.Rooms.RoomServer do
   # The server is going down (deploy, restart). Say so while the sockets are still
   # open, so clients show "the party ended" instead of a silent reconnect loop.
   def handle_info(:shutdown, state), do: close(state, :shutdown, :noreply)
+
+  # An admin answering a report about somebody in this room (ADMIN.md §3.3).
+  def handle_info(:admin_close, state), do: close(state, :closed, :noreply)
 
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
     case Map.pop(state.conns, pid) do
@@ -236,6 +265,26 @@ defmodule Fazoura.Rooms.RoomServer do
   defp handle_intent(state, {:player, _id}, :close),
     do: {:reply, {:error, :not_host}, state}
 
+  # Removing needs the shell too: the game forgets the player, the shell tells their
+  # connections so and lets go of them (PROTOCOL.md §4.2).
+  defp handle_intent(state, :host, {:remove_player, _payload} = intent) do
+    case Game.handle(state.game, :host, intent, state.now.()) do
+      {:ok, game} ->
+        removed = Enum.find(Map.keys(state.game.players), &(not Map.has_key?(game.players, &1)))
+        {:reply, :ok, state |> let_go(removed) |> update_game(game)}
+
+      {:error, _code} = error ->
+        {:reply, error, state}
+    end
+  end
+
+  # A room going public keeps a banned host out, as joining one would (§3.5).
+  defp handle_intent(state, :host, {:set_listed, %{"listed" => true}} = intent) do
+    if MapSet.member?(state.banned, holder_key(state)),
+      do: {:reply, {:error, :banned}, state},
+      else: game_intent(state, :host, intent)
+  end
+
   # Transfer needs both halves: the game moves the role, the shell mints the new
   # token. It also needs the connection list, which the game does not have.
   defp handle_intent(state, :host, {:transfer, payload} = intent) do
@@ -251,7 +300,9 @@ defmodule Fazoura.Rooms.RoomServer do
     end
   end
 
-  defp handle_intent(state, actor, intent) do
+  defp handle_intent(state, actor, intent), do: game_intent(state, actor, intent)
+
+  defp game_intent(state, actor, intent) do
     now = state.now.()
     ticked = Game.tick(state.game, now)
 
@@ -292,6 +343,50 @@ defmodule Fazoura.Rooms.RoomServer do
   end
 
   ## Connections
+
+  # A public room keeps banned connections out (PROTOCOL.md §3.5). The ban was looked
+  # up by the channel, so the room never touches the database during play.
+  defp admit(%Game{listed: true}, %{banned?: true}), do: {:error, :banned}
+  defp admit(_game, _meta), do: :ok
+
+  defp remember(state, actor, meta) do
+    key = actor_key(state.game, actor)
+
+    %{
+      state
+      | ip_hashes: Map.put(state.ip_hashes, key, meta[:ip_hash]),
+        banned: if(meta[:banned?], do: MapSet.put(state.banned, key), else: state.banned)
+    }
+  end
+
+  # Moderation's name for whoever is behind a connection: their player id, or
+  # `:host` for a host who isn't playing.
+  defp actor_key(game, :host), do: game.host_player_id || :host
+  defp actor_key(_game, {:player, id}), do: id
+
+  defp holder_key(%{held_by_host_conn?: true} = state), do: actor_key(state.game, :host)
+  defp holder_key(state), do: state.game.host_player_id
+
+  # Tells a removed player's connections they are out, and stops counting them. A
+  # demoted host still playing is one of those connections.
+  defp let_go(state, player_id) do
+    gone =
+      for {pid, actor} <- state.conns,
+          actor == {:player, player_id} or
+            (actor == :host and not state.held_by_host_conn? and
+               state.demoted_player_id == player_id),
+          do: pid
+
+    for pid <- gone, do: send(pid, {:room_closed, :removed})
+
+    %{
+      state
+      | conns: Map.drop(state.conns, gone),
+        demoted_player_id:
+          if(state.demoted_player_id == player_id, do: nil, else: state.demoted_player_id)
+    }
+    |> mark_empty_if_deserted()
+  end
 
   defp authenticate(game, generation, %{"host_token" => token} = params)
        when is_binary(token) do

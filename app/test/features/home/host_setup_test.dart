@@ -176,8 +176,31 @@ void main() {
     await tester.tap(find.byKey(const Key('createRoomButton')));
     await settle(tester);
 
+    // Strangers will see this room, so the rules come first — once.
+    expect(roomRequests, isEmpty);
+    await tester.tap(find.byKey(const Key('acceptRulesButton')));
+    await settle(tester);
+
     expect(roomRequests, [
       {'listed': true},
     ]);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getInt('fazoura.community_rules_accepted'), 1);
+  });
+
+  testWidgets('declining the rules opens no public room', (tester) async {
+    await pumpHome(tester);
+    await tester.tap(find.byKey(const Key('hostGameButton')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('playAlongSwitch')));
+    await tester.tap(find.byKey(const Key('listedSwitch')));
+    await tester.tap(find.byKey(const Key('createRoomButton')));
+    await settle(tester);
+
+    await tester.tap(find.text('Not now'));
+    await settle(tester);
+
+    expect(roomRequests, isEmpty);
+    expect(find.text('HOSTING'), findsNothing);
   });
 }

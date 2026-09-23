@@ -146,6 +146,14 @@ class FakeGameConnection implements GameConnection {
     closeCalls += 1;
   }
 
+  final removedPlayers = <String>[];
+
+  @override
+  Future<void> hostRemovePlayer(String playerId) async {
+    if (intentError != null) throw intentError!;
+    removedPlayers.add(playerId);
+  }
+
   final listedCalls = <bool>[];
 
   @override

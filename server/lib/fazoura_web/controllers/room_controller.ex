@@ -3,7 +3,7 @@ defmodule FazouraWeb.RoomController do
 
   import FazouraWeb.ApiHelpers, only: [error: 4, owner_key: 1]
 
-  alias Fazoura.{Quizzes, Rooms}
+  alias Fazoura.{Moderation, Quizzes, Rooms}
   alias Fazoura.Quizzes.Reports
   alias Fazoura.Rooms.Images
 
@@ -83,16 +83,32 @@ defmodule FazouraWeb.RoomController do
   #
   # A token from the room is required, so this cannot be used to find live games
   # by guessing codes — the same reason `GET /api/rooms/:code` wants one.
+  #
+  # With `player_id` instead, it reports a player — their name, or what they answered
+  # (PROTOCOL.md §3.5). The room hands over what was on the screen and the keyed hash
+  # of the player's address, and that is all a report about somebody without an
+  # account can hold.
+  def report(conn, %{"code" => code, "player_id" => player_id} = params)
+      when is_binary(player_id) do
+    with {:ok, reported} <- Rooms.player_report(code, player_id, room_token(conn)),
+         {:ok, _report} <- Moderation.report_player(reported, owner_key(conn), params) do
+      send_resp(conn, :no_content, "")
+    end
+  end
+
   def report(conn, %{"code" => code} = params) do
-    token =
-      conn
-      |> get_req_header("x-player-token")
-      |> List.first() || conn |> get_req_header("x-host-token") |> List.first()
+    token = room_token(conn)
 
     with {:ok, quiz_id} <- Rooms.source_quiz(code, params["question_id"], token),
          {:ok, _report} <- Reports.submit(quiz_id, owner_key(conn), params) do
       send_resp(conn, :no_content, "")
     end
+  end
+
+  defp room_token(conn) do
+    conn
+    |> get_req_header("x-player-token")
+    |> List.first() || conn |> get_req_header("x-host-token") |> List.first()
   end
 
   defp invalid_listed(conn),

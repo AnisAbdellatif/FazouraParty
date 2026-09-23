@@ -94,6 +94,7 @@ void main() {
         'host_configure',
         'host_select_quiz',
         'host_rematch',
+        'host_remove_player',
       });
     });
 
@@ -392,6 +393,10 @@ Map<String, dynamic>? _encodeIntent(
         timeLimitMs: payload['time_limit_ms'] as int,
         difficultyMultiplier: multiplier,
         difficulties: (payload['difficulties'] as List).cast<String>(),
+      );
+    case 'host_remove_player':
+      return PhoenixGameConnection.removePlayerPayload(
+        payload['player_id'] as String,
       );
     case 'host_select_quiz':
       final entries = payload['quizzes'] as List;

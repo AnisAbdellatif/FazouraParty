@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
+import '../../shared/community_rules.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/navigation.dart';
 import '../../shared/theme/fz_theme.dart';
@@ -68,8 +69,10 @@ class _PublicRoomsScreenState extends ConsumerState<PublicRoomsScreen> {
     }
   }
 
-  void _join(PublicRoom room) {
-    Navigator.of(context).push(
+  Future<void> _join(PublicRoom room) async {
+    // Joining strangers is one of the places the rules are agreed to first.
+    if (!await ensureRulesAccepted(context, ref) || !mounted) return;
+    await Navigator.of(context).push(
       FzPageRoute<void>(builder: (_) => JoinScreen(initialCode: room.roomCode)),
     );
   }

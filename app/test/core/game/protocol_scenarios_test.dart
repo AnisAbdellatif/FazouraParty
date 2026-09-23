@@ -101,6 +101,10 @@ class _ScenarioRun {
       );
       return;
     }
+    if (step['expect_closed'] case final String reason) {
+      expect(_actor(name, label).closedReason, reason, reason: label);
+      return;
+    }
     if (step['disconnect'] == true) {
       room.leave(_actor(name, label));
       actors.remove(name);

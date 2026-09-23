@@ -55,6 +55,35 @@ Future<bool> showReportQuestion(
   },
 );
 
+/// The same, for a player in a room: their name, or what they answered
+/// (PROTOCOL.md §3.5). Players have no accounts, so the server keeps what was
+/// on the screen, and an admin can keep that connection out of public rooms.
+Future<bool> showReportPlayer(
+  BuildContext context, {
+  required String roomCode,
+  required PlayerSummary player,
+}) => _show(
+  context,
+  title: player.name,
+  explanation:
+      'Somebody will read it. They can keep this player out of public '
+      'rooms for a while, or end the room.',
+  send: (ref, reason, note) async {
+    final tokens = await ref.read(roomTokenStoreProvider).forRoom(roomCode);
+    await ref
+        .read(roomApiProvider)
+        .reportRoom(
+          roomCode,
+          reason: reason,
+          ownerKey: await ref.read(ownerKeyProvider.future),
+          playerToken: tokens?.playerToken,
+          hostToken: tokens?.hostToken,
+          playerId: player.id,
+          note: note,
+        );
+  },
+);
+
 /// Sends one report. Handed the [WidgetRef] so it can reach whichever API and
 /// tokens its surface needs.
 typedef _SendReport = Future<void> Function(
@@ -67,19 +96,27 @@ Future<bool> _show(
   BuildContext context, {
   required String title,
   required _SendReport send,
+  String explanation =
+      'Somebody will read it and decide whether to take it down.',
 }) async {
   final sent = await showDialog<bool>(
     context: context,
-    builder: (_) => _ReportDialog(title: title, send: send),
+    builder: (_) =>
+        _ReportDialog(title: title, send: send, explanation: explanation),
   );
   return sent ?? false;
 }
 
 class _ReportDialog extends ConsumerStatefulWidget {
-  const _ReportDialog({required this.title, required this.send});
+  const _ReportDialog({
+    required this.title,
+    required this.send,
+    required this.explanation,
+  });
 
   final String title;
   final _SendReport send;
+  final String explanation;
 
   @override
   ConsumerState<_ReportDialog> createState() => _ReportDialogState();
@@ -136,7 +173,7 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Somebody will read it and decide whether to take it down.',
+              widget.explanation,
               style: fz.m(11, color: FzColors.dim, height: 1.5),
             ),
             const SizedBox(height: 14),

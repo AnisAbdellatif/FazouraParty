@@ -29,7 +29,7 @@ const protocolMajor = 9;
 /// snapshot and ignored by clients; it exists so a LAN host built from an
 /// older tag can be told apart from the cloud. Must equal
 /// `Fazoura.Game.protocol_minor/0`.
-const protocolMinor = 5;
+const protocolMinor = 6;
 
 /// How long a question keeps waiting for a player whose connection has gone.
 /// A locked screen or a walk past a thick wall drops the socket for a few
@@ -391,6 +391,8 @@ class Game {
             _rematch();
           case 'host_transfer':
             _transfer(payload);
+          case 'host_remove_player':
+            _removePlayer(payload, now);
           // A LAN host has no public list to be on (PROTOCOL.md §3.5).
           case 'host_set_listed':
             throw const GameRuleError('cloud_only');
@@ -610,6 +612,21 @@ class Game {
     if (id is! String) throw const GameRuleError('invalid_payload');
     if (!hasPlayer(id)) throw const GameRuleError('unknown_player');
     hostPlayerId = id;
+  }
+
+  /// Takes a player out of the room (PROTOCOL.md §4.2): gone from the players,
+  /// from this question's answers and from the people it was asked of, so it
+  /// costs nobody a penalty and holds nobody up. The host's own seat is not the
+  /// host's to remove — handing the role over is how a host leaves.
+  void _removePlayer(Map<String, dynamic> payload, int now) {
+    final id = payload['player_id'];
+    if (id is! String) throw const GameRuleError('invalid_payload');
+    if (!hasPlayer(id)) throw const GameRuleError('unknown_player');
+    if (id == hostPlayerId) throw const GameRuleError('invalid_payload');
+    players.remove(id);
+    submissions.remove(id);
+    asked.remove(id);
+    _endQuestionIfNobodyLeft(now);
   }
 
   void _rematch() {

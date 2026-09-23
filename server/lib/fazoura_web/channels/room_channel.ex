@@ -6,7 +6,7 @@ defmodule FazouraWeb.RoomChannel do
 
   use FazouraWeb, :channel
 
-  alias Fazoura.{Game, Rooms}
+  alias Fazoura.{Game, Moderation, Rooms}
 
   @error_messages %{
     unsupported_protocol_version: "This app version is not compatible with the server.",
@@ -32,13 +32,15 @@ defmodule FazouraWeb.RoomChannel do
     quiz_not_found: "That quiz is gone or no longer shared with you.",
     not_connected: "That player isn't connected right now.",
     quiz_not_public: "A public room plays quizzes from the library only.",
-    cloud_only: "Only an online room can be listed publicly."
+    cloud_only: "Only an online room can be listed publicly.",
+    name_not_allowed: "That name can't be used in a public room.",
+    banned: "You can't join public rooms from this connection for now."
   }
 
   @impl true
   def join("room:" <> code, params, socket) do
     with :ok <- check_protocol_version(params),
-         {:ok, reply, room_pid} <- Rooms.join(code, self(), params) do
+         {:ok, reply, room_pid} <- Rooms.join(code, self(), params, moderation(socket)) do
       Process.monitor(room_pid)
       {:ok, reply, assign(socket, room_code: code, room_pid: room_pid)}
     else
@@ -81,6 +83,14 @@ defmodule FazouraWeb.RoomChannel do
 
   defp check_protocol_version(_params), do: {:error, :unsupported_protocol_version}
 
+  # Looked up here, in the channel process, so the room itself never reads the
+  # database during play (AGENTS.md §4). A socket that never went through
+  # `UserSocket.connect/3` — a test's — has no address, and is never banned.
+  defp moderation(socket) do
+    ip_hash = socket.assigns[:ip_hash]
+    %{ip_hash: ip_hash, banned?: Moderation.banned?(ip_hash)}
+  end
+
   defp to_intent("submit", payload), do: {:ok, {:submit, payload}}
   defp to_intent("host_next", _payload), do: {:ok, :next}
   defp to_intent("host_pause", _payload), do: {:ok, :pause}
@@ -92,6 +102,7 @@ defmodule FazouraWeb.RoomChannel do
   defp to_intent("host_transfer", payload), do: {:ok, {:transfer, payload}}
   defp to_intent("host_close", _payload), do: {:ok, :close}
   defp to_intent("host_set_listed", payload), do: {:ok, {:set_listed, payload}}
+  defp to_intent("host_remove_player", payload), do: {:ok, {:remove_player, payload}}
   defp to_intent(_event, _payload), do: {:error, :invalid_payload}
 
   defp error(code), do: %{code: Atom.to_string(code), message: Map.fetch!(@error_messages, code)}

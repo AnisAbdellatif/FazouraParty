@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `9.5`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
+**Protocol version: `9.6`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -43,6 +43,12 @@ whatever deadline the latest snapshot carries, so nothing had to change there ei
 the `host_set_listed` intent, a `listed` field in every `RoomState` and the `quiz_not_public`
 and `cloud_only` error codes. A client that has never heard of them ignores the field and
 never sends the rest.
+
+9.6 added moderation for playing with strangers (§3.5): the `host_remove_player` intent
+and the `removed` close reason, reporting a player through `POST /api/rooms/:code/report`,
+the `name_not_allowed` and `banned` join errors, and blocked words in a public room's
+answers reaching other players as `***`. An older client shows an unknown close reason
+as the room ending and an unknown error by its message — both of which are true.
 
 **This is semver's major and minor, and there is deliberately no patch.** The number
 exists to answer one question — does this host behave exactly like that one? — and the
@@ -221,6 +227,40 @@ choosing. **No names**, the host's included: the list is read by strangers, and 
 title is the only text on it a person has reviewed. No token is needed, and a room joined
 by code never appears, so this says nothing about rooms nobody chose to list.
 
+#### Playing with strangers
+
+What a public room shows comes from its players as well as its quizzes, so it has
+safeguards a room among friends does not need. All are cloud-only; a LAN host is never
+listed.
+
+- **Names.** A display name containing a blocked word cannot join a public room
+  (`name_not_allowed`), and a room with such a name in it cannot go public
+  (`host_set_listed` → `name_not_allowed`). The word list is the server's
+  (`server/priv/moderation/blocked_words.txt`); matching ignores case, accents, leetspeak
+  and repeated letters.
+- **Answers.** From scoring on, a wrong answer containing a blocked word reaches every
+  recipient but its author as `"***"` in `submissions[].answer`. An answer the game marked
+  correct is shown as written — it is one of the reviewed quiz's own accepted answers.
+  Scoring is unaffected: the host still judges the real answer.
+- **Removing.** The host may take any player but itself out of any room, listed or not,
+  with `host_remove_player` (§4.2).
+- **Reporting.** Anybody in a room may report a player by `player_id` (below).
+- **Bans.** An admin answering a report may keep that connection out of public rooms for
+  7, 30 or 90 days. A banned connection's join to a listed room is refused with `banned`,
+  and so is a banned host's `host_set_listed` to `true`. Rooms joined by code are
+  untouched. A ban is held against a keyed hash of the connection's address, never the
+  address itself.
+
+#### `POST /api/rooms/:code/report` with `player_id` — this player is not okay
+
+The same route as reporting a question (§3.1), with `player_id` instead of `question_id`
+and the same token, `x-owner-key`, reasons and note. There is no account to point at, so
+the server keeps what was on the screen — the player's name, and their answer to the
+current question if they gave one — and the keyed hash of their connection's address,
+which is what a ban acts on. `204` on success; `404 unknown_player` for a player not in
+the room; `404 room_not_found` without a token this room issued. Every record of it is
+gone within 90 days, the address hash included, whether or not anybody answered it.
+
 ## 4. Client → host
 
 ### 4.1 `phx_join` on `room:<CODE>`
@@ -276,7 +316,8 @@ Immediately after a successful join the host pushes a `state` event (§5.1) to t
 Players may join in **any phase** (late join starts at score `0`).
 
 Join error codes: `unsupported_protocol_version`, `room_not_found`, `invalid_token`,
-`invalid_name`, `name_taken`, `room_full`.
+`invalid_name`, `name_taken`, `room_full`, `name_not_allowed` (a blocked word in a public
+room, §3.5), `banned` (a public room, from a connection kept out of them, §3.5).
 
 ### 4.2 Intents
 
@@ -293,6 +334,7 @@ Join error codes: `unsupported_protocol_version`, `room_not_found`, `invalid_tok
 | `host_transfer` | host | `{"player_id": string}` | any | Hands the host role to a connected player (§3.4) |
 | `host_close` | host | `{}` | any | Ends the room now: every client gets `room_closed: closed` |
 | `host_set_listed` | host | `{"listed": bool}` | `lobby` | Puts the room on the public list, or takes it off (§3.5). Cloud only |
+| `host_remove_player` | host | `{"player_id": string}` | any | Takes that player out of the room: gone from the players, from this question's answers and from the people it was asked of — no skip penalty, and the question stops waiting for them. Their connections get `room_closed: removed` and their token no longer lets them back in. Not the host's own seat (`invalid_payload`) |
 
 Successful intents reply `{"status": "ok", "response": {}}` and — if state changed — trigger a
 `state` push to every connected client.
@@ -308,7 +350,8 @@ Intent error codes: `invalid_phase`, `not_host`, `not_player`, `invalid_answer`,
 `min_time_limit_ms`..`max_time_limit_ms`, or any field missing or of the wrong type),
 `not_connected` (`host_transfer` naming a player who is not currently connected, or the
 host itself), `quiz_not_public` (an inline quiz in a listed room, §3.5), `cloud_only`
-(`host_set_listed` on a LAN host), `invalid_payload` (unknown event, or a payload with missing/mistyped fields
+(`host_set_listed` on a LAN host), `name_not_allowed` and `banned` (`host_set_listed` to
+`true`, §3.5), `invalid_payload` (unknown event, or a payload with missing/mistyped fields
 not covered by a more specific code).
 
 Every error `response` is `{"code": string, "message": string}`. `message` is human-readable
@@ -432,7 +475,7 @@ mid-question has no entry. All fields are always present and non-null except `ov
 
 ### 5.2 `room_closed`
 
-Payload `{"reason": "empty" | "closed" | "finished" | "shutdown"}`. Sent before the host
+Payload `{"reason": "empty" | "closed" | "finished" | "shutdown" | "removed"}`. Sent before the host
 terminates the room; the client must then drop its tokens for that room. A client that reconnects
 to a room that no longer exists gets `room_not_found` on join — it must handle that identically.
 
@@ -442,6 +485,7 @@ to a room that no longer exists gets `room_not_found` on join — it must handle
 | `closed` | The host ended the room with `host_close` |
 | `finished` | 10 minutes passed after the game finished |
 | `shutdown` | The host implementation is stopping (a deploy) |
+| `removed` | Sent to one player, not the room: the host took them out with `host_remove_player` (§4.2). The room goes on |
 
 `host_timeout` was removed in v5: a room whose host leaves now promotes someone rather than
 waiting to die (§3.4).
@@ -630,6 +674,8 @@ Scenario format:
 - `expect_state` is a **partial match**: every key present must equal; absent keys are unchecked.
   It checks the latest `state` received by that actor.
 - `advance_clock_ms` requires implementations to accept an injectable clock in tests.
+- `{"actor": "kim", "expect_closed": "removed"}` asserts the `room_closed` reason that actor
+  last received (§5.2).
 
 ## 12. Decisions log
 

@@ -91,6 +91,20 @@ this is a queue with a clock on it rather than a mailbox.
 Like approving a submission, both answers exist only once a report is open: there is no
 answering one from the list without having read it.
 
+**Players.** Below the quizzes, reports about players in rooms (PROTOCOL.md §3.5): the room,
+the name, the answer they gave if any, and the reason and note. Players have no accounts,
+so the answers are about the connection and the room, not a person:
+
+- **Ban 7d / 30d / 90d** keeps that connection out of public rooms for that long, by the
+  keyed hash of its address the report kept. Rooms joined by code are untouched. A report
+  with no address — made about a player whose address hash has already been erased after 90
+  days — can only be answered with the others.
+- **End room** closes the room for everyone in it, shown while the room is still running.
+- **It's fine** answers the report and nothing else.
+
+A report, answered or not, never keeps its address hash beyond 90 days, and an answered
+one is forgotten after that too (`Fazoura.Moderation.sweep/1`).
+
 ### 3.4 Quizzes (`/admin/quizzes`)
 
 - Search by title or tag.

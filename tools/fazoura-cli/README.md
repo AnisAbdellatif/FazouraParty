@@ -39,10 +39,11 @@ fazoura join K7QX2M --name Sam                  # join it and type answers
 ```
 
 A **host** types commands: `start`, `end` / `next`, `pause`, `resume`, `right Sam`,
-`wrong Sam`, `select <quiz>...`, `set questions=10 time=20 scoring=on difficulties=easy,hard`,
-`listed on|off`, `transfer Sam`, `rematch`, `close`, `players`, `state`, and `a <answer>` to
+`wrong Sam`, `remove Sam`, `report Sam hate <note>`, `select <quiz>...`,
+`set questions=10 time=20 scoring=on difficulties=easy,hard`, `listed on|off`, `transfer Sam`, `rematch`, `close`, `players`, `state`, and `a <answer>` to
 answer when playing along (`--name`). A **player** types an answer and presses enter;
-commands start with `/` (`/players`, `/state`, `/leave`).
+commands start with `/` (`/players`, `/state`, `/report Sam spam`, `/leave`). Reporting
+a player is for rooms on the server.
 
 A quiz is anything the app can host: an id or slug from the library, or a quiz kept locally —
 a `.fazoura`, a folder, or a `.json` document — which is sent inline the way the app sends one

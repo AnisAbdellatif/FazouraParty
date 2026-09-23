@@ -39,6 +39,9 @@ String describeError(Object error) {
     'quiz_not_public' =>
       error.message ?? 'A public room plays quizzes from the library only.',
     'cloud_only' => 'Only an online room can be listed publicly.',
+    'name_not_allowed' => "That name can't be used in a public room.",
+    'banned' => "Public rooms aren't available from this connection for now.",
+    'unknown_player' => "That player isn't in the room any more.",
     GameError.connectionFailed => 'Could not reach the game server.',
     GameError.timeout => 'The game server did not answer.',
     _ => error.message ?? 'Something went wrong (${error.code}).',

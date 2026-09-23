@@ -98,6 +98,11 @@ defmodule FazouraWeb.ProtocolScenariosTest do
     ctx
   end
 
+  defp run_step(%{"actor" => name, "expect_closed" => reason}, ctx, label) do
+    wait_for_closed(actor!(ctx, name), reason, label, System.monotonic_time(:millisecond))
+    ctx
+  end
+
   defp run_step(%{"actor" => name, "disconnect" => true}, ctx, _label) do
     actor = actor!(ctx, name)
     ref = Process.monitor(actor)
@@ -123,6 +128,22 @@ defmodule FazouraWeb.ProtocolScenariosTest do
       true ->
         Process.sleep(10)
         wait_for_state(actor, expected, label, started)
+    end
+  end
+
+  defp wait_for_closed(actor, reason, label, started) do
+    closed = actor_call(actor, :closed)
+
+    cond do
+      closed == reason ->
+        :ok
+
+      System.monotonic_time(:millisecond) - started > @wait_ms ->
+        flunk("#{label}\nexpected room_closed #{inspect(reason)}, got #{inspect(closed)}")
+
+      true ->
+        Process.sleep(10)
+        wait_for_closed(actor, reason, label, started)
     end
   end
 
@@ -154,7 +175,7 @@ defmodule FazouraWeb.ProtocolScenariosTest do
   ## Actor process: one per client, acting as that client's transport
 
   defp start_actor(socket) do
-    actor = spawn(fn -> actor_loop(nil, nil) end)
+    actor = spawn(fn -> actor_loop(nil, nil, nil) end)
     send(actor, {:socket, %{socket | transport_pid: actor}})
     actor
   end
@@ -170,26 +191,29 @@ defmodule FazouraWeb.ProtocolScenariosTest do
     end
   end
 
-  defp actor_loop(socket, latest_state) do
+  defp actor_loop(socket, latest_state, closed) do
     receive do
       {:socket, socket} ->
-        actor_loop(socket, latest_state)
+        actor_loop(socket, latest_state, closed)
 
       %Phoenix.Socket.Message{event: "state", payload: payload} ->
-        actor_loop(socket, wire(payload))
+        actor_loop(socket, wire(payload), closed)
+
+      %Phoenix.Socket.Message{event: "room_closed", payload: %{reason: reason}} ->
+        actor_loop(socket, latest_state, reason)
 
       %Phoenix.Socket.Message{} ->
-        actor_loop(socket, latest_state)
+        actor_loop(socket, latest_state, closed)
 
       {:call, from, ref, {:join, topic, payload}} ->
         case join(socket, FazouraWeb.RoomChannel, topic, payload) do
           {:ok, reply, joined} ->
             send(from, {ref, wire(%{status: "ok", response: reply})})
-            actor_loop(joined, latest_state)
+            actor_loop(joined, latest_state, closed)
 
           {:error, reply} ->
             send(from, {ref, wire(%{status: "error", response: reply})})
-            actor_loop(socket, latest_state)
+            actor_loop(socket, latest_state, closed)
         end
 
       {:call, from, ref, {:push, event, payload}} ->
@@ -202,11 +226,15 @@ defmodule FazouraWeb.ProtocolScenariosTest do
           5_000 -> send(from, {ref, :no_reply})
         end
 
-        actor_loop(socket, latest_state)
+        actor_loop(socket, latest_state, closed)
 
       {:call, from, ref, :latest_state} ->
         send(from, {ref, latest_state})
-        actor_loop(socket, latest_state)
+        actor_loop(socket, latest_state, closed)
+
+      {:call, from, ref, :closed} ->
+        send(from, {ref, closed})
+        actor_loop(socket, latest_state, closed)
     end
   end
 

@@ -10,6 +10,7 @@ defmodule Fazoura.Game.View do
   """
 
   alias Fazoura.Game
+  alias Fazoura.Moderation.Profanity
 
   @doc "The complete `RoomState` snapshot of `game` as `recipient` sees it, at `now`."
   @spec room_state(Game.t(), Game.actor() | {:host, boolean()}, integer()) :: map()
@@ -47,7 +48,7 @@ defmodule Fazoura.Game.View do
       accepted_answers: if(question && revealed?, do: question.accepted_answers),
       players: players_view(game),
       you: you_view(game, recipient, question),
-      submissions: if(question && revealed?, do: submissions_view(game))
+      submissions: if(question && revealed?, do: submissions_view(game, recipient))
     }
   end
 
@@ -88,14 +89,14 @@ defmodule Fazoura.Game.View do
 
   # Everyone the question was put to gets a row, so the scoring screen never has to know
   # what saying nothing costs: `answer: nil` is the player who let it go by.
-  defp submissions_view(game) do
+  defp submissions_view(game, recipient) do
     for player <- sorted_players(game),
         change = Game.question_delta(game, player.id) do
       submission = game.submissions[player.id]
 
       %{
         player_id: player.id,
-        answer: submission[:answer],
+        answer: shown_answer(game, submission, player.id == recipient_id(game, recipient)),
         auto_correct: submission[:auto_correct] || false,
         override: submission[:override],
         correct: submission != nil and Game.correct?(submission),
@@ -103,6 +104,24 @@ defmodule Fazoura.Game.View do
       }
     end
   end
+
+  # A public room's players are strangers, so a wrong answer with a blocked word in it
+  # reaches everyone but its author as `***` (PROTOCOL.md §3.5). An answer the game
+  # marked right is shown whatever it says: it is one of the quiz's own accepted
+  # answers, and the quiz was reviewed.
+  defp shown_answer(_game, nil, _own?), do: nil
+  defp shown_answer(%Game{listed: false}, submission, _own?), do: submission.answer
+  defp shown_answer(_game, submission, true), do: submission.answer
+
+  defp shown_answer(_game, submission, false) do
+    if Game.correct?(submission) or Profanity.clean?(submission.answer),
+      do: submission.answer,
+      else: "***"
+  end
+
+  defp recipient_id(game, :host), do: game.host_player_id
+  defp recipient_id(game, {:host, _holder?}), do: game.host_player_id
+  defp recipient_id(_game, {:player, id}), do: id
 
   # `role` reports who holds the host role *now*, not how this connection
   # authenticated. The two differ after a transfer or promotion (PROTOCOL.md

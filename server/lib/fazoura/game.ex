@@ -8,6 +8,7 @@ defmodule Fazoura.Game do
   """
 
   alias Fazoura.Game.{Answer, Pack}
+  alias Fazoura.Moderation.Profanity
 
   # The protocol is versioned major.minor (PROTOCOL.md §1). The major is the
   # compatibility boundary and the only part on the wire: a client may play
@@ -16,7 +17,7 @@ defmodule Fazoura.Game do
   # the minor and leaves every installed app working. Changing or removing
   # anything a client already relies on moves the major, and that is a cutover.
   @protocol_major 9
-  @protocol_minor 5
+  @protocol_minor 6
   # Points per question by difficulty (PROTOCOL.md §9). A wrong answer costs more on an
   # easy question than on a hard one: you are expected to know the easy ones, and a hard
   # one is worth a guess. Letting the question go by costs @skip_points whatever its
@@ -65,6 +66,7 @@ defmodule Fazoura.Game do
           | :rematch
           | {:transfer, map()}
           | {:set_listed, map()}
+          | {:remove_player, map()}
   @type error :: {:error, atom()}
 
   @type player :: %{
@@ -255,6 +257,8 @@ defmodule Fazoura.Game do
       String.length(name) not in 1..@max_name_length -> {:error, :invalid_name}
       map_size(game.players) >= @max_players -> {:error, :room_full}
       name_taken?(game, name) -> {:error, :name_taken}
+      # Strangers read a public room's names (PROTOCOL.md §3.5).
+      game.listed and not Profanity.clean?(name) -> {:error, :name_not_allowed}
       true -> {:ok, put_in(game.players[id], new_player(id, name, avatar_hue))}
     end
   end
@@ -473,8 +477,29 @@ defmodule Fazoura.Game do
     with :ok <- require_phase(game, [:lobby]),
          {:ok, listed} <- validate_listed(payload),
          :ok <-
-           if(listed and not published?(game.pack), do: {:error, :quiz_not_public}, else: :ok) do
+           if(listed and not published?(game.pack), do: {:error, :quiz_not_public}, else: :ok),
+         :ok <- if(listed and not names_clean?(game), do: {:error, :name_not_allowed}, else: :ok) do
       {:ok, %{game | listed: listed}}
+    end
+  end
+
+  # Taking a player out of the room (PROTOCOL.md §4.2): gone from the players, from
+  # this question's answers and from the people it was asked of, so it costs nobody a
+  # penalty and holds nobody up. Their token names a player the room no longer has, so
+  # it no longer lets them back in. The host's own seat is not the host's to remove —
+  # handing the role over is how a host leaves.
+  def handle(game, :host, {:remove_player, payload}, now) do
+    with {:ok, id} <- validate_transfer(payload),
+         :ok <- require_player(game, id),
+         :ok <- if(id == game.host_player_id, do: {:error, :invalid_payload}, else: :ok) do
+      removed = %{
+        game
+        | players: Map.delete(game.players, id),
+          submissions: Map.delete(game.submissions, id),
+          asked: MapSet.delete(game.asked, id)
+      }
+
+      {:ok, maybe_end_question(removed, now)}
     end
   end
 
@@ -667,6 +692,9 @@ defmodule Fazoura.Game do
   # quiz was never published, so its questions have none. An empty lobby pack
   # passes — there is nothing on it yet.
   defp published?(%Pack{questions: questions}), do: Enum.all?(questions, & &1.quiz_id)
+
+  defp names_clean?(game),
+    do: Enum.all?(game.players, fn {_id, p} -> Profanity.clean?(p.name) end)
 
   defp validate_listed(%{"listed" => listed}) when is_boolean(listed), do: {:ok, listed}
   defp validate_listed(_payload), do: {:error, :invalid_payload}

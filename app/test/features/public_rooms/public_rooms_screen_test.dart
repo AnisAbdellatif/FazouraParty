@@ -7,10 +7,19 @@ import 'package:fazoura_party/features/public_rooms/public_rooms_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  // These are about what happens once the community rules are agreed to;
+  // community_rules_test.dart is about the agreeing.
+  setUp(
+    () => SharedPreferences.setMockInitialValues({
+      'fazoura.community_rules_accepted': 1,
+    }),
+  );
+
   late int requests;
 
   Future<void> pumpList(WidgetTester tester, List<Object> rooms) async {

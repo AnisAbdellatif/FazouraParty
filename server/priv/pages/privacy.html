@@ -56,10 +56,10 @@
 <main>
 <article class="card">
 <h1>Privacy Policy</h1>
-<p class="meta">Fazoura Party · Last updated 23 September 2026</p>
+<p class="meta">Fazoura Party · Last updated 24 September 2026</p>
 
 <div class="summary">
-  <p><strong>The short version.</strong> Fazoura Party has no accounts, no ads, no analytics and no tracking. You don't give us your name, email or phone number, and we don't ask. A game lives in the server's memory while it is being played and is gone when the room closes. The only things we keep are quizzes that someone asked us to publish, and reports people send us about them.</p>
+  <p><strong>The short version.</strong> Fazoura Party has no accounts, no ads, no analytics and no tracking. You don't give us your name, email or phone number, and we don't ask. A game lives in the server's memory while it is being played and is gone when the room closes. The only things we keep are quizzes that someone asked us to publish, and reports people send us about quizzes and players — for no more than 90 days. Fazoura Party is for people aged 13 and over.</p>
 </div>
 
 <p>This policy covers the Fazoura Party app for Android, the web app, and the server they connect to (together, “the service”). The service is run by Anis Abdellatif (“we”, “us”). If you have a question about it, write to <a href="mailto:contact@anisabdellatif.me">contact@anisabdellatif.me</a>.</p>
@@ -80,11 +80,12 @@
   <li>the answers each player submits and the scores that result,</li>
   <li>the questions being played.</li>
 </ul>
-<p>Everyone in the room sees each player's display name and score. After each question, the host and the players see the answers that were given. None of this is written to a database: it is deleted when the room closes, which happens shortly after everyone leaves or a few minutes after the game ends, and whenever the server restarts.</p>
+<p>Everyone in the room sees each player's display name and score. After each question, the host and the players see the answers that were given. None of this is written to a database: it is deleted when the room closes, which happens shortly after everyone leaves or a few minutes after the game ends, and whenever the server restarts. The one exception is a report: if another player reports you, what they reported is kept — see <a href="#reporting-a-player">Reporting a player</a>.</p>
 <p>When a private quiz is hosted, the app sends it — photos included — to the server with the request to open the room. It is held in memory for as long as that room exists and is never stored.</p>
 
 <h3>Public rooms</h3>
 <p>A host can choose to show a room in the app's list of public rooms, so that people they don't know can find it and join. The list shows only which library quizzes the room is playing, how far along the game is and how many people are in it — never anyone's name. Once somebody joins, they see the other players' display names and scores like anyone else in the room. A public room can only play quizzes from the public library, which we have read. A room is public only if its host switches this on, and the host can switch it off again before the game starts.</p>
+<p>Before you host or join a public room for the first time, the app asks you to agree to our <a href="/rules">community rules</a>. In a public room, display names and answers are checked against a list of blocked words on the server: a name on it can't be used there, and an answer on it is shown to the other players as <code>***</code>. This check happens in memory, as the room runs, and nothing about it is stored. In any room, the host can remove a player.</p>
 
 <h3>Local network games</h3>
 <p>When a game is hosted on a local network, the players' devices talk directly to the host's device. Nothing about that game passes through our server.</p>
@@ -110,9 +111,25 @@
   <li>Don't put anything in the box you wouldn't want us to read, and please don't include anyone's personal details — the box is for what is wrong with the quiz.</li>
 </ul>
 
+<h2 id="reporting-a-player">Reporting a player</h2>
+<p>Anyone in a room can report another player — for their display name, or for an answer they gave. There are no accounts, so a report can only hold what was on the screen and something that recognises the connection. We store:</p>
+<ul>
+  <li>the room code, the reported player's display name, and their answer to the question on screen if they gave one;</li>
+  <li>the reason chosen and anything typed in the box;</li>
+  <li>a one-way hash of the reporter's device publisher key, so one device counts as one report;</li>
+  <li>a <strong>keyed one-way hash of the reported player's IP address</strong>. We never store the address itself: the hash is made with a secret only our server holds, so the address cannot be worked out from it, and nobody without that secret can even test a guess against it.</li>
+</ul>
+<p>We use the hash for one thing: if we decide the report was right, we can keep that connection out of <strong>public</strong> rooms for 7, 30 or 90 days. Rooms joined with a code are never affected. We may also end a room that is still running.</p>
+<ul>
+  <li>Reports are visible only to us, and are never shown to the player reported.</li>
+  <li>We erase the address hash from every report after 90 days, whether or not we have answered it, and delete answered reports after 90 days too.</li>
+  <li>A ban lasts at most 90 days and is deleted when it ends.</li>
+  <li>An IP address can be shared — a family's Wi-Fi, a school, a phone network — so a ban can affect others behind the same address. If you think you've been kept out by mistake, email us.</li>
+</ul>
+
 <h2>Technical data</h2>
 <ul>
-  <li><strong>IP addresses.</strong> To protect the service from abuse, the server counts requests per IP address over short windows (about a minute). These counters live in memory only and are never written to disk.</li>
+  <li><strong>IP addresses.</strong> To protect the service from abuse, the server counts requests per IP address over short windows (about a minute). These counters live in memory only and are never written to disk. When you join a room, the server also makes the keyed hash of your address described under <a href="#reporting-a-player">Reporting a player</a>; it stays in memory with the room and is written down only if someone reports you.</li>
   <li><strong>Server logs.</strong> Like any web server, ours keeps logs of requests (time, address requested, and whether it succeeded) to diagnose problems and keep the service secure. We use them only for that, and don't combine them with anything else to identify people.</li>
   <li><strong>Cookies.</strong> The service sets no cookies for players or visitors. The only cookie is a session cookie for our own administration dashboard.</li>
 </ul>
@@ -128,17 +145,9 @@
   <li><strong>Google Fonts</strong> — the web app bundles its own fonts, but if a quiz contains characters those fonts don't cover (such as some emoji or scripts), your browser may fetch a fallback font from Google's font servers.</li>
 </ul>
 
-<h2>Children</h2>
-<p>Fazoura Party is a party game, and we expect children to play it — usually alongside adults, in the same room. We've built it so that playing needs nothing from them: no account, no email, no name we keep. A display name is visible to the others in the room while the game runs and is gone when it ends.</p>
-<ul>
-  <li><strong>Nothing a child types is stored.</strong> Display names and answers live in the server's memory for the length of the game and are never written down.</li>
-  <li><strong>Nothing reaches the public library unread.</strong> Every quiz offered for publication is looked at by a person first, and anything sexual, hateful, violent or otherwise unsuitable is refused.</li>
-  <li><strong>Anyone can report a public quiz</strong> from inside the app, including from the game itself, and we answer reports within about a day.</li>
-  <li><strong>Photos are stripped of camera and location data</strong> on the device before they are ever sent.</li>
-  <li><strong>Rooms are private unless the host lists them.</strong> A public room lets strangers join, so the list shows no names and plays only quizzes we have read. There is no chat: the only things players send each other are display names and answers.</li>
-</ul>
-<p>Publishing a quiz is different from playing one: it goes to strangers, it stays up until somebody removes it, and we read it first. If you are under 13, please ask a parent before publishing a quiz, sending us a report, or hosting or joining a public room.</p>
-<p>If you believe we hold anything about a child that we shouldn't, email <a href="mailto:contact@anisabdellatif.me">contact@anisabdellatif.me</a> and we'll remove it.</p>
+<h2>Age</h2>
+<p>Fazoura Party is for people aged <strong>13 and over</strong>. It is not directed at children under 13, and we don't knowingly collect anything about them — though, as a game, it collects almost nothing about anyone. If you are under 13, please don't use it.</p>
+<p>If you believe a child under 13 has published a quiz, sent a report, or is otherwise in something we hold, email <a href="mailto:contact@anisabdellatif.me">contact@anisabdellatif.me</a> and we'll remove it.</p>
 
 <h2>Why we're allowed to do this, and how long we keep it</h2>
 <p>Where the GDPR applies, our lawful basis for everything above is <strong>legitimate interests</strong> (Article 6(1)(f)): running a game service that isn't abused, and keeping a public library of quizzes that people can trust. We think this is fair to you because there are no accounts, nothing is combined into a profile, and nothing about you is sold, shared or used to advertise. You can object to it at any time — see below.</p>
@@ -149,16 +158,19 @@
   <li><strong>A quiz waiting to be reviewed</strong> — until we approve it, turn it down, or you withdraw it.</li>
   <li><strong>A note explaining why a quiz was turned down</strong> — 90 days.</li>
   <li><strong>A published quiz</strong> — until you unpublish it or we remove it. Its photos are deleted about a day later.</li>
-  <li><strong>A report</strong> — until we have answered it, then 90 days. Deleted immediately if we remove the quiz.</li>
+  <li><strong>A report about a quiz</strong> — until we have answered it, then 90 days. Deleted immediately if we remove the quiz.</li>
+  <li><strong>A report about a player</strong> — the address hash in it for at most 90 days, answered or not; the rest until we have answered it, then 90 days.</li>
+  <li><strong>A ban from public rooms</strong> — 7, 30 or 90 days, then deleted.</li>
+  <li><strong>The address hash of someone in a room</strong> — in memory for as long as the room is open, unless it goes into a report.</li>
   <li><strong>Server logs</strong> — kept only as long as they are useful for diagnosing problems.</li>
 </ul>
 
 <h2>Your rights</h2>
 <p>Because we don't collect names, emails or accounts, we usually have nothing that identifies you. Depending on where you live (for example, under the GDPR in the EU and UK), you have the right to ask what data we hold about you, to have it corrected or deleted, to object to our using it, to ask us to restrict how we use it, and to complain to your local data protection authority. Email <a href="mailto:contact@anisabdellatif.me">contact@anisabdellatif.me</a> and we'll respond within 30 days.</p>
-<p>Two practical notes. To act on a request about a quiz you published, we need to know which quiz — we have no way to look you up, because there is nothing to look up. And a report you sent is anonymous to us in the same way: tell us which quiz and roughly when, and we'll find it.</p>
+<p>Two practical notes. To act on a request about a quiz you published, we need to know which quiz — we have no way to look you up, because there is nothing to look up. And a report you sent is anonymous to us in the same way: tell us which quiz or room and roughly when, and we'll find it.</p>
 
 <h2>Security</h2>
-<p>All connections to the server are encrypted with HTTPS. Publisher keys are stored only as hashes, so even we can't use them to act on your behalf.</p>
+<p>All connections to the server are encrypted with HTTPS. Publisher keys are stored only as hashes, so even we can't use them to act on your behalf, and IP addresses are never stored at all — only the keyed hash described above.</p>
 
 <h2>Changes to this policy</h2>
 <p>If we change this policy, we'll update this page and the date at the top. If a change affects what we collect, we'll say so in the app's release notes.</p>

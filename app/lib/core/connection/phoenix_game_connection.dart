@@ -55,6 +55,10 @@ class PhoenixGameConnection implements GameConnection {
     'player_id': playerId,
   };
 
+  static Map<String, dynamic> removePlayerPayload(String playerId) => {
+    'player_id': playerId,
+  };
+
   static Map<String, dynamic> configurePayload({
     required int questionCount,
     required int timeLimitMs,
@@ -223,6 +227,10 @@ class PhoenixGameConnection implements GameConnection {
   @override
   Future<void> hostSetListed(bool listed) =>
       _push('host_set_listed', {'listed': listed});
+
+  @override
+  Future<void> hostRemovePlayer(String playerId) =>
+      _push('host_remove_player', removePlayerPayload(playerId));
 
   @override
   Future<void> leave() async {
@@ -423,6 +431,7 @@ class PhoenixGameConnection implements GameConnection {
     'empty' => RoomClosedReason.empty,
     'closed' => RoomClosedReason.closed,
     'finished' => RoomClosedReason.finished,
+    'removed' => RoomClosedReason.removed,
     _ => RoomClosedReason.shutdown,
   };
 

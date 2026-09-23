@@ -79,6 +79,7 @@ class JoinCommand extends Command<int> {
     final plan = bots ? await answerPlan(_context, args) : null;
 
     final seats = <Seat>[];
+    final tokens = <Seat, String?>{};
     final playerBots = <PlayerBot>[];
     for (var n = 1; n <= count; n++) {
       final name = _nameFor(args['name'] as String, n, count);
@@ -91,8 +92,9 @@ class JoinCommand extends Command<int> {
         output: _context.output,
         narrate: n == 1,
       )..watch();
+      final JoinResult joined;
       try {
-        final joined = await connection.join(code, name);
+        joined = await connection.join(code, name);
         _context.output.event('joined', {
           'seat': name,
           'room_code': code,
@@ -106,6 +108,7 @@ class JoinCommand extends Command<int> {
         continue;
       }
       seats.add(seat);
+      tokens[seat] = joined.playerToken;
       if (plan != null) playerBots.add(PlayerBot(seat, plan)..start());
     }
     if (seats.isEmpty) return 1;
@@ -123,6 +126,16 @@ class JoinCommand extends Command<int> {
         resolve: (source) =>
             resolveSelection(_context, source, lan: lan != null),
         onQuit: finish,
+        report: lan != null
+            ? null
+            : (player, reason, note) async => _context.rooms.reportRoom(
+                code,
+                reason: reason,
+                note: note,
+                playerId: player.id,
+                playerToken: tokens[seat],
+                ownerKey: await _context.ownerKey(),
+              ),
       )..attach(stdin);
       _context.output.say('[${seat.label}] type an answer, or /help');
     }

@@ -5,6 +5,7 @@ import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../core/providers/lan_providers.dart';
 import '../../core/providers/room_tokens.dart';
+import '../../shared/community_rules.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/navigation.dart';
 import '../../shared/theme/fz_theme.dart';
@@ -35,6 +36,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _hostGame() async {
     final setup = await showHostSetupDialog(context);
     if (setup == null || !mounted) return;
+    // A public room is played with strangers: the rules come first (Play UGC).
+    if (setup.listed && !await ensureRulesAccepted(context, ref)) return;
+    if (!mounted) return;
     setState(() => _creating = true);
     try {
       final created = setup.overLan

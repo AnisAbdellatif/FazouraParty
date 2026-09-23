@@ -9,11 +9,15 @@ defmodule FazouraWeb.Admin.ReportsLive do
   Reports are grouped by quiz, because a quiz is what an admin acts on. Both
   answers — taking it down, or deciding it is fine — clear every open report
   against it, so nothing sits in the queue twice.
+
+  Below them, reports about players in rooms (PROTOCOL.md §3.5): a name or an
+  answer, never an account. The answers are a ban from public rooms for a few
+  days, ending the room if it is still running, or deciding it was fine.
   """
 
   use FazouraWeb, :live_view
 
-  alias Fazoura.Admin
+  alias Fazoura.{Admin, Moderation, Rooms}
   alias Fazoura.Quizzes.Report
   alias Fazoura.Uploads
 
@@ -25,8 +29,11 @@ defmodule FazouraWeb.Admin.ReportsLive do
   defp load(socket) do
     reported = Admin.reported_quizzes()
 
+    players = Moderation.open_player_reports()
+
     socket
-    |> assign(reported: reported, waiting: length(reported))
+    |> assign(reported: reported, waiting: length(reported) + length(players))
+    |> assign(players: players)
     # A quiz that has just been answered is no longer in the list, so the open
     # panel has to follow rather than keep showing a stale copy.
     |> then(fn socket -> assign(socket, open: still_open(socket.assigns.open, reported)) end)
@@ -73,6 +80,39 @@ defmodule FazouraWeb.Admin.ReportsLive do
          socket |> put_flash(:error, "That quiz is already gone.") |> assign(open: nil) |> load()}
     end
   end
+
+  def handle_event("ban", %{"id" => id, "days" => days}, socket) do
+    socket =
+      case Moderation.ban(id, String.to_integer(days)) do
+        {:ok, _ban} ->
+          put_flash(socket, :info, "Banned from public rooms for #{days} days.")
+
+        {:error, :no_address} ->
+          put_flash(socket, :error, "No address was kept for that player; dismiss it instead.")
+
+        {:error, _reason} ->
+          put_flash(socket, :error, "That report is already answered.")
+      end
+
+    {:noreply, load(socket)}
+  end
+
+  def handle_event("end_room", %{"code" => code}, socket) do
+    message =
+      case Rooms.close(code) do
+        :ok -> "Room #{code} has been ended."
+        {:error, :room_not_found} -> "Room #{code} has already ended."
+      end
+
+    {:noreply, socket |> put_flash(:info, message) |> load()}
+  end
+
+  def handle_event("dismiss_player", %{"id" => id}, socket) do
+    _ = Moderation.dismiss(id)
+    {:noreply, socket |> put_flash(:info, "Report answered.") |> load()}
+  end
+
+  defp live?(code), do: Registry.lookup(Fazoura.Rooms.Registry, code) != []
 
   defp noun(1), do: "report"
   defp noun(_count), do: "reports"
@@ -139,6 +179,64 @@ defmodule FazouraWeb.Admin.ReportsLive do
             </td>
             <td>
               <button phx-click="open" phx-value-id={item.quiz.id}>Read</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="margin-top:22px">Players</h3>
+    <p class="muted">
+      Names and answers somebody objected to. Players have no accounts: a ban keeps
+      that connection out of public rooms for a while, and ending the room stops it now.
+    </p>
+    <div class="panel" style="margin-top:10px">
+      <p :if={@players == []} class="empty">No players reported.</p>
+      <table :if={@players != []}>
+        <thead>
+          <tr>
+            <th>Room</th>
+            <th>Name</th>
+            <th>Answer</th>
+            <th>Why</th>
+            <th>Waiting</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr :for={report <- @players} id={"player-report-#{report.id}"}>
+            <td class="muted">{report.room_code}</td>
+            <td><span dir="auto">{report.player_name}</span></td>
+            <td class="muted"><span dir="auto">{report.answer || "—"}</span></td>
+            <td class="muted">
+              {Report.describe(report.reason)}
+              <span :if={report.note} dir="auto">— {report.note}</span>
+            </td>
+            <td class={if overdue?(report.reported_at), do: "overdue", else: "muted"}>
+              {waited(report.reported_at)}
+            </td>
+            <td>
+              <div class="row">
+                <button
+                  :for={days <- Moderation.ban_days()}
+                  :if={report.ip_hash}
+                  phx-click="ban"
+                  phx-value-id={report.id}
+                  phx-value-days={days}
+                  class="danger"
+                >
+                  Ban {days}d
+                </button>
+                <button
+                  :if={live?(report.room_code)}
+                  phx-click="end_room"
+                  phx-value-code={report.room_code}
+                  phx-confirm={"End room #{report.room_code} for everyone in it?"}
+                >
+                  End room
+                </button>
+                <button phx-click="dismiss_player" phx-value-id={report.id}>It's fine</button>
+              </div>
             </td>
           </tr>
         </tbody>

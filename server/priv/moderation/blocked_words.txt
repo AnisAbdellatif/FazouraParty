@@ -1,0 +1,127 @@
+# Words a public room will not show (PROTOCOL.md §3.5, Fazoura.Moderation.Profanity).
+#
+# One entry per line; blank lines and lines starting with # are ignored. Matching is
+# case-, accent- and leetspeak-insensitive (0→o, 1→i, 3→e, 4→a, 5→s, 7→t, @→a, $→s),
+# and repeated letters are collapsed ("fuuuck"), so list the plain spelling.
+#
+#   word     matches as a whole word only, so "ass" does not catch "assassin"
+#   *stem    also matches inside other words and across separators ("f.u.c.k",
+#            "fuckface") — only for strings that are never part of an innocent word
+#   !word    an innocent word a stem would otherwise catch ("Scunthorpe"): a token
+#            equal to it is never matched against anything
+#
+# Leave out anything that is also a fair quiz answer ("Hitler" in a history quiz,
+# "dog" in Arabic): an answer the game marks correct is never masked, but a player's
+# name or a wrong answer that happens to be one would be.
+#
+# This is a floor, not a filter that thinks: it stops the obvious, and the report
+# button and the host's "remove" are what handle the rest. Add to it freely; a
+# restart picks it up (the list is compiled in).
+
+# Innocent words the stems below would catch
+!scunthorpe
+!penistone
+!shitake
+
+# English
+*fuck
+*motherfuck
+*cunt
+*nigger
+*nigga
+*faggot
+*retard
+*whore
+*bitch
+pussy
+*dickhead
+*cocksucker
+*wanker
+*twat
+*slut
+rapist
+*pedophile
+*paedophile
+shit
+shitty
+bullshit
+ass
+asshole
+arse
+arsehole
+bastard
+fag
+dyke
+tranny
+spic
+chink
+kike
+wetback
+coon
+porn
+porno
+rape
+cum
+jizz
+tits
+boobs
+kys
+killyourself
+
+# French
+*encule
+*enculer
+*salope
+*connard
+*connasse
+*batard
+nique
+*niquer
+*tapette
+*bougnoule
+*youpin
+pute
+putain
+merde
+conne
+chatte
+couille
+couilles
+negre
+branleur
+fdp
+ntm
+
+# Arabic
+كس
+زب
+*شرموط
+*شرموطة
+*قحبة
+*منيوك
+نيك
+خول
+*زامل
+عرص
+طيز
+
+# Tunisian Derja, as written in Latin letters (3, 7, 9 are letters here)
+*zebi
+*zeby
+*nayek
+*mnayek
+*mnik
+*9a7ba
+*qa7ba
+*kahba
+*ka7ba
+*9ahba
+*zamel
+*zemel
+*sorm
+nik
+*miboun
+*mibun
+*t7an
+3asba
+tiz

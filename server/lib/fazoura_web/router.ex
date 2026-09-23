@@ -65,6 +65,7 @@ defmodule FazouraWeb.Router do
     pipe_through :page
 
     get "/privacy", PageController, :privacy
+    get "/rules", PageController, :rules
   end
 
   scope "/admin", FazouraWeb.Admin do

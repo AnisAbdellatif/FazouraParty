@@ -19,6 +19,7 @@ class RoomClosedView extends StatelessWidget {
       RoomClosedReason.finished => 'The game is over.',
       RoomClosedReason.shutdown => 'The server closed the room.',
       RoomClosedReason.notFound => 'This room no longer exists.',
+      RoomClosedReason.removed => 'The host removed you from the room.',
     };
     return FzBody(
       footer: FzButton(

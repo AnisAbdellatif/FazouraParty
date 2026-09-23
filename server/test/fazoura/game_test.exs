@@ -674,6 +674,74 @@ defmodule Fazoura.GameTest do
     end
   end
 
+  describe "removing a player" do
+    test "they are gone, with no penalty, and the question stops waiting for them" do
+      game = game_with_players(["sam", "kim"]) |> host(:next) |> ok!()
+      game = game |> submit("sam", "Right") |> ok!()
+      assert game.phase == :question, "still waiting on kim"
+
+      removed = game |> host({:remove_player, %{"player_id" => "kim"}}) |> ok!()
+
+      refute Game.player?(removed, "kim")
+      assert removed.phase == :scoring, "nobody is left to wait for"
+      assert removed.players["sam"].score == 10
+    end
+
+    test "not the host's own seat, not somebody who is not here, and only by the host" do
+      {:ok, game} = Game.add_host_player(game_with_players(["sam"]), "hana", "Hana")
+
+      assert host(game, {:remove_player, %{"player_id" => "hana"}}) == {:error, :invalid_payload}
+      assert host(game, {:remove_player, %{"player_id" => "nope"}}) == {:error, :unknown_player}
+      assert host(game, {:remove_player, %{}}) == {:error, :invalid_payload}
+
+      assert Game.handle(game, {:player, "sam"}, {:remove_player, %{"player_id" => "hana"}}, @t0) ==
+               {:error, :not_host}
+    end
+  end
+
+  describe "names and answers in a public room" do
+    defp public(names) do
+      Enum.reduce(names, Game.new("ROOM42", pack(), listed: true), fn name, game ->
+        {:ok, game} = Game.add_player(game, name, name)
+        game
+      end)
+    end
+
+    test "a public room turns a blocked name away; a room joined by code does not" do
+      assert Game.add_player(public([]), "p", "Fuck Off") == {:error, :name_not_allowed}
+      assert {:ok, _} = Game.add_player(game_with_players([]), "p", "Fuck Off")
+    end
+
+    test "a room with a blocked name in it cannot go public" do
+      lobby = Game.new("ROOM42", %Pack{titles: [], questions: []})
+      {:ok, game} = Game.add_player(lobby, "p", "zebi")
+
+      assert host(game, {:set_listed, %{"listed" => true}}) == {:error, :name_not_allowed}
+    end
+
+    test "a wrong answer with a blocked word reaches everyone but its author as ***" do
+      game =
+        public(["sam", "kim", "ali"])
+        |> host(:next)
+        |> ok!()
+        |> submit("sam", "fuck this")
+        |> ok!()
+        |> submit("kim", "Right")
+        |> ok!()
+        |> submit("ali", "wrong")
+        |> ok!()
+
+      answers = fn recipient ->
+        View.room_state(game, recipient, @t0).submissions
+        |> Map.new(&{&1.player_id, &1.answer})
+      end
+
+      assert answers.({:player, "kim"}) == %{"sam" => "***", "kim" => "Right", "ali" => "wrong"}
+      assert answers.(:host)["sam"] == "***"
+      assert answers.({:player, "sam"})["sam"] == "fuck this"
+    end
+  end
+
   describe "views" do
     test "players never see answers or others' submissions before scoring" do
       game =

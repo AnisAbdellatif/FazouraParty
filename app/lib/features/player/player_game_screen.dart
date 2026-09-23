@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../core/providers/room_tokens.dart';
+import '../players/player_actions.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/report_dialog.dart';
 import '../../shared/theme/fz_theme.dart';
@@ -51,8 +52,22 @@ class PlayerGameScreen extends ConsumerWidget {
                   // it is where saying something about one has to be possible
                   // (QUIZ_FORMAT.md §5.9). Nothing to report in an empty lobby.
                   trailing: switch (snapshot) {
-                    AsyncData(:final value) when closedReason == null =>
-                      _ReportButton(roomCode: roomCode, state: value),
+                    AsyncData(:final value) when closedReason == null => Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (anyPlayerActions(value)) ...[
+                          FzCircleButton(
+                            key: const Key('playersButton'),
+                            icon: Icons.people_outline,
+                            tooltip: 'Players',
+                            onPressed: () =>
+                                showPlayersSheet(context, roomCode: roomCode),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        _ReportButton(roomCode: roomCode, state: value),
+                      ],
+                    ),
                     _ => null,
                   },
                 ),
@@ -127,7 +142,15 @@ class _PhaseView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (state.phase) {
-      Phase.lobby => LobbyView(state: state),
+      Phase.lobby => LobbyView(
+        state: state,
+        onPlayerTap: (player) => showPlayerActions(
+          context,
+          roomCode: state.roomCode,
+          state: state,
+          player: player,
+        ),
+      ),
       Phase.question => PlayerQuestionView(state: state),
       Phase.scoring || Phase.leaderboard => LeaderboardView(state: state),
       Phase.finished => FinishedView(state: state),

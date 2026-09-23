@@ -157,6 +157,10 @@ class RoomApi {
   /// games. A host who is also playing has only a host token, so both are
   /// accepted. Throws [GameError] — `quiz_not_public` when the host made the
   /// quiz themselves, so there is nothing published to take down.
+  ///
+  /// With [playerId] it reports that player instead — their name or their
+  /// answer (PROTOCOL.md §3.5). There is no account to point at; the server
+  /// keeps what was on the screen and what a ban needs.
   Future<void> reportRoom(
     String code, {
     required String reason,
@@ -164,6 +168,7 @@ class RoomApi {
     String? playerToken,
     String? hostToken,
     String? questionId,
+    String? playerId,
     String? note,
   }) async {
     final base = baseUrl.endsWith('/')
@@ -183,6 +188,7 @@ class RoomApi {
         body: jsonEncode({
           'reason': reason,
           'question_id': ?questionId,
+          'player_id': ?playerId,
           if (note != null && note.isNotEmpty) 'note': note,
         }),
       );
