@@ -22,13 +22,29 @@ const updateManifestUrl = String.fromEnvironment(
   defaultValue: 'https://github.com/AnisAbdellatif/FazouraParty/releases/latest/download/android.json',
 );
 
-/// Whether this build can be updated in place.
+/// Whether this build has to find its own updates.
 ///
-/// Only the Android APK can: the web app is a PWA and replaces itself through
-/// the service worker (`app/tool/build_web.dart`), and a development build has
-/// no version to compare against. `kIsWeb` is a compile-time constant, so the
-/// whole check folds away in the web bundle.
-bool get updatesSupported =>
-    !kIsWeb &&
-    defaultTargetPlatform == TargetPlatform.android &&
-    appVersionCode > 0;
+/// Only a sideloaded Android APK does. The web app is a PWA and replaces itself
+/// through the service worker (`app/tool/build_web.dart`); a development build
+/// has no version to be behind; and a build installed from Google Play is
+/// updated by Play, which is what an empty [updateManifestUrl] says — the
+/// bundle `scripts/ci.sh aab` produces carries no manifest to check, so nobody
+/// is nagged by two updaters at once.
+///
+/// `kIsWeb` is a compile-time constant, so the whole check folds away in the
+/// web bundle.
+bool get updatesSupported => selfUpdates(
+  isWeb: kIsWeb,
+  isAndroid: defaultTargetPlatform == TargetPlatform.android,
+  versionCode: appVersionCode,
+  manifestUrl: updateManifestUrl,
+);
+
+/// [updatesSupported] as a plain function, because the constants it reads are
+/// fixed at compile time and a test cannot be four different builds.
+bool selfUpdates({
+  required bool isWeb,
+  required bool isAndroid,
+  required int versionCode,
+  required String manifestUrl,
+}) => !isWeb && isAndroid && versionCode > 0 && manifestUrl.isNotEmpty;

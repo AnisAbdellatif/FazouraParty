@@ -8,6 +8,7 @@
 #   scripts/ci.sh tools        # Python: the .fazoura packaging utility
 #   scripts/ci.sh image        # build the production Docker image
 #   scripts/ci.sh apk          # signed Android APK + the release manifest
+#   scripts/ci.sh aab          # Android App Bundle, for uploading to Play
 #   scripts/ci.sh versions     # just the toolchain check (or: versions server|app)
 #
 #   scripts/ci.sh up           # run that image locally (deploy/compose.local.yaml)
@@ -184,36 +185,51 @@ sha256_of() {
 # somebody else — and unlike Gradle, which falls back to the debug key so
 # `flutter run --release` keeps working, it refuses to produce an APK nobody
 # can update from.
-apk() {
-  step "Android APK"
+# The guards and inputs every signed Android build shares, whichever artifact it
+# produces. Sets REL_VERSION, REL_CODE, REL_TAG, REL_SERVER and REL_REPO. Shared
+# rather than copied, because a check that exists in one build path and not the
+# other is worse than no check: it is a check you believe you have.
+release_inputs() {
+  REL_VERSION="$(pubspec_version)"
+  REL_CODE="$(pubspec_version_code)"
+  [ -n "$REL_VERSION" ] && [ -n "$REL_CODE" ] ||
+    fail "could not read 'version:' from app/pubspec.yaml"
 
-  have python3 || fail "python3 not found (it writes the release manifest)"
-
-  local version code repo server out apk_path tag notes size digest
-  version="$(pubspec_version)"
-  code="$(pubspec_version_code)"
-  [ -n "$version" ] && [ -n "$code" ] || fail "could not read 'version:' from app/pubspec.yaml"
-
-  # A release built against the wrong tag would publish an APK whose own idea of
-  # its version disagrees with where it is published. Checked only when a tag is
-  # named, so a local build to try the thing out still works.
-  tag="${RELEASE_TAG:-v$version}"
-  if [ -n "${RELEASE_TAG:-}" ] && [ "$RELEASE_TAG" != "v$version" ]; then
-    fail "tag $RELEASE_TAG does not match app/pubspec.yaml ($version) — bump the pubspec, or tag v$version"
+  # A release built against the wrong tag would publish a build whose own idea
+  # of its version disagrees with where it is published. Checked only when a tag
+  # is named, so a local build to try the thing out still works.
+  REL_TAG="${RELEASE_TAG:-v$REL_VERSION}"
+  if [ -n "${RELEASE_TAG:-}" ] && [ "$RELEASE_TAG" != "v$REL_VERSION" ]; then
+    fail "tag $RELEASE_TAG does not match app/pubspec.yaml ($REL_VERSION) — bump the pubspec, or tag v$REL_VERSION"
   fi
 
   # Android has no origin to be served from, so the server it talks to is baked
-  # in (app/lib/core/providers/config_providers.dart). Without this the APK
+  # in (app/lib/core/providers/config_providers.dart). Without this the build
   # would quietly point at localhost and never reach a game.
-  server="${SERVER_URL:-}"
-  if [ -z "$server" ] && [ -n "${PUBLIC_HOST:-}" ]; then server="https://$PUBLIC_HOST"; fi
-  [ -n "$server" ] || fail "set SERVER_URL (or PUBLIC_HOST) — an APK with no server in it is useless"
+  REL_SERVER="${SERVER_URL:-}"
+  if [ -z "$REL_SERVER" ] && [ -n "${PUBLIC_HOST:-}" ]; then
+    REL_SERVER="https://$PUBLIC_HOST"
+  fi
+  [ -n "$REL_SERVER" ] ||
+    fail "set SERVER_URL (or PUBLIC_HOST) — a build with no server in it is useless"
 
   if [ -z "${ANDROID_KEYSTORE_PATH:-}" ] && [ ! -f "$ROOT/app/android/key.properties" ]; then
     fail "no signing key: set ANDROID_KEYSTORE_PATH (and the passwords) or write app/android/key.properties. See README.md."
   fi
 
-  repo="$(release_repo)" || fail "could not work out the GitHub repository from 'origin' — set GITHUB_REPOSITORY"
+  REL_REPO="$(release_repo)" ||
+    fail "could not work out the GitHub repository from 'origin' — set GITHUB_REPOSITORY"
+}
+
+apk() {
+  step "Android APK"
+
+  have python3 || fail "python3 not found (it writes the release manifest)"
+
+  release_inputs
+  local version="$REL_VERSION" code="$REL_CODE" repo="$REL_REPO"
+  local server="$REL_SERVER" tag="$REL_TAG"
+  local out apk_path notes size digest
 
   cd "$ROOT/app"
   flutter pub get
@@ -266,6 +282,47 @@ PYTHON
   cd "$ROOT"
   ok "app/build/release/fazoura-party-$version.apk  ($((size / 1048576)) MB, $tag)"
   cat "$out/android.json"
+}
+
+# The bundle Google Play takes. Play will not accept an APK from a new app, and
+# it re-signs whatever it is given with the app signing key, so this is only
+# ever an upload artifact — the thing people install still comes from `apk`, or
+# from Play itself.
+#
+# Deliberately no `android.json`: a Play install is updated by Play, and an
+# empty UPDATE_MANIFEST_URL is what switches the in-app checker off, so nobody
+# is nagged by two updaters at once (app/lib/core/update/app_version.dart).
+aab() {
+  step "Android App Bundle"
+
+  release_inputs
+  local version="$REL_VERSION" code="$REL_CODE" server="$REL_SERVER"
+  local out bundle
+
+  cd "$ROOT/app"
+  flutter pub get
+  # The same ABIs as the APK, and for the same reason it matters more here: the
+  # x86 jniLibs exclusion in build.gradle.kts drops the plugin libraries, so a
+  # bundle that still carried Flutter's x86_64 engine would let Play serve an
+  # x86_64 device a build that crashes looking for the rest.
+  flutter build appbundle --release \
+    --target-platform android-arm,android-arm64 \
+    --dart-define="SERVER_URL=$server" \
+    --dart-define="APP_VERSION=$version" \
+    --dart-define="APP_VERSION_CODE=$code" \
+    --dart-define="UPDATE_MANIFEST_URL="
+
+  bundle="build/app/outputs/bundle/release/app-release.aab"
+  [ -f "$bundle" ] || fail "$bundle was not produced"
+
+  out="$ROOT/app/build/release"
+  mkdir -p "$out"
+  cp "$bundle" "$out/fazoura-party-$version.aab"
+
+  cd "$ROOT"
+  ok "app/build/release/fazoura-party-$version.aab  ($(( $(wc -c < "$out/fazoura-party-$version.aab") / 1048576 )) MB)"
+  printf '  Upload this in Play Console. It is signed with the upload key;\n'
+  printf '  Play re-signs what it delivers with the app signing key.\n'
 }
 
 image() {
@@ -347,12 +404,13 @@ main() {
     # Neither: building a release needs an Android SDK and the signing key, so
     # it is never part of a check run.
     apk)      versions app; apk ;;
+    aab)      versions app; aab ;;
     # Running the stack is not a check, so it reports for itself rather than
     # claiming anything passed.
     up)       up; return ;;
     down)     down; return ;;
     all)      versions; tools; server; app; image ;;
-    *)        fail "unknown target '$target' (use: all, server, app, tools, image, apk, up, down, versions)" ;;
+    *)        fail "unknown target '$target' (use: all, server, app, tools, image, apk, aab, up, down, versions)" ;;
   esac
 
   if [ "$warned" = 1 ]; then

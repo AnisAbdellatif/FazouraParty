@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:fazoura_party/core/update/app_version.dart';
 import 'package:fazoura_party/core/update/update_api.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -116,6 +117,38 @@ void main() {
     expect(isTrustedDownload('https://GitHub.com/o/r/a.apk', manifest), isTrue);
     expect(isTrustedDownload('not a url at all ::::', manifest), isFalse);
     expect(isTrustedDownload('https:///nohost.apk', manifest), isFalse);
+  });
+
+  group('which builds look for their own updates', () {
+    bool check({
+      bool isWeb = false,
+      bool isAndroid = true,
+      int versionCode = 4,
+      String manifestUrl = _manifestUrl,
+    }) => selfUpdates(
+      isWeb: isWeb,
+      isAndroid: isAndroid,
+      versionCode: versionCode,
+      manifestUrl: manifestUrl,
+    );
+
+    test('a released Android build does', () {
+      expect(check(), isTrue);
+    });
+
+    test('the web app does not — the service worker replaces it', () {
+      expect(check(isWeb: true), isFalse);
+    });
+
+    test('a development build has no released version to be behind', () {
+      expect(check(versionCode: 0), isFalse);
+    });
+
+    test('a build with no manifest is updated by whoever installed it', () {
+      // What `scripts/ci.sh aab` produces: Play updates a Play install, so the
+      // in-app checker stays out of the way rather than nagging in parallel.
+      expect(check(manifestUrl: ''), isFalse);
+    });
   });
 }
 
