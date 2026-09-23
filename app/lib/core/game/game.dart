@@ -25,7 +25,7 @@ const protocolMajor = 9;
 /// snapshot and ignored by clients; it exists so a LAN host built from an
 /// older tag can be told apart from the cloud. Must equal
 /// `Fazoura.Game.protocol_minor/0`.
-const protocolMinor = 3;
+const protocolMinor = 4;
 
 /// How long a question keeps waiting for a player whose connection has gone.
 /// A locked screen or a walk past a thick wall drops the socket for a few
@@ -34,6 +34,13 @@ const protocolMinor = 3;
 /// the game's fault, not theirs. Must equal `Fazoura.Game`'s
 /// `@waiting_grace_ms` (PROTOCOL.md §6).
 const waitingGraceMs = 5000;
+
+/// How long a question stays open after the host ends it. A player who has
+/// typed an answer but not locked it in has it sent for them just before the
+/// deadline, so ending a question pulls the deadline in rather than scoring on
+/// the spot — otherwise the host's button throws away every answer still being
+/// typed. Must equal `Fazoura.Game.closing_window_ms/0` (PROTOCOL.md §6).
+const closingWindowMs = 3000;
 const minTimeLimitMs = 10000;
 const maxTimeLimitMs = 120000;
 const defaultTimeLimitMs = 30000;
@@ -410,6 +417,21 @@ class Game {
     _endQuestionIfNobodyLeft(now);
   }
 
+  /// The host ends the question (PROTOCOL.md §6): anyone still due an answer
+  /// gets [closingWindowMs] for what they have typed to arrive, and a question
+  /// already closing is left alone, so a second tap cannot cut the window
+  /// short. A paused question resumes into the window — nobody can submit
+  /// while it is paused.
+  void _closeQuestion(int now) {
+    if (asked.every((id) => _answeredOrGone(id, now))) {
+      _scoreQuestion();
+      return;
+    }
+    final remaining = pausedRemainingMs ?? deadline! - now;
+    deadline = now + min(remaining, closingWindowMs);
+    pausedRemainingMs = null;
+  }
+
   /// Nobody left to wait for: everyone the question was asked of has either
   /// answered or been gone long enough that holding the room for them is only
   /// making everybody else wait (PROTOCOL.md §6).
@@ -459,7 +481,7 @@ class Game {
         if (_packSize == 0) throw const GameRuleError('quiz_required');
         _startQuestion(0, now);
       case GamePhase.question:
-        _scoreQuestion();
+        _closeQuestion(now);
       case GamePhase.scoring:
         phase = GamePhase.leaderboard;
       case GamePhase.leaderboard:

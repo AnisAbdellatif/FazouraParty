@@ -16,7 +16,7 @@ defmodule Fazoura.Game do
   # the minor and leaves every installed app working. Changing or removing
   # anything a client already relies on moves the major, and that is a cutover.
   @protocol_major 9
-  @protocol_minor 3
+  @protocol_minor 4
   # Points per question by difficulty (PROTOCOL.md §9). A wrong answer costs more on an
   # easy question than on a hard one: you are expected to know the easy ones, and a hard
   # one is worth a guess. Letting the question go by costs @skip_points whatever its
@@ -37,6 +37,13 @@ defmodule Fazoura.Game do
   # the game's fault, not theirs. Longer than a reconnect, far shorter than the
   # shortest question.
   @waiting_grace_ms 5_000
+  # How long a question stays open after the host ends it. A player who has typed
+  # an answer but not locked it in has it sent for them just before the deadline,
+  # so ending a question pulls the deadline in rather than scoring on the spot —
+  # otherwise the host's button throws away every answer still being typed. Has
+  # to clear the client's 700 ms lead plus a round trip, and be short enough that
+  # the host is not left waiting.
+  @closing_window_ms 3_000
   @min_time_limit_ms 10_000
   @max_time_limit_ms 120_000
   @default_time_limit_ms 30_000
@@ -132,6 +139,10 @@ defmodule Fazoura.Game do
   @doc "Which revision of that major this server implements."
   @spec protocol_minor() :: non_neg_integer()
   def protocol_minor, do: @protocol_minor
+
+  @doc "How long a question stays open once the host has ended it."
+  @spec closing_window_ms() :: pos_integer()
+  def closing_window_ms, do: @closing_window_ms
 
   @spec new(String.t(), Pack.t(), keyword()) :: t()
   def new(room_code, %Pack{} = pack, opts \\ []) do
@@ -322,7 +333,7 @@ defmodule Fazoura.Game do
           else: {:ok, start_question(game, 0, now)}
 
       :question ->
-        {:ok, score_question(game)}
+        {:ok, close_question(game, now)}
 
       :scoring ->
         {:ok, %{game | phase: :leaderboard}}
@@ -491,6 +502,19 @@ defmodule Fazoura.Game do
         submissions: %{},
         asked: MapSet.new(Map.keys(game.players))
     }
+  end
+
+  # The host ends the question (PROTOCOL.md §6): anyone still due an answer gets
+  # @closing_window_ms for what they have typed to arrive, and a question already
+  # closing is left alone, so a second tap cannot cut the window short. A paused
+  # question resumes into the window — nobody can submit while it is paused.
+  defp close_question(game, now) do
+    if Enum.all?(game.asked, &answered_or_gone?(game, &1, now)) do
+      score_question(game)
+    else
+      remaining = game.paused_remaining_ms || game.deadline - now
+      %{game | deadline: now + min(remaining, @closing_window_ms), paused_remaining_ms: nil}
+    end
   end
 
   # Nobody left to wait for: everyone the question was asked of has either

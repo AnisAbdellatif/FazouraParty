@@ -32,7 +32,18 @@ defmodule Fazoura.GameTest do
 
   defp ok!({:ok, game}), do: game
 
-  defp host(game, intent, now \\ @t0), do: Game.handle(game, :host, intent, now)
+  # Ending a question leaves it open for the closing window (PROTOCOL.md §6); most tests
+  # only care that it ended, so this lets the window run out. `close/2` stops short of it.
+  defp host(game, intent, now \\ @t0)
+
+  defp host(%Game{phase: :question} = game, :next, now) do
+    with {:ok, closing} <- close(game, now),
+         do: {:ok, Game.tick(closing, now + Game.closing_window_ms())}
+  end
+
+  defp host(game, intent, now), do: Game.handle(game, :host, intent, now)
+
+  defp close(game, now \\ @t0), do: Game.handle(game, :host, :next, now)
 
   defp submit(game, id, answer, now \\ @t0),
     do: Game.handle(game, {:player, id}, {:submit, %{"answer" => answer}}, now)
@@ -299,6 +310,63 @@ defmodule Fazoura.GameTest do
         |> ok!()
 
       assert Game.deadline(game) == @t0 + 5_000, "the grace, not the far-off deadline"
+    end
+
+    test "ending a question gives what is still being typed the closing window to arrive" do
+      game = game_with_players(["sam", "kim"]) |> host(:next) |> ok!()
+
+      closing = game |> close(@t0 + 1_000) |> ok!()
+      assert closing.phase == :question
+      assert closing.deadline == @t0 + 1_000 + Game.closing_window_ms()
+
+      # Sam's typed answer is sent for them just before the new deadline, and counts.
+      late = closing |> submit("sam", "Right", closing.deadline - 700) |> ok!()
+      assert late.phase == :question, "still waiting on kim"
+
+      scored = Game.tick(late, closing.deadline)
+      assert scored.phase == :scoring
+      assert {scored.players["sam"].score, scored.players["kim"].score} == {10, -10}
+    end
+
+    test "the closing window still ends the moment nobody is left to wait for" do
+      closing = game_with_players(["sam"]) |> host(:next) |> ok!() |> close() |> ok!()
+      assert closing |> submit("sam", "Right", @t0 + 500) |> ok!() |> then(& &1.phase) == :scoring
+    end
+
+    test "ending a closing question again does not cut the window short" do
+      closing = game_with_players(["sam"]) |> host(:next) |> ok!() |> close() |> ok!()
+      again = closing |> close(@t0 + 1_500) |> ok!()
+      assert again.deadline == closing.deadline
+    end
+
+    test "ending a question with less time left than the window keeps the deadline" do
+      game = game_with_players(["sam"]) |> host(:next) |> ok!()
+      assert game |> close(@t0 + 9_000) |> ok!() |> then(& &1.deadline) == @t0 + 10_000
+    end
+
+    test "ending a paused question resumes it into the closing window" do
+      paused = game_with_players(["sam"]) |> host(:next) |> ok!() |> host(:pause) |> ok!()
+
+      closing = paused |> close(@t0 + 60_000) |> ok!()
+
+      assert {closing.deadline, closing.paused_remaining_ms} ==
+               {@t0 + 60_000 + Game.closing_window_ms(), nil}
+
+      assert closing |> submit("sam", "Right", @t0 + 60_500) |> ok!() |> then(& &1.phase) ==
+               :scoring
+    end
+
+    test "ending a question nobody can still answer scores it at once" do
+      game =
+        game_with_players(["kim"])
+        |> host(:next)
+        |> ok!()
+        |> Game.set_connected("kim", false, @t0)
+
+      assert game |> close(@t0 + 1_000) |> ok!() |> then(& &1.phase) == :question,
+             "kim is inside the grace and may be back"
+
+      assert game |> close(@t0 + 5_000) |> ok!() |> then(& &1.phase) == :scoring
     end
 
     test "pause freezes the timer and resume restores the remaining time" do

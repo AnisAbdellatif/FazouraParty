@@ -281,6 +281,10 @@
       }
     },
     {
+      "_comment": "Ending the question leaves it open for the 3 s closing window (§6) while somebody still owes an answer.",
+      "advance_clock_ms": 3000
+    },
+    {
       "actor": "host",
       "push": "host_next",
       "payload": {},

@@ -31,7 +31,10 @@ const autoSubmitLeadMs = 700;
 /// shows one.
 ///
 /// An answer that has been typed but not locked in is sent automatically just
-/// before the timer runs out, so nobody loses an answer to the clock.
+/// before the timer runs out, so nobody loses an answer to the clock. That
+/// includes the host ending the question: the host pulls the deadline in to a
+/// short closing window rather than scoring on the spot (PROTOCOL.md §6), and
+/// the new deadline reschedules the send like any other snapshot.
 ///
 /// The host uses it too: [canAnswer] is false for a host who is not playing,
 /// and [hostControls] is pinned to the bottom.

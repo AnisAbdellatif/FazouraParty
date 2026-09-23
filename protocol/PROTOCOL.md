@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `9.2`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
+**Protocol version: `9.4`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -34,6 +34,10 @@ so nothing a client does needed to change, and it was a minor.
 A cloud-only HTTP route is a minor too, for the same reason: a client that has never heard
 of it simply does not call it. `GET /api/rooms/:code` (§3.1) was 9.2 and
 `POST /api/rooms/:code/report` is 9.3.
+
+9.4 changed what `host_next` does to a running question: rather than scoring it on the spot,
+the host pulls its `deadline` in to a short closing window (§6). A client already renders
+whatever deadline the latest snapshot carries, so nothing had to change there either.
 
 **This is semver's major and minor, and there is deliberately no patch.** The number
 exists to answer one question — does this host behave exactly like that one? — and the
@@ -241,7 +245,7 @@ Join error codes: `unsupported_protocol_version`, `room_not_found`, `invalid_tok
 | Event | Sender | Payload | Allowed phase | Effect |
 |---|---|---|---|---|
 | `submit` | player, or playing host | `{"answer": string}` | `question` (not paused) | Records the player's one submission for the current question |
-| `host_next` | host | `{}` | any except `finished` | Advances the phase (§6) |
+| `host_next` | host | `{}` | any except `finished` | Advances the phase (§6). During `question`, closes the question rather than ending it outright |
 | `host_pause` | host | `{}` | `question` (not paused) | Freezes the timer |
 | `host_resume` | host | `{}` | `question` (paused) | Restarts the timer |
 | `host_override` | host | `{"player_id": string, "correct": bool}` | `scoring`, `leaderboard` | Sets the verdict on that player's submission for the **current** question, including the host's own |
@@ -421,8 +425,17 @@ lobby ──host_next──► question ──host_next / deadline / all answere
 | `finished → lobby` | `host_rematch` (§6.3) |
 | pause / resume | `paused_remaining_ms = deadline - now`, `deadline = null` / `deadline = now + paused_remaining_ms`, `paused_remaining_ms = null` |
 
-`host_next` while `question` is active ends the question early. Starting a room with a pack of
-zero questions is rejected at creation.
+`host_next` while `question` is active ends the question early, but not on the spot: the
+question is **closed**. `deadline` becomes `now + 3000` (the **closing window**), or stays
+where it is if that is sooner, and a paused question resumes into it. Submissions are accepted
+until the new deadline as before, and the question still ends the moment nobody is left to
+wait for. The window exists because a client sends a typed-but-unlocked answer on its own
+shortly before the deadline — ending a question outright would throw away every answer still
+being typed. `host_next` on a question already closing changes nothing, so a second tap cannot
+cut the window short. If everyone asked has already answered or is gone past the grace below,
+there is nobody to wait for and the question is scored at once.
+
+Starting a room with a pack of zero questions is rejected at creation.
 
 **A question also ends as soon as there is nobody left to wait for**: every player it was
 asked of has either submitted or been disconnected for longer than a **5 s grace**. The grace
@@ -494,7 +507,8 @@ included**, since the host may be playing. Visibility depends only on phase, not
 | `players[].has_submitted` | yes | yes | `false` |
 | `you.submission` | own only | own, with `correct`/`delta` | `null` |
 
-The question ends when its deadline passes or the host sends `host_next`; from `scoring` on,
+The question ends when its deadline passes, including the closing window after the host sends
+`host_next` (§6); from `scoring` on,
 the host sees the accepted answers and every submission and may correct any of them,
 including their own (§6.1).
 

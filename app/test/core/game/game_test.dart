@@ -43,8 +43,17 @@ Game gameWithPlayers(List<String> names, [int questionCount = 2]) {
   return game;
 }
 
-void host(Game game, String event, [Map<String, dynamic> payload = const {}]) =>
-    game.handle(const HostActor(), event, payload, t0);
+/// Ending a question leaves it open for the closing window (PROTOCOL.md §6);
+/// most tests only care that it ended, so this lets the window run out.
+/// [close] stops short of it.
+void host(Game game, String event, [Map<String, dynamic> payload = const {}]) {
+  final ending = event == 'host_next' && game.phase == GamePhase.question;
+  game.handle(const HostActor(), event, payload, t0);
+  if (ending) game.tick(t0 + closingWindowMs);
+}
+
+void close(Game game, [int now = t0]) =>
+    game.handle(const HostActor(), 'host_next', const {}, now);
 
 void hostAt(Game game, String event, int now) =>
     game.handle(const HostActor(), event, const {}, now);
@@ -366,6 +375,84 @@ void main() {
         t0 + 5000,
         reason: 'the grace, not the far-off deadline',
       );
+    });
+
+    test('ending a question gives what is still being typed the closing '
+        'window to arrive', () {
+      final game = gameWithPlayers(['sam', 'kim']);
+      host(game, 'host_next');
+
+      close(game, t0 + 1000);
+      expect(game.phase, GamePhase.question);
+      expect(game.deadline, t0 + 1000 + closingWindowMs);
+
+      // Sam's typed answer is sent for them just before the new deadline, and
+      // counts.
+      final deadline = game.deadline!;
+      submit(game, 'sam', 'Right', deadline - 700);
+      expect(game.phase, GamePhase.question, reason: 'still waiting on kim');
+
+      game.tick(deadline);
+      expect(game.phase, GamePhase.scoring);
+      expect(
+        (game.players['sam']!.score, game.players['kim']!.score),
+        (10, -10),
+      );
+    });
+
+    test('the closing window still ends the moment nobody is left to wait '
+        'for', () {
+      final game = gameWithPlayers(['sam']);
+      host(game, 'host_next');
+      close(game);
+      submit(game, 'sam', 'Right', t0 + 500);
+      expect(game.phase, GamePhase.scoring);
+    });
+
+    test('ending a closing question again does not cut the window short', () {
+      final game = gameWithPlayers(['sam']);
+      host(game, 'host_next');
+      close(game);
+      final deadline = game.deadline;
+      close(game, t0 + 1500);
+      expect(game.deadline, deadline);
+    });
+
+    test('ending a question with less time left than the window keeps the '
+        'deadline', () {
+      final game = gameWithPlayers(['sam']);
+      host(game, 'host_next');
+      close(game, t0 + 9000);
+      expect(game.deadline, t0 + 10000);
+    });
+
+    test('ending a paused question resumes it into the closing window', () {
+      final game = gameWithPlayers(['sam']);
+      host(game, 'host_next');
+      host(game, 'host_pause');
+
+      close(game, t0 + 60000);
+      expect(
+        (game.deadline, game.pausedRemainingMs),
+        (t0 + 60000 + closingWindowMs, null),
+      );
+      submit(game, 'sam', 'Right', t0 + 60500);
+      expect(game.phase, GamePhase.scoring);
+    });
+
+    test('ending a question nobody can still answer scores it at once', () {
+      final game = gameWithPlayers(['kim']);
+      host(game, 'host_next');
+      game.setConnected('kim', false, t0);
+
+      close(game, t0 + 1000);
+      expect(
+        game.phase,
+        GamePhase.question,
+        reason: 'kim is inside the grace and may be back',
+      );
+      close(game, t0 + 5000);
+      expect(game.phase, GamePhase.scoring);
     });
 
     test('pause freezes the timer and resume restores the remaining time', () {
