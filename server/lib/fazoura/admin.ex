@@ -8,8 +8,11 @@ defmodule Fazoura.Admin do
 
   import Ecto.Query
 
-  alias Fazoura.{Metrics, Quizzes, Repo, Rooms}
-  alias Fazoura.Quizzes.{Image, Question, Quiz, Tag}
+  alias Fazoura.Metrics
+  alias Fazoura.Quizzes
+  alias Fazoura.Quizzes.{Image, Question, Quiz, Review, Tag}
+  alias Fazoura.Repo
+  alias Fazoura.Rooms
 
   ## Stats
 
@@ -155,7 +158,7 @@ defmodule Fazoura.Admin do
   end
 
   @doc """
-  The quiz the editor works on, with its questions and tags (ADMIN.md §3.3).
+  The quiz the editor works on, with its questions and tags (ADMIN.md §3.4).
   """
   @spec fetch_quiz(term()) :: {:ok, Quiz.t()} | {:error, :quiz_not_found}
   def fetch_quiz(id) do
@@ -236,4 +239,24 @@ defmodule Fazoura.Admin do
   end
 
   defp taken?(slug), do: Repo.exists?(from q in Quiz, where: q.slug == ^slug)
+
+  ## The review queue (ADMIN.md §3.2)
+
+  @doc "Submissions waiting to be read, oldest first."
+  defdelegate pending_submissions(limit \\ 50), to: Review, as: :pending
+
+  @doc "How many are waiting."
+  defdelegate pending_submission_count(), to: Review, as: :pending_count
+
+  @doc "One submission."
+  defdelegate fetch_submission(id), to: Review, as: :fetch
+
+  @doc "What is inside a submission's package, for somebody to read before deciding."
+  defdelegate submission_contents(submission), to: Review, as: :contents
+
+  @doc "Publishes a submission. Its photos reach the uploads volume here and not before."
+  defdelegate approve_submission(id), to: Review, as: :approve
+
+  @doc "Turns a submission down, with a note its author's device can show."
+  defdelegate reject_submission(id, note), to: Review, as: :reject
 end

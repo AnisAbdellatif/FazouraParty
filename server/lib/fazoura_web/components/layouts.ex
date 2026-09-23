@@ -38,6 +38,7 @@ defmodule FazouraWeb.Layouts do
         <div class="brand">FAZOURA <span>admin</span></div>
         <nav>
           <.link navigate={~p"/admin"} class={nav_class(@page, :stats)}>Stats</.link>
+          <.link navigate={~p"/admin/review"} class={nav_class(@page, :review)}>Review</.link>
           <.link navigate={~p"/admin/quizzes"} class={nav_class(@page, :quizzes)}>Quizzes</.link>
           <.link navigate={~p"/admin/tags"} class={nav_class(@page, :tags)}>Tags</.link>
         </nav>

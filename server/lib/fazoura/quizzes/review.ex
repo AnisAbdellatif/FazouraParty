@@ -1,7 +1,7 @@
 defmodule Fazoura.Quizzes.Review do
   @moduledoc """
   The queue between writing a quiz and it being public (QUIZ_FORMAT.md §4,
-  ADMIN.md §3.4).
+  ADMIN.md §3.2).
 
   A submission is the `.fazoura` package the device sent and nothing else. It is
   not a quiz, it has no rows in `quizzes` or `questions`, and its photos are not

@@ -13,8 +13,16 @@ defmodule FazouraWeb.AdminLiveTest do
 
   setup %{conn: conn} do
     QuizFixtures.builtin!("general-knowledge")
-    {:ok, quiz} = Quizzes.create(QuizFixtures.quiz_params(), QuizFixtures.owner_key())
+    quiz = QuizFixtures.published!()
     %{conn: as_admin(conn), quiz: quiz}
+  end
+
+  defp uploaded_files do
+    Uploads.dir()
+    |> Path.join("**/*")
+    |> Path.wildcard()
+    |> Enum.filter(&File.regular?/1)
+    |> Enum.sort()
   end
 
   defp as_admin(conn, password \\ @password) do
@@ -583,6 +591,133 @@ defmodule FazouraWeb.AdminLiveTest do
         |> render_submit()
 
       assert html =~ "at most 24 characters"
+    end
+  end
+
+  describe "the review queue" do
+    alias Fazoura.Quizzes.Review
+
+    test "lists what is waiting and nothing that is already public", %{conn: conn} do
+      {:ok, _} =
+        Review.submit(
+          QuizFixtures.package(%{"title" => "Waiting"}),
+          "k-" <> String.duplicate("a", 40)
+        )
+
+      {:ok, _live, html} = live(conn, ~p"/admin/review")
+
+      assert html =~ "Waiting"
+      assert html =~ "1 waiting"
+      # The quiz from the setup is already public, so it is not in the queue.
+      refute html =~ "Movie Night"
+    end
+
+    test "approving publishes the quiz, and only then", %{conn: conn} do
+      key = "k-" <> String.duplicate("b", 40)
+      {:ok, submission} = Review.submit(QuizFixtures.package(%{"title" => "Newcomer"}), key)
+
+      {:ok, live, _html} = live(conn, ~p"/admin/review")
+
+      # Nothing is a quiz yet.
+      refute Repo.exists?(from q in Quiz, where: q.title == "Newcomer")
+
+      # Approve only exists once the submission is open: there is no way to
+      # publish one from the list without having read it.
+      live
+      |> element(~s(button[phx-click="open"][phx-value-id="#{submission.id}"]))
+      |> render_click()
+
+      live
+      |> element(~s(button[phx-click="approve"][phx-value-id="#{submission.id}"]))
+      |> render_click()
+
+      assert Repo.exists?(
+               from q in Quiz, where: q.title == "Newcomer" and q.visibility == "public"
+             )
+
+      assert render(live) =~ "Nothing waiting."
+    end
+
+    test "turning one down keeps the reason for its author", %{conn: conn} do
+      key = "k-" <> String.duplicate("c", 40)
+      {:ok, submission} = Review.submit(QuizFixtures.package(%{"title" => "Not this"}), key)
+
+      {:ok, live, _html} = live(conn, ~p"/admin/review")
+
+      live
+      |> element(~s(button[phx-click="open"][phx-value-id="#{submission.id}"]))
+      |> render_click()
+
+      live
+      |> form(~s(form[phx-submit="reject"]), %{"note" => "Question 1 is not suitable."})
+      |> render_submit()
+
+      assert {:ok, reviewed} = Review.fetch(submission.id)
+      assert reviewed.status == "rejected"
+      assert reviewed.review_note == "Question 1 is not suitable."
+      refute Repo.exists?(from q in Quiz, where: q.title == "Not this")
+    end
+
+    test "a photo is served out of the package, never from disk", %{conn: conn} do
+      key = "k-" <> String.duplicate("e", 40)
+      # Unique bytes: uploads are content-addressed, so a photo another test
+      # already stored would not add a file and the check below would prove
+      # nothing.
+      photo = QuizFixtures.png_with_text("review-queue-#{System.unique_integer([:positive])}")
+
+      document = %{
+        format_version: 1,
+        title: "With a photo",
+        tags: ["fixture"],
+        questions: [
+          %{
+            type: "text_photo",
+            prompt: "What is this?",
+            accepted_answers: ["a dot"],
+            image: %{path: Archive.media_path("shot"), alt: nil}
+          }
+        ]
+      }
+
+      {:ok, package} = Archive.build(document, %{Archive.media_path("shot") => photo})
+
+      before = uploaded_files()
+      {:ok, submission} = Review.submit(package, key)
+
+      conn =
+        get(conn, ~p"/admin/submissions/#{submission.id}/photo", %{
+          "path" => Archive.media_path("shot")
+        })
+
+      assert response(conn, 200) == photo
+      # Unreviewed bytes somebody uploaded: never sniffed, framed or kept.
+      assert get_resp_header(conn, "x-content-type-options") == ["nosniff"]
+      assert get_resp_header(conn, "cache-control") == ["no-store"]
+
+      # And nothing has reached the uploads volume: the photo only exists
+      # inside the package until somebody approves it.
+      assert uploaded_files() == before
+
+      # Approving is what puts it there, and not before.
+      {:ok, _quiz} = Review.approve(submission.id)
+      assert length(uploaded_files()) == length(before) + 1
+    end
+
+    test "reading one shows what is in the package", %{conn: conn} do
+      key = "k-" <> String.duplicate("d", 40)
+      {:ok, submission} = Review.submit(QuizFixtures.package(), key)
+
+      {:ok, live, _html} = live(conn, ~p"/admin/review")
+
+      html =
+        live
+        |> element(~s(button[phx-click="open"][phx-value-id="#{submission.id}"]))
+        |> render_click()
+
+      # The prompts and the accepted answers, which is the whole point of
+      # reading it before it is public.
+      assert html =~ "Who directed Jurassic Park?"
+      assert html =~ "Steven Spielberg"
     end
   end
 end

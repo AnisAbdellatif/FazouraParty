@@ -1,6 +1,6 @@
 defmodule FazouraWeb.Admin.QuizEditLive do
   @moduledoc """
-  Editing one quiz — its metadata and every question (ADMIN.md §3.3).
+  Editing one quiz — its metadata and every question (ADMIN.md §3.4).
 
   The working copy is a plain list of question maps in the socket rather than a
   changeset, because most of what happens here is not validation: adding, removing and
