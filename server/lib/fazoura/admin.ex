@@ -10,7 +10,7 @@ defmodule Fazoura.Admin do
 
   alias Fazoura.Metrics
   alias Fazoura.Quizzes
-  alias Fazoura.Quizzes.{Image, Question, Quiz, Review, Tag}
+  alias Fazoura.Quizzes.{Image, Question, Quiz, Reports, Review, Tag}
   alias Fazoura.Repo
   alias Fazoura.Rooms
 
@@ -158,7 +158,7 @@ defmodule Fazoura.Admin do
   end
 
   @doc """
-  The quiz the editor works on, with its questions and tags (ADMIN.md §3.4).
+  The quiz the editor works on, with its questions and tags (ADMIN.md §3.5).
   """
   @spec fetch_quiz(term()) :: {:ok, Quiz.t()} | {:error, :quiz_not_found}
   def fetch_quiz(id) do
@@ -259,4 +259,19 @@ defmodule Fazoura.Admin do
 
   @doc "Turns a submission down, with a note its author's device can show."
   defdelegate reject_submission(id, note), to: Review, as: :reject
+
+  ## Reported quizzes (ADMIN.md §3.3)
+
+  @doc "Published quizzes somebody has objected to, longest-waiting first."
+  defdelegate reported_quizzes(limit \\ 50), to: Reports, as: :open
+
+  @doc "How many quizzes are waiting on an answer."
+  defdelegate reported_quiz_count(), to: Reports, as: :open_count
+
+  @doc """
+  Answers every open report against a quiz without taking it down.
+
+  The other answer is `delete_quiz/1`, which takes the quiz's reports with it.
+  """
+  defdelegate dismiss_reports(quiz_id), to: Reports, as: :dismiss
 end

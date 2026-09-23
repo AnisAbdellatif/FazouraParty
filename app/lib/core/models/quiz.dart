@@ -203,3 +203,20 @@ abstract class QuizSubmission with _$QuizSubmission {
   bool get isApproved => status == approved;
   bool get isRejected => status == rejected;
 }
+
+/// Why somebody is reporting a public quiz (QUIZ_FORMAT.md §5.9).
+///
+/// The values and the order are the server's (`Fazoura.Quizzes.Report`), and
+/// the list is deliberately short: a long one makes people guess, and the note
+/// is where anything specific goes.
+const quizReportReasons = <({String value, String label})>[
+  (value: 'sexual', label: 'Sexual or adult content'),
+  (value: 'hate', label: 'Hate speech or harassment'),
+  (value: 'violence', label: 'Violence or dangerous content'),
+  (value: 'illegal', label: 'Illegal content'),
+  (value: 'spam', label: 'Spam or nonsense'),
+  (value: 'other', label: 'Something else'),
+];
+
+/// Longest note a report may carry, matching the server's own limit.
+const maxReportNoteLength = 500;

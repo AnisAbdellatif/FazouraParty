@@ -210,7 +210,7 @@ defmodule Fazoura.Quizzes do
   device holding an offline copy can tell it is stale.
 
   Whoever calls this has already decided they are allowed to: `replace/3` checks the
-  publisher key, and `Fazoura.Admin` answers to the dashboard instead (ADMIN.md §3.4).
+  publisher key, and `Fazoura.Admin` answers to the dashboard instead (ADMIN.md §3.5).
   """
   @spec replace_document(Quiz.t(), map()) :: {:ok, Quiz.t()} | {:error, Ecto.Changeset.t()}
   def replace_document(%Quiz{} = quiz, params) do

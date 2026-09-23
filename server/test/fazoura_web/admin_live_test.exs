@@ -594,6 +594,102 @@ defmodule FazouraWeb.AdminLiveTest do
     end
   end
 
+  describe "reported quizzes" do
+    alias Fazoura.Quizzes.Reports
+
+    defp reported(quiz, letter, params) do
+      {:ok, report} = Reports.submit(quiz.id, "k-" <> String.duplicate(letter, 40), params)
+      report
+    end
+
+    test "lists what has been reported, with the reasons given", %{conn: conn, quiz: quiz} do
+      reported(quiz, "a", %{"reason" => "hate", "note" => "Question 3 is vile."})
+      reported(quiz, "b", %{"reason" => "hate"})
+
+      {:ok, _live, html} = live(conn, ~p"/admin/reports")
+
+      assert html =~ quiz.title
+      assert html =~ "1 waiting"
+      assert html =~ "Hate speech or harassment ×2"
+    end
+
+    test "nothing reported is nothing to answer", %{conn: conn} do
+      {:ok, _live, html} = live(conn, ~p"/admin/reports")
+
+      assert html =~ "Nothing reported."
+    end
+
+    test "opening one shows the notes and the quiz itself", %{conn: conn, quiz: quiz} do
+      reported(quiz, "a", %{"reason" => "sexual", "note" => "The photo on question 1."})
+
+      {:ok, live, _html} = live(conn, ~p"/admin/reports")
+
+      html =
+        live
+        |> element(~s(button[phx-click="open"][phx-value-id="#{quiz.id}"]))
+        |> render_click()
+
+      assert html =~ "The photo on question 1."
+      assert html =~ "Sexual or adult content"
+      # The quiz is public, so deciding about it means reading it here rather
+      # than going to look it up.
+      assert html =~ hd(quiz.questions).prompt
+    end
+
+    test "taking it down removes the quiz and clears the queue", %{conn: conn, quiz: quiz} do
+      reported(quiz, "a", %{"reason" => "illegal"})
+
+      {:ok, live, _html} = live(conn, ~p"/admin/reports")
+
+      # Like approving a submission, deciding only exists once it is open:
+      # there is no answering a report from the list without reading it.
+      live
+      |> element(~s(button[phx-click="open"][phx-value-id="#{quiz.id}"]))
+      |> render_click()
+
+      live
+      |> element(~s(button[phx-click="take_down"][phx-value-id="#{quiz.id}"]))
+      |> render_click()
+
+      refute Repo.exists?(from q in Quiz, where: q.id == ^quiz.id)
+      assert render(live) =~ "Nothing reported."
+    end
+
+    test "keeping it answers the reports and leaves the quiz up", %{conn: conn, quiz: quiz} do
+      reported(quiz, "a", %{"reason" => "spam"})
+
+      {:ok, live, _html} = live(conn, ~p"/admin/reports")
+
+      live
+      |> element(~s(button[phx-click="open"][phx-value-id="#{quiz.id}"]))
+      |> render_click()
+
+      live
+      |> element(~s(button[phx-click="dismiss"][phx-value-id="#{quiz.id}"]))
+      |> render_click()
+
+      assert Repo.exists?(from q in Quiz, where: q.id == ^quiz.id)
+      assert render(live) =~ "Nothing reported."
+      assert Reports.open() == []
+    end
+
+    test "a report left longer than a day is called out", %{conn: conn, quiz: quiz} do
+      report = reported(quiz, "a", %{"reason" => "spam"})
+
+      # Play expects an answer within a day; the screen has to say which ones
+      # are past that rather than leaving an admin to work it out from a date.
+      Repo.update_all(
+        from(r in Fazoura.Quizzes.Report, where: r.id == ^report.id),
+        set: [reported_at: DateTime.add(DateTime.utc_now(), -30, :hour)]
+      )
+
+      {:ok, _live, html} = live(conn, ~p"/admin/reports")
+
+      assert html =~ "overdue"
+      assert html =~ "1d ago"
+    end
+  end
+
   describe "the review queue" do
     alias Fazoura.Quizzes.Review
 

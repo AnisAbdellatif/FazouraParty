@@ -132,6 +132,21 @@ class QuizApi {
   /// Takes a submission back out of the queue. This device's own only.
   Future<void> withdraw(String id) => _send('DELETE', '/api/submissions/$id');
 
+  /// Reports a public quiz as something that should not be public (§5.9).
+  ///
+  /// The server answers the same way whatever it does with it — first report or
+  /// fifth, already dismissed or not. That is deliberate: what an admin has
+  /// decided is not something a caller gets to probe.
+  Future<void> report(String id, {required String reason, String? note}) =>
+      _send(
+        'POST',
+        '/api/quizzes/$id/report',
+        json: {
+          'reason': reason,
+          if (note != null && note.isNotEmpty) 'note': note,
+        },
+      );
+
   /// Unpublishes a quiz this device published (§5.5).
   Future<void> delete(String id) => _send('DELETE', '/api/quizzes/$id');
 
@@ -173,10 +188,16 @@ class QuizApi {
     String method,
     String path, {
     Map<String, String>? query,
+    Map<String, dynamic>? json,
   }) async {
     final request = http.Request(method, _uri(path, query))
       ..headers['x-owner-key'] = await ownerKey()
       ..headers['accept'] = 'application/json';
+    if (json != null) {
+      request
+        ..headers['content-type'] = 'application/json'
+        ..body = jsonEncode(json);
+    }
     final http.Response response;
     try {
       response = await http.Response.fromStream(await _client.send(request));

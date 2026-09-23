@@ -64,7 +64,34 @@ the photo store to find until it has been read.
 Approve only exists once a submission is open: there is no way to publish one from the list
 without having read it.
 
-### 3.3 Quizzes (`/admin/quizzes`)
+### 3.3 Reports (`/admin/reports`)
+
+The other end of the review queue. Review reads a quiz before it goes out; this hears
+about the ones that got through — because a reader was wrong, or because the author
+edited it afterwards into something else (QUIZ_FORMAT.md §5.9).
+
+Google Play requires an in-app way to report user content and a timely answer to it, so
+this is a queue with a clock on it rather than a mailbox.
+
+- Reported quizzes, longest-waiting first, with a count in the tab. A quiz's place is set
+  by the **first** person who complained about it, not the most recent, so a pile-on
+  cannot push an older complaint down the list.
+- Each row carries how many people reported it and why. One device counts once however
+  many times it taps, so the number means people.
+- **Read** opens it: every reason and note given, and the quiz itself — prompts, accepted
+  answers and photos — because deciding whether something should be public means looking
+  at it, not at a title.
+- Anything left longer than a day is called out in the list, since that is the window Play
+  expects an answer in.
+- **Take it down** deletes the quiz, and its reports go with it. **Keep it** answers every
+  open report and leaves the quiz public. **Edit it instead** opens the editor (§3.5), for
+  a quiz that needs one question removed rather than deleting altogether — the reports stay
+  open until answered either way.
+
+Like approving a submission, both answers exist only once a report is open: there is no
+answering one from the list without having read it.
+
+### 3.4 Quizzes (`/admin/quizzes`)
 
 - Search by title or tag.
 - **Make preset / Unset preset.** A preset is `source: "builtin"`: it gets a slug, is
@@ -83,7 +110,7 @@ without having read it.
   quiz and become ordinary uploads owned by a key no device holds (§6); a pasted document does
   not, so its photos must already be uploaded. `tools/fazoura_pack.py` builds a package from a
   folder of JSON and images.
-- **Edit** any quiz — its metadata and every question — in the editor (§3.4). A quiz added
+- **Edit** any quiz — its metadata and every question — in the editor (§3.5). A quiz added
   from a package or a pasted document opens there straight away, since a new quiz is the one
   most likely to need a correction before anyone plays it.
 - **Delete** any quiz, preset or community, with its questions and tags. Running games are
@@ -92,7 +119,7 @@ without having read it.
 Moderation deliberately ignores the publisher key that normally guards a quiz
 (QUIZ_FORMAT.md §4).
 
-### 3.4 Quiz editor (`/admin/quizzes/:id/edit`)
+### 3.5 Quiz editor (`/admin/quizzes/:id/edit`)
 
 Everything about one quiz, community or preset.
 
@@ -128,7 +155,7 @@ Everything about one quiz, community or preset.
 
 The working copy lives in the LiveView until it is saved, so leaving the page discards it.
 
-### 3.5 Tags (`/admin/tags`)
+### 3.6 Tags (`/admin/tags`)
 
 The **suggested tags** the apps offer as quick picks (QUIZ_FORMAT.md §2.3): add, remove,
 reorder, and reset to the built-in list. Each tag shows how many public quizzes use it.

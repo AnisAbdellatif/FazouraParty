@@ -6,7 +6,7 @@ defmodule FazouraWeb.QuizController do
   import FazouraWeb.ApiHelpers, only: [owner_key: 1, int_param: 2, error: 4]
 
   alias Fazoura.Quizzes
-  alias Fazoura.Quizzes.Review
+  alias Fazoura.Quizzes.{Reports, Review}
 
   action_fallback FazouraWeb.FallbackController
 
@@ -120,6 +120,19 @@ defmodule FazouraWeb.QuizController do
 
   def delete(conn, %{"id" => id}) do
     with :ok <- Quizzes.delete(id, owner_key(conn)) do
+      send_resp(conn, :no_content, "")
+    end
+  end
+
+  # Reporting a published quiz (§5.9). Anyone may report anything public; the
+  # key is here to count devices rather than taps, not to decide who may.
+  #
+  # The answer says nothing about what happened to the report — not whether it
+  # is the first, not how many others there are, not whether an admin has
+  # already dismissed one. That is moderation state, and handing it back would
+  # let anybody probe it.
+  def report(conn, %{"id" => id} = params) do
+    with {:ok, _report} <- Reports.submit(id, owner_key(conn), params) do
       send_resp(conn, :no_content, "")
     end
   end

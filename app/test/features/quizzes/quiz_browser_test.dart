@@ -393,6 +393,91 @@ void main() {
     expect(find.text('IN REVIEW'), findsOneWidget);
   });
 
+  group('reporting a public quiz', () {
+    Future<void> openReport(WidgetTester tester, String id) async {
+      await tapKey(tester, ValueKey('reportQuiz-$id'));
+      // The sheet is a deferred chunk, so it arrives a frame late.
+      await settle(tester);
+    }
+
+    testWidgets('sends the reason and the note', (tester) async {
+      await openBrowser(tester, public: [quiz('mv', 'Movie Night')]);
+
+      await openReport(tester, 'mv');
+      await tapKey(tester, const Key('reportReason-sexual'));
+      await tester.enterText(
+        find.byKey(const Key('reportNoteField')),
+        'The photo on question 4.',
+      );
+      await tapKey(tester, const Key('sendReport'));
+
+      expect(server.reports, hasLength(1));
+      expect(server.reports.single.quizId, 'mv');
+      expect(server.reports.single.reason, 'sexual');
+      expect(server.reports.single.note, 'The photo on question 4.');
+      expect(find.text('Reported. Somebody will read it.'), findsOneWidget);
+    });
+
+    testWidgets('a note is optional', (tester) async {
+      await openBrowser(tester, public: [quiz('mv', 'Movie Night')]);
+
+      await openReport(tester, 'mv');
+      await tapKey(tester, const Key('reportReason-spam'));
+      await tapKey(tester, const Key('sendReport'));
+
+      expect(server.reports.single.reason, 'spam');
+      expect(server.reports.single.note, isNull);
+    });
+
+    testWidgets('asks for a reason before sending anything', (tester) async {
+      await openBrowser(tester, public: [quiz('mv', 'Movie Night')]);
+
+      await openReport(tester, 'mv');
+      await tapKey(tester, const Key('sendReport'));
+
+      expect(find.byKey(const Key('reportError')), findsOneWidget);
+      expect(server.reports, isEmpty);
+    });
+
+    testWidgets('cancelling reports nothing', (tester) async {
+      await openBrowser(tester, public: [quiz('mv', 'Movie Night')]);
+
+      await openReport(tester, 'mv');
+      await tapKey(tester, const Key('reportReason-hate'));
+      await tester.tap(find.text('Cancel'));
+      await settle(tester);
+
+      expect(server.reports, isEmpty);
+      expect(find.text('Report'), findsOneWidget);
+    });
+
+    testWidgets('the button says so afterwards', (tester) async {
+      await openBrowser(tester, public: [quiz('mv', 'Movie Night')]);
+
+      await openReport(tester, 'mv');
+      await tapKey(tester, const Key('reportReason-other'));
+      await tapKey(tester, const Key('sendReport'));
+
+      expect(find.text('Reported'), findsOneWidget);
+    });
+
+    testWidgets('a failure keeps the sheet open to try again', (tester) async {
+      await openBrowser(tester, public: [quiz('mv', 'Movie Night')]);
+      server.failWrites = true;
+
+      await openReport(tester, 'mv');
+      await tapKey(tester, const Key('reportReason-violence'));
+      await tapKey(tester, const Key('sendReport'));
+
+      expect(find.byKey(const Key('reportError')), findsOneWidget);
+      expect(server.reports, isEmpty);
+
+      server.failWrites = false;
+      await tapKey(tester, const Key('sendReport'));
+      expect(server.reports.single.reason, 'violence');
+    });
+  });
+
   testWidgets('loads more pages', (tester) async {
     await openBrowser(
       tester,

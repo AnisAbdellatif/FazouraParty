@@ -2,6 +2,7 @@ defmodule FazouraWeb.QuizControllerTest do
   use FazouraWeb.ConnCase, async: false
 
   alias Fazoura.QuizFixtures
+  alias Fazoura.Quizzes.Reports
   alias Fazoura.Quizzes.Review
 
   @owner QuizFixtures.owner_key()
@@ -344,6 +345,77 @@ defmodule FazouraWeb.QuizControllerTest do
     assert conn |> as(@other) |> delete(~p"/api/quizzes/#{id}") |> json_response(404)
     assert conn |> as(@owner) |> delete(~p"/api/quizzes/#{id}") |> response(204)
     assert conn |> get(~p"/api/quizzes/#{id}") |> json_response(404)
+  end
+
+  describe "reporting a public quiz" do
+    test "anybody can report one, and is told nothing back", %{conn: conn} do
+      quiz = QuizFixtures.published!()
+
+      assert conn
+             |> as(@other)
+             |> post(~p"/api/quizzes/#{quiz.id}/report", %{
+               "reason" => "sexual",
+               "note" => "Question 2."
+             })
+             |> response(204)
+
+      assert [queued] = Reports.open()
+      assert queued.quiz.id == quiz.id
+      assert [report] = queued.reports
+      assert report.reason == "sexual"
+      assert report.note == "Question 2."
+    end
+
+    test "the publisher may report their own, pointless as that is", %{conn: conn} do
+      quiz = QuizFixtures.published!()
+
+      assert conn
+             |> as(@owner)
+             |> post(~p"/api/quizzes/#{quiz.id}/report", %{"reason" => "spam"})
+             |> response(204)
+    end
+
+    test "a made-up reason is refused", %{conn: conn} do
+      quiz = QuizFixtures.published!()
+
+      assert %{"code" => "invalid_report", "message" => message} =
+               conn
+               |> as(@other)
+               |> post(~p"/api/quizzes/#{quiz.id}/report", %{"reason" => "boring"})
+               |> json_response(422)
+
+      assert message =~ "sexual"
+      assert Reports.open() == []
+    end
+
+    test "a quiz nobody published cannot be reported", %{conn: conn} do
+      assert conn
+             |> as(@other)
+             |> post(~p"/api/quizzes/#{Ecto.UUID.generate()}/report", %{"reason" => "spam"})
+             |> json_response(404)
+    end
+
+    test "without a key there is nothing to count devices by", %{conn: conn} do
+      quiz = QuizFixtures.published!()
+
+      assert %{"code" => "owner_key_required"} =
+               conn
+               |> post(~p"/api/quizzes/#{quiz.id}/report", %{"reason" => "spam"})
+               |> json_response(401)
+    end
+
+    test "the answer never says what an admin has already decided", %{conn: conn} do
+      quiz = QuizFixtures.published!()
+      {:ok, _} = Reports.submit(quiz.id, @other, %{"reason" => "spam"})
+      {:ok, 1} = Reports.dismiss(quiz.id)
+
+      # Same empty answer as the first report: a caller cannot probe moderation
+      # state by watching how the endpoint replies.
+      assert conn
+             |> as(@other)
+             |> post(~p"/api/quizzes/#{quiz.id}/report", %{"reason" => "hate"})
+             |> response(204) == ""
+    end
   end
 
   test "CORS preflight allows the publisher key header and write methods", %{conn: conn} do

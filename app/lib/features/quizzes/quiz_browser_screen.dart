@@ -15,6 +15,9 @@ import '../../shared/widgets/fz_direction.dart';
 import '../../shared/widgets/fz_choice.dart';
 import '../../shared/widgets/stripe_header.dart';
 import 'quiz_choice.dart';
+// The report sheet is only reached by tapping Report, and carries its own
+// form; a guest browsing never downloads it.
+import 'report_quiz.dart' deferred as reporting;
 // The editor carries the photo pipeline and `package:image`; browsing does
 // not need either until someone opens it.
 import 'quiz_editor_screen.dart' deferred as editor;
@@ -73,6 +76,10 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
   List<String> _suggested = defaultQuizTags;
   List<QuizDocument> _public = const [];
   List<LocalQuiz> _local = const [];
+
+  /// Quizzes reported from this screen. Not stored: it only keeps the button
+  /// honest while the browser is open.
+  final _reportedIds = <String>{};
   int? _nextOffset;
   bool _loading = false;
   String? _error;
@@ -360,6 +367,22 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
     }
   }
 
+  /// Reports a public quiz, then remembers that this device did — so the
+  /// button can say so. The server counts one report per device however many
+  /// times it is tapped, so this is only about not leaving somebody wondering
+  /// whether it went through.
+  Future<void> _report(QuizDocument quiz) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await reporting.loadLibrary();
+    if (!mounted) return;
+    final sent = await reporting.showReportQuiz(context, quiz);
+    if (!sent || !mounted) return;
+    setState(() => _reportedIds.add(quiz.hostId));
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Reported. Somebody will read it.')),
+    );
+  }
+
   Future<void> _saveOffline(QuizDocument quiz) async {
     final id = quiz.hostId;
     final savedVersion = _savedPublicVersions[id];
@@ -562,6 +585,19 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
                                 _savingPublicIds.contains(quiz.hostId)
                             ? null
                             : () => _saveOffline(quiz),
+                      ),
+                      // Anything anyone can find is something anyone can
+                      // object to (QUIZ_FORMAT.md §5.9).
+                      FzPill(
+                        key: ValueKey('reportQuiz-${quiz.hostId}'),
+                        label: _reportedIds.contains(quiz.hostId)
+                            ? 'Reported'
+                            : 'Report',
+                        icon: _reportedIds.contains(quiz.hostId)
+                            ? Icons.flag
+                            : Icons.outlined_flag,
+                        color: FzColors.dim,
+                        onPressed: () => _report(quiz),
                       ),
                     ],
                     tags: [

@@ -131,6 +131,9 @@ class FakeQuizServer {
       if (item.status == QuizSubmission.pending) item,
   ];
 
+  /// Reports somebody has sent about a public quiz, newest last.
+  final List<({String quizId, String reason, String? note})> reports = [];
+
   /// Puts a package in the queue without a request, for a test that needs a
   /// device to start out with something already waiting.
   FakeSubmission queue(QuizDocument document, {String? replaces}) {
@@ -296,6 +299,30 @@ class FakeQuizServer {
       return _json(_submit(request).json, 201);
     }
 
+    // Before the catch-all below, which would otherwise read "pub-1/report"
+    // as a quiz id.
+    final reportedId = RegExp(r'^/api/quizzes/(.+)/report$')
+        .firstMatch(path)
+        ?.group(1);
+    if (request.method == 'POST' && reportedId != null) {
+      if (quizzes.indexWhere((q) => q.id == reportedId) < 0) {
+        return _json({'code': 'quiz_not_found'}, 404);
+      }
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      final reason = body['reason'] as String?;
+      if (reason == null || !_reportReasons.contains(reason)) {
+        return _json({'code': 'invalid_report'}, 422);
+      }
+      reports.add((
+        quizId: reportedId,
+        reason: reason,
+        note: body['note'] as String?,
+      ));
+      // Nothing back: what an admin decides is not something a caller can
+      // probe by reading the answer (§5.9).
+      return http.Response('', 204);
+    }
+
     final id = RegExp(r'^/api/quizzes/(.+)$').firstMatch(path)?.group(1);
     final index = quizzes.indexWhere((q) => q.id == id);
     if (index < 0) return _json({'code': 'quiz_not_found'}, 404);
@@ -359,6 +386,15 @@ class FakeQuizServer {
     }
     throw StateError('No "file" part in the request.');
   }
+
+  static const _reportReasons = {
+    'sexual',
+    'hate',
+    'violence',
+    'illegal',
+    'spam',
+    'other',
+  };
 
   static http.Response _json(Object body, [int status = 200]) =>
       http.Response(jsonEncode(body), status);

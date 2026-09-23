@@ -235,7 +235,7 @@ Order: built-in first, then most recently updated.
 
 `tags` are the tags public quizzes actually use, most used first then alphabetically
 (query: `limit`, 1–100, default 30). `suggested` is the admin-maintained quick-pick list
-(§2.3, ADMIN.md §3.5); clients fall back to their built-in list when it is empty or the
+(§2.3, ADMIN.md §3.6); clients fall back to their built-in list when it is empty or the
 server can't be reached.
 
 ```json
@@ -272,7 +272,7 @@ keeps text, accepted answers and binary images together and can be retained or s
 Clients should verify and unpack it in memory or in their local cache before hosting. The JSON
 download endpoint remains available for compatibility.
 
-The same format goes the other way. An admin uploads one from the dashboard (ADMIN.md §3.3) to
+The same format goes the other way. An admin uploads one from the dashboard (ADMIN.md §3.4) to
 add a quiz with its photos in a single step, and `tools/fazoura_pack.py` builds one from a folder
 of JSON and images — so a quiz can be written offline, or moved from one server to another,
 without publishing every photo by hand first:
@@ -377,6 +377,34 @@ listening on, at `http://<host-ip>:<port>/api/room-images/<key>`, with the same 
 fails the intent with `invalid_quiz`, the code Cloud answers with for the same document.
 Clients cannot tell the two apart: both send an ordinary `image_url`.
 
+
+### 5.9 `POST /api/quizzes/:id/report`
+
+Header `x-owner-key` required. Reports a public quiz as something that should not be
+public. `204`, always — the answer says nothing about what happened to the report, not
+whether it is the first, not how many others there are, and not whether an admin has
+already decided. That is moderation state, and a caller does not get to probe it.
+
+```json
+{"reason": "sexual" | "hate" | "violence" | "illegal" | "spam" | "other",
+ "note": "optional, ≤ 500 characters"}
+```
+
+The key identifies a device, not a person and not a permission: anybody may report
+anything public, including a quiz they published themselves. It is stored as
+`sha256(publisher_key)`, the same hash a published quiz carries, and only so that one
+device tapping twice is one report — an admin reads the count as "how many people", so it
+has to mean that. Reporting again replaces what that device said; the first report's
+timestamp stands, because that is when the clock started, and a report already answered
+stays answered.
+
+Errors: `401 owner_key_required`, `404 quiz_not_found`, `422 invalid_report` for a reason
+that isn't one of the six. Metered at ten a minute per IP: somebody who has seen something
+they want gone reports it once.
+
+An admin answers every open report against a quiz by taking the quiz down or by deciding
+it is fine (ADMIN.md §3.3). Google Play requires both the in-app route and a timely answer
+to it, which is why reports are a queue rather than a mailbox.
 
 ## 6. Presets
 
