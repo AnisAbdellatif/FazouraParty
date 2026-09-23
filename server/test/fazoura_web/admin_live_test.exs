@@ -392,7 +392,7 @@ defmodule FazouraWeb.AdminLiveTest do
       assert {saved.default_time_limit_ms, saved.default_difficulty_multiplier} == {45_000, true}
 
       # A device holding an offline copy has to be able to tell it is stale.
-      assert saved.version == "1.1"
+      assert saved.version == 2
     end
 
     test "edits a question", %{conn: conn, quiz: quiz} do
@@ -466,7 +466,7 @@ defmodule FazouraWeb.AdminLiveTest do
       assert html =~ "tags must be a list of 1 to 10 tags"
 
       # Nothing was written, and the form still holds what was typed.
-      assert {:ok, %{title: "Movie Night", version: "1.0"}} = Quizzes.fetch(quiz.id)
+      assert {:ok, %{title: "Movie Night", version: 1}} = Quizzes.fetch(quiz.id)
     end
 
     test "a question cannot be saved empty", %{conn: conn, quiz: quiz} do
@@ -475,7 +475,7 @@ defmodule FazouraWeb.AdminLiveTest do
       fields(view, %{"questions" => %{"q1" => %{"prompt" => "", "accepted_answers" => ""}}})
 
       assert save(view) =~ "questions"
-      assert {:ok, %{version: "1.0"}} = Quizzes.fetch(quiz.id)
+      assert {:ok, %{version: 1}} = Quizzes.fetch(quiz.id)
     end
 
     test "a question with no photo does not pretend to have one", %{conn: conn, quiz: quiz} do

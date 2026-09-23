@@ -3,10 +3,34 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'quiz.freezed.dart';
 part 'quiz.g.dart';
 
-String quizVersionFromJson(Object? value) {
+/// The document format this quiz was written for (QUIZ_FORMAT.md §2.1).
+///
+/// `<major>.<minor>`. A plain integer is every document written before the
+/// format carried a minor — presets, packages, and whatever a device saved
+/// before it took an update — and those are format `N.0`.
+String quizFormatVersionFromJson(Object? value) {
   if (value is num) return '${value.toInt()}.0';
   if (value is String && value.isNotEmpty) return value;
   return '1.0';
+}
+
+/// How many times this quiz has been published: 1 the first time, +1 on every
+/// replacement. A device compares it with its saved copy's to spot a stale one.
+///
+/// Was `<major>.<minor>` as a string, where the minor did the counting and the
+/// major never moved — so "1.4" was the fifth revision and reads as 5.
+int quizVersionFromJson(Object? value) {
+  if (value is num) return value.toInt();
+  if (value is String) {
+    final parts = value.split('.');
+    if (parts.length == 2) {
+      final counted = int.tryParse(parts[1]);
+      if (counted != null) return counted + 1;
+    }
+    final plain = int.tryParse(value);
+    if (plain != null) return plain;
+  }
+  return 1;
 }
 
 /// Quiz JSON document (protocol/QUIZ_FORMAT.md §2). Listing endpoints omit
@@ -16,8 +40,10 @@ abstract class QuizDocument with _$QuizDocument {
   const QuizDocument._();
 
   const factory QuizDocument({
-    @Default(1) int formatVersion,
-    @JsonKey(fromJson: quizVersionFromJson) @Default('1.0') String version,
+    @JsonKey(fromJson: quizFormatVersionFromJson)
+    @Default('1.0')
+    String formatVersion,
+    @JsonKey(fromJson: quizVersionFromJson) @Default(1) int version,
     String? id,
     String? slug,
     required String title,
@@ -44,13 +70,9 @@ abstract class QuizDocument with _$QuizDocument {
   /// Id to send when hosting: the uuid, or the slug for built-ins.
   String get hostId => id ?? slug ?? '';
 
-  /// Numeric ordering for the `<major>.<minor>` content revision.
-  int get versionRank {
-    final parts = version.split('.');
-    final major = int.tryParse(parts.first) ?? 0;
-    final minor = parts.length > 1 ? int.tryParse(parts[1]) ?? 0 : 0;
-    return major * 1000000 + minor;
-  }
+  /// Kept as the name the browser compares offline copies by; the revision
+  /// number is now an ordering all by itself.
+  int get versionRank => version;
 
   /// Body for hosting a private quiz inline (§5.7): photos as base64 data.
   ///

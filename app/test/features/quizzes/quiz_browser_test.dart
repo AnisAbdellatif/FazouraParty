@@ -174,7 +174,7 @@ void main() {
     await tapKey(tester, const ValueKey('saveOffline-mv'));
 
     expect(find.text('Saved offline'), findsOneWidget);
-    expect(find.textContaining('VERSION 1.0'), findsOneWidget);
+    expect(find.textContaining('VERSION 1'), findsOneWidget);
     await tapKey(tester, const Key('quizScopeMine'));
     expect(find.text('Movie Night'), findsOneWidget);
   });

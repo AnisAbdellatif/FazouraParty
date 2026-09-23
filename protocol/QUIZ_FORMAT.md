@@ -16,9 +16,10 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 
 1. **One canonical JSON document** for a quiz. Built-in files, API bodies and exports all
    use it, so a quiz can move between them unchanged.
-2. **Evolvable.** Every document carries `format_version`. New optional fields can be
-   added without a version bump; readers ignore unknown keys. Removing or re-meaning a
-   field, or adding a required one, bumps `format_version` and needs a migration path.
+2. **Evolvable.** Every document carries `format_version`, as `<major>.<minor>`. New
+   optional fields bump the minor and cost nobody anything, because readers ignore unknown
+   keys and a reader accepts any document of its own major. Removing or re-meaning a field,
+   or adding a required one, bumps the major and needs a migration path (§7).
 3. **Room-safe.** Rooms snapshot a quiz when created (PROTOCOL.md §6.2), so editing a quiz
    never affects a running game.
 4. **No accidental answer leaks.** Accepted answers are omitted from public listings and
@@ -30,12 +31,12 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
    database for everyone). A per-device secret lets the publishing device update or
    unpublish; the model leaves room for a user id later without changing the document.
 
-## 2. Quiz document (format version 1)
+## 2. Quiz document (format version 1.0)
 
 ```json
 {
-  "format_version": 1,
-  "version": "1.0",
+  "format_version": "1.0",
+  "version": 1,
   "id": "3f0c2a5e-6b1e-4f0a-9d8e-2b7c1e4a9f10",
   "slug": null,
   "title": "Movie Night",
@@ -86,8 +87,8 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 
 | Field | Type | Rules |
 |---|---|---|
-| `format_version` | int | Required on input; currently `1` |
-| `version` | string | Content revision in `<major>.<minor>` format, starting at `"1.0"`; the minor version increments whenever a published quiz is replaced. Clients use it to detect stale offline copies |
+| `format_version` | string | The format this document was written for, `<major>.<minor>`; currently `"1.0"`. Required on input. **A reader accepts any document whose major matches its own**, whatever the minor, because a minor only ever adds keys and an unknown key is ignored; a different major is refused. An integer (`1`) is a document from before the minor existed and means `1.0` |
+| `version` | int | How many times this quiz has been published: `1` the first time, +1 on every replacement. Clients compare it with their saved copy's to spot a stale offline download. Not a contract and nothing branches on it — a counter. A `<major>.<minor>` string is the old scheme, where the minor did the counting: `"1.4"` was the fifth revision and reads as `5` |
 | `id` | uuid string | Server-assigned; ignored on create |
 | `slug` | string \| null | Stable human id for built-in quizzes (`general-knowledge`); `null` for custom |
 | `title` | string | Required, 1–80 characters (trimmed) |
@@ -143,7 +144,7 @@ changesets), arrays via Ecto's `{:array, :string}`.
 
 ```
 quizzes
-  id uuid PK · slug string UNIQUE NULL · format_version int · version string
+  id uuid PK · slug string UNIQUE NULL · format_version string · version int
   title string · description text NULL · language string
   source string · visibility string · owner_key_hash string NULL (sha256 hex)
   default_time_limit_ms int · default_difficulty_multiplier bool
@@ -505,12 +506,22 @@ them, and re-running the sync restores them if the uploads volume is ever lost.
 
 ## 7. Evolution checklist
 
-- New optional field → add to this doc, the changeset and the Dart model with a default.
-  No version bump.
-- New suggested tag → an admin adds it in the dashboard; no release needed. Changing the
-  built-in fallback means editing §2.3, `Fazoura.Quizzes.Tag` and the Dart constant.
-- New question `type` → document its fields; old clients skip unknown types when listing
-  and the server refuses to start a room on a client that can't play it (future
-  `min_client_version`).
-- Breaking change → bump `format_version`, keep reading the previous version on import,
-  and write a data migration.
+`format_version` is `<major>.<minor>` and the two halves mean what they do everywhere else
+(PROTOCOL.md §1.1 draws the same line for the wire):
+
+- **New optional field** → add it to this doc, the changeset and the Dart model with a
+  default, and **bump the minor**. A reader of the previous minor still reads the document,
+  because it ignores the key it does not know — which is exactly what the minor promises,
+  and why bumping it costs nobody anything.
+- **New suggested tag** → an admin adds it in the dashboard; no release needed. Changing the
+  built-in fallback means editing §2.3, `Fazoura.Quizzes.Tag` and the Dart constant. No bump.
+- **New question `type`** → document its fields and bump the minor; old clients skip unknown
+  types when listing and the server refuses to start a room on a client that can't play it
+  (future `min_client_version`).
+- **Changing or removing a field a reader relies on** → **bump the major**, keep reading the
+  previous major on import, and write a data migration. This is the expensive one: every
+  stored quiz, every `.fazoura` anybody has saved and every preset in the repository was
+  written for the old major, so "keep reading it" is the whole cost of the change.
+
+A quiz's own `version` is not part of this. It is a revision counter the server maintains,
+and it never affects whether a document can be read.

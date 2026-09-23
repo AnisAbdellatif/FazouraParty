@@ -169,7 +169,7 @@ defmodule Fazoura.QuizFixtures do
   def quiz_params(attrs \\ %{}) do
     Map.merge(
       %{
-        "format_version" => 1,
+        "format_version" => "1.0",
         "title" => "Movie Night",
         "tags" => ["movies", "cinema"],
         "questions" => [

@@ -8,9 +8,11 @@ part of 'quiz.dart';
 
 _QuizDocument _$QuizDocumentFromJson(Map<String, dynamic> json) =>
     _QuizDocument(
-      formatVersion: (json['format_version'] as num?)?.toInt() ?? 1,
-      version: json['version'] == null
+      formatVersion: json['format_version'] == null
           ? '1.0'
+          : quizFormatVersionFromJson(json['format_version']),
+      version: json['version'] == null
+          ? 1
           : quizVersionFromJson(json['version']),
       id: json['id'] as String?,
       slug: json['slug'] as String?,

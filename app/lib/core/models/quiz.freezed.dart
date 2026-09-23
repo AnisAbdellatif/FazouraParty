@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$QuizDocument {
 
- int get formatVersion;@JsonKey(fromJson: quizVersionFromJson) String get version; String? get id; String? get slug; String get title; String? get description; String get language; List<String> get tags; String get source; String get visibility; bool get isOwner; QuizDefaultSettings get defaultSettings; int get questionCount; bool get hasPhotos; DateTime? get createdAt; DateTime? get updatedAt; List<QuizQuestion>? get questions;
+@JsonKey(fromJson: quizFormatVersionFromJson) String get formatVersion;@JsonKey(fromJson: quizVersionFromJson) int get version; String? get id; String? get slug; String get title; String? get description; String get language; List<String> get tags; String get source; String get visibility; bool get isOwner; QuizDefaultSettings get defaultSettings; int get questionCount; bool get hasPhotos; DateTime? get createdAt; DateTime? get updatedAt; List<QuizQuestion>? get questions;
 /// Create a copy of QuizDocument
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -54,7 +54,7 @@ abstract mixin class $QuizDocumentCopyWith<$Res>  {
   factory $QuizDocumentCopyWith(QuizDocument value, $Res Function(QuizDocument) _then) = _$QuizDocumentCopyWithImpl;
 @useResult
 $Res call({
- int formatVersion,@JsonKey(fromJson: quizVersionFromJson) String version, String? id, String? slug, String title, String? description, String language, List<String> tags, String source, String visibility, bool isOwner, QuizDefaultSettings defaultSettings, int questionCount, bool hasPhotos, DateTime? createdAt, DateTime? updatedAt, List<QuizQuestion>? questions
+@JsonKey(fromJson: quizFormatVersionFromJson) String formatVersion,@JsonKey(fromJson: quizVersionFromJson) int version, String? id, String? slug, String title, String? description, String language, List<String> tags, String source, String visibility, bool isOwner, QuizDefaultSettings defaultSettings, int questionCount, bool hasPhotos, DateTime? createdAt, DateTime? updatedAt, List<QuizQuestion>? questions
 });
 
 
@@ -74,8 +74,8 @@ class _$QuizDocumentCopyWithImpl<$Res>
 @pragma('vm:prefer-inline') @override $Res call({Object? formatVersion = null,Object? version = null,Object? id = freezed,Object? slug = freezed,Object? title = null,Object? description = freezed,Object? language = null,Object? tags = null,Object? source = null,Object? visibility = null,Object? isOwner = null,Object? defaultSettings = null,Object? questionCount = null,Object? hasPhotos = null,Object? createdAt = freezed,Object? updatedAt = freezed,Object? questions = freezed,}) {
   return _then(QuizDocument(
 formatVersion: null == formatVersion ? _self.formatVersion : formatVersion // ignore: cast_nullable_to_non_nullable
-as int,version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
-as String,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
+as int,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String?,slug: freezed == slug ? _self.slug : slug // ignore: cast_nullable_to_non_nullable
 as String?,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
@@ -184,7 +184,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int formatVersion, @JsonKey(fromJson: quizVersionFromJson)  String version,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: quizFormatVersionFromJson)  String formatVersion, @JsonKey(fromJson: quizVersionFromJson)  int version,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _QuizDocument() when $default != null:
 return $default(_that.formatVersion,_that.version,_that.id,_that.slug,_that.title,_that.description,_that.language,_that.tags,_that.source,_that.visibility,_that.isOwner,_that.defaultSettings,_that.questionCount,_that.hasPhotos,_that.createdAt,_that.updatedAt,_that.questions);case _:
@@ -205,7 +205,7 @@ return $default(_that.formatVersion,_that.version,_that.id,_that.slug,_that.titl
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int formatVersion, @JsonKey(fromJson: quizVersionFromJson)  String version,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: quizFormatVersionFromJson)  String formatVersion, @JsonKey(fromJson: quizVersionFromJson)  int version,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)  $default,) {final _that = this;
 switch (_that) {
 case _QuizDocument():
 return $default(_that.formatVersion,_that.version,_that.id,_that.slug,_that.title,_that.description,_that.language,_that.tags,_that.source,_that.visibility,_that.isOwner,_that.defaultSettings,_that.questionCount,_that.hasPhotos,_that.createdAt,_that.updatedAt,_that.questions);case _:
@@ -225,7 +225,7 @@ return $default(_that.formatVersion,_that.version,_that.id,_that.slug,_that.titl
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int formatVersion, @JsonKey(fromJson: quizVersionFromJson)  String version,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: quizFormatVersionFromJson)  String formatVersion, @JsonKey(fromJson: quizVersionFromJson)  int version,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)?  $default,) {final _that = this;
 switch (_that) {
 case _QuizDocument() when $default != null:
 return $default(_that.formatVersion,_that.version,_that.id,_that.slug,_that.title,_that.description,_that.language,_that.tags,_that.source,_that.visibility,_that.isOwner,_that.defaultSettings,_that.questionCount,_that.hasPhotos,_that.createdAt,_that.updatedAt,_that.questions);case _:
@@ -240,11 +240,11 @@ return $default(_that.formatVersion,_that.version,_that.id,_that.slug,_that.titl
 @JsonSerializable()
 
 class _QuizDocument extends QuizDocument {
-  const _QuizDocument({this.formatVersion = 1, @JsonKey(fromJson: quizVersionFromJson) this.version = '1.0', this.id, this.slug, required this.title, this.description, this.language = 'en',  List<String> tags = const <String>[], this.source = 'custom', this.visibility = 'private', this.isOwner = false, this.defaultSettings = const QuizDefaultSettings(), this.questionCount = 0, this.hasPhotos = false, this.createdAt, this.updatedAt,  List<QuizQuestion>? questions}): _tags = tags,_questions = questions,super._();
+  const _QuizDocument({@JsonKey(fromJson: quizFormatVersionFromJson) this.formatVersion = '1.0', @JsonKey(fromJson: quizVersionFromJson) this.version = 1, this.id, this.slug, required this.title, this.description, this.language = 'en',  List<String> tags = const <String>[], this.source = 'custom', this.visibility = 'private', this.isOwner = false, this.defaultSettings = const QuizDefaultSettings(), this.questionCount = 0, this.hasPhotos = false, this.createdAt, this.updatedAt,  List<QuizQuestion>? questions}): _tags = tags,_questions = questions,super._();
   factory _QuizDocument.fromJson(Map<String, dynamic> json) => _$QuizDocumentFromJson(json);
 
-@override@JsonKey() final  int formatVersion;
-@override@JsonKey(fromJson: quizVersionFromJson) final  String version;
+@override@JsonKey(fromJson: quizFormatVersionFromJson) final  String formatVersion;
+@override@JsonKey(fromJson: quizVersionFromJson) final  int version;
 @override final  String? id;
 @override final  String? slug;
 @override final  String title;
@@ -310,7 +310,7 @@ abstract mixin class _$QuizDocumentCopyWith<$Res> implements $QuizDocumentCopyWi
   factory _$QuizDocumentCopyWith(_QuizDocument value, $Res Function(_QuizDocument) _then) = __$QuizDocumentCopyWithImpl;
 @override @useResult
 $Res call({
- int formatVersion,@JsonKey(fromJson: quizVersionFromJson) String version, String? id, String? slug, String title, String? description, String language, List<String> tags, String source, String visibility, bool isOwner, QuizDefaultSettings defaultSettings, int questionCount, bool hasPhotos, DateTime? createdAt, DateTime? updatedAt, List<QuizQuestion>? questions
+@JsonKey(fromJson: quizFormatVersionFromJson) String formatVersion,@JsonKey(fromJson: quizVersionFromJson) int version, String? id, String? slug, String title, String? description, String language, List<String> tags, String source, String visibility, bool isOwner, QuizDefaultSettings defaultSettings, int questionCount, bool hasPhotos, DateTime? createdAt, DateTime? updatedAt, List<QuizQuestion>? questions
 });
 
 
@@ -330,8 +330,8 @@ class __$QuizDocumentCopyWithImpl<$Res>
 @override @pragma('vm:prefer-inline') $Res call({Object? formatVersion = null,Object? version = null,Object? id = freezed,Object? slug = freezed,Object? title = null,Object? description = freezed,Object? language = null,Object? tags = null,Object? source = null,Object? visibility = null,Object? isOwner = null,Object? defaultSettings = null,Object? questionCount = null,Object? hasPhotos = null,Object? createdAt = freezed,Object? updatedAt = freezed,Object? questions = freezed,}) {
   return _then(_QuizDocument(
 formatVersion: null == formatVersion ? _self.formatVersion : formatVersion // ignore: cast_nullable_to_non_nullable
-as int,version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
-as String,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
+as int,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String?,slug: freezed == slug ? _self.slug : slug // ignore: cast_nullable_to_non_nullable
 as String?,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable

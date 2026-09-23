@@ -206,7 +206,7 @@ defmodule Fazoura.Quizzes do
   end
 
   @doc """
-  Replaces a quiz and all its children from a document, bumping the minor version so a
+  Replaces a quiz and all its children from a document, bumping its revision number so a
   device holding an offline copy can tell it is stale.
 
   Whoever calls this has already decided they are allowed to: `replace/3` checks the
@@ -787,8 +787,8 @@ defmodule Fazoura.Quizzes do
     quiz |> Quiz.changeset(params) |> Repo.insert_or_update!()
   end
 
-  defp increment_version(version) do
-    [major, minor] = version |> String.split(".", parts: 2) |> Enum.map(&String.to_integer/1)
-    "#{major}.#{minor + 1}"
-  end
+  # A revision counter: the quiz somebody saved is behind when its number is
+  # lower than the one the server holds (QUIZ_FORMAT.md §2.1).
+  defp increment_version(version) when is_integer(version), do: version + 1
+  defp increment_version(_version), do: 1
 end

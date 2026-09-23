@@ -91,7 +91,7 @@ defmodule FazouraWeb.QuizControllerTest do
     doc = create!(conn)
 
     assert %{
-             "format_version" => 1,
+             "format_version" => "1.0",
              "source" => "custom",
              "visibility" => "public",
              "question_count" => 1,

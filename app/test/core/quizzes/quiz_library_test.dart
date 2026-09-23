@@ -39,14 +39,44 @@ void main() {
     );
   });
 
-  test('reads older integer quiz versions from local storage', () {
-    final quiz = QuizDocument.fromJson({
-      'version': 1,
-      'title': 'Legacy',
-      'tags': ['general'],
+  group('quizzes saved before the two version numbers swapped shapes', () {
+    // Every quiz on every device predates this, so reading the old shapes is
+    // not a nicety (QUIZ_FORMAT.md §2.1).
+    QuizDocument read(Object? format, Object? version) =>
+        QuizDocument.fromJson({
+          'format_version': format,
+          'version': version,
+          'title': 'Legacy',
+          'tags': ['general'],
+        });
+
+    test('an integer format_version is that major, minor zero', () {
+      expect(read(1, 1).formatVersion, '1.0');
+      expect(read('1.0', 1).formatVersion, '1.0');
     });
 
-    expect(quiz.version, '1.0');
+    test('a <major>.<minor> version keeps its place in the count', () {
+      // "1.0" was the first revision and "1.4" the fifth; a device that saved
+      // the fifth must not read it as the first and think it is up to date.
+      expect(read(1, '1.0').version, 1);
+      expect(read(1, '1.4').version, 5);
+      expect(read(1, 7).version, 7);
+    });
+
+    test('and anything unreadable is the first revision', () {
+      for (final version in [null, '', 'banana', '1.x']) {
+        expect(read(1, version).version, 1, reason: 'version: $version');
+      }
+    });
+
+    test('a stale offline copy is still spotted across the change', () {
+      // The comparison the browser makes: saved copy against what the server
+      // now holds. It has to keep working while one side is old and one new.
+      final saved = read(1, '1.2');
+      final current = read('1.0', 4);
+
+      expect(saved.versionRank < current.versionRank, isTrue);
+    });
   });
 
   test('private quizzes are only saved on the device', () async {

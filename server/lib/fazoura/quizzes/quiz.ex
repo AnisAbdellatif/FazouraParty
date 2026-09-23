@@ -9,7 +9,10 @@ defmodule Fazoura.Quizzes.Quiz do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
-  @format_version 1
+  # The document format this server reads and writes (QUIZ_FORMAT.md §2.1).
+  # `<major>.<minor>`: a document whose major matches is readable, whatever its
+  # minor, because a minor only ever adds keys an older reader ignores.
+  @format_version "1.0"
   # Stored quizzes are public; inline (private) quizzes are never stored.
   @visibilities ~w(public private)
   @max_tags 10
@@ -17,8 +20,10 @@ defmodule Fazoura.Quizzes.Quiz do
 
   schema "quizzes" do
     field :slug, :string
-    field :format_version, :integer, default: @format_version
-    field :version, :string, default: "1.0"
+    field :format_version, :string, default: @format_version
+    # A revision counter, not a contract: +1 every time a published quiz is
+    # replaced, so a device can tell its saved copy is behind.
+    field :version, :integer, default: 1
     field :title, :string
     field :description, :string
     field :language, :string, default: "en"
@@ -63,12 +68,11 @@ defmodule Fazoura.Quizzes.Quiz do
     ])
     |> update_change(:title, &trim/1)
     |> validate_required([:format_version, :title])
-    |> validate_number(:format_version, equal_to: @format_version)
-    |> validate_change(:version, fn :version, version ->
-      if Regex.match?(~r/^\d+\.\d+$/, version),
-        do: [],
-        else: [version: "must use the <major>.<minor> format"]
-    end)
+    |> validate_change(:format_version, &readable_format/2)
+    # Whatever the document claimed, what is stored is the format it was read
+    # as: the row is built from the keys this server understands.
+    |> put_change(:format_version, @format_version)
+    |> validate_number(:version, greater_than: 0)
     |> validate_length(:title, min: 1, max: 80)
     |> validate_length(:description, max: 280)
     |> validate_length(:language, min: 2, max: 10)
@@ -149,16 +153,63 @@ defmodule Fazoura.Quizzes.Quiz do
     do: add_error(changeset, :questions, "must be a list of 1 to #{@max_questions} questions")
 
   # The document nests suggested room settings under `default_settings`.
+  # A document written for the same major is readable: a minor only ever adds
+  # keys, and an unknown key is ignored (PROTOCOL.md §1.1 says the same of the
+  # wire). A different major is not.
+  defp readable_format(:format_version, version) do
+    if major(version) == major(@format_version),
+      do: [],
+      else: [format_version: "is format #{version}; this server reads #{@format_version}"]
+  end
+
+  defp major(version) do
+    version |> to_string() |> String.split(".", parts: 2) |> hd()
+  end
+
   defp normalize(%{} = params) do
     settings = if is_map(params["default_settings"]), do: params["default_settings"], else: %{}
 
     params
     |> put_present("default_time_limit_ms", settings["time_limit_ms"])
     |> put_present("default_difficulty_multiplier", settings["difficulty_multiplier"])
+    |> update_present("format_version", &legacy_format_version/1)
+    |> update_present("version", &legacy_version/1)
   end
 
   defp normalize(_params), do: %{}
 
   defp put_present(map, _key, nil), do: map
   defp put_present(map, key, value), do: Map.put(map, key, value)
+
+  defp update_present(map, key, fun) do
+    case Map.fetch(map, key) do
+      {:ok, value} -> Map.put(map, key, fun.(value))
+      :error -> map
+    end
+  end
+
+  # `format_version: 1` is every document written before the format carried a
+  # minor — presets in `priv/quizzes`, packages in `priv/packages`, and whatever
+  # a device saved before it took an update. They are format 1.0.
+  defp legacy_format_version(version) when is_integer(version), do: "#{version}.0"
+  defp legacy_format_version(version), do: version
+
+  # And `version: "1.4"` is the old revision scheme, where the minor did the
+  # counting and the major never moved. "1.0" was the first revision, so the
+  # counter that replaces it starts at 1.
+  # An explicit `null` is a document saying nothing about its revision, which is
+  # the same as not saying it: the first one. Passing the nil through reached
+  # the database and came back as a NOT NULL violation.
+  defp legacy_version(nil), do: 1
+
+  defp legacy_version(version) when is_binary(version) do
+    with [_major, minor] <- String.split(version, ".", parts: 2),
+         {count, _rest} <- Integer.parse(minor) do
+      count + 1
+    else
+      _ -> 1
+    end
+  end
+
+  defp legacy_version(version), do: version
 end

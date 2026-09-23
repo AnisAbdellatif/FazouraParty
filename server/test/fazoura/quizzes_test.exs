@@ -286,7 +286,7 @@ defmodule Fazoura.QuizzesTest do
       assert {:ok, updated} = Quizzes.replace(quiz.id, params, @owner)
       updated = Repo.preload(updated, :questions, force: true)
       assert {updated.title, updated.question_count} == {"Renamed", 1}
-      assert updated.version == "1.1"
+      assert updated.version == 2
       assert Enum.map(updated.questions, & &1.prompt) == ["Only one"]
 
       assert {:error, %Ecto.Changeset{}} =
