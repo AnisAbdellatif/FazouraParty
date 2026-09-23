@@ -173,6 +173,27 @@ defmodule Fazoura.Quizzes do
     end
   end
 
+  @doc """
+  Publishes a submission that has been read and accepted.
+
+  The document has already come out of its package and its photos are already
+  stored (`read_archive/1`), so this is the insert and nothing more. Only
+  `Fazoura.Quizzes.Review` calls it: publishing straight from the API is what
+  the queue exists to prevent (QUIZ_FORMAT.md §4).
+  """
+  @spec publish_reviewed(map(), String.t()) :: {:ok, Quiz.t()} | {:error, Ecto.Changeset.t()}
+  def publish_reviewed(params, owner_key_hash) when is_binary(owner_key_hash) do
+    %Quiz{
+      source: "custom",
+      visibility: "public",
+      owner_key_hash: owner_key_hash,
+      questions: [],
+      quiz_tags: []
+    }
+    |> Quiz.changeset(params)
+    |> Repo.insert()
+  end
+
   @doc "Replaces a published quiz and all its questions. Publisher only."
   @spec replace(term(), map(), owner_key()) ::
           {:ok, Quiz.t()}
