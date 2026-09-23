@@ -281,7 +281,7 @@ apk() {
   # at a party. x86_64 is left out anyway — only emulators run it, and it was a
   # third of the download for people on phone data. An emulator gets its APK
   # from `flutter run`, which does not come through here.
-  flutter build apk --release \
+  FAZOURA_RELEASE_BUILD=1 flutter build apk --release \
     --target-platform android-arm,android-arm64 \
     --dart-define="SERVER_URL=$server" \
     --dart-define="APP_VERSION=$version" \
@@ -348,7 +348,7 @@ aab() {
   # x86 jniLibs exclusion in build.gradle.kts drops the plugin libraries, so a
   # bundle that still carried Flutter's x86_64 engine would let Play serve an
   # x86_64 device a build that crashes looking for the rest.
-  flutter build appbundle --release \
+  FAZOURA_RELEASE_BUILD=1 flutter build appbundle --release \
     --target-platform android-arm,android-arm64 \
     --dart-define="SERVER_URL=$server" \
     --dart-define="APP_VERSION=$version" \

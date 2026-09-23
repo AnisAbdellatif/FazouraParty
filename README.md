@@ -168,9 +168,14 @@ To build one locally, put the same values in `app/android/key.properties`
 SERVER_URL=https://your.host scripts/ci.sh apk
 ```
 
-Without a keystore, Gradle falls back to the debug key so `flutter run --release` keeps
-working. Such a build is fine to try out and useless to hand anybody: it cannot be
-installed over a real release, and `scripts/ci.sh apk` will not produce one.
+Anything built outside `scripts/ci.sh apk` / `aab` — `flutter run`, a hand-run
+`flutter build apk` — is a development build: it installs as **Fazoura Dev**
+(`com.fazouraparty.fazoura_party.dev`), next to the Play or GitHub release rather than in
+place of it, with its own quizzes and settings. Only those two targets set
+`FAZOURA_RELEASE_BUILD=1`, which is what gives a build the real id. Without a keystore,
+Gradle also falls back to the debug key so `flutter run --release` keeps working. Such a
+build is fine to try out and useless to hand anybody, and `scripts/ci.sh apk` will not
+produce one.
 
 ## Status
 

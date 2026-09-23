@@ -23,6 +23,14 @@ fun signingValue(property: String, variable: String): String? =
 
 val keystorePath = signingValue("storeFile", "ANDROID_KEYSTORE_PATH")
 
+// Only the two release paths — `scripts/ci.sh apk` and `scripts/ci.sh aab` — build the
+// app people install, and they say so with FAZOURA_RELEASE_BUILD=1. Everything else
+// (`flutter run`, a hand-built `flutter build apk`) is a development build: a different
+// application id and name, so it installs beside the Play or GitHub release instead of
+// colliding with it. A collision is not an upgrade either way — the signatures differ,
+// so Android would refuse it, or make you uninstall the real app and its quizzes first.
+val releaseBuild = System.getenv("FAZOURA_RELEASE_BUILD") == "1"
+
 android {
     namespace = "com.fazouraparty.fazoura_party"
     compileSdk = flutter.compileSdkVersion
@@ -42,6 +50,9 @@ android {
         // is and what Android installs it as cannot drift apart.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        if (!releaseBuild) applicationIdSuffix = ".dev"
+        manifestPlaceholders["appLabel"] = if (releaseBuild) "Fazoura Party" else "Fazoura Dev"
 
         // `--target-platform` in `scripts/ci.sh apk` picks which ABIs Flutter's own
         // engine and snapshot are built for. This says the same thing to everything
