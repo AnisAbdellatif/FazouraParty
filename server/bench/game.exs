@@ -17,14 +17,10 @@ alias Fazoura.Game.Pack
 Fixtures.banner()
 
 t0 = Fixtures.t0()
-sizes = [4, 20, 60, 100]
+sizes = [4, 16, 24, Game.max_players()]
 
 # A room mid-question with everyone in but "p1", who is the one submitting.
-open_rooms =
-  Map.new(sizes, fn n ->
-    game = Fixtures.game(n, :question)
-    {"#{n} players", update_in(game.submissions, &Map.delete(&1, "p1"))}
-  end)
+open_rooms = Map.new(sizes, fn n -> {"#{n} players", Fixtures.game(n, :question)} end)
 
 Benchee.run(
   %{

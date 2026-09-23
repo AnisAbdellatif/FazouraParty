@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `9.7`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
+**Protocol version: `9.8`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -53,6 +53,8 @@ as the room ending and an unknown error by its message — both of which are tru
 9.7 lets a host send one snapshot for several changes (§5.1): at most one broadcast every
 `broadcast_interval_ms`, each carrying the latest state. A client never learned anything
 from how many snapshots arrived, only from what the last one said, so none had to change.
+
+9.8 lowered `max_players` from 100 to 32. A client already had to handle `room_full`.
 
 **This is semver's major and minor, and there is deliberately no patch.** The number
 exists to answer one question — does this host behave exactly like that one? — and the
@@ -393,7 +395,7 @@ it per socket rather than broadcasting one identical payload.
 ```json
 {
   "protocol_version": 9,
-  "protocol_minor": 7,
+  "protocol_minor": 8,
   "room_code": "K7QX2M",
   "mode": "cloud",
   "listed": false,

@@ -21,7 +21,7 @@ starting them would mean a database and a fight over port 4000.
 | `answer.exs` | `Answer.normalize/1` by script (ASCII, accented Latin, Arabic) and `Answer.correct?/2` against 1, 3 and 10 accepted answers. |
 
 `support/fixtures.exs` builds the rooms. They are bigger and messier than the
-test fixtures on purpose: 100 players with tied scores and mixed-script names, so
+test fixtures on purpose: full rooms with tied scores and mixed-script names, so
 the leaderboard sort and `String.downcase/1` do the work they would do in a real
 room rather than on ASCII with distinct scores.
 

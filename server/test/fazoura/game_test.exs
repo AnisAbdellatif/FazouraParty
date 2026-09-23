@@ -173,8 +173,8 @@ defmodule Fazoura.GameTest do
       assert Game.add_player(game, "p2", nil) == {:error, :invalid_name}
     end
 
-    test "room is capped at 100 players" do
-      game = game_with_players(Enum.map(1..100, &"player#{&1}"))
+    test "room is capped at max_players" do
+      game = game_with_players(Enum.map(1..Game.max_players(), &"player#{&1}"))
       assert Game.add_player(game, "extra", "Extra") == {:error, :room_full}
     end
   end

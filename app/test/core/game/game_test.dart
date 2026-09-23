@@ -230,8 +230,10 @@ void main() {
       expect(() => game.addPlayer('p2', '🎉' * 21), throwsCode('invalid_name'));
     });
 
-    test('room is capped at 100 players', () {
-      final game = gameWithPlayers([for (var i = 1; i <= 100; i++) 'player$i']);
+    test('room is capped at maxPlayers', () {
+      final game = gameWithPlayers([
+        for (var i = 1; i <= maxPlayers; i++) 'player$i',
+      ]);
       expect(() => game.addPlayer('extra', 'Extra'), throwsCode('room_full'));
     });
   });
