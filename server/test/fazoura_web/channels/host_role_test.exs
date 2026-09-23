@@ -10,20 +10,11 @@ defmodule FazouraWeb.HostRoleTest do
 
   use FazouraWeb.ChannelCase, async: true
 
-  alias Fazoura.{Game, QuizFixtures, Rooms}
+  alias Fazoura.{QuizFixtures, Rooms}
 
   setup do
     {:ok, code, host_token} = Rooms.create(QuizFixtures.pack())
     %{code: code, host_token: host_token}
-  end
-
-  defp join_room(code, payload) do
-    socket(FazouraWeb.UserSocket, nil, %{})
-    |> join(
-      FazouraWeb.RoomChannel,
-      "room:" <> code,
-      Map.put(payload, "protocol_version", Game.protocol_major())
-    )
   end
 
   defp join_host(code, token, name \\ nil) do

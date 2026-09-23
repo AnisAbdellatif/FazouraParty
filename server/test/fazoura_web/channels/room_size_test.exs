@@ -12,15 +12,6 @@ defmodule FazouraWeb.RoomSizeTest do
   alias Fazoura.{QuizFixtures, Repo, Rooms, RoomSizeCodes}
   alias Fazoura.RoomSizeCodes.Code
 
-  defp join_room(code, payload) do
-    socket(FazouraWeb.UserSocket, nil, %{})
-    |> subscribe_and_join(
-      FazouraWeb.RoomChannel,
-      "room:" <> code,
-      Map.put(payload, "protocol_version", Fazoura.Game.protocol_major())
-    )
-  end
-
   defp room do
     {:ok, code, host_token} = Rooms.create(QuizFixtures.pack())
     {:ok, _, host} = join_room(code, %{"host_token" => host_token})

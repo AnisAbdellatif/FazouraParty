@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/fake_quiz_server.dart';
+import '../../support/pump.dart';
 
 void main() {
   // These are about what happens once the community rules are agreed to;
@@ -19,12 +20,6 @@ void main() {
 
   late FakeQuizServer server;
   List<QuizChoice>? picked;
-
-  Future<void> settle(WidgetTester tester) async {
-    for (var i = 0; i < 6; i++) {
-      await tester.pump(const Duration(milliseconds: 200));
-    }
-  }
 
   Future<void> openBrowser(
     WidgetTester tester, {
@@ -68,12 +63,6 @@ void main() {
       ),
     );
     await tester.tap(find.byKey(const Key('open')));
-    await settle(tester);
-  }
-
-  Future<void> tapKey(WidgetTester tester, Key key) async {
-    await tester.ensureVisible(find.byKey(key));
-    await tester.tap(find.byKey(key));
     await settle(tester);
   }
 

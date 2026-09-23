@@ -17,6 +17,8 @@ import 'package:fazoura_party/core/game/pack.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
+import '../../support/matchers.dart';
+
 Uint8List pngBytes() =>
     Uint8List.fromList(img.encodePng(img.Image(width: 8, height: 8)));
 
@@ -62,9 +64,6 @@ Pack packOf(String title, List<String> ids) => Pack.fromMap({
       },
   ],
 });
-
-Matcher throwsCode(String code) =>
-    throwsA(isA<GameRuleError>().having((error) => error.code, 'code', code));
 
 class _Client implements LanConnection {
   Map<String, dynamic>? _latest;

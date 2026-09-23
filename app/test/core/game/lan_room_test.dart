@@ -15,6 +15,8 @@ import 'package:fazoura_party/core/game/lan_room.dart';
 import 'package:fazoura_party/core/game/pack.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/matchers.dart';
+
 const _t0 = 1000000;
 
 Pack _pack([int questions = 2]) => Pack.fromMap({
@@ -29,9 +31,6 @@ Pack _pack([int questions = 2]) => Pack.fromMap({
       },
   ],
 });
-
-Matcher _throwsCode(String code) =>
-    throwsA(isA<GameRuleError>().having((error) => error.code, 'code', code));
 
 /// One client, and everything the room pushed to it.
 class _Client implements LanConnection {
@@ -93,7 +92,7 @@ void main() {
           'protocol_version': protocolMajor - 1,
           'display_name': 'Sam',
         }),
-        _throwsCode('unsupported_protocol_version'),
+        throwsCode('unsupported_protocol_version'),
       );
       // A refused join leaves no trace: the name is still free.
       expect(room.game.players, isEmpty);
@@ -102,11 +101,11 @@ void main() {
     test('a forged or stale token is refused, never silently re-issued', () {
       expect(
         () => room.join(_Client(), joinParams({'player_token': 'forged'})),
-        _throwsCode('invalid_token'),
+        throwsCode('invalid_token'),
       );
       expect(
         () => room.join(_Client(), joinParams({'host_token': 'forged'})),
-        _throwsCode('invalid_token'),
+        throwsCode('invalid_token'),
       );
       expect(room.game.players, isEmpty);
     });
@@ -115,13 +114,13 @@ void main() {
       final sam = join({'display_name': 'Sam'});
       expect(
         () => room.join(_Client(), joinParams({'display_name': 'sam'})),
-        _throwsCode('name_taken'),
+        throwsCode('name_taken'),
       );
 
       room.leave(sam.client);
       expect(
         () => room.join(_Client(), joinParams({'display_name': 'SAM'})),
-        _throwsCode('name_taken'),
+        throwsCode('name_taken'),
       );
     });
 
@@ -173,7 +172,7 @@ void main() {
           _Client(),
           joinParams({'host_token': room.hostToken, 'display_name': 'hana'}),
         ),
-        _throwsCode('name_taken'),
+        throwsCode('name_taken'),
       );
       expect(room.connectionCount, 1);
       expect(
@@ -234,7 +233,7 @@ void main() {
       // The old token is dead; the new one works.
       expect(
         () => room.join(_Client(), joinParams({'host_token': room.hostToken})),
-        _throwsCode('invalid_token'),
+        throwsCode('invalid_token'),
       );
       expect(
         room.join(_Client(), joinParams({'host_token': token})).role,
@@ -254,11 +253,11 @@ void main() {
       expect(host.client.you['player_id'], isNotNull);
       expect(
         () => room.handle(host.client, 'host_next', {}),
-        _throwsCode('not_host'),
+        throwsCode('not_host'),
       );
       expect(
         () => room.handle(host.client, 'host_close', {}),
-        _throwsCode('not_host'),
+        throwsCode('not_host'),
       );
       // Still a player, and still able to play.
       room.handle(sam.client, 'host_next', {});
@@ -275,15 +274,15 @@ void main() {
         () => room.handle(host.client, 'host_transfer', {
           'player_id': sam.reply.playerId,
         }),
-        _throwsCode('not_connected'),
+        throwsCode('not_connected'),
       );
       expect(
         () => room.handle(host.client, 'host_transfer', {'player_id': 'ghost'}),
-        _throwsCode('not_connected'),
+        throwsCode('not_connected'),
       );
       expect(
         () => room.handle(host.client, 'host_transfer', {'player_id': 42}),
-        _throwsCode('invalid_payload'),
+        throwsCode('invalid_payload'),
       );
     });
 
@@ -318,7 +317,7 @@ void main() {
 
       expect(
         () => room.handle(sam.client, 'host_close', {}),
-        _throwsCode('not_host'),
+        throwsCode('not_host'),
       );
       expect(room.isClosed, isFalse);
 
@@ -334,11 +333,11 @@ void main() {
 
       expect(
         () => room.join(_Client(), joinParams({'display_name': 'Late'})),
-        _throwsCode('room_not_found'),
+        throwsCode('room_not_found'),
       );
       expect(
         () => room.handle(host.client, 'host_next', {}),
-        _throwsCode('room_not_found'),
+        throwsCode('room_not_found'),
       );
     });
   });

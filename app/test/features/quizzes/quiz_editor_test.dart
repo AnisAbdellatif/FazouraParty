@@ -13,6 +13,7 @@ import 'package:image/image.dart' as img;
 import 'package:sembast/sembast.dart';
 
 import '../../support/fake_quiz_server.dart';
+import '../../support/pump.dart';
 
 void main() {
   // These are about what happens once the community rules are agreed to;
@@ -30,12 +31,6 @@ void main() {
   final photoBytes = Uint8List.fromList(
     img.encodePng(img.Image(width: 40, height: 20)),
   );
-
-  Future<void> settle(WidgetTester tester) async {
-    for (var i = 0; i < 6; i++) {
-      await tester.pump(const Duration(milliseconds: 150));
-    }
-  }
 
   Future<void> openEditor(
     WidgetTester tester, {
@@ -83,13 +78,6 @@ void main() {
     await settle(tester);
   }
 
-  Future<void> tapKey(WidgetTester tester, String key) async {
-    final finder = find.byKey(Key(key));
-    await tester.ensureVisible(finder);
-    await tester.tap(finder);
-    await settle(tester);
-  }
-
   Future<void> enter(WidgetTester tester, String key, String text) async {
     final finder = find.byKey(Key(key));
     await tester.ensureVisible(finder);
@@ -103,19 +91,19 @@ void main() {
     await openEditor(tester);
 
     await enter(tester, 'quizTitleField', '  Movie Night ');
-    await tapKey(tester, 'suggestedTag-movies');
+    await tapKey(tester, const Key('suggestedTag-movies'));
     await enter(tester, 'tagInput', '  Pub   QUIZ ');
-    await tapKey(tester, 'addTagButton');
+    await tapKey(tester, const Key('addTagButton'));
     // A tag still in the input is kept on save.
     await enter(tester, 'tagInput', '80s');
     await enter(tester, 'questionPrompt-0', 'Who directed Jaws?');
     await enter(tester, 'answerInput-0', 'Spielberg');
-    await tapKey(tester, 'addAnswer-0');
+    await tapKey(tester, const Key('addAnswer-0'));
     // A pending answer is committed on save.
     await enter(tester, 'answerInput-0', 'Steven Spielberg');
-    await tapKey(tester, 'difficulty-0-medium');
-    await tapKey(tester, 'defaultTime-45');
-    await tapKey(tester, 'saveQuizButton');
+    await tapKey(tester, const Key('difficulty-0-medium'));
+    await tapKey(tester, const Key('defaultTime-45'));
+    await tapKey(tester, const Key('saveQuizButton'));
 
     expect(server.requestsWith('POST', '/api/quizzes'), isEmpty);
     expect(saved, isNotNull);
@@ -136,27 +124,27 @@ void main() {
   testWidgets('validates before saving', (tester) async {
     await openEditor(tester);
 
-    await tapKey(tester, 'saveQuizButton');
+    await tapKey(tester, const Key('saveQuizButton'));
     expect(find.text('Give your quiz a title.'), findsOneWidget);
 
     await enter(tester, 'quizTitleField', 'Quiz');
-    await tapKey(tester, 'saveQuizButton');
+    await tapKey(tester, const Key('saveQuizButton'));
     expect(find.text('Add at least one tag.'), findsOneWidget);
 
-    await tapKey(tester, 'suggestedTag-general');
-    await tapKey(tester, 'saveQuizButton');
+    await tapKey(tester, const Key('suggestedTag-general'));
+    await tapKey(tester, const Key('saveQuizButton'));
     expect(find.text('Question 1 needs a question.'), findsOneWidget);
 
     await enter(tester, 'questionPrompt-0', 'Why?');
-    await tapKey(tester, 'saveQuizButton');
+    await tapKey(tester, const Key('saveQuizButton'));
     expect(
       find.text('Question 1 needs at least one accepted answer.'),
       findsOneWidget,
     );
 
-    await tapKey(tester, 'questionType-0-photo');
+    await tapKey(tester, const Key('questionType-0-photo'));
     await enter(tester, 'answerInput-0', 'Because');
-    await tapKey(tester, 'saveQuizButton');
+    await tapKey(tester, const Key('saveQuizButton'));
     expect(find.text('Question 1 needs a photo.'), findsOneWidget);
 
     expect(saved, isNull);
@@ -169,19 +157,19 @@ void main() {
     await openEditor(tester);
 
     await enter(tester, 'quizTitleField', 'Stills');
-    await tapKey(tester, 'suggestedTag-movies');
-    await tapKey(tester, 'visibilityPublic');
+    await tapKey(tester, const Key('suggestedTag-movies'));
+    await tapKey(tester, const Key('visibilityPublic'));
     expect(find.text('Save & submit'), findsOneWidget);
-    await tapKey(tester, 'questionType-0-photo');
+    await tapKey(tester, const Key('questionType-0-photo'));
     await enter(tester, 'questionPrompt-0', 'Which film?');
     await enter(tester, 'answerInput-0', 'Alien');
-    await tapKey(tester, 'addAnswer-0');
-    await tapKey(tester, 'pickPhoto-0');
+    await tapKey(tester, const Key('addAnswer-0'));
+    await tapKey(tester, const Key('pickPhoto-0'));
 
     expect(pickerCalls, 1);
     expect(find.byKey(const Key('photoPreview-0')), findsOneWidget);
 
-    await tapKey(tester, 'saveQuizButton');
+    await tapKey(tester, const Key('saveQuizButton'));
 
     // The photo went into the package, not to the uploads volume: nothing an
     // admin has not read is ever written there.
@@ -233,10 +221,10 @@ void main() {
     expect(find.byKey(const ValueKey('tag-quiz night')), findsOneWidget);
 
     await enter(tester, 'quizTitleField', 'New title');
-    await tapKey(tester, 'moveDown-0');
-    await tapKey(tester, 'addQuestionButton');
-    await tapKey(tester, 'deleteQuestion-2');
-    await tapKey(tester, 'saveQuizButton');
+    await tapKey(tester, const Key('moveDown-0'));
+    await tapKey(tester, const Key('addQuestionButton'));
+    await tapKey(tester, const Key('deleteQuestion-2'));
+    await tapKey(tester, const Key('saveQuizButton'));
 
     // An edit of a public quiz is offered against it and goes back through the
     // queue; the published version stays as it was until somebody reads this.
@@ -262,11 +250,11 @@ void main() {
     server.failWrites = true;
 
     await enter(tester, 'quizTitleField', 'Quiz');
-    await tapKey(tester, 'suggestedTag-general');
-    await tapKey(tester, 'visibilityPublic');
+    await tapKey(tester, const Key('suggestedTag-general'));
+    await tapKey(tester, const Key('visibilityPublic'));
     await enter(tester, 'questionPrompt-0', 'Why?');
     await enter(tester, 'answerInput-0', 'Because');
-    await tapKey(tester, 'saveQuizButton');
+    await tapKey(tester, const Key('saveQuizButton'));
 
     expect(find.textContaining('could not be sent for review'), findsOneWidget);
     expect(saved, isNull);
@@ -276,7 +264,7 @@ void main() {
 
     // Saving again reuses the same local quiz.
     server.failWrites = false;
-    await tapKey(tester, 'saveQuizButton');
+    await tapKey(tester, const Key('saveQuizButton'));
     expect(saved?.inReview, isTrue);
     expect(await tester.runAsync(stored), hasLength(1));
   });

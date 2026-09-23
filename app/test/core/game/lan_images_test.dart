@@ -18,6 +18,8 @@ import 'package:fazoura_party/core/models/quiz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
+import '../../support/matchers.dart';
+
 Uint8List pngBytes({int width = 8, int height = 8}) =>
     Uint8List.fromList(img.encodePng(img.Image(width: width, height: height)));
 
@@ -42,9 +44,6 @@ Map<String, dynamic> quizWithPhotos(List<Uint8List?> photos) => {
       },
   ],
 };
-
-Matcher throwsCode(String code) =>
-    throwsA(isA<GameRuleError>().having((error) => error.code, 'code', code));
 
 void main() {
   group('LanImages', () {

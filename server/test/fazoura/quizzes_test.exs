@@ -38,8 +38,6 @@ defmodule Fazoura.QuizzesTest do
     )
   end
 
-  defp errors(changeset), do: errors_on(changeset)
-
   defp photo_quiz(key) do
     quiz_params(%{
       "questions" => [
@@ -87,13 +85,13 @@ defmodule Fazoura.QuizzesTest do
                  @owner
                )
 
-      assert %{format_version: _, title: _, tags: _} = errors(cs)
+      assert %{format_version: _, title: _, tags: _} = errors_on(cs)
 
       assert {:error, cs} = Quizzes.create(quiz_params(%{"questions" => []}), @owner)
-      assert %{questions: _} = errors(cs)
+      assert %{questions: _} = errors_on(cs)
 
       assert {:error, cs} = Quizzes.create(quiz_params(%{"questions" => nil}), @owner)
-      assert %{questions: ["must be a list of 1 to 1024 questions"]} = errors(cs)
+      assert %{questions: ["must be a list of 1 to 1024 questions"]} = errors_on(cs)
 
       accepted =
         for index <- 1..1024 do
@@ -111,7 +109,7 @@ defmodule Fazoura.QuizzesTest do
                  @owner
                )
 
-      assert %{questions: ["must be a list of 1 to 1024 questions"]} = errors(cs)
+      assert %{questions: ["must be a list of 1 to 1024 questions"]} = errors_on(cs)
 
       # A real upload, so the image-ownership check passes and validation runs.
       {:ok, image} = Quizzes.store_image(@png, @owner)
@@ -134,7 +132,7 @@ defmodule Fazoura.QuizzesTest do
                %{image: ["a photo question needs an image"]},
                %{image: ["text questions have no image"]},
                %{difficulty: _}
-             ] = errors(cs).questions
+             ] = errors_on(cs).questions
     end
 
     test "tags are required, cleaned and capped" do
@@ -150,13 +148,13 @@ defmodule Fazoura.QuizzesTest do
 
       for bad <- [[], ["  "], "movies", nil, Enum.map(1..11, &"t#{&1}")] do
         assert {:error, cs} = Quizzes.create(quiz_params(%{"tags" => bad}), @owner)
-        assert %{tags: ["must be a list of 1 to 10 tags"]} = errors(cs)
+        assert %{tags: ["must be a list of 1 to 10 tags"]} = errors_on(cs)
       end
 
       assert {:error, cs} =
                Quizzes.create(quiz_params(%{"tags" => [String.duplicate("a", 25)]}), @owner)
 
-      assert %{tags: ["each tag must be at most 24 characters"]} = errors(cs)
+      assert %{tags: ["each tag must be at most 24 characters"]} = errors_on(cs)
     end
 
     test "photo questions must use images uploaded by the same owner" do
@@ -269,8 +267,8 @@ defmodule Fazoura.QuizzesTest do
                  @owner
                )
 
-      assert %{title: ["can't be blank"]} = errors(changeset)
-      assert [%{prompt: ["can't be blank"]}] = errors(changeset).questions
+      assert %{title: ["can't be blank"]} = errors_on(changeset)
+      assert [%{prompt: ["can't be blank"]}] = errors_on(changeset).questions
     end
 
     setup do
@@ -357,7 +355,7 @@ defmodule Fazoura.QuizzesTest do
         })
 
       assert {:error, cs} = Quizzes.inline_pack(no_data)
-      assert [%{image: ["a photo question needs an image"]}] = errors(cs).questions
+      assert [%{image: ["a photo question needs an image"]}] = errors_on(cs).questions
     end
   end
 

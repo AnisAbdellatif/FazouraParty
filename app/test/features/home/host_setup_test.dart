@@ -12,6 +12,7 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/fake_game_connection.dart';
+import '../../support/pump.dart';
 
 void main() {
   late FakeGameConnection fake;
@@ -47,12 +48,6 @@ void main() {
         child: const MaterialApp(home: HomeScreen()),
       ),
     );
-  }
-
-  Future<void> settle(WidgetTester tester) async {
-    for (var i = 0; i < 5; i++) {
-      await tester.pump(const Duration(milliseconds: 200));
-    }
   }
 
   testWidgets('the host token outlives the screen and leads back in', (

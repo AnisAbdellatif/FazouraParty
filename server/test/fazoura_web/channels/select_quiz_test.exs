@@ -28,15 +28,6 @@ defmodule FazouraWeb.SelectQuizTest do
     %{code: code, socket: socket}
   end
 
-  defp join_room(code, payload) do
-    socket(FazouraWeb.UserSocket, nil, %{})
-    |> join(
-      FazouraWeb.RoomChannel,
-      "room:" <> code,
-      Map.put(payload, "protocol_version", Fazoura.Game.protocol_major())
-    )
-  end
-
   defp select(socket, quizzes) do
     ref = push(socket, "host_select_quiz", %{"quizzes" => quizzes})
     ref
@@ -199,8 +190,6 @@ defmodule FazouraWeb.SelectQuizTest do
   describe "photo budget" do
     # A photo every per-image check accepts, and how many it takes to pass the
     # per-room total.
-    defp under_image_cap, do: div(Fazoura.Uploads.max_bytes(), 2)
-    defp photo(bytes), do: Base.encode64(QuizFixtures.png_of_size(bytes))
 
     defp photo_quiz(title, count, bytes) do
       %{
@@ -213,7 +202,7 @@ defmodule FazouraWeb.SelectQuizTest do
                   "type" => "text_photo",
                   "prompt" => "Question #{i}?",
                   "accepted_answers" => ["a"],
-                  "image" => %{"data" => photo(bytes)}
+                  "image" => %{"data" => QuizFixtures.photo_data(bytes)}
                 }
               end
           })
@@ -224,10 +213,13 @@ defmodule FazouraWeb.SelectQuizTest do
       # Each quiz is comfortably inside the room cap on its own; together they
       # are over it. Counting per quiz would let a selection hold ten times what
       # one room is allowed (QUIZ_FORMAT.md §5.7).
-      per_quiz = photo_quiz("Heavy", 2, under_image_cap())
+      per_quiz = photo_quiz("Heavy", 2, QuizFixtures.under_image_cap())
 
       quizzes =
-        List.duplicate(per_quiz, ceil(Quizzes.max_inline_bytes() / (2 * under_image_cap())) + 1)
+        List.duplicate(
+          per_quiz,
+          ceil(Quizzes.max_inline_bytes() / (2 * QuizFixtures.under_image_cap())) + 1
+        )
 
       ref = select(socket, [per_quiz])
       assert_reply ref, :ok, %{}

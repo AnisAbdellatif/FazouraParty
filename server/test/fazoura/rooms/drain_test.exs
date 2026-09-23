@@ -6,15 +6,6 @@ defmodule Fazoura.Rooms.DrainTest do
   alias Fazoura.Rooms
   alias Fazoura.Rooms.Drain
 
-  defp join_room(code, payload) do
-    socket(FazouraWeb.UserSocket, nil, %{})
-    |> join(
-      FazouraWeb.RoomChannel,
-      "room:" <> code,
-      Map.put(payload, "protocol_version", Fazoura.Game.protocol_major())
-    )
-  end
-
   # Rooms live under a DynamicSupervisor, not under the test process, so rooms created
   # by the async tests in other files are still registered when this file runs. Clear
   # them, so "nothing live" here means nothing live rather than nothing leaked.

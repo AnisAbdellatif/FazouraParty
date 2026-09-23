@@ -15,15 +15,6 @@ defmodule FazouraWeb.PlayerModerationTest do
   @endpoint FazouraWeb.Endpoint
   @reporter "reporter-key-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
-  defp join_room(code, payload) do
-    socket(FazouraWeb.UserSocket, nil, %{})
-    |> subscribe_and_join(
-      FazouraWeb.RoomChannel,
-      "room:" <> code,
-      Map.put(payload, "protocol_version", Fazoura.Game.protocol_major())
-    )
-  end
-
   # Joins from a stand-in connection process with the moderation a socket would carry.
   defp join_as(code, payload, meta) do
     test = self()

@@ -16,6 +16,7 @@ import 'package:fazoura_party/core/game/pack.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/protocol_fixtures.dart';
+import '../../support/matchers.dart';
 
 const t0 = 1000000;
 
@@ -99,9 +100,6 @@ void configure(
 });
 
 /// The code of the [GameRuleError] the callback throws.
-Matcher throwsCode(String code) =>
-    throwsA(isA<GameRuleError>().having((error) => error.code, 'code', code));
-
 void main() {
   final scoring = ProtocolFixtures.load('scoring.json');
 

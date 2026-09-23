@@ -28,6 +28,7 @@ defmodule FazouraWeb.ConnCase do
       import Plug.Conn
       import Phoenix.ConnTest
       import FazouraWeb.ConnCase
+      import FazouraWeb.RoomJoin
     end
   end
 

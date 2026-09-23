@@ -9,6 +9,7 @@ defmodule FazouraWeb.ChannelCase do
     quote do
       import Phoenix.ChannelTest
       import FazouraWeb.ChannelCase
+      import FazouraWeb.RoomJoin
 
       @endpoint FazouraWeb.Endpoint
     end
