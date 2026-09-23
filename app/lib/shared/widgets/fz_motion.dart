@@ -146,6 +146,104 @@ class _FzPopState extends State<FzPop> with SingleTickerProviderStateMixin {
   }
 }
 
+/// Eases between colours when [color] changes, instead of snapping — a clock
+/// warming from amber to red. The first build shows [color] as it is.
+class FzTint extends StatelessWidget {
+  const FzTint({
+    super.key,
+    required this.color,
+    required this.builder,
+    this.duration = const Duration(milliseconds: 450),
+  });
+
+  final Color color;
+  final Widget Function(BuildContext context, Color color) builder;
+  final Duration duration;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<Color?>(
+      tween: ColorTween(end: color),
+      duration: reduceMotion(context) ? Duration.zero : duration,
+      curve: Curves.easeOut,
+      builder: (context, value, _) => builder(context, value ?? color),
+    );
+  }
+}
+
+/// A glow that flares around [child] and fades, once whenever [trigger]
+/// changes to a new non-null value — a heartbeat for the last seconds on the
+/// clock. [child] should fill a rounded box of [radius]; the glow follows it.
+class FzFlash extends StatefulWidget {
+  const FzFlash({
+    super.key,
+    required this.child,
+    required this.trigger,
+    required this.color,
+    this.radius = 999,
+    this.duration = const Duration(milliseconds: 650),
+  });
+
+  final Widget child;
+  final Object? trigger;
+  final Color color;
+  final double radius;
+  final Duration duration;
+
+  @override
+  State<FzFlash> createState() => _FzFlashState();
+}
+
+class _FzFlashState extends State<FzFlash> with SingleTickerProviderStateMixin {
+  // Starts spent, so nothing glows until the first trigger.
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: widget.duration,
+    value: 1,
+  );
+
+  @override
+  void didUpdateWidget(FzFlash old) {
+    super.didUpdateWidget(old);
+    if (widget.trigger != null &&
+        widget.trigger != old.trigger &&
+        !reduceMotion(context)) {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final glow = 1 - Curves.easeOut.transform(_controller.value);
+        if (glow == 0) return child!;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(widget.radius),
+            boxShadow: [
+              BoxShadow(
+                color: widget.color.withValues(alpha: .85 * glow),
+                blurRadius: 22 * glow,
+                spreadRadius: 4 * glow,
+              ),
+            ],
+          ),
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
 /// A number that runs up (or down) to its new value instead of snapping.
 ///
 /// [from] and [to] are given rather than inferred from rebuilds, because the
