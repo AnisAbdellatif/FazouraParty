@@ -6,7 +6,7 @@ defmodule Fazoura.ProtocolConstantsTest do
   use ExUnit.Case, async: true
 
   alias Fazoura.{Game, ProtocolFixtures, Rooms}
-  alias Fazoura.Rooms.RoomServer
+  alias Fazoura.Rooms.{RoomServer, Selection}
 
   test "this implementation's constants are exactly the shared ones" do
     shared =
@@ -17,6 +17,7 @@ defmodule Fazoura.ProtocolConstantsTest do
     ours =
       Game.constants()
       |> Map.merge(RoomServer.constants())
+      |> Map.merge(Selection.constants())
       |> Map.merge(Rooms.constants())
 
     assert ours == shared

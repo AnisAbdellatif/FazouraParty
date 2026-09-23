@@ -11,6 +11,7 @@ library;
 import 'dart:math';
 
 import 'package:fazoura_party/core/game/game.dart';
+import 'package:fazoura_party/core/game/game_view.dart';
 import 'package:fazoura_party/core/game/pack.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -109,7 +110,7 @@ void main() {
       final c = entry as Map<String, dynamic>;
       test('${c['difficulty']}, difficulty scoring ${c['bonus']}', () {
         final game = gradedGame(c['difficulty'] as String, c['bonus'] as bool);
-        final view = game.view(const HostActor(), t0);
+        final view = roomState(game, const HostActor(), t0);
 
         expect((view['question'] as Map)['points'], c['points']);
       });
@@ -124,7 +125,8 @@ void main() {
         host(game, 'host_next');
 
         expect(game.players['sam']!.score, c['delta']);
-        final rows = game.view(const HostActor(), t0)['submissions'] as List;
+        final rows =
+            roomState(game, const HostActor(), t0)['submissions'] as List;
         expect((rows.single as Map)['delta'], c['delta']);
       });
     }
@@ -141,7 +143,7 @@ void main() {
         expect(game.players['sam']!.score, c['score_after_scoring']);
 
         // A player who said nothing still gets a row, with no answer to show.
-        final view = game.view(const PlayerActor('sam'), t0);
+        final view = roomState(game, const PlayerActor('sam'), t0);
         expect(view['submissions'], [
           {
             'player_id': 'sam',
@@ -191,9 +193,10 @@ void main() {
       expect(game.players['late']!.score, 0);
 
       // ...and has no row at all, rather than an empty one.
-      final rows = game.view(const HostActor(), t0)['submissions'] as List;
+      final rows =
+          roomState(game, const HostActor(), t0)['submissions'] as List;
       expect(rows.map((r) => (r as Map)['player_id']), ['sam']);
-      final late = game.view(const PlayerActor('late'), t0);
+      final late = roomState(game, const PlayerActor('late'), t0);
       expect((late['you'] as Map)['submission'], isNull);
     });
 
@@ -557,7 +560,7 @@ void main() {
       expect(game.settings.difficulties, ['easy']);
       expect(game.settings.availableDifficulties, ['easy']);
 
-      final view = game.view(const HostActor(), t0);
+      final view = roomState(game, const HostActor(), t0);
       expect(view['question_count'], 3);
       expect(view['settings'], {
         'question_count': 3,
@@ -612,7 +615,7 @@ void main() {
       host(game, 'host_next');
       expect(game.deadline, t0 + 15000);
       expect(
-        (game.view(const HostActor(), t0)['question']
+        (roomState(game, const HostActor(), t0)['question']
             as Map<String, dynamic>)['time_limit_ms'],
         15000,
       );
@@ -702,7 +705,8 @@ void main() {
       // only hard question is the one asked.
       host(game, 'host_next');
       final question =
-          game.view(const HostActor(), t0)['question'] as Map<String, dynamic>;
+          roomState(game, const HostActor(), t0)['question']
+              as Map<String, dynamic>;
       expect(question['id'], 'q3');
       expect(question['difficulty'], 'hard');
     });
@@ -713,7 +717,7 @@ void main() {
       final game = gameWithPlayers(['sam'], 25);
       expect(game.settings.questionCount, 25);
       expect(
-        (game.view(const HostActor(), t0)['settings']
+        (roomState(game, const HostActor(), t0)['settings']
             as Map<String, dynamic>)['max_question_count'],
         25,
       );
@@ -759,7 +763,8 @@ void main() {
         for (var i = 0; i < 50; i++) {
           expect(game.pickAvatarHue(), inInclusiveRange(0, 359));
         }
-        final players = game.view(const HostActor(), t0)['players'] as List;
+        final players =
+            roomState(game, const HostActor(), t0)['players'] as List;
         expect((players.first as Map<String, dynamic>)['avatar_hue'], 100);
       },
     );
@@ -798,7 +803,7 @@ void main() {
 
       game.selectQuiz(pack(3));
       host(game, 'host_next');
-      final view = game.view(const HostActor(), t0);
+      final view = roomState(game, const HostActor(), t0);
       expect(
         (view['question'] as Map<String, dynamic>)['id'],
         isIn(['q1', 'q2', 'q3']),
@@ -823,7 +828,7 @@ void main() {
       host(game, 'host_next');
       submit(game, 'sam', 'Right');
 
-      final player = game.view(const PlayerActor('alex'), t0);
+      final player = roomState(game, const PlayerActor('alex'), t0);
       expect(player['accepted_answers'], isNull);
       expect(player['submissions'], isNull);
       expect((player['you'] as Map<String, dynamic>)['submission'], isNull);
@@ -834,14 +839,14 @@ void main() {
         isTrue,
       );
 
-      final own = game.view(const PlayerActor('sam'), t0);
+      final own = roomState(game, const PlayerActor('sam'), t0);
       expect((own['you'] as Map<String, dynamic>)['submission'], {
         'answer': 'Right',
         'correct': null,
         'delta': null,
       });
 
-      final hostView = game.view(const HostActor(), t0);
+      final hostView = roomState(game, const HostActor(), t0);
       expect(hostView['accepted_answers'], isNull);
       expect(hostView['submissions'], isNull);
       expect(hostView['you'], {
@@ -852,7 +857,7 @@ void main() {
       });
 
       host(game, 'host_next');
-      final scored = game.view(const PlayerActor('alex'), t0);
+      final scored = roomState(game, const PlayerActor('alex'), t0);
       expect(scored['accepted_answers'], ['Right']);
       final submissions = (scored['submissions'] as List)
           .cast<Map<String, dynamic>>();
@@ -883,7 +888,7 @@ void main() {
           throwsCode('already_submitted'),
         );
 
-        final during = game.view(const HostActor(), t0);
+        final during = roomState(game, const HostActor(), t0);
         expect(
           (during['accepted_answers'], during['submissions']),
           (null, null),
@@ -903,7 +908,9 @@ void main() {
 
         host(game, 'host_next');
         expect(game.players['hana']!.score, -10);
-        expect(game.view(const HostActor(), t0)['accepted_answers'], ['Right']);
+        expect(roomState(game, const HostActor(), t0)['accepted_answers'], [
+          'Right',
+        ]);
 
         host(game, 'host_override', {'player_id': 'hana', 'correct': true});
         expect(game.players['hana']!.score, 10);
@@ -911,7 +918,7 @@ void main() {
         // Sam let the question go by, and is told what that cost rather than
         // nothing.
         expect(
-          (game.view(const PlayerActor('sam'), t0)['you']
+          (roomState(game, const PlayerActor('sam'), t0)['you']
               as Map<String, dynamic>)['submission'],
           {'answer': null, 'correct': false, 'delta': -10},
         );
@@ -922,7 +929,7 @@ void main() {
       final game = gameWithPlayers(['bob', 'Alice', 'carl']);
       game.players['carl'] = game.players['carl']!.copyWith(score: 5);
 
-      final names = (game.view(const HostActor(), t0)['players'] as List)
+      final names = (roomState(game, const HostActor(), t0)['players'] as List)
           .cast<Map<String, dynamic>>()
           .map((p) => p['name']);
       expect(names, ['carl', 'Alice', 'bob']);
@@ -935,7 +942,7 @@ void main() {
       }
       expect(game.phase, GamePhase.finished);
 
-      final view = game.view(const HostActor(), t0);
+      final view = roomState(game, const HostActor(), t0);
       expect(
         (view['question'], view['accepted_answers'], view['submissions']),
         (null, null, null),
@@ -947,14 +954,14 @@ void main() {
       host(game, 'host_transfer', {'player_id': 'sam'});
 
       expect(
-        (game.view(const PlayerActor('sam'), t0)['you']
+        (roomState(game, const PlayerActor('sam'), t0)['you']
             as Map<String, dynamic>)['role'],
         'host',
       );
       // The connection that handed the role away is an ordinary client now,
       // and the snapshot has to say so (§3.4).
       expect(
-        (game.view(const HostActor(holder: false), t0)['you']
+        (roomState(game, const HostActor(holder: false), t0)['you']
             as Map<String, dynamic>)['role'],
         'player',
       );
@@ -971,7 +978,7 @@ void main() {
     test('the snapshot carries every field PROTOCOL.md §5.1 names', () {
       final game = gameWithPlayers(['sam']);
       host(game, 'host_next');
-      final view = game.view(const HostActor(), t0);
+      final view = roomState(game, const HostActor(), t0);
 
       expect(view.keys.toSet(), {
         'protocol_version',

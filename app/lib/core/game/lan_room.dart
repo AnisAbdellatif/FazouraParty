@@ -14,6 +14,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'game.dart';
+import 'game_view.dart';
 import 'lan_images.dart';
 import 'pack.dart';
 import '../models/quiz.dart';
@@ -473,7 +474,7 @@ class LanRoom {
   void _broadcast() {
     final now = _now();
     for (final entry in _connections.entries) {
-      final view = game.view(_recipient(entry.value), now);
+      final view = roomState(game, _recipient(entry.value), now);
       // A new host token reaches exactly one recipient, in the snapshot right
       // after they were given the role (PROTOCOL.md §5.1).
       final id = switch (entry.value) {

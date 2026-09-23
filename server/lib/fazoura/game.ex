@@ -544,8 +544,10 @@ defmodule Fazoura.Game do
   @spec skip_points() :: integer()
   def skip_points, do: @skip_points
 
-  defp correct?(%{override: nil, auto_correct: auto}), do: auto
-  defp correct?(%{override: override}), do: override
+  @doc "Whether a submission counts as right: the host's override if there is one, else the match."
+  @spec correct?(submission()) :: boolean()
+  def correct?(%{override: nil, auto_correct: auto}), do: auto
+  def correct?(%{override: override}), do: override
 
   defp start_question(game, index, now) do
     %{
@@ -625,9 +627,23 @@ defmodule Fazoura.Game do
     %{game | phase: :scoring, players: players, deadline: nil, paused_remaining_ms: nil}
   end
 
-  # What this question did to `id`: their submission's delta, the skip penalty if they
-  # were asked and said nothing, or nothing at all for someone who joined mid-question.
-  defp question_delta(game, id) do
+  @doc """
+  The question being asked, or last asked: the pack is played from `question_offset`,
+  wrapping around, at the host's time limit.
+  """
+  @spec current_question(t()) :: Pack.Question.t()
+  def current_question(game) do
+    order_index = rem(game.question_offset + game.question_index, length(game.question_order))
+    index = Enum.at(game.question_order, order_index)
+    %{Enum.at(game.pack.questions, index) | time_limit_ms: game.settings.time_limit_ms}
+  end
+
+  @doc """
+  What the current question did to `id`: their submission's delta, the skip penalty if
+  they were asked and said nothing, or nil for someone who joined mid-question.
+  """
+  @spec question_delta(t(), String.t()) :: integer() | nil
+  def question_delta(game, id) do
     case game.submissions[id] do
       nil -> if MapSet.member?(game.asked, id), do: @skip_points
       submission -> delta(submission)
@@ -756,7 +772,9 @@ defmodule Fazoura.Game do
       (count <= eligible_count or selected != game.settings.difficulties)
   end
 
-  defp max_question_count(game), do: max_question_count(game, game.settings.difficulties)
+  @doc "How many questions a game may ask, given the difficulties selected."
+  @spec max_question_count(t()) :: non_neg_integer()
+  def max_question_count(game), do: max_question_count(game, game.settings.difficulties)
 
   defp max_question_count(game, difficulties),
     do: length(question_indices(game.pack, difficulties))
@@ -779,165 +797,5 @@ defmodule Fazoura.Game do
     |> Enum.with_index()
     |> Enum.filter(fn {question, _index} -> question.difficulty in difficulties end)
     |> Enum.map(fn {_question, index} -> index end)
-  end
-
-  ## Views (PROTOCOL.md §5.1, §7)
-
-  @doc "The complete `RoomState` snapshot as seen by `recipient`."
-  @spec view(t(), actor(), integer()) :: map()
-  def view(game, recipient, now) do
-    question = if game.phase in [:lobby, :finished], do: nil, else: current_question(game)
-    # Same for every role: the host may be playing, so nobody gets an early look (§7).
-    revealed? = game.phase in [:scoring, :leaderboard]
-
-    %{
-      protocol_version: @protocol_major,
-      protocol_minor: @protocol_minor,
-      room_code: game.room_code,
-      mode: Atom.to_string(game.mode),
-      listed: game.listed,
-      phase: Atom.to_string(game.phase),
-      server_time: now,
-      pack_titles: if(game.pack.questions == [], do: [], else: game.pack.titles),
-      question_index: game.question_index,
-      question_count: game.settings.question_count,
-      game_number: game.game_number,
-      settings: %{
-        question_count: game.settings.question_count,
-        time_limit_ms: game.settings.time_limit_ms,
-        difficulty_multiplier: game.settings.difficulty_multiplier,
-        max_question_count: max_question_count(game),
-        difficulties: game.settings.difficulties,
-        available_difficulties: game.settings.available_difficulties,
-        min_time_limit_ms: @min_time_limit_ms,
-        max_time_limit_ms: @max_time_limit_ms
-      },
-      question: question && question_view(game, question),
-      deadline: game.deadline,
-      paused_remaining_ms: game.paused_remaining_ms,
-      accepted_answers: if(question && revealed?, do: question.accepted_answers),
-      players: players_view(game),
-      you: you_view(game, recipient, question),
-      submissions: if(question && revealed?, do: submissions_view(game))
-    }
-  end
-
-  # The pack is played from `question_offset`, wrapping around, at the host's time limit.
-  defp current_question(game) do
-    order_index = rem(game.question_offset + game.question_index, length(game.question_order))
-    index = Enum.at(game.question_order, order_index)
-    %{Enum.at(game.pack.questions, index) | time_limit_ms: game.settings.time_limit_ms}
-  end
-
-  defp question_view(game, question) do
-    points = points(game, question)
-
-    question
-    |> Map.take([:id, :type, :prompt, :image_url, :time_limit_ms, :difficulty])
-    |> Map.put(:points, Map.put(points, :skipped, @skip_points))
-  end
-
-  defp players_view(game) do
-    tracks_submissions? = game.phase in [:question, :scoring, :leaderboard]
-
-    game
-    |> sorted_players()
-    |> Enum.map(fn p ->
-      # Listed field by field rather than merged over the player, so anything
-      # the server keeps for its own bookkeeping — `disconnected_at` — cannot
-      # reach a broadcast just by existing on the struct (PROTOCOL.md §5.1).
-      %{
-        id: p.id,
-        name: p.name,
-        score: p.score,
-        connected: p.connected,
-        avatar_hue: p.avatar_hue,
-        has_submitted: tracks_submissions? and Map.has_key?(game.submissions, p.id),
-        is_host: p.id == game.host_player_id
-      }
-    end)
-  end
-
-  defp sorted_players(game) do
-    game.players
-    |> Map.values()
-    |> Enum.sort_by(&{-&1.score, String.downcase(&1.name)})
-  end
-
-  # Everyone the question was put to gets a row, so the scoring screen never has to know
-  # what saying nothing costs: `answer: nil` is the player who let it go by.
-  defp submissions_view(game) do
-    for player <- sorted_players(game),
-        change = question_delta(game, player.id) do
-      submission = game.submissions[player.id]
-
-      %{
-        player_id: player.id,
-        answer: submission[:answer],
-        auto_correct: submission[:auto_correct] || false,
-        override: submission[:override],
-        correct: submission != nil and correct?(submission),
-        delta: change
-      }
-    end
-  end
-
-  # `role` reports who holds the host role *now*, not how this connection
-  # authenticated. The two differ after a transfer or promotion (PROTOCOL.md
-  # §3.4): a promoted player is still connected as a player, and a demoted host
-  # is still connected as the host. Either way the client has to be told the
-  # truth, or the new host never learns it is in charge and the old one keeps
-  # showing controls it can no longer use.
-  #
-  # `{:host, holder?}` is how the room shell says whether the connection that
-  # authenticated as host still holds the role; the game state alone cannot tell,
-  # because `host_player_id: nil` means both "the host isn't playing" and "the
-  # role has moved to someone else".
-  defp you_view(game, :host, question), do: you_view(game, {:host, true}, question)
-
-  defp you_view(game, {:host, holder?}, question) do
-    %{
-      do_you_view(game, game.host_player_id, question)
-      | role: if(holder?, do: "host", else: "player")
-    }
-  end
-
-  defp you_view(game, {:player, id}, question) do
-    %{
-      do_you_view(game, id, question)
-      | role: if(game.host_player_id == id, do: "host", else: "player")
-    }
-  end
-
-  defp do_you_view(game, id, question) do
-    %{
-      role: "player",
-      player_id: id,
-      # Filled in by the room shell for the one recipient who has just been given
-      # the role (PROTOCOL.md §5.1); the game itself has no tokens.
-      host_token: nil,
-      submission: own_submission_view(game, id, question)
-    }
-  end
-
-  # The recipient's own submission, or — from scoring on — the row that tells a player
-  # who said nothing what that cost them.
-  defp own_submission_view(_game, nil, _question), do: nil
-
-  defp own_submission_view(game, id, question) do
-    scored? = game.phase in [:scoring, :leaderboard]
-
-    case question && game.submissions[id] do
-      nil ->
-        if scored? and MapSet.member?(game.asked, id),
-          do: %{answer: nil, correct: false, delta: @skip_points}
-
-      submission ->
-        %{
-          answer: submission.answer,
-          correct: if(scored?, do: correct?(submission)),
-          delta: if(scored?, do: delta(submission))
-        }
-    end
   end
 end

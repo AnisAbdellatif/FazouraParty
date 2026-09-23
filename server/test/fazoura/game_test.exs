@@ -2,7 +2,7 @@ defmodule Fazoura.GameTest do
   use ExUnit.Case, async: true
 
   alias Fazoura.Game
-  alias Fazoura.Game.Pack
+  alias Fazoura.Game.{Pack, View}
   alias Fazoura.ProtocolFixtures
 
   @scoring ProtocolFixtures.load!("scoring.json")
@@ -76,7 +76,7 @@ defmodule Fazoura.GameTest do
         game = graded_game(c["difficulty"], c["bonus"])
         points = c["points"]
 
-        assert Game.view(game, :host, @t0).question.points == %{
+        assert View.room_state(game, :host, @t0).question.points == %{
                  right: points["right"],
                  wrong: points["wrong"],
                  skipped: points["skipped"]
@@ -97,7 +97,7 @@ defmodule Fazoura.GameTest do
           |> ok!()
 
         assert game.players["sam"].score == c["delta"]
-        assert [%{delta: delta, correct: correct}] = Game.view(game, :host, @t0).submissions
+        assert [%{delta: delta, correct: correct}] = View.room_state(game, :host, @t0).submissions
         assert {delta, correct} == {c["delta"], c["correct"]}
       end
     end
@@ -114,7 +114,7 @@ defmodule Fazoura.GameTest do
         assert game.players["sam"].score == c["score_after_scoring"]
 
         # A player who said nothing still gets a row, with no answer to show.
-        view = Game.view(game, {:player, "sam"}, @t0)
+        view = View.room_state(game, {:player, "sam"}, @t0)
         assert [%{player_id: "sam", answer: nil, correct: false, delta: delta}] = view.submissions
         assert delta == c["delta"]
         assert view.you.submission == %{answer: nil, correct: false, delta: c["delta"]}
@@ -150,8 +150,8 @@ defmodule Fazoura.GameTest do
       assert game.players["late"].score == 0
 
       # ...and has no row at all, rather than an empty one.
-      assert [%{player_id: "sam"}] = Game.view(game, :host, @t0).submissions
-      assert Game.view(game, {:player, "late"}, @t0).you.submission == nil
+      assert [%{player_id: "sam"}] = View.room_state(game, :host, @t0).submissions
+      assert View.room_state(game, {:player, "late"}, @t0).you.submission == nil
     end
 
     test "not answering cannot be overridden" do
@@ -479,7 +479,7 @@ defmodule Fazoura.GameTest do
                available_difficulties: ["easy"]
              }
 
-      view = Game.view(game, :host, @t0)
+      view = View.room_state(game, :host, @t0)
       assert view.question_count == 3
 
       assert view.settings == %{
@@ -514,7 +514,7 @@ defmodule Fazoura.GameTest do
       game = game |> configure(2, 15_000) |> ok!()
       game = game |> host(:next) |> ok!()
       assert game.deadline == @t0 + 15_000
-      assert Game.view(game, :host, @t0).question.time_limit_ms == 15_000
+      assert View.room_state(game, :host, @t0).question.time_limit_ms == 15_000
       assert configure(game, 1, 15_000) == {:error, :invalid_phase}
 
       # Two questions, then finished.
@@ -529,7 +529,7 @@ defmodule Fazoura.GameTest do
     test "the round can use the full pack size" do
       game = game_with_players(["sam"], 25)
       assert game.settings.question_count == 25
-      assert Game.view(game, :host, @t0).settings.max_question_count == 25
+      assert View.room_state(game, :host, @t0).settings.max_question_count == 25
       assert configure(game, 26, 30_000) == {:error, :invalid_settings}
       assert {:ok, _} = configure(game, 25, 30_000)
     end
@@ -545,20 +545,20 @@ defmodule Fazoura.GameTest do
     test "narrowing the difficulties clamps the count instead of failing" do
       game = mixed_game()
       assert game.settings.available_difficulties == ["easy", "hard"]
-      assert Game.view(game, :host, @t0).settings.max_question_count == 3
+      assert View.room_state(game, :host, @t0).settings.max_question_count == 3
 
       # Three questions were on offer; only the one hard question now is, so
       # the count follows the selection down rather than being refused.
       game = game |> configure(3, 10_000, false, ["hard"]) |> ok!()
       assert game.settings.question_count == 1
-      assert Game.view(game, :host, @t0).settings.max_question_count == 1
+      assert View.room_state(game, :host, @t0).settings.max_question_count == 1
 
       # Asking for more than the *current* selection holds is a mistake.
       assert configure(game, 2, 10_000, false, ["hard"]) == {:error, :invalid_settings}
 
       # The round is played from the filtered order, not the whole pack.
       game = game |> host(:next) |> ok!()
-      question = Game.view(game, :host, @t0).question
+      question = View.room_state(game, :host, @t0).question
       assert {question.id, question.difficulty} == {"q3", "hard"}
     end
 
@@ -584,7 +584,7 @@ defmodule Fazoura.GameTest do
       assert Game.pick_avatar_hue(game, next) == 280
 
       for _ <- 1..50, do: assert(Game.pick_avatar_hue(game) in 0..359)
-      assert Game.view(game, :host, @t0).players |> hd() |> Map.fetch!(:avatar_hue) == 100
+      assert View.room_state(game, :host, @t0).players |> hd() |> Map.fetch!(:avatar_hue) == 100
     end
   end
 
@@ -613,8 +613,8 @@ defmodule Fazoura.GameTest do
 
       {:ok, game} = Game.select_quiz(game, pack(3))
       game = game |> host(:next) |> ok!()
-      assert Game.view(game, :host, @t0).question.id in ["q1", "q2", "q3"]
-      assert Game.view(game, :host, @t0).game_number == 2
+      assert View.room_state(game, :host, @t0).question.id in ["q1", "q2", "q3"]
+      assert View.room_state(game, :host, @t0).game_number == 2
     end
   end
 
@@ -640,10 +640,10 @@ defmodule Fazoura.GameTest do
 
     test "the host lists and unlists in the lobby, and the snapshot says which" do
       game = lobby([]) |> host({:set_listed, %{"listed" => true}}) |> ok!()
-      assert Game.view(game, :host, @t0).listed == true
+      assert View.room_state(game, :host, @t0).listed == true
 
       game = game |> host({:set_listed, %{"listed" => false}}) |> ok!()
-      assert Game.view(game, :host, @t0).listed == false
+      assert View.room_state(game, :host, @t0).listed == false
     end
 
     test "a quiz from somebody's device keeps the room off the list until it is swapped" do
@@ -683,21 +683,21 @@ defmodule Fazoura.GameTest do
         |> submit("sam", "Right")
         |> ok!()
 
-      player = Game.view(game, {:player, "alex"}, @t0)
+      player = View.room_state(game, {:player, "alex"}, @t0)
       assert player.accepted_answers == nil
       assert player.submissions == nil
       assert player.you.submission == nil
       assert Enum.find(player.players, &(&1.id == "sam")).has_submitted
 
-      own = Game.view(game, {:player, "sam"}, @t0)
+      own = View.room_state(game, {:player, "sam"}, @t0)
       assert own.you.submission == %{answer: "Right", correct: nil, delta: nil}
 
-      host_view = Game.view(game, :host, @t0)
+      host_view = View.room_state(game, :host, @t0)
       assert host_view.accepted_answers == nil
       assert host_view.submissions == nil
       assert host_view.you == %{role: "host", player_id: nil, host_token: nil, submission: nil}
 
-      scored = game |> host(:next) |> ok!() |> Game.view({:player, "alex"}, @t0)
+      scored = game |> host(:next) |> ok!() |> View.room_state({:player, "alex"}, @t0)
       assert scored.accepted_answers == ["Right"]
 
       assert [
@@ -717,7 +717,7 @@ defmodule Fazoura.GameTest do
       assert host(game, {:submit, %{"answer" => "Right"}}) ==
                {:error, :already_submitted}
 
-      during = Game.view(game, :host, @t0)
+      during = View.room_state(game, :host, @t0)
       assert {during.accepted_answers, during.submissions} == {nil, nil}
 
       assert during.you == %{
@@ -732,13 +732,13 @@ defmodule Fazoura.GameTest do
 
       game = game |> host(:next) |> ok!()
       assert game.players["hana"].score == -10
-      assert Game.view(game, :host, @t0).accepted_answers == ["Right"]
+      assert View.room_state(game, :host, @t0).accepted_answers == ["Right"]
 
       game = game |> host({:override, %{"player_id" => "hana", "correct" => true}}) |> ok!()
       assert game.players["hana"].score == 10
 
       # Sam let the question go by, and is told what that cost rather than nothing.
-      assert Game.view(game, {:player, "sam"}, @t0).you.submission ==
+      assert View.room_state(game, {:player, "sam"}, @t0).you.submission ==
                %{answer: nil, correct: false, delta: -10}
     end
 
@@ -746,7 +746,7 @@ defmodule Fazoura.GameTest do
       game = game_with_players(["bob", "Alice", "carl"])
       game = put_in(game.players["carl"].score, 5)
 
-      names = Game.view(game, :host, @t0).players |> Enum.map(& &1.name)
+      names = View.room_state(game, :host, @t0).players |> Enum.map(& &1.name)
       assert names == ["carl", "Alice", "bob"]
     end
 
@@ -755,7 +755,7 @@ defmodule Fazoura.GameTest do
       game = Enum.reduce(1..4, game, fn _, g -> g |> host(:next) |> ok!() end)
       assert game.phase == :finished
 
-      view = Game.view(game, :host, @t0)
+      view = View.room_state(game, :host, @t0)
       assert {view.question, view.accepted_answers, view.submissions} == {nil, nil, nil}
     end
   end

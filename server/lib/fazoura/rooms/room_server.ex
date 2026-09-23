@@ -11,20 +11,15 @@ defmodule Fazoura.Rooms.RoomServer do
 
   use GenServer, restart: :temporary
 
-  alias Fazoura.{Game, Quizzes}
-  alias Fazoura.Game.Pack
-  alias Fazoura.Rooms.Images
+  alias Fazoura.Game
+  alias Fazoura.Game.{Pack, View}
+  alias Fazoura.Rooms.{Images, Listing, Selection, Tokens}
 
   # A room with nobody in it is over; the delay only exists so a lone host who
   # blips doesn't lose it, and so a new room has time for its first join
   # (PROTOCOL.md §3.4).
   @empty_ttl_ms :timer.seconds(30)
-
-  # Most quizzes one round may draw from (PROTOCOL.md §6.4). A bound on how much
-  # a single room can be made to hold, inline photos included.
-  @max_quizzes 10
   @finished_ttl_ms :timer.minutes(10)
-  @token_max_age_s 86_400
 
   def start_link(opts) do
     code = Keyword.fetch!(opts, :code)
@@ -35,22 +30,10 @@ defmodule Fazoura.Rooms.RoomServer do
   @spec constants() :: %{String.t() => term()}
   def constants do
     %{
-      "max_quizzes" => @max_quizzes,
       "empty_room_ttl_ms" => @empty_ttl_ms,
       "finished_room_ttl_ms" => @finished_ttl_ms
     }
   end
-
-  @doc """
-  The host token for generation `generation` of `code`.
-
-  The generation is what makes a transfer stick: it increments on every change of
-  host, so a token minted for an earlier holder no longer verifies and a demoted
-  host cannot rejoin as host (§3.3).
-  """
-  @spec host_token(String.t(), non_neg_integer()) :: String.t()
-  def host_token(code, generation \\ 0),
-    do: Phoenix.Token.sign(FazouraWeb.Endpoint, "host", {code, generation})
 
   ## Callbacks
 
@@ -198,7 +181,7 @@ defmodule Fazoura.Rooms.RoomServer do
 
   defp source_quiz(state, question_id, token) do
     with :ok <- verify_member(state, token),
-         {:ok, quiz_id} <- source_quiz_id(state.game.pack, question_id) do
+         {:ok, quiz_id} <- Pack.source_quiz(state.game.pack, question_id) do
       # An inline quiz was never published, so there is nothing anybody could
       # take down. Saying so is more use than accepting the report into a void.
       if quiz_id, do: {:ok, quiz_id}, else: {:error, :quiz_not_public}
@@ -210,57 +193,27 @@ defmodule Fazoura.Rooms.RoomServer do
   # code than for a made-up one, and become the room-code oracle that §3.1 goes
   # out of its way not to be. A wrong token is `room_not_found` for the same
   # reason `GET /api/rooms/:code` gives that answer to everything.
-  defp verify_member(state, token) when is_binary(token) do
+  defp verify_member(state, token) do
     if current_host_token?(state, token) or current_player_token?(state, token),
       do: :ok,
       else: {:error, :room_not_found}
   end
 
-  defp verify_member(_state, _token), do: {:error, :room_not_found}
-
   defp current_player_token?(state, token) do
-    case Phoenix.Token.verify(FazouraWeb.Endpoint, "player", token, max_age: @token_max_age_s) do
-      {:ok, {code, id}} -> code == state.game.room_code and Game.player?(state.game, id)
-      _ -> false
+    case Tokens.player_id(token, state.game.room_code) do
+      {:ok, id} -> Game.player?(state.game, id)
+      :error -> false
     end
   end
 
-  # A named question is exact, and it is what a client showing one sends.
-  defp source_quiz_id(pack, question_id) when is_binary(question_id) do
-    case Enum.find(pack.questions, &(&1.id == question_id)) do
-      nil -> {:error, :question_not_found}
-      question -> {:ok, question.quiz_id}
-    end
-  end
-
-  # Without one — in the lobby, or once the game has finished — the quiz the
-  # room is playing, as long as there is only one of them for that to mean. A
-  # host may merge up to ten into one pool (PROTOCOL.md §6.4), and guessing
-  # which of them somebody meant would be worse than asking them to name it.
-  defp source_quiz_id(pack, _question_id) do
-    case pack.questions |> Enum.map(& &1.quiz_id) |> Enum.uniq() do
-      [quiz_id] -> {:ok, quiz_id}
-      _several_or_none -> {:error, :question_not_found}
-    end
-  end
+  # The same test `authenticate/3` makes, without joining anything: the token has
+  # to verify, name this room, and belong to the generation currently in force.
+  defp current_host_token?(state, token),
+    do: Tokens.host?(token, state.game.room_code, state.generation)
 
   # The host connection that handed the role away keeps its socket, its player id
   # and its score, but loses its powers — so it acts as that player from now on,
   # and host intents get `not_host` like anyone else's (PROTOCOL.md §3.4).
-  # The same test `authenticate/3` makes, without joining anything: the token has
-  # to verify, name this room, and belong to the generation currently in force.
-  defp current_host_token?(state, token) when is_binary(token) do
-    case Phoenix.Token.verify(FazouraWeb.Endpoint, "host", token, max_age: @token_max_age_s) do
-      {:ok, {code, generation}} ->
-        code == state.game.room_code and generation == state.generation
-
-      _ ->
-        false
-    end
-  end
-
-  defp current_host_token?(_state, _token), do: false
-
   defp handle_intent(%{held_by_host_conn?: false} = state, :host, intent) do
     case state.demoted_player_id do
       nil -> {:reply, {:error, :not_host}, state}
@@ -309,23 +262,11 @@ defmodule Fazoura.Rooms.RoomServer do
   end
 
   defp select_quiz_intent(state, payload) do
-    with :ok <- inline_allowed(state.game, payload),
-         {:ok, pack, image_keys} <- resolve_selection(payload) do
-      apply_selection(state, pack, image_keys)
-    else
+    case Selection.resolve(state.game, payload) do
+      {:ok, pack, image_keys} -> apply_selection(state, pack, image_keys)
       {:error, _code} = error -> {:reply, error, state}
     end
   end
-
-  # A listed room refuses an inline quiz before decoding it: its photos would only
-  # be thrown away again once the game said no (PROTOCOL.md §3.5).
-  defp inline_allowed(%Game{listed: true}, %{"quizzes" => quizzes}) when is_list(quizzes) do
-    if Enum.any?(quizzes, &match?(%{"quiz" => _}, &1)),
-      do: {:error, :quiz_not_public},
-      else: :ok
-  end
-
-  defp inline_allowed(_game, _payload), do: :ok
 
   defp apply_selection(state, pack, image_keys) do
     case Game.handle(state.game, :host, {:select_quiz, pack}, state.now.()) do
@@ -341,56 +282,6 @@ defmodule Fazoura.Rooms.RoomServer do
     end
   end
 
-  # The whole selection, resolved into the one pool the round is played from
-  # (PROTOCOL.md §6.4). Entries may mix stored quizzes with inline documents.
-  #
-  # Inline photos go into memory as each quiz resolves, so the accumulator also
-  # carries the keys and the bytes spent so far: the keys because a selection
-  # that fails half way must not leave photos behind that no room will ever
-  # collect, and the bytes because `max_inline_bytes/0` bounds the room rather
-  # than each quiz in it.
-  defp resolve_selection(%{"quizzes" => quizzes})
-       when is_list(quizzes) and quizzes != [] and length(quizzes) <= @max_quizzes do
-    quizzes
-    |> Enum.reduce_while({:ok, [], [], 0}, fn entry, {:ok, packs, keys, spent} ->
-      case resolve_quiz(entry, spent) do
-        {:ok, pack, image_keys, spent} ->
-          {:cont, {:ok, [pack | packs], keys ++ image_keys, spent}}
-
-        error ->
-          {:halt, {error, keys}}
-      end
-    end)
-    |> case do
-      {:ok, packs, image_keys, _spent} ->
-        {:ok, Pack.merge(Enum.reverse(packs)), image_keys}
-
-      {error, orphans} ->
-        Images.delete(orphans)
-        error
-    end
-  end
-
-  defp resolve_selection(_payload), do: {:error, :invalid_quiz}
-
-  defp resolve_quiz(%{"quiz_id" => id}, spent) when is_binary(id) do
-    case Quizzes.fetch(id) do
-      # A stored quiz's photos are on disk and served from there, so they cost
-      # the room nothing to hold.
-      {:ok, quiz} -> {:ok, Quizzes.to_pack(quiz), [], spent}
-      _ -> {:error, :quiz_not_found}
-    end
-  end
-
-  defp resolve_quiz(%{"quiz" => %{} = document}, spent) do
-    case Quizzes.inline_pack(document, spent) do
-      {:ok, pack, image_keys, spent} -> {:ok, pack, image_keys, spent}
-      _ -> {:error, :invalid_quiz}
-    end
-  end
-
-  defp resolve_quiz(_entry, _spent), do: {:error, :invalid_quiz}
-
   defp fetch_player_id(%{"player_id" => id}) when is_binary(id), do: {:ok, id}
   defp fetch_player_id(_payload), do: {:error, :invalid_payload}
 
@@ -404,28 +295,23 @@ defmodule Fazoura.Rooms.RoomServer do
 
   defp authenticate(game, generation, %{"host_token" => token} = params)
        when is_binary(token) do
-    case Phoenix.Token.verify(FazouraWeb.Endpoint, "host", token, max_age: @token_max_age_s) do
-      # Only the current generation: a token from before a transfer is as good
-      # as forged, or a demoted host could take the room back (§3.3).
-      {:ok, {code, ^generation}} when code == game.room_code ->
-        with {:ok, game} <- maybe_add_host_player(game, params["display_name"]) do
-          {:ok, :host, %{role: "host", player_id: game.host_player_id, player_token: nil}, game}
-        end
-
-      _ ->
-        {:error, :invalid_token}
+    # Only the current generation: a token from before a transfer is as good as
+    # forged, or a demoted host could take the room back (§3.3).
+    if Tokens.host?(token, game.room_code, generation) do
+      with {:ok, game} <- maybe_add_host_player(game, params["display_name"]) do
+        {:ok, :host, %{role: "host", player_id: game.host_player_id, player_token: nil}, game}
+      end
+    else
+      {:error, :invalid_token}
     end
   end
 
   defp authenticate(game, _generation, %{"player_token" => token}) when is_binary(token) do
-    case Phoenix.Token.verify(FazouraWeb.Endpoint, "player", token, max_age: @token_max_age_s) do
-      {:ok, {code, id}} when code == game.room_code ->
-        if Game.player?(game, id),
-          do: {:ok, {:player, id}, player_reply(id, token), game},
-          else: {:error, :invalid_token}
-
-      _ ->
-        {:error, :invalid_token}
+    with {:ok, id} <- Tokens.player_id(token, game.room_code),
+         true <- Game.player?(game, id) do
+      {:ok, {:player, id}, player_reply(id, token), game}
+    else
+      _ -> {:error, :invalid_token}
     end
   end
 
@@ -435,7 +321,7 @@ defmodule Fazoura.Rooms.RoomServer do
     hue = Game.pick_avatar_hue(game)
 
     with {:ok, game} <- Game.add_player(game, id, params["display_name"], hue) do
-      token = Phoenix.Token.sign(FazouraWeb.Endpoint, "player", {game.room_code, id})
+      token = Tokens.player_token(game.room_code, id)
       {:ok, {:player, id}, player_reply(id, token), game}
     end
   end
@@ -513,7 +399,11 @@ defmodule Fazoura.Rooms.RoomServer do
         held_by_host_conn?: false,
         demoted_player_id: state.demoted_player_id || state.game.host_player_id,
         pending_tokens:
-          Map.put(state.pending_tokens, player_id, host_token(state.game.room_code, generation))
+          Map.put(
+            state.pending_tokens,
+            player_id,
+            Tokens.host_token(state.game.room_code, generation)
+          )
     }
   end
 
@@ -548,27 +438,8 @@ defmodule Fazoura.Rooms.RoomServer do
     |> schedule()
   end
 
-  # What the public room list shows for this room (PROTOCOL.md §3.5), kept as the
-  # room's value in the registry so `Fazoura.Rooms.listed/0` reads every room
-  # without calling any of them. `nil` for a room that is not listed. No names:
-  # the list is read by strangers, and a quiz title is the only text on it a
-  # person has reviewed.
   defp publish_listing(state) do
-    game = state.game
-
-    listing =
-      if game.listed do
-        %{
-          room_code: game.room_code,
-          phase: Atom.to_string(game.phase),
-          pack_titles: if(game.pack.questions == [], do: [], else: game.pack.titles),
-          player_count: map_size(game.players),
-          question_index: game.question_index,
-          question_count: game.settings.question_count
-        }
-      end
-
-    Registry.update_value(Fazoura.Rooms.Registry, game.room_code, fn _ -> listing end)
+    :ok = Listing.publish(state.game)
     state
   end
 
@@ -578,7 +449,7 @@ defmodule Fazoura.Rooms.RoomServer do
     for {pid, actor} <- state.conns do
       view =
         state.game
-        |> Game.view(recipient(state, actor), now)
+        |> View.room_state(recipient(state, actor), now)
         |> put_host_token(state, actor)
 
       send(pid, {:room_state, view})
