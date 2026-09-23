@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/quiz_api.dart';
 import '../../core/connection/game_connection.dart';
+import '../../core/quizzes/quiz_selection.dart';
 import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../core/providers/lan_providers.dart';
@@ -268,26 +269,19 @@ class _HostPhase extends ConsumerWidget {
   }
 }
 
-/// A browser choice as the intent carries it (PROTOCOL.md §6.4).
-///
-/// A LAN host has no quiz database, so a public quiz has to be fetched whole and
-/// sent inline. Whole means `download`, not `get`: an ordinary read answers
-/// without questions, because accepted answers are never handed to anyone but
-/// the publisher (QUIZ_FORMAT.md §5.3 and §5.3a). Sent from `get`, every public
-/// quiz reached the room with nothing in it and came back `empty_pack`.
-///
-/// Cloud already has the quiz and takes the id. Either way the wire shape is the
-/// same, which is why one selection can hold both.
+/// A browser choice as the intent carries it (PROTOCOL.md §6.4): a quiz on
+/// this device is sent whole, a published one as [selectPublishedQuiz] decides.
 Future<QuizSelection> quizSelectionFor(
   QuizApi api,
   QuizChoice choice, {
   required bool isLan,
 }) async => switch (choice) {
   LocalQuizChoice(:final quiz) => InlineQuizSelection(quiz.quiz),
-  PublicQuizChoice(:final quiz) when isLan => InlineQuizSelection(
-    await api.download(quiz.hostId),
+  PublicQuizChoice(:final quiz) => await selectPublishedQuiz(
+    api,
+    quiz.hostId,
+    lan: isLan,
   ),
-  PublicQuizChoice(:final quiz) => StoredQuizSelection(quiz.hostId),
 };
 
 class _QuestionControls extends StatelessWidget {

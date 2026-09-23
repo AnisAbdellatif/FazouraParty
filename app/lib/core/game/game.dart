@@ -15,6 +15,10 @@ import 'dart:math';
 import 'answer.dart';
 import 'pack.dart';
 
+// Each constant below that the server also defines is held to
+// protocol/fixtures/constants.json by test/core/protocol_constants_test.dart;
+// "must equal" in their comments is that test, not a promise.
+
 /// The compatibility boundary, and the only part of the version on the wire:
 /// a host accepts any client sharing its major and refuses the rest with
 /// `unsupported_protocol_version` (PROTOCOL.md §1.1, §4.1). Must equal

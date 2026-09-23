@@ -607,6 +607,7 @@ all players then see that same shuffled order for the round (§6.4).
 |---|---|
 | `fixtures/normalize.json` | `normalize` input/output pairs + match cases |
 | `fixtures/scoring.json` | Delta and override recomputation cases |
+| `fixtures/constants.json` | Every fixed number both hosts must define identically — protocol version, grace, closing window, limits, room-code shape, room lifetimes. Each implementation's constants must equal it exactly |
 | `fixtures/scenarios/*.json` | Ordered intent → expected reply/state scripts, replayed against every host implementation |
 
 Scenario format:

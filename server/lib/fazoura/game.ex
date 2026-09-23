@@ -145,6 +145,29 @@ defmodule Fazoura.Game do
   @spec protocol_minor() :: non_neg_integer()
   def protocol_minor, do: @protocol_minor
 
+  @doc """
+  The fixed numbers this module owns, named as `protocol/fixtures/constants.json` names
+  them. The LAN host defines the same ones in Dart; both test suites hold their own to
+  that file, so the two cannot drift apart unnoticed.
+  """
+  @spec constants() :: %{String.t() => term()}
+  def constants do
+    %{
+      "protocol_major" => @protocol_major,
+      "protocol_minor" => @protocol_minor,
+      "waiting_grace_ms" => @waiting_grace_ms,
+      "closing_window_ms" => @closing_window_ms,
+      "skip_points" => @skip_points,
+      "min_time_limit_ms" => @min_time_limit_ms,
+      "max_time_limit_ms" => @max_time_limit_ms,
+      "default_time_limit_ms" => @default_time_limit_ms,
+      "max_players" => @max_players,
+      "max_name_length" => @max_name_length,
+      "max_answer_length" => @max_answer_length,
+      "difficulties" => @difficulties
+    }
+  end
+
   @doc "Most players one room holds."
   @spec max_players() :: pos_integer()
   def max_players, do: @max_players

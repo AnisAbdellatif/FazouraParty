@@ -31,6 +31,16 @@ defmodule Fazoura.Rooms.RoomServer do
     GenServer.start_link(__MODULE__, opts, name: {:via, Registry, {Fazoura.Rooms.Registry, code}})
   end
 
+  @doc "This module's part of `protocol/fixtures/constants.json` (see `Fazoura.Game.constants/0`)."
+  @spec constants() :: %{String.t() => term()}
+  def constants do
+    %{
+      "max_quizzes" => @max_quizzes,
+      "empty_room_ttl_ms" => @empty_ttl_ms,
+      "finished_room_ttl_ms" => @finished_ttl_ms
+    }
+  end
+
   @doc """
   The host token for generation `generation` of `code`.
 

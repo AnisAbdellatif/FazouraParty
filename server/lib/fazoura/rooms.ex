@@ -40,6 +40,11 @@ defmodule Fazoura.Rooms do
     end
   end
 
+  @doc "This module's part of `protocol/fixtures/constants.json` (see `Fazoura.Game.constants/0`)."
+  @spec constants() :: %{String.t() => term()}
+  def constants,
+    do: %{"room_code_alphabet" => to_string(@code_alphabet), "room_code_length" => @code_length}
+
   @doc "How many rooms are live on this node."
   @spec count() :: non_neg_integer()
   def count, do: Registry.count(Fazoura.Rooms.Registry)

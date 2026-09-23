@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:fazoura_party/core/connection/game_connection.dart';
 import 'package:fazoura_party/core/models/models.dart';
+import 'package:fazoura_party/core/quizzes/quiz_selection.dart';
 
 import '../context.dart';
 import '../pack.dart';
@@ -72,10 +73,9 @@ Future<QuizDocument> loadDocument(Context context, String source) async {
   return context.quizzes.download(source);
 }
 
-/// What `host_select_quiz` takes for [source]. A path is sent inline, as the
-/// app sends a quiz kept on the device. An id or slug is sent by id to a cloud
-/// room; a LAN host has no quiz database, so there it is downloaded and sent
-/// inline, as the app does (PROTOCOL.md §6.4).
+/// What `host_select_quiz` takes for [source]: a path is sent inline, as the
+/// app sends a quiz kept on the device, and an id or slug is a published quiz,
+/// sent the way the app sends one ([selectPublishedQuiz]).
 Future<QuizSelection> resolveSelection(
   Context context,
   String source, {
@@ -84,9 +84,7 @@ Future<QuizSelection> resolveSelection(
   if (FileSystemEntity.typeSync(source) != FileSystemEntityType.notFound) {
     return InlineQuizSelection(loadQuiz(source).toInlineDocument());
   }
-  return lan
-      ? InlineQuizSelection(await context.quizzes.download(source))
-      : StoredQuizSelection(source);
+  return selectPublishedQuiz(context.quizzes, source, lan: lan);
 }
 
 double parseChance(String value, String name) {

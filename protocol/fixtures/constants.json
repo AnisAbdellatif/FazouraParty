@@ -1,0 +1,20 @@
+{
+  "_comment": "Every fixed number the protocol names, as both hosts must define it (PROTOCOL.md §11). Both test suites require their implementation's constants to equal this object exactly — so a constant added to one side without the other fails, and so does one added here without either. Keys starting with _ are notes, not constants. The scoring table is scoring.json.",
+  "protocol_major": 9,
+  "protocol_minor": 5,
+  "waiting_grace_ms": 5000,
+  "closing_window_ms": 3000,
+  "skip_points": -10,
+  "min_time_limit_ms": 10000,
+  "max_time_limit_ms": 120000,
+  "default_time_limit_ms": 30000,
+  "max_players": 100,
+  "max_name_length": 20,
+  "max_answer_length": 100,
+  "difficulties": ["easy", "medium", "hard"],
+  "max_quizzes": 10,
+  "room_code_alphabet": "ABCDEFGHJKLMNPQRSTUVWXYZ23456789",
+  "room_code_length": 6,
+  "empty_room_ttl_ms": 30000,
+  "finished_room_ttl_ms": 600000
+}
