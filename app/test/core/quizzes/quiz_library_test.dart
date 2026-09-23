@@ -62,47 +62,165 @@ void main() {
     );
   });
 
-  test('publishing uploads photos once, then creates and replaces', () async {
-    final published = await library.save(photoQuiz(visibility: 'public'));
+  group('publishing is a submission', () {
+    test('sends the whole quiz as one package, photos inside', () async {
+      final submitted = await library.save(photoQuiz(visibility: 'public'));
 
-    expect(published.publishedId, 'pub-2');
-    expect(server.requestsWith('POST', '/api/images'), hasLength(1));
-    final body = jsonDecode(
-      server.lastWith('POST', '/api/quizzes')!.body,
-    ) as Map<String, dynamic>;
-    final image = (body['questions'] as List).first['image'] as Map;
-    expect(image['key'], 'img1.jpg');
-    expect(image['data'], isNull, reason: 'published by key, not by data');
-    expect(published.quiz.questions!.first.image!.data, photo);
-    expect(await store.get('local-1'), published);
+      // Nothing is public yet, and nothing was uploaded: the package is the
+      // only thing that left the device.
+      expect(submitted.publishedId, isNull);
+      expect(submitted.inReview, isTrue);
+      expect(server.quizzes, isEmpty);
+      expect(server.requestsWith('POST', '/api/images'), isEmpty);
 
-    final renamed = await library.save(
-      published.copyWith(quiz: published.quiz.copyWith(title: 'Renamed')),
-    );
-    expect(renamed.publishedId, 'pub-2');
-    expect(server.requestsWith('POST', '/api/images'), hasLength(1));
-    expect(server.lastWith('PUT', '/api/quizzes/pub-2'), isNotNull);
-    expect(server.quizzes.single.title, 'Renamed');
+      final queued = server.submissions.single;
+      expect(queued.hasPhotos, isTrue);
+      expect(queued.document.title, 'Stills');
+      expect(queued.document.questions, hasLength(2));
+      // Read back out of the package the client built: the photo travelled
+      // with it rather than as a key pointing at an upload.
+      final image = queued.document.questions!.first.image!;
+      expect(image.data, photo);
+      expect(image.key, isNull);
+      expect(image.alt, 'A still');
+
+      // The device keeps its own copy, photo and all.
+      expect(submitted.quiz.questions!.first.image!.data, photo);
+      expect(await store.get('local-1'), submitted);
+    });
+
+    test('approval is what makes it public', () async {
+      final submitted = await library.save(photoQuiz(visibility: 'public'));
+      server.approve(server.submissions.single.id);
+
+      final settled = (await library.refreshSubmissions()).single;
+
+      expect(settled.publishedId, 'pub-1');
+      expect(settled.isPublished, isTrue);
+      expect(settled.inReview, isFalse, reason: 'the queue is done with it');
+      expect(settled.submission, isNull);
+      expect(settled.localId, submitted.localId);
+    });
+
+    test('a rejection sends it back to private, with the note', () async {
+      await library.save(localQuiz('local-1', 'Quiz', visibility: 'public'));
+      server.reject(server.submissions.single.id, 'Question 3 is not okay.');
+
+      final settled = (await library.refreshSubmissions()).single;
+
+      expect(settled.isPublished, isFalse);
+      expect(settled.wantsPublic, isFalse);
+      expect(settled.wasRejected, isTrue);
+      expect(settled.submission!.reviewNote, 'Question 3 is not okay.');
+      // Nothing to retry: it is private, which is a settled state.
+      expect(settled.inSync, isTrue);
+    });
+
+    test('editing a public quiz goes back through the queue', () async {
+      await library.save(localQuiz('local-1', 'Quiz', visibility: 'public'));
+      server.approve(server.submissions.single.id);
+      final published = (await library.refreshSubmissions()).single;
+
+      final edited = await library.save(
+        published.copyWith(quiz: published.quiz.copyWith(title: 'Renamed')),
+      );
+
+      expect(server.lastWith('PUT', '/api/quizzes/pub-1'), isNotNull);
+      expect(edited.inReview, isTrue);
+      expect(edited.isPublished, isTrue, reason: 'the old version is still up');
+      expect(server.quizzes.single.title, 'Quiz');
+
+      server.approve(edited.submission!.id);
+      final settled = (await library.refreshSubmissions()).single;
+      expect(settled.publishedId, 'pub-1', reason: 'replaced, not duplicated');
+      expect(server.quizzes.single.title, 'Renamed');
+    });
+
+    test('a turned-down edit leaves the published quiz alone', () async {
+      await library.save(localQuiz('local-1', 'Quiz', visibility: 'public'));
+      server.approve(server.submissions.single.id);
+      final published = (await library.refreshSubmissions()).single;
+      final edited = await library.save(
+        published.copyWith(quiz: published.quiz.copyWith(title: 'Renamed')),
+      );
+      server.reject(edited.submission!.id, 'No.');
+
+      final settled = (await library.refreshSubmissions()).single;
+
+      expect(settled.isPublished, isTrue);
+      expect(settled.wantsPublic, isTrue);
+      expect(settled.wasRejected, isTrue);
+      expect(server.quizzes.single.title, 'Quiz');
+    });
+
+    test('saving twice leaves one submission in the queue', () async {
+      final first = await library.save(
+        localQuiz('local-1', 'Draft', visibility: 'public'),
+      );
+      final second = await library.save(
+        first.copyWith(quiz: first.quiz.copyWith(title: 'Better draft')),
+      );
+
+      expect(server.pending, hasLength(1));
+      expect(server.pending.single.id, second.submission!.id);
+      expect(server.pending.single.document.title, 'Better draft');
+    });
+
+    test('a submission the server has forgotten is forgotten here', () async {
+      final submitted = await library.save(
+        localQuiz('local-1', 'Quiz', visibility: 'public'),
+      );
+      expect(submitted.inReview, isTrue);
+      server.submissions.clear();
+
+      final settled = (await library.refreshSubmissions()).single;
+
+      expect(settled.submission, isNull);
+      expect(settled.inReview, isFalse);
+    });
+
+    test('an unreachable server leaves the library as it was', () async {
+      final submitted = await library.save(
+        localQuiz('local-1', 'Quiz', visibility: 'public'),
+      );
+      server.failLists = true;
+
+      final unchanged = (await library.refreshSubmissions()).single;
+
+      expect(unchanged.submission!.id, submitted.submission!.id);
+      expect(unchanged.inReview, isTrue);
+    });
   });
 
-  test('a published copy deleted elsewhere is published again', () async {
-    final stale = localQuiz(
-      'local-1',
-      'Stale',
-      visibility: 'public',
-      publishedId: 'gone',
+  test('withdrawing takes it back out of the queue', () async {
+    final submitted = await library.save(
+      localQuiz('local-1', 'Quiz', visibility: 'public'),
     );
 
-    final saved = await library.save(stale);
+    final private = await library.setPublic(submitted, false);
 
-    expect(server.lastWith('PUT', '/api/quizzes/gone'), isNotNull);
-    expect(saved.publishedId, 'pub-1');
+    expect(private.submission, isNull);
+    expect(server.pending, isEmpty);
+    expect(server.quizzes, isEmpty);
+  });
+
+  test('deleting withdraws anything still waiting to be read', () async {
+    // Otherwise an admin could approve, and publish, a quiz its author threw
+    // away days earlier.
+    final submitted = await library.save(
+      localQuiz('local-1', 'Quiz', visibility: 'public'),
+    );
+
+    await library.delete(submitted);
+
+    expect(server.pending, isEmpty);
+    expect(await store.list(), isEmpty);
   });
 
   test('making it private unpublishes; deleting removes both copies', () async {
-    final published = await library.save(
-      localQuiz('local-1', 'Quiz', visibility: 'public'),
-    );
+    await library.save(localQuiz('local-1', 'Quiz', visibility: 'public'));
+    server.approve(server.submissions.single.id);
+    final published = (await library.refreshSubmissions()).single;
     expect(server.quizzes, hasLength(1));
 
     final private = await library.setPublic(published, false);
@@ -111,14 +229,14 @@ void main() {
     expect(server.quizzes, isEmpty);
 
     final again = await library.setPublic(private, true);
-    expect(server.quizzes, hasLength(1));
+    expect(again.inReview, isTrue);
 
     await library.delete(again);
-    expect(server.quizzes, isEmpty);
+    expect(server.pending, isEmpty);
     expect(await store.list(), isEmpty);
   });
 
-  test('a failed publish keeps the local save and reports it', () async {
+  test('a failed submission keeps the local save and reports it', () async {
     server.failWrites = true;
 
     await expectLater(
@@ -258,7 +376,7 @@ void main() {
     },
   );
 
-  test('forInlineRoom sends photo data; forPublishing sends keys', () {
+  test('forInlineRoom sends photo data and drops stray images', () {
     final document = photoQuiz().quiz.copyWith(
       questions: [
         QuizQuestion(
@@ -278,9 +396,5 @@ void main() {
     final inline = document.forInlineRoom().questions!;
     expect(inline.first.image, QuizImage(data: photo));
     expect(inline.last.image, isNull);
-
-    final publishing = document.forPublishing().questions!;
-    expect(publishing.first.image, const QuizImage(key: 'k.jpg'));
-    expect(publishing.last.image, isNull);
   });
 }

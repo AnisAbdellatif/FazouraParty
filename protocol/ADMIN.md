@@ -83,7 +83,7 @@ without having read it.
   quiz and become ordinary uploads owned by a key no device holds (§6); a pasted document does
   not, so its photos must already be uploaded. `tools/fazoura_pack.py` builds a package from a
   folder of JSON and images.
-- **Edit** any quiz — its metadata and every question — in the editor (§3.3). A quiz added
+- **Edit** any quiz — its metadata and every question — in the editor (§3.4). A quiz added
   from a package or a pasted document opens there straight away, since a new quiz is the one
   most likely to need a correction before anyone plays it.
 - **Delete** any quiz, preset or community, with its questions and tags. Running games are

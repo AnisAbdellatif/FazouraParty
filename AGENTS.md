@@ -90,6 +90,15 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 - Providers depend on the `GameConnection` abstraction only — never on a concrete transport.
 - No `BuildContext`-dependent lookups in providers/logic.
 - `dart:io` code (LAN server) must be behind conditional imports so the Web build compiles.
+- **Publishing from the app is a submission** (`core/quizzes/`). `QuizArchive` builds the
+  `.fazoura` the device sends and reads one back, so the container is decided in one place
+  on this side as `Fazoura.Quizzes.Archive` decides it on the other; photos travel inside
+  it and the app never uploads one. A quiz waits in the queue rather than going public, so
+  `LocalQuiz` carries the submission it is waiting on, `refreshSubmissions` is how a device
+  learns what an admin decided — it cannot be told, since approval happens when somebody
+  reads the queue — and making a quiz private, or deleting it, withdraws anything of it
+  still waiting. None of this touches hosting: a quiz that is not public is sent inline
+  with room creation exactly as before, so waiting for review costs its author nothing.
 - **The app updates itself, on Android only** (`core/update/`). The web build is a PWA and replaces itself through the service worker; a development build has no released version to be behind, which is exactly what `APP_VERSION_CODE` being 0 means. The check is quiet by design — it never reports its own failure unless someone pressed the button — and the install step is handing the URL to the browser, never installing a package in-process. The download URL comes out of a remote document, so it is constrained rather than trusted: `https`, and the same host the manifest came from.
 - Keep guest-facing screens lean (Web first-load time is a known risk). Hosting, the quiz browser, the editor and settings are imported `deferred as` so a guest never downloads them; a deferred library's types cannot be named by the library that imports it, which is why `QuizChoice` lives in `quiz_choice.dart`. New chunks must stay servable — `FazouraWeb.Plugs.WebApp` matches them by prefix, and a 404 there stops the service worker installing at all.
 - **Visual design source:** `design/FazouraParty.v2.dc.html` (Claude Design prototype; `ios-frame.jsx` is only the preview bezel). v2 palette: deep teal `#0A2422` panels over `#061917`, amber `#FFB000`, pink `#FF2D6F`, green `#4FD39A`, with the amber lattice woven behind every screen. Type: Figtree for body, buttons and question text; DM Mono for labels, codes and numbers; Reem Kufi for screen titles (`FzTheme.t`); **Noto Naskh Arabic behind all three**, because the Latin faces carry no Arabic and Reem Kufi is a display face that made body text hard going. Every font is bundled, never fetched, so a LAN party with no internet still has type.

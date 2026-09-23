@@ -159,25 +159,12 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
       final quizzes = await ref.read(quizLibraryProvider).list();
       if (!mounted || request != _localRequest) return;
       setState(() {
-        _local = quizzes;
-        _savedPublicIds
-          ..clear()
-          ..addAll(
-            quizzes
-                .where((quiz) => !quiz.isPublished)
-                .map((quiz) => quiz.quiz.id)
-                .whereType<String>(),
-          );
-        _savedPublicVersions
-          ..clear()
-          ..addEntries(
-            quizzes
-                .where((quiz) => !quiz.isPublished)
-                .where((quiz) => quiz.quiz.id != null)
-                .map((quiz) => MapEntry(quiz.quiz.id!, quiz.quiz.versionRank)),
-          );
+        _applyLocal(quizzes);
         _loading = false;
       });
+      // The device's own copy is on screen either way; asking the server what
+      // became of anything in the review queue can take its time.
+      unawaited(_settleSubmissions(request));
     } catch (error) {
       if (!mounted || request != _localRequest) return;
       setState(() {
@@ -185,6 +172,38 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
         _error = describeError(error);
       });
     }
+  }
+
+  void _applyLocal(List<LocalQuiz> quizzes) {
+    _local = quizzes;
+    _savedPublicIds
+      ..clear()
+      ..addAll(
+        quizzes
+            .where((quiz) => !quiz.isPublished)
+            .map((quiz) => quiz.quiz.id)
+            .whereType<String>(),
+      );
+    _savedPublicVersions
+      ..clear()
+      ..addEntries(
+        quizzes
+            .where((quiz) => !quiz.isPublished)
+            .where((quiz) => quiz.quiz.id != null)
+            .map((quiz) => MapEntry(quiz.quiz.id!, quiz.quiz.versionRank)),
+      );
+  }
+
+  /// Catches the library up on what an admin decided about this device's
+  /// submissions. A quiz only becomes public when somebody reads the queue,
+  /// which will not be while the app is open — so opening the list is when the
+  /// device finds out. Nothing to ask about is the common case, and costs no
+  /// request at all.
+  Future<void> _settleSubmissions(int request) async {
+    if (!_local.any((quiz) => quiz.submission != null)) return;
+    final quizzes = await ref.read(quizLibraryProvider).refreshSubmissions();
+    if (!mounted || request != _localRequest) return;
+    setState(() => _applyLocal(quizzes));
   }
 
   /// Tag chips for the public tab; the suggested list stands in until the
@@ -273,9 +292,35 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
     if (mounted) await _loadLocal();
   }
 
+  /// Public, or waiting to be, both go back to private. Anything else asks for
+  /// review: a rejected quiz is private again, so its button offers another go.
   Future<void> _togglePublished(LocalQuiz quiz) => _run(
-    () => ref.read(quizLibraryProvider).setPublic(quiz, !quiz.isPublished),
+    () => ref
+        .read(quizLibraryProvider)
+        .setPublic(quiz, !(quiz.isPublished || quiz.inReview)),
   );
+
+  /// The line under a local card, when there is something to say about where
+  /// the quiz stands with the server.
+  static String? _localWarning(LocalQuiz quiz) {
+    if (quiz.wasRejected) {
+      final note = quiz.submission?.reviewNote?.trim();
+      final what = quiz.isPublished
+          ? 'Your changes were turned down, so the public copy is unchanged.'
+          : 'Turned down, so it stayed private.';
+      return note == null || note.isEmpty ? what : '$what $note';
+    }
+    if (quiz.inReview) {
+      return quiz.isPublished
+          ? 'Your changes are waiting to be read. The public version is '
+                'unchanged until then.'
+          : 'Waiting to be read. You can host it yourself in the meantime.';
+    }
+    if (quiz.inSync) return null;
+    return quiz.wantsPublic
+        ? 'Not sent for review yet. Tap Submit for review to try again.'
+        : 'Still public on the server. Tap Make private to try again.';
+  }
 
   Future<void> _delete(LocalQuiz quiz) async {
     final title = quiz.quiz.title;
@@ -565,12 +610,16 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
           key: ValueKey('quizVisibility-$id'),
           color: quiz.isPublished ? FzColors.ok : FzColors.ac,
         ),
+        // Beside PUBLIC this reads as "public, and something of it is waiting"
+        // — which is what an edit in the queue is. The line below says which.
+        if (quiz.inReview)
+          FzTag(
+            'In review',
+            key: ValueKey('quizReview-$id'),
+            color: FzColors.ac,
+          ),
       ],
-      warning: quiz.inSync
-          ? null
-          : quiz.wantsPublic
-          ? 'Not published yet. Tap Publish to try again.'
-          : 'Still public on the server. Tap Make private to try again.',
+      warning: _localWarning(quiz),
       warningKey: ValueKey('quizSyncWarning-$id'),
       actions: [
         if (widget.onEdit != null)
@@ -582,8 +631,12 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
           ),
         FzPill(
           key: ValueKey('togglePublished-$id'),
-          label: quiz.isPublished ? 'Make private' : 'Publish',
-          icon: quiz.isPublished ? Icons.lock_outline : Icons.public,
+          label: quiz.isPublished || quiz.inReview
+              ? 'Make private'
+              : 'Submit for review',
+          icon: quiz.isPublished || quiz.inReview
+              ? Icons.lock_outline
+              : Icons.public,
           onPressed: () => _togglePublished(quiz),
         ),
         FzPill(

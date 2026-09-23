@@ -34,7 +34,8 @@ Future<LocalQuiz?> showQuizEditor(BuildContext context, {LocalQuiz? existing}) {
 }
 
 /// Create or edit one of this device's quizzes (QUIZ_FORMAT.md §2, §4).
-/// Saving always stores it on the device; public quizzes are also published.
+/// Saving always stores it on the device; asking for a public one sends it for
+/// review, which is the only way it becomes public.
 class QuizEditorScreen extends ConsumerStatefulWidget {
   const QuizEditorScreen({super.key, this.existing});
 
@@ -240,7 +241,8 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
         _publishedId = error.saved.publishedId;
         final reason = describeError(error.cause);
         _error = _visibility == 'public'
-            ? 'Saved on this device, but publishing failed: $reason'
+            ? 'Saved on this device, but it could not be sent for review: '
+                  '$reason'
             : "Saved on this device, but it's still public on the server: "
                   '$reason';
       });
@@ -312,7 +314,7 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
               label: _saving
                   ? 'Saving…'
                   : _visibility == 'public'
-                  ? 'Save & publish'
+                  ? 'Save & submit'
                   : 'Save quiz',
               onPressed: _saving ? null : _save,
             ),
@@ -457,8 +459,9 @@ class _QuizEditorScreenState extends ConsumerState<QuizEditorScreen> {
         const SizedBox(height: 6),
         Text(
           _visibility == 'public'
-              ? 'Published to the server so everyone can find it. You can '
-                    'make it private again later.'
+              ? 'Sent for review first. Once somebody has read it, everyone '
+                    'can find it. You can host it yourself in the meantime, '
+                    'and make it private again later.'
               : 'Only on this device. It is sent to the server just for the '
                     'games you host, then forgotten.',
           style: fz.m(11, color: FzColors.dim, height: 1.5),

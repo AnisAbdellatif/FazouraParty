@@ -113,7 +113,7 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 | `accepted_answers` | string[] | Required, 1–10 answers, each 1–100 characters. Matching is PROTOCOL.md §8 |
 | `difficulty` | `"easy"` \| `"medium"` \| `"hard"` | Default `"easy"`; drives the difficulty bonus (PROTOCOL.md §9) |
 | `time_limit_ms` | int \| null | Reserved for per-question overrides; ignored by rooms today |
-| `image` | object \| null | Required for `text_photo`, must be `null` for `text`. Fields: `key` (from §5.6, when publishing); `data` (base64 JPEG/PNG/WebP ≤ 2 MB, for private quizzes sent inline, §5.7, and how the app keeps photos on the device); `path` (a file beside the document — inside a `.fazoura` archive, §5.3b, or beside a preset's JSON, §6); optional `alt` (≤ 140 chars); `url` is output only |
+| `image` | object \| null | Required for `text_photo`, must be `null` for `text`. Fields: `key` (an upload, §5.7 — what a published quiz carries); `data` (base64 JPEG/PNG/WebP ≤ 2 MB, for private quizzes sent inline, §5.8, and how the app keeps photos on the device); `path` (a file beside the document — inside a `.fazoura` package, §5.3b, which is how a photo reaches the server when publishing, or beside a preset's JSON, §6); optional `alt` (≤ 140 chars); `url` is output only |
 | `explanation` | string \| null | ≤ 280 chars, shown after the reveal in a later release |
 
 ### 2.3 Tags
@@ -184,11 +184,28 @@ images
   it, the whole document is sent with room creation (§5.7); the server validates it, plays
   it, and forgets it (photos included) when the room closes. Friends play it by joining
   the room.
-- **Public:** the device publishes the document (§5.3) and it is stored in the server
-  database, listed for everyone and hostable by anyone. The device keeps its local copy
-  (the one it edits) and remembers the published id.
-- The creator can switch at any time: publishing uploads photos (§5.6) and creates or
-  replaces the stored copy; making it private again deletes the stored copy (§5.5).
+- **Public:** stored in the server database, listed for everyone and hostable by anyone.
+  The device keeps its local copy (the one it edits) and remembers the published id.
+- **Publishing is a submission, and a submission is a package.** Asking for a quiz to be
+  public sends one `.fazoura` (§5.3b, §5.4) and it waits in a queue until somebody reads
+  it (ADMIN.md §3.2). Until then there is no row in `quizzes` and no file in the uploads
+  volume — which is what lets every query against `quizzes` mean "public" with no second
+  condition to forget, and means nothing unreviewed can be found, hosted or served.
+  Approval unpacks the package (§6, the path a dropped-in preset already takes) and only
+  then is there a quiz. Waiting costs its author nothing: the quiz is still on their
+  device and still hosted inline, which never touches the server's library at all.
+- **An edit of a public quiz comes back through the queue too** (§5.5), offered against
+  the quiz it replaces so approval swaps that quiz's contents rather than adding a second
+  copy. Otherwise approval would mean nothing: publish something harmless, then change it.
+  The published version stays exactly as it was while the edit waits, and a turned-down
+  edit leaves it untouched.
+- A rejection carries a note, sent only to the device that submitted it — it is a message
+  to an author, not something published beside a quiz. A device asks for its own
+  submissions with §5.4a, which is how it learns that a quiz went public: approval happens
+  when somebody reads the queue, not while the app is open.
+- Making a quiz private again deletes the stored copy (§5.6) and withdraws anything of it
+  still waiting to be read, as does deleting it on the device — otherwise an admin could
+  approve, and publish, a quiz its author had thrown away.
 - Each app install generates a random **publisher key** (≥ 32 URL-safe characters) once
   and keeps it on the device. It is not an account: it is sent as the `x-owner-key` HTTP
   header and only proves "this device published it". The server stores
@@ -218,7 +235,7 @@ Order: built-in first, then most recently updated.
 
 `tags` are the tags public quizzes actually use, most used first then alphabetically
 (query: `limit`, 1–100, default 30). `suggested` is the admin-maintained quick-pick list
-(§2.3, ADMIN.md §3.4); clients fall back to their built-in list when it is empty or the
+(§2.3, ADMIN.md §3.5); clients fall back to their built-in list when it is empty or the
 server can't be reached.
 
 ```json
@@ -255,7 +272,7 @@ keeps text, accepted answers and binary images together and can be retained or s
 Clients should verify and unpack it in memory or in their local cache before hosting. The JSON
 download endpoint remains available for compatibility.
 
-The same format goes the other way. An admin uploads one from the dashboard (ADMIN.md §3.2) to
+The same format goes the other way. An admin uploads one from the dashboard (ADMIN.md §3.3) to
 add a quiz with its photos in a single step, and `tools/fazoura_pack.py` builds one from a folder
 of JSON and images — so a quiz can be written offline, or moved from one server to another,
 without publishing every photo by hand first:
@@ -271,17 +288,51 @@ checked before anything is decompressed, entries outside `media/` are ignored, a
 are validated like any upload (§5.7) before they are stored. A photo is named inside the
 package by a digest of its own bytes, so the same picture used twice is carried once.
 
-### 5.4 `POST /api/quizzes` (publish)
+### 5.4 `POST /api/quizzes` (submit for review)
 
-Header `x-owner-key` required. Body: a quiz document (server-assigned and output-only
-fields ignored; photos by `key`). `201` with the full document. `422 invalid_quiz` with
-`errors` on validation failure; `401 owner_key_required` without a valid key;
-`422 unknown_image` if a photo key wasn't uploaded with the same key.
+Header `x-owner-key` required. `multipart/form-data` with one `file` part: a `.fazoura`
+package (§5.3b) carrying the quiz and its photos. `201` with the submission document
+below — **not** a quiz. Nothing is published, listed or written to the uploads volume
+until an admin approves it (§4, ADMIN.md §3.2).
 
-### 5.5 `PUT /api/quizzes/:id`
+```json
+201 {
+  "id": "…", "title": "Movie Night", "status": "pending",
+  "question_count": 12, "has_photos": true,
+  "review_note": null, "quiz_id": null, "replaces_quiz_id": null,
+  "submitted_at": "2026-09-23T10:00:00Z", "reviewed_at": null
+}
+```
 
-Publisher only. Replaces the quiz, including all tags and questions (question ids are
-re-issued), and increments `version`. `200` with the full document.
+`status` is `pending`, `approved` or `rejected`; `quiz_id` is filled in once there is a
+published quiz. Errors: `401 owner_key_required` without a valid key;
+`422 invalid_quiz` when the package carries no title or no questions;
+`422 archive_too_large`, `422 invalid_archive`, `422 manifest_missing`,
+`422 manifest_invalid` for a package that cannot be read.
+
+A JSON document is refused with `422 package_required`. Rebuilding one server-side would
+mean its photos had been uploaded first and were already on disk unreviewed, which is the
+one thing the queue exists to prevent — so a client old enough to send one is told to
+update instead, which it can do from inside the app.
+
+### 5.4a `GET /api/submissions` and `DELETE /api/submissions/:id`
+
+What this device has sent and what became of it, newest first. Its own only: the
+`x-owner-key` header decides, and somebody else's submission does not exist to it.
+
+```json
+200 {"submissions": [<submission document>]}
+```
+
+`DELETE` withdraws one, `204`. Anything else is `404 not_found`, never `403`.
+
+### 5.5 `PUT /api/quizzes/:id` (submit an edit)
+
+Publisher only, and a submission like §5.4: `multipart/form-data` with one `file` part,
+`200` with the submission document, `replaces_quiz_id` set to `:id`. The published quiz
+is untouched while the edit waits. On approval it replaces that quiz — same id, all tags
+and questions, question ids re-issued, `version` incremented — so a device that saved it,
+or a room that has it selected, is looking at the same quiz rather than a second copy.
 
 ### 5.6 `DELETE /api/quizzes/:id` (unpublish)
 
@@ -291,13 +342,17 @@ Publisher only. `204`.
 
 Publisher key required. `multipart/form-data` with one `file` part: JPEG, PNG or WebP
 (checked by content, not by filename), ≤ 2 MB. Clients downscale to at most 1280 px on
-the longest side. Only needed to publish.
+the longest side.
 
 ```json
 201 {"key": "5b0e4f1c9a2d7e3f.jpg", "url": "https://…/uploads/5b0e4f1c9a2d7e3f.jpg"}
 ```
 
 Errors: `413 image_too_large`, `415 unsupported_image`.
+
+**No longer part of publishing.** A submission carries its photos inside the package, so
+nothing is uploaded ahead of review. The endpoint remains for clients that predate the
+queue and has no current caller.
 
 ### 5.8 Rooms
 

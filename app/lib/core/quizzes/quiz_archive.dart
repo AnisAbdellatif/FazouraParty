@@ -2,16 +2,104 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart';
 
 import '../models/models.dart';
 
-/// Reads the portable `.fazoura` ZIP format:
+/// Reads and writes the portable `.fazoura` ZIP format:
 /// `manifest.json` contains the full quiz document and question images live
 /// under `media/`.
 class QuizArchive {
   const QuizArchive({required this.quiz});
 
   final QuizDocument quiz;
+
+  /// Packs [quiz] and its photos into one `.fazoura` binary.
+  ///
+  /// This is what publishing sends (QUIZ_FORMAT.md §5.4): a submission *is* the
+  /// package, so the photos travel inside it rather than being uploaded first.
+  /// Nothing anybody writes reaches the server's uploads volume before somebody
+  /// has approved it, which is the whole point of the queue.
+  ///
+  /// Throws [FormatException] when a photo question has no photo data to pack:
+  /// a package is meant to be self-contained, and a partial one would publish a
+  /// question with a hole in it.
+  static Uint8List encode(QuizDocument quiz) {
+    final media = <String, Uint8List>{};
+    final questions = [
+      for (final question in quiz.questions ?? const <QuizQuestion>[])
+        _packQuestion(question, media),
+    ];
+
+    final archive = Archive()
+      ..addFile(
+        ArchiveFile.string(
+          'manifest.json',
+          jsonEncode({
+            'quiz': {...quiz.toJson(), 'questions': questions},
+          }),
+        ),
+      );
+    // Sorted, so packing the same quiz twice gives the same bytes.
+    for (final path in media.keys.toList()..sort()) {
+      archive.addFile(ArchiveFile.bytes(path, media[path]!));
+    }
+    return Uint8List.fromList(ZipEncoder().encodeBytes(archive));
+  }
+
+  static Map<String, dynamic> _packQuestion(
+    QuizQuestion question,
+    Map<String, Uint8List> media,
+  ) {
+    final json = question.toJson();
+    final image = question.image;
+    if (!question.hasPhoto || image == null) {
+      json.remove('image');
+      return json;
+    }
+    final data = image.data;
+    if (data == null) {
+      throw FormatException('No photo to pack for "${question.prompt}".');
+    }
+    final bytes = base64Decode(data);
+    final path = _mediaPath(bytes);
+    media[path] = bytes;
+    // `path` replaces `key` and `url`: inside a package a photo is a file, and
+    // there is no upload of it for the server to point at yet.
+    json['image'] = {'path': path, if (image.alt != null) 'alt': image.alt};
+    return json;
+  }
+
+  /// A photo is named by a digest of its own bytes, so the same picture on two
+  /// questions is carried once. The shape matches a key the server would
+  /// generate — 24 hex characters and an extension — because on approval the
+  /// photo is stored through exactly that path.
+  static String _mediaPath(Uint8List bytes) =>
+      'media/${sha256.convert(bytes).toString().substring(0, 24)}'
+      '.${_extension(bytes)}';
+
+  /// By magic bytes, never by a filename: the server sniffs the same three
+  /// formats and refuses everything else (`Fazoura.Uploads.detect/1`).
+  static String _extension(Uint8List bytes) {
+    bool starts(List<int> magic, [int offset = 0]) {
+      if (bytes.length < offset + magic.length) return false;
+      for (var index = 0; index < magic.length; index++) {
+        if (bytes[offset + index] != magic[index]) return false;
+      }
+      return true;
+    }
+
+    if (starts(const [0xFF, 0xD8, 0xFF])) return 'jpg';
+    if (starts(const [0x89, 0x50, 0x4E, 0x47])) return 'png';
+    if (starts(const [0x52, 0x49, 0x46, 0x46]) &&
+        starts(const [0x57, 0x45, 0x42, 0x50], 8)) {
+      return 'webp';
+    }
+    // Everything the editor produces is JPEG (`preparePhoto`), and an extension
+    // that turns out wrong costs nothing: the server reads the bytes, not the
+    // name.
+    return 'jpg';
+  }
 
   static QuizArchive decode(List<int> bytes) {
     final archive = ZipDecoder().decodeBytes(bytes, verify: true);

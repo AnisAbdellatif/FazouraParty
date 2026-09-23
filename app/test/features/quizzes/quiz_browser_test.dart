@@ -21,12 +21,16 @@ void main() {
     WidgetTester tester, {
     List<QuizDocument> public = const [],
     List<LocalQuiz> local = const [],
+    void Function(FakeQuizServer server)? queued,
   }) async {
     tester.view.physicalSize = const Size(900, 2600);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
     server = FakeQuizServer([...public]);
+    // Before the screen opens: it asks what became of this device's
+    // submissions as soon as it loads, and forgets any the server denies.
+    queued?.call(server);
     picked = null;
     // Real async: sembast work doesn't advance under the fake test clock.
     final database = (await tester.runAsync(() async {
@@ -282,17 +286,21 @@ void main() {
     expect((picked!.single as LocalQuizChoice).quiz.localId, 'a');
   });
 
-  testWidgets('publish, make private and delete a local quiz', (tester) async {
+  testWidgets('submit, make private and delete a local quiz', (tester) async {
     await openBrowser(tester, local: [localQuiz('a', 'Secret Party')]);
     await tapKey(tester, const Key('quizScopeMine'));
 
+    // Asking for it to be public puts it in the queue. It is not public yet,
+    // and there is nothing on the server to find.
     await tapKey(tester, const ValueKey('togglePublished-a'));
-    expect(find.text('PUBLIC'), findsOneWidget);
-    expect(server.quizzes.single.title, 'Secret Party');
+    expect(find.text('IN REVIEW'), findsOneWidget);
+    expect(find.text('PRIVATE'), findsOneWidget);
+    expect(server.pending.single.document.title, 'Secret Party');
+    expect(server.quizzes, isEmpty);
 
     await tapKey(tester, const ValueKey('togglePublished-a'));
-    expect(find.text('PRIVATE'), findsOneWidget);
-    expect(server.quizzes, isEmpty);
+    expect(find.text('IN REVIEW'), findsNothing);
+    expect(server.pending, isEmpty);
 
     await tapKey(tester, const ValueKey('deleteQuiz-a'));
     await tapKey(tester, const Key('confirmDeleteQuiz'));
@@ -300,7 +308,76 @@ void main() {
     expect(find.byKey(const Key('quizBrowserEmpty')), findsOneWidget);
   });
 
-  testWidgets('a failed publish is shown and can be retried', (tester) async {
+  testWidgets('an approved quiz turns public on the next look', (tester) async {
+    await openBrowser(tester, local: [localQuiz('a', 'Secret Party')]);
+    await tapKey(tester, const Key('quizScopeMine'));
+    await tapKey(tester, const ValueKey('togglePublished-a'));
+    expect(find.text('IN REVIEW'), findsOneWidget);
+
+    // An admin reads the queue days later; the device finds out by asking.
+    server.approve(server.pending.single.id);
+    await tapKey(tester, const Key('quizScopePublic'));
+    await tapKey(tester, const Key('quizScopeMine'));
+
+    expect(find.text('PUBLIC'), findsWidgets);
+    expect(find.text('IN REVIEW'), findsNothing);
+  });
+
+  testWidgets('an edit in review sits beside the public quiz', (tester) async {
+    // A quiz that is public, with a changed version of it waiting to be read.
+    const pendingId = 'sub-1';
+    await openBrowser(
+      tester,
+      local: [
+        localQuiz(
+          'a',
+          'Secret Party',
+          visibility: 'public',
+          publishedId: 'pub-1',
+          submission: const QuizSubmission(
+            id: pendingId,
+            title: 'Secret Party II',
+          ),
+        ),
+      ],
+      public: [quiz('pub-1', 'Secret Party', owner: true)],
+      queued: (server) {
+        final queued = server.queue(
+          quiz('pub-1', 'Secret Party II'),
+          replaces: 'pub-1',
+        );
+        expect(queued.id, pendingId);
+      },
+    );
+    await tapKey(tester, const Key('quizScopeMine'));
+
+    // Still public, on the version somebody already approved, with the change
+    // waiting its turn.
+    expect(find.text('PUBLIC'), findsWidgets);
+    expect(find.text('IN REVIEW'), findsOneWidget);
+    expect(
+      find.textContaining('The public version is unchanged'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a rejection is shown with its note', (tester) async {
+    await openBrowser(tester, local: [localQuiz('a', 'Secret Party')]);
+    await tapKey(tester, const Key('quizScopeMine'));
+    await tapKey(tester, const ValueKey('togglePublished-a'));
+
+    server.reject(server.pending.single.id, 'Question 2 is not okay.');
+    await tapKey(tester, const Key('quizScopePublic'));
+    await tapKey(tester, const Key('quizScopeMine'));
+
+    expect(find.byKey(const ValueKey('quizSyncWarning-a')), findsOneWidget);
+    expect(find.textContaining('Question 2 is not okay.'), findsOneWidget);
+    expect(find.text('PRIVATE'), findsOneWidget);
+  });
+
+  testWidgets('a failed submission is shown and can be retried', (
+    tester,
+  ) async {
     await openBrowser(tester, local: [localQuiz('a', 'Secret Party')]);
     await tapKey(tester, const Key('quizScopeMine'));
     server.failWrites = true;
@@ -312,8 +389,8 @@ void main() {
 
     server.failWrites = false;
     await tapKey(tester, const ValueKey('togglePublished-a'));
-    expect(find.byKey(const ValueKey('quizSyncWarning-a')), findsNothing);
-    expect(find.text('PUBLIC'), findsOneWidget);
+    expect(find.byKey(const ValueKey('quizSyncWarning-a')), findsOneWidget);
+    expect(find.text('IN REVIEW'), findsOneWidget);
   });
 
   testWidgets('loads more pages', (tester) async {

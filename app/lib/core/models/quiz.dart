@@ -52,25 +52,21 @@ abstract class QuizDocument with _$QuizDocument {
     return major * 1000000 + minor;
   }
 
-  /// Body for publishing (§5.3): photos by uploaded key only.
-  QuizDocument forPublishing() =>
-      _mapImages((image) => QuizImage(key: image.key, alt: image.alt));
-
   /// Body for hosting a private quiz inline (§5.7): photos as base64 data.
-  QuizDocument forInlineRoom() =>
-      _mapImages((image) => QuizImage(data: image.data, alt: image.alt));
-
-  QuizDocument _mapImages(QuizImage Function(QuizImage image) convert) =>
-      copyWith(
-        questions: [
-          for (final question in questions ?? const <QuizQuestion>[])
-            question.copyWith(
-              image: question.hasPhoto && question.image != null
-                  ? convert(question.image!)
-                  : null,
-            ),
-        ],
-      );
+  ///
+  /// Publishing has no counterpart here any more — it sends a `.fazoura`
+  /// package rather than a JSON document (§5.4), so
+  /// `QuizArchive.encode` is what shapes the photos for the server now.
+  QuizDocument forInlineRoom() => copyWith(
+    questions: [
+      for (final question in questions ?? const <QuizQuestion>[])
+        question.copyWith(
+          image: question.hasPhoto && question.image != null
+              ? QuizImage(data: question.image!.data, alt: question.image!.alt)
+              : null,
+        ),
+    ],
+  );
 }
 
 @freezed
@@ -168,3 +164,42 @@ typedef TagCount = ({String tag, int count});
 
 /// What `GET /api/tags` answers: tags in use, and the server's quick picks.
 typedef QuizTags = ({List<TagCount> popular, List<String> suggested});
+
+/// What became of a quiz this device sent for review (QUIZ_FORMAT.md §5.4).
+///
+/// A submission is the `.fazoura` package and nothing else: until somebody
+/// approves it there is no quiz on the server, no photo in its uploads volume
+/// and nothing for anyone else to find. Waiting costs its author nothing — they
+/// still hold the quiz on their own device and host it inline as before.
+@freezed
+abstract class QuizSubmission with _$QuizSubmission {
+  const QuizSubmission._();
+
+  const factory QuizSubmission({
+    required String id,
+    @Default('') String title,
+    @Default(QuizSubmission.pending) String status,
+    @Default(0) int questionCount,
+    @Default(false) bool hasPhotos,
+
+    /// Why it was turned down. Only ever sent to the device that submitted it.
+    String? reviewNote,
+
+    /// The published quiz, once there is one.
+    String? quizId,
+    String? replacesQuizId,
+    DateTime? submittedAt,
+    DateTime? reviewedAt,
+  }) = _QuizSubmission;
+
+  factory QuizSubmission.fromJson(Map<String, dynamic> json) =>
+      _$QuizSubmissionFromJson(json);
+
+  static const pending = 'pending';
+  static const approved = 'approved';
+  static const rejected = 'rejected';
+
+  bool get isPending => status == pending;
+  bool get isApproved => status == approved;
+  bool get isRejected => status == rejected;
+}
