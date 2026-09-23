@@ -69,13 +69,15 @@ class LanImages {
         continue;
       }
 
+      // Which of the three, as Cloud says it (`Fazoura.Rooms.Selection`):
+      // each is something the host can do something about.
       final detected = detect(bytes);
       total += bytes.length;
-      if (detected == null ||
-          bytes.length > maxImageBytes ||
-          total > maxTotalBytes) {
-        throw const GameRuleError('invalid_quiz');
+      if (detected == null) throw const GameRuleError('unsupported_image');
+      if (bytes.length > maxImageBytes) {
+        throw const GameRuleError('image_too_large');
       }
+      if (total > maxTotalBytes) throw const GameRuleError('quiz_too_large');
 
       final key = newKey(detected.ext);
       stored[key] = (contentType: detected.contentType, bytes: bytes);

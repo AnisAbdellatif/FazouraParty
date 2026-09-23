@@ -346,7 +346,9 @@ Successful intents reply `{"status": "ok", "response": {}}` and — if state cha
 
 Intent error codes: `invalid_phase`, `not_host`, `not_player`, `invalid_answer`,
 `already_submitted`, `unknown_player`, `no_submission`, `paused`, `not_paused`,
-`invalid_settings` (question count outside 1..`max_question_count`, time limit outside
+`quiz_too_large` / `image_too_large` / `unsupported_image` (a `host_select_quiz` whose
+inline photos are over the room's total, one photo is over 2 MB, or one is not a JPEG, PNG or
+WebP — QUIZ_FORMAT.md §5.7), `invalid_settings` (question count outside 1..`max_question_count`, time limit outside
 `min_time_limit_ms`..`max_time_limit_ms`, or any field missing or of the wrong type),
 `not_connected` (`host_transfer` naming a player who is not currently connected, or the
 host itself), `quiz_not_public` (an inline quiz in a listed room, §3.5), `cloud_only`

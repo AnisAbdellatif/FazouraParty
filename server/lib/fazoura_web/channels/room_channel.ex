@@ -34,6 +34,9 @@ defmodule FazouraWeb.RoomChannel do
     quiz_not_public: "A public room plays quizzes from the library only.",
     cloud_only: "Only an online room can be listed publicly.",
     name_not_allowed: "That name can't be used in a public room.",
+    quiz_too_large: "That quiz's photos are too large to host from here.",
+    image_too_large: "A photo in that quiz is over 2 MB.",
+    unsupported_image: "A photo in that quiz isn't a JPEG, PNG or WebP.",
     banned: "You can't join public rooms from this connection for now."
   }
 

@@ -232,8 +232,9 @@ defmodule FazouraWeb.SelectQuizTest do
       ref = select(socket, [per_quiz])
       assert_reply ref, :ok, %{}
 
+      # Said as what it is, since it is something the host can do something about.
       ref = select(socket, quizzes)
-      assert_reply ref, :error, %{code: "invalid_quiz"}, 2_000
+      assert_reply ref, :error, %{code: "quiz_too_large"}, 2_000
     end
 
     test "a selection that fails part way leaves no photos behind", %{socket: socket} do

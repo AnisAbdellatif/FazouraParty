@@ -224,6 +224,19 @@ defmodule FazouraWeb.QuizControllerTest do
     assert <<0x50, 0x4B, _rest::binary>> = response.resp_body
   end
 
+  test "asking for a ZIP gets one, as the app asks", %{conn: conn} do
+    %{"id" => id} = create!(conn)
+
+    response =
+      conn
+      |> as(@other)
+      |> put_req_header("accept", "application/zip")
+      |> get(~p"/api/quizzes/#{id}/archive")
+
+    assert response.status == 200
+    assert <<0x50, 0x4B, _rest::binary>> = response.resp_body
+  end
+
   test "an archive carries the manifest and every photo", %{conn: conn} do
     key = upload_photo!(conn)
 

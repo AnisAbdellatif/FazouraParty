@@ -291,7 +291,7 @@ void main() {
 
       expect(
         () => select([for (var i = 0; i < 4; i++) heavy('Quiz $i')]),
-        throwsCode('invalid_quiz'),
+        throwsCode('quiz_too_large'),
       );
       // The refusal left the accepted selection alone.
       expect(room.images.length, 2);

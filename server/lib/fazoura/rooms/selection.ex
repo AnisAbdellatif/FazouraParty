@@ -76,8 +76,15 @@ defmodule Fazoura.Rooms.Selection do
 
   defp resolve_one(%{"quiz" => %{} = document}, spent) do
     case Quizzes.inline_pack(document, spent) do
-      {:ok, pack, image_keys, spent} -> {:ok, pack, image_keys, spent}
-      _ -> {:error, :invalid_quiz}
+      {:ok, pack, image_keys, spent} ->
+        {:ok, pack, image_keys, spent}
+
+      # Worth saying which: "too big" is something the host can act on.
+      {:error, reason} when reason in [:quiz_too_large, :image_too_large, :unsupported_image] ->
+        {:error, reason}
+
+      _ ->
+        {:error, :invalid_quiz}
     end
   end
 

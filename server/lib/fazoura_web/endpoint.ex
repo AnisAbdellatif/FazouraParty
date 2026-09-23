@@ -15,9 +15,20 @@ defmodule FazouraWeb.Endpoint do
     http_only: true
   ]
 
+  # A private quiz reaches its room inline, photos and all, in one frame
+  # (QUIZ_FORMAT.md §5.7). Photos travel as base64, a third bigger, so the 8 MiB
+  # `Fazoura.Quizzes.max_inline_bytes/0` needs ~11.2 MB of frame before the document
+  # around it. Without this the adapter's own 10 MB limit applies, and a frame over it
+  # drops the connection without a word; with it, the server's cap — which answers
+  # with a proper error — is the one a user meets. A test holds the two together.
+  @max_frame_size 14_000_000
+
+  @doc "The largest websocket frame the room socket accepts."
+  def max_frame_size, do: @max_frame_size
+
   socket "/socket", FazouraWeb.UserSocket,
     # The address is what a ban from public rooms holds on to (FazouraWeb.ClientIp).
-    websocket: [connect_info: [:peer_data, :x_headers]],
+    websocket: [connect_info: [:peer_data, :x_headers], max_frame_size: @max_frame_size],
     longpoll: false
 
   # Admin dashboard LiveViews; the session carries the admin flag (Plugs.AdminAuth).

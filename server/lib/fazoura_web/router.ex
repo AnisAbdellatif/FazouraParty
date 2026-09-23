@@ -34,7 +34,12 @@ defmodule FazouraWeb.Router do
   # The one expensive read: building a `.fazoura` archive holds the whole quiz and
   # every one of its photos in memory at once, so a handful of concurrent callers is
   # worth far more than a handful of listings. Metered well below the other reads.
+  #
+  # Its own `accepts`, not `:api`'s: the answer is a ZIP, and the app asks for one with
+  # `accept: application/zip`. Behind `:api` that was a 406 every time, and "Save
+  # offline" quietly fell back to fetching the JSON and each photo on its own.
   pipeline :archive do
+    plug :accepts, ["zip", "json"]
     plug FazouraWeb.Plugs.RateLimit, bucket: :archives, limit: 10, window_ms: 60_000
   end
 
@@ -133,7 +138,7 @@ defmodule FazouraWeb.Router do
   end
 
   scope "/api", FazouraWeb do
-    pipe_through [:api, :archive]
+    pipe_through :archive
 
     get "/quizzes/:id/archive", QuizController, :archive
   end
