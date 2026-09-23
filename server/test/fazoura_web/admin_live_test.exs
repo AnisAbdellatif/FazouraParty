@@ -756,10 +756,11 @@ defmodule FazouraWeb.AdminLiveTest do
 
     test "a photo is served out of the package, never from disk", %{conn: conn} do
       key = "k-" <> String.duplicate("e", 40)
-      # Unique bytes: uploads are content-addressed, so a photo another test
-      # already stored would not add a file and the check below would prove
-      # nothing.
-      photo = QuizFixtures.png_with_text("review-queue-#{System.unique_integer([:positive])}")
+      # Unique bytes: uploads are content-addressed, so a photo that has been
+      # stored before adds no file and the check below would prove nothing.
+      # Random rather than a counter, because a counter restarts with the node
+      # and the volume outlives a single run.
+      photo = QuizFixtures.png_with_text(Base.encode16(:crypto.strong_rand_bytes(8)))
 
       document = %{
         format_version: 1,
