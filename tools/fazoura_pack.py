@@ -132,10 +132,32 @@ def photo_bytes(folder: Path, image: dict[str, Any], where: str) -> bytes:
     raise PackError(f'{where}: a photo question needs an image with a "path" or "data"')
 
 
+FORMAT_VERSION = "1.0"
+
+
+def readable_format(version: Any) -> bool:
+    """Whether a document written for `version` can be read as FORMAT_VERSION.
+
+    The major has to match; the minor need not, because a minor only ever adds
+    keys an older reader ignores. A plain integer is a document from before the
+    format carried a minor at all, and is that major.
+    """
+    if isinstance(version, bool):
+        return False
+    if isinstance(version, int):
+        version = f"{version}.0"
+    if not isinstance(version, str):
+        return False
+    return version.split(".", 1)[0] == FORMAT_VERSION.split(".", 1)[0]
+
+
 def check_document(document: dict[str, Any]) -> list[dict[str, Any]]:
     """The checks the server would make anyway, made here where they are readable."""
-    if document.get("format_version") != 1:
-        raise PackError('the document needs "format_version": 1 (QUIZ_FORMAT.md §2)')
+    if not readable_format(document.get("format_version")):
+        raise PackError(
+            f'the document needs "format_version": "{FORMAT_VERSION}" '
+            "(QUIZ_FORMAT.md §2.1)"
+        )
 
     title = document.get("title")
     if not isinstance(title, str) or not title.strip():

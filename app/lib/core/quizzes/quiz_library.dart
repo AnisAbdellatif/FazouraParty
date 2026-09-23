@@ -6,7 +6,8 @@ import '../models/models.dart';
 import '../storage/local_quiz_store.dart';
 import 'quiz_archive.dart';
 
-/// The local save worked but the server step (publish or unpublish) failed.
+/// The local save worked but the server step (submitting or unpublishing)
+/// failed.
 class PublishError implements Exception {
   const PublishError(this.saved, this.cause);
 
@@ -19,8 +20,13 @@ class PublishError implements Exception {
 }
 
 /// This device's quizzes (QUIZ_FORMAT.md §4). Everything is saved locally
-/// first; public quizzes are then published to the server and private ones
-/// removed from it.
+/// first; a quiz the creator wants public is then sent for review as one
+/// `.fazoura` package, and one made private again is removed from the server.
+///
+/// Publishing is never immediate. A submission waits in a queue until somebody
+/// reads it, so [save] leaves the quiz playable on this device — hosting a
+/// private quiz sends it inline and never touches the server's library — and
+/// [refreshSubmissions] is what eventually notices that it went public.
 class QuizLibrary {
   QuizLibrary({
     required this.store,
@@ -118,39 +124,108 @@ class QuizLibrary {
 
   /// Unpublishes (if needed) and removes the quiz from this device.
   Future<void> delete(LocalQuiz quiz) async {
+    // Including anything of it still waiting to be read. Otherwise deleting a
+    // quiz would leave its submission in the queue, and approving that would
+    // publish something its author had thrown away.
+    await _withdraw(quiz);
     if (quiz.publishedId != null) await _unpublish(quiz.publishedId!);
     await store.delete(quiz.localId);
   }
 
-  Future<LocalQuiz> _sync(LocalQuiz quiz) async {
-    if (quiz.wantsPublic) return _publish(quiz);
-    if (quiz.publishedId == null) return quiz;
-    await _unpublish(quiz.publishedId!);
-    return quiz.copyWith(publishedId: null);
-  }
-
-  Future<LocalQuiz> _publish(LocalQuiz quiz, {bool retried = false}) async {
-    final withKeys = await _uploadPhotos(quiz);
-    final body = withKeys.quiz.forPublishing();
+  /// Asks the server what became of the submissions this device sent, and
+  /// brings the local library in line with the answers.
+  ///
+  /// This is the only way a device learns that its quiz went public: approval
+  /// happens when somebody reads the queue, which may be days later and is
+  /// certainly not while the app is open. Quietly does nothing when the server
+  /// can't be reached — an unanswered question about a quiz that is playable
+  /// either way is not worth an error.
+  Future<List<LocalQuiz>> refreshSubmissions() async {
+    final List<QuizSubmission> submissions;
     try {
-      final id = withKeys.publishedId;
-      final published = id == null
-          ? await api.create(body)
-          : await _replaceOrCreate(id, body);
-      return withKeys.copyWith(publishedId: published.id);
-    } on GameError catch (error) {
-      // Uploaded photos can disappear (e.g. a server reset): upload again once.
-      if (error.code != 'unknown_image' || retried) rethrow;
-      return _publish(_withoutPhotoKeys(withKeys), retried: true);
+      submissions = await api.submissions();
+    } catch (_) {
+      return list();
     }
+    final byId = {
+      for (final submission in submissions) submission.id: submission,
+    };
+
+    for (final quiz in await list()) {
+      final sent = quiz.submission;
+      if (sent == null) continue;
+      // A submission the server has forgotten (withdrawn elsewhere, or a reset)
+      // leaves the quiz where it was rather than stuck claiming to be in a
+      // queue it isn't in.
+      final current = byId[sent.id];
+      final settled = current == null ? null : _settle(quiz, current);
+      if (current == null) {
+        await store.put(quiz.copyWith(submission: null));
+      } else if (settled != null) {
+        await store.put(settled);
+      }
+    }
+    return list();
   }
 
-  Future<QuizDocument> _replaceOrCreate(String id, QuizDocument body) async {
+  /// What an answered submission does to the quiz it was sent for. Returns null
+  /// while it is still waiting, which is the common case.
+  static LocalQuiz? _settle(LocalQuiz quiz, QuizSubmission submission) {
+    if (submission.isApproved) {
+      return quiz.copyWith(
+        publishedId: submission.quizId ?? quiz.publishedId,
+        submission: null,
+      );
+    }
+    if (submission.isRejected) {
+      // A turned-down *edit* leaves the quiz it was offered against exactly as
+      // it was: still public, still the version somebody already approved. Only
+      // the new contents were refused.
+      if (submission.replacesQuizId != null) {
+        return quiz.copyWith(submission: submission);
+      }
+      // Otherwise back to private: it is not public, and saving it again should
+      // not silently re-queue it. The note stays so its author can read why and
+      // decide whether to change it and submit again.
+      return quiz.copyWith(
+        quiz: quiz.quiz.copyWith(visibility: 'private'),
+        submission: submission,
+      );
+    }
+    return null;
+  }
+
+  Future<LocalQuiz> _sync(LocalQuiz quiz) async {
+    if (quiz.wantsPublic) return _submit(quiz);
+    await _withdraw(quiz);
+    if (quiz.publishedId == null) return quiz.copyWith(submission: null);
+    await _unpublish(quiz.publishedId!);
+    return quiz.copyWith(publishedId: null, submission: null);
+  }
+
+  /// Sends the quiz for review as one package. An edit of an already-public
+  /// quiz is offered against it, so approving replaces that quiz rather than
+  /// adding a second copy.
+  Future<LocalQuiz> _submit(LocalQuiz quiz) async {
+    // At most one submission per quiz waits in the queue: saving twice before
+    // anybody reads it should leave the later version there, not both.
+    await _withdraw(quiz);
+    final submission = await api.submit(
+      QuizArchive.encode(quiz.quiz),
+      replaces: quiz.publishedId,
+    );
+    return quiz.copyWith(submission: submission);
+  }
+
+  Future<void> _withdraw(LocalQuiz quiz) async {
+    final submission = quiz.submission;
+    if (submission == null || !submission.isPending) return;
     try {
-      return await api.replace(id, body);
+      await api.withdraw(submission.id);
     } on GameError catch (error) {
-      if (error.code != 'quiz_not_found') rethrow;
-      return api.create(body);
+      // Already read, already withdrawn, or never arrived. Either way there is
+      // nothing of ours left in the queue, which is all this asked for.
+      if (error.code != 'not_found') rethrow;
     }
   }
 
@@ -161,45 +236,4 @@ class QuizLibrary {
       if (error.code != 'quiz_not_found') rethrow;
     }
   }
-
-  static bool _needsUpload(QuizQuestion question) =>
-      question.hasPhoto &&
-      question.image?.key == null &&
-      question.image?.data != null;
-
-  /// Uploads photos that have no server key yet and stores the keys, so a
-  /// later retry doesn't upload them again.
-  Future<LocalQuiz> _uploadPhotos(LocalQuiz quiz) async {
-    final questions = quiz.quiz.questions ?? const <QuizQuestion>[];
-    if (!questions.any(_needsUpload)) return quiz;
-    final updated = <QuizQuestion>[];
-    for (final question in questions) {
-      if (_needsUpload(question)) {
-        final uploaded = await api.uploadImage(
-          base64Decode(question.image!.data!),
-        );
-        updated.add(
-          question.copyWith(image: question.image!.copyWith(key: uploaded.key)),
-        );
-      } else {
-        updated.add(question);
-      }
-    }
-    final result = quiz.copyWith(quiz: quiz.quiz.copyWith(questions: updated));
-    await store.put(result);
-    return result;
-  }
-
-  static LocalQuiz _withoutPhotoKeys(LocalQuiz quiz) => quiz.copyWith(
-    quiz: quiz.quiz.copyWith(
-      questions: [
-        for (final question in quiz.quiz.questions ?? const <QuizQuestion>[])
-          question.image == null
-              ? question
-              : question.copyWith(
-                  image: question.image!.copyWith(key: null, url: null),
-                ),
-      ],
-    ),
-  );
 }

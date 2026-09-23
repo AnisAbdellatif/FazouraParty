@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$QuizDocument {
 
- int get formatVersion;@JsonKey(fromJson: quizVersionFromJson) String get version; String? get id; String? get slug; String get title; String? get description; String get language; List<String> get tags; String get source; String get visibility; bool get isOwner; QuizDefaultSettings get defaultSettings; int get questionCount; bool get hasPhotos; DateTime? get createdAt; DateTime? get updatedAt; List<QuizQuestion>? get questions;
+@JsonKey(fromJson: quizFormatVersionFromJson) String get formatVersion;@JsonKey(fromJson: quizVersionFromJson) int get version; String? get id; String? get slug; String get title; String? get description; String get language; List<String> get tags; String get source; String get visibility; bool get isOwner; QuizDefaultSettings get defaultSettings; int get questionCount; bool get hasPhotos; DateTime? get createdAt; DateTime? get updatedAt; List<QuizQuestion>? get questions;
 /// Create a copy of QuizDocument
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -54,7 +54,7 @@ abstract mixin class $QuizDocumentCopyWith<$Res>  {
   factory $QuizDocumentCopyWith(QuizDocument value, $Res Function(QuizDocument) _then) = _$QuizDocumentCopyWithImpl;
 @useResult
 $Res call({
- int formatVersion,@JsonKey(fromJson: quizVersionFromJson) String version, String? id, String? slug, String title, String? description, String language, List<String> tags, String source, String visibility, bool isOwner, QuizDefaultSettings defaultSettings, int questionCount, bool hasPhotos, DateTime? createdAt, DateTime? updatedAt, List<QuizQuestion>? questions
+@JsonKey(fromJson: quizFormatVersionFromJson) String formatVersion,@JsonKey(fromJson: quizVersionFromJson) int version, String? id, String? slug, String title, String? description, String language, List<String> tags, String source, String visibility, bool isOwner, QuizDefaultSettings defaultSettings, int questionCount, bool hasPhotos, DateTime? createdAt, DateTime? updatedAt, List<QuizQuestion>? questions
 });
 
 
@@ -74,8 +74,8 @@ class _$QuizDocumentCopyWithImpl<$Res>
 @pragma('vm:prefer-inline') @override $Res call({Object? formatVersion = null,Object? version = null,Object? id = freezed,Object? slug = freezed,Object? title = null,Object? description = freezed,Object? language = null,Object? tags = null,Object? source = null,Object? visibility = null,Object? isOwner = null,Object? defaultSettings = null,Object? questionCount = null,Object? hasPhotos = null,Object? createdAt = freezed,Object? updatedAt = freezed,Object? questions = freezed,}) {
   return _then(QuizDocument(
 formatVersion: null == formatVersion ? _self.formatVersion : formatVersion // ignore: cast_nullable_to_non_nullable
-as int,version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
-as String,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
+as int,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String?,slug: freezed == slug ? _self.slug : slug // ignore: cast_nullable_to_non_nullable
 as String?,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
@@ -184,7 +184,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( int formatVersion, @JsonKey(fromJson: quizVersionFromJson)  String version,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(fromJson: quizFormatVersionFromJson)  String formatVersion, @JsonKey(fromJson: quizVersionFromJson)  int version,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _QuizDocument() when $default != null:
 return $default(_that.formatVersion,_that.version,_that.id,_that.slug,_that.title,_that.description,_that.language,_that.tags,_that.source,_that.visibility,_that.isOwner,_that.defaultSettings,_that.questionCount,_that.hasPhotos,_that.createdAt,_that.updatedAt,_that.questions);case _:
@@ -205,7 +205,7 @@ return $default(_that.formatVersion,_that.version,_that.id,_that.slug,_that.titl
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( int formatVersion, @JsonKey(fromJson: quizVersionFromJson)  String version,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(fromJson: quizFormatVersionFromJson)  String formatVersion, @JsonKey(fromJson: quizVersionFromJson)  int version,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)  $default,) {final _that = this;
 switch (_that) {
 case _QuizDocument():
 return $default(_that.formatVersion,_that.version,_that.id,_that.slug,_that.title,_that.description,_that.language,_that.tags,_that.source,_that.visibility,_that.isOwner,_that.defaultSettings,_that.questionCount,_that.hasPhotos,_that.createdAt,_that.updatedAt,_that.questions);case _:
@@ -225,7 +225,7 @@ return $default(_that.formatVersion,_that.version,_that.id,_that.slug,_that.titl
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( int formatVersion, @JsonKey(fromJson: quizVersionFromJson)  String version,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(fromJson: quizFormatVersionFromJson)  String formatVersion, @JsonKey(fromJson: quizVersionFromJson)  int version,  String? id,  String? slug,  String title,  String? description,  String language,  List<String> tags,  String source,  String visibility,  bool isOwner,  QuizDefaultSettings defaultSettings,  int questionCount,  bool hasPhotos,  DateTime? createdAt,  DateTime? updatedAt,  List<QuizQuestion>? questions)?  $default,) {final _that = this;
 switch (_that) {
 case _QuizDocument() when $default != null:
 return $default(_that.formatVersion,_that.version,_that.id,_that.slug,_that.title,_that.description,_that.language,_that.tags,_that.source,_that.visibility,_that.isOwner,_that.defaultSettings,_that.questionCount,_that.hasPhotos,_that.createdAt,_that.updatedAt,_that.questions);case _:
@@ -240,11 +240,11 @@ return $default(_that.formatVersion,_that.version,_that.id,_that.slug,_that.titl
 @JsonSerializable()
 
 class _QuizDocument extends QuizDocument {
-  const _QuizDocument({this.formatVersion = 1, @JsonKey(fromJson: quizVersionFromJson) this.version = '1.0', this.id, this.slug, required this.title, this.description, this.language = 'en',  List<String> tags = const <String>[], this.source = 'custom', this.visibility = 'private', this.isOwner = false, this.defaultSettings = const QuizDefaultSettings(), this.questionCount = 0, this.hasPhotos = false, this.createdAt, this.updatedAt,  List<QuizQuestion>? questions}): _tags = tags,_questions = questions,super._();
+  const _QuizDocument({@JsonKey(fromJson: quizFormatVersionFromJson) this.formatVersion = '1.0', @JsonKey(fromJson: quizVersionFromJson) this.version = 1, this.id, this.slug, required this.title, this.description, this.language = 'en',  List<String> tags = const <String>[], this.source = 'custom', this.visibility = 'private', this.isOwner = false, this.defaultSettings = const QuizDefaultSettings(), this.questionCount = 0, this.hasPhotos = false, this.createdAt, this.updatedAt,  List<QuizQuestion>? questions}): _tags = tags,_questions = questions,super._();
   factory _QuizDocument.fromJson(Map<String, dynamic> json) => _$QuizDocumentFromJson(json);
 
-@override@JsonKey() final  int formatVersion;
-@override@JsonKey(fromJson: quizVersionFromJson) final  String version;
+@override@JsonKey(fromJson: quizFormatVersionFromJson) final  String formatVersion;
+@override@JsonKey(fromJson: quizVersionFromJson) final  int version;
 @override final  String? id;
 @override final  String? slug;
 @override final  String title;
@@ -310,7 +310,7 @@ abstract mixin class _$QuizDocumentCopyWith<$Res> implements $QuizDocumentCopyWi
   factory _$QuizDocumentCopyWith(_QuizDocument value, $Res Function(_QuizDocument) _then) = __$QuizDocumentCopyWithImpl;
 @override @useResult
 $Res call({
- int formatVersion,@JsonKey(fromJson: quizVersionFromJson) String version, String? id, String? slug, String title, String? description, String language, List<String> tags, String source, String visibility, bool isOwner, QuizDefaultSettings defaultSettings, int questionCount, bool hasPhotos, DateTime? createdAt, DateTime? updatedAt, List<QuizQuestion>? questions
+@JsonKey(fromJson: quizFormatVersionFromJson) String formatVersion,@JsonKey(fromJson: quizVersionFromJson) int version, String? id, String? slug, String title, String? description, String language, List<String> tags, String source, String visibility, bool isOwner, QuizDefaultSettings defaultSettings, int questionCount, bool hasPhotos, DateTime? createdAt, DateTime? updatedAt, List<QuizQuestion>? questions
 });
 
 
@@ -330,8 +330,8 @@ class __$QuizDocumentCopyWithImpl<$Res>
 @override @pragma('vm:prefer-inline') $Res call({Object? formatVersion = null,Object? version = null,Object? id = freezed,Object? slug = freezed,Object? title = null,Object? description = freezed,Object? language = null,Object? tags = null,Object? source = null,Object? visibility = null,Object? isOwner = null,Object? defaultSettings = null,Object? questionCount = null,Object? hasPhotos = null,Object? createdAt = freezed,Object? updatedAt = freezed,Object? questions = freezed,}) {
   return _then(_QuizDocument(
 formatVersion: null == formatVersion ? _self.formatVersion : formatVersion // ignore: cast_nullable_to_non_nullable
-as int,version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
-as String,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
+as int,id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String?,slug: freezed == slug ? _self.slug : slug // ignore: cast_nullable_to_non_nullable
 as String?,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
@@ -1229,6 +1229,307 @@ as String?,url: freezed == url ? _self.url : url // ignore: cast_nullable_to_non
 as String?,alt: freezed == alt ? _self.alt : alt // ignore: cast_nullable_to_non_nullable
 as String?,data: freezed == data ? _self.data : data // ignore: cast_nullable_to_non_nullable
 as String?,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$QuizSubmission {
+
+ String get id; String get title; String get status; int get questionCount; bool get hasPhotos;/// Why it was turned down. Only ever sent to the device that submitted it.
+ String? get reviewNote;/// The published quiz, once there is one.
+ String? get quizId; String? get replacesQuizId; DateTime? get submittedAt; DateTime? get reviewedAt;
+/// Create a copy of QuizSubmission
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$QuizSubmissionCopyWith<QuizSubmission> get copyWith => _$QuizSubmissionCopyWithImpl<QuizSubmission>(this as QuizSubmission, _$identity);
+
+  /// Serializes this QuizSubmission to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  final _this = this as QuizSubmission;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is QuizSubmission&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.title, _this.title) || other.title == _this.title)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.questionCount, _this.questionCount) || other.questionCount == _this.questionCount)&&(identical(other.hasPhotos, _this.hasPhotos) || other.hasPhotos == _this.hasPhotos)&&(identical(other.reviewNote, _this.reviewNote) || other.reviewNote == _this.reviewNote)&&(identical(other.quizId, _this.quizId) || other.quizId == _this.quizId)&&(identical(other.replacesQuizId, _this.replacesQuizId) || other.replacesQuizId == _this.replacesQuizId)&&(identical(other.submittedAt, _this.submittedAt) || other.submittedAt == _this.submittedAt)&&(identical(other.reviewedAt, _this.reviewedAt) || other.reviewedAt == _this.reviewedAt));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode {
+  final _this = this as QuizSubmission;
+  return Object.hash(runtimeType,_this.id,_this.title,_this.status,_this.questionCount,_this.hasPhotos,_this.reviewNote,_this.quizId,_this.replacesQuizId,_this.submittedAt,_this.reviewedAt);
+}
+
+@override
+String toString() {
+  final _this = this as QuizSubmission;
+  return 'QuizSubmission(id: ${_this.id}, title: ${_this.title}, status: ${_this.status}, questionCount: ${_this.questionCount}, hasPhotos: ${_this.hasPhotos}, reviewNote: ${_this.reviewNote}, quizId: ${_this.quizId}, replacesQuizId: ${_this.replacesQuizId}, submittedAt: ${_this.submittedAt}, reviewedAt: ${_this.reviewedAt})';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $QuizSubmissionCopyWith<$Res>  {
+  factory $QuizSubmissionCopyWith(QuizSubmission value, $Res Function(QuizSubmission) _then) = _$QuizSubmissionCopyWithImpl;
+@useResult
+$Res call({
+ String id, String title, String status, int questionCount, bool hasPhotos, String? reviewNote, String? quizId, String? replacesQuizId, DateTime? submittedAt, DateTime? reviewedAt
+});
+
+
+
+
+}
+/// @nodoc
+class _$QuizSubmissionCopyWithImpl<$Res>
+    implements $QuizSubmissionCopyWith<$Res> {
+  _$QuizSubmissionCopyWithImpl(this._self, this._then);
+
+  final QuizSubmission _self;
+  final $Res Function(QuizSubmission) _then;
+
+/// Create a copy of QuizSubmission
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? status = null,Object? questionCount = null,Object? hasPhotos = null,Object? reviewNote = freezed,Object? quizId = freezed,Object? replacesQuizId = freezed,Object? submittedAt = freezed,Object? reviewedAt = freezed,}) {
+  return _then(QuizSubmission(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
+as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as String,questionCount: null == questionCount ? _self.questionCount : questionCount // ignore: cast_nullable_to_non_nullable
+as int,hasPhotos: null == hasPhotos ? _self.hasPhotos : hasPhotos // ignore: cast_nullable_to_non_nullable
+as bool,reviewNote: freezed == reviewNote ? _self.reviewNote : reviewNote // ignore: cast_nullable_to_non_nullable
+as String?,quizId: freezed == quizId ? _self.quizId : quizId // ignore: cast_nullable_to_non_nullable
+as String?,replacesQuizId: freezed == replacesQuizId ? _self.replacesQuizId : replacesQuizId // ignore: cast_nullable_to_non_nullable
+as String?,submittedAt: freezed == submittedAt ? _self.submittedAt : submittedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,reviewedAt: freezed == reviewedAt ? _self.reviewedAt : reviewedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [QuizSubmission].
+extension QuizSubmissionPatterns on QuizSubmission {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _QuizSubmission value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _QuizSubmission() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _QuizSubmission value)  $default,){
+final _that = this;
+switch (_that) {
+case _QuizSubmission():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _QuizSubmission value)?  $default,){
+final _that = this;
+switch (_that) {
+case _QuizSubmission() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  String status,  int questionCount,  bool hasPhotos,  String? reviewNote,  String? quizId,  String? replacesQuizId,  DateTime? submittedAt,  DateTime? reviewedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _QuizSubmission() when $default != null:
+return $default(_that.id,_that.title,_that.status,_that.questionCount,_that.hasPhotos,_that.reviewNote,_that.quizId,_that.replacesQuizId,_that.submittedAt,_that.reviewedAt);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  String status,  int questionCount,  bool hasPhotos,  String? reviewNote,  String? quizId,  String? replacesQuizId,  DateTime? submittedAt,  DateTime? reviewedAt)  $default,) {final _that = this;
+switch (_that) {
+case _QuizSubmission():
+return $default(_that.id,_that.title,_that.status,_that.questionCount,_that.hasPhotos,_that.reviewNote,_that.quizId,_that.replacesQuizId,_that.submittedAt,_that.reviewedAt);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  String status,  int questionCount,  bool hasPhotos,  String? reviewNote,  String? quizId,  String? replacesQuizId,  DateTime? submittedAt,  DateTime? reviewedAt)?  $default,) {final _that = this;
+switch (_that) {
+case _QuizSubmission() when $default != null:
+return $default(_that.id,_that.title,_that.status,_that.questionCount,_that.hasPhotos,_that.reviewNote,_that.quizId,_that.replacesQuizId,_that.submittedAt,_that.reviewedAt);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _QuizSubmission extends QuizSubmission {
+  const _QuizSubmission({required this.id, this.title = '', this.status = QuizSubmission.pending, this.questionCount = 0, this.hasPhotos = false, this.reviewNote, this.quizId, this.replacesQuizId, this.submittedAt, this.reviewedAt}): super._();
+  factory _QuizSubmission.fromJson(Map<String, dynamic> json) => _$QuizSubmissionFromJson(json);
+
+@override final  String id;
+@override@JsonKey() final  String title;
+@override@JsonKey() final  String status;
+@override@JsonKey() final  int questionCount;
+@override@JsonKey() final  bool hasPhotos;
+/// Why it was turned down. Only ever sent to the device that submitted it.
+@override final  String? reviewNote;
+/// The published quiz, once there is one.
+@override final  String? quizId;
+@override final  String? replacesQuizId;
+@override final  DateTime? submittedAt;
+@override final  DateTime? reviewedAt;
+
+/// Create a copy of QuizSubmission
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$QuizSubmissionCopyWith<_QuizSubmission> get copyWith => __$QuizSubmissionCopyWithImpl<_QuizSubmission>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$QuizSubmissionToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _QuizSubmission&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&(identical(other.status, status) || other.status == status)&&(identical(other.questionCount, questionCount) || other.questionCount == questionCount)&&(identical(other.hasPhotos, hasPhotos) || other.hasPhotos == hasPhotos)&&(identical(other.reviewNote, reviewNote) || other.reviewNote == reviewNote)&&(identical(other.quizId, quizId) || other.quizId == quizId)&&(identical(other.replacesQuizId, replacesQuizId) || other.replacesQuizId == replacesQuizId)&&(identical(other.submittedAt, submittedAt) || other.submittedAt == submittedAt)&&(identical(other.reviewedAt, reviewedAt) || other.reviewedAt == reviewedAt));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode {
+    return Object.hash(runtimeType,id,title,status,questionCount,hasPhotos,reviewNote,quizId,replacesQuizId,submittedAt,reviewedAt);
+}
+
+@override
+String toString() {
+    return 'QuizSubmission(id: $id, title: $title, status: $status, questionCount: $questionCount, hasPhotos: $hasPhotos, reviewNote: $reviewNote, quizId: $quizId, replacesQuizId: $replacesQuizId, submittedAt: $submittedAt, reviewedAt: $reviewedAt)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$QuizSubmissionCopyWith<$Res> implements $QuizSubmissionCopyWith<$Res> {
+  factory _$QuizSubmissionCopyWith(_QuizSubmission value, $Res Function(_QuizSubmission) _then) = __$QuizSubmissionCopyWithImpl;
+@override @useResult
+$Res call({
+ String id, String title, String status, int questionCount, bool hasPhotos, String? reviewNote, String? quizId, String? replacesQuizId, DateTime? submittedAt, DateTime? reviewedAt
+});
+
+
+
+
+}
+/// @nodoc
+class __$QuizSubmissionCopyWithImpl<$Res>
+    implements _$QuizSubmissionCopyWith<$Res> {
+  __$QuizSubmissionCopyWithImpl(this._self, this._then);
+
+  final _QuizSubmission _self;
+  final $Res Function(_QuizSubmission) _then;
+
+/// Create a copy of QuizSubmission
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? status = null,Object? questionCount = null,Object? hasPhotos = null,Object? reviewNote = freezed,Object? quizId = freezed,Object? replacesQuizId = freezed,Object? submittedAt = freezed,Object? reviewedAt = freezed,}) {
+  return _then(_QuizSubmission(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
+as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as String,questionCount: null == questionCount ? _self.questionCount : questionCount // ignore: cast_nullable_to_non_nullable
+as int,hasPhotos: null == hasPhotos ? _self.hasPhotos : hasPhotos // ignore: cast_nullable_to_non_nullable
+as bool,reviewNote: freezed == reviewNote ? _self.reviewNote : reviewNote // ignore: cast_nullable_to_non_nullable
+as String?,quizId: freezed == quizId ? _self.quizId : quizId // ignore: cast_nullable_to_non_nullable
+as String?,replacesQuizId: freezed == replacesQuizId ? _self.replacesQuizId : replacesQuizId // ignore: cast_nullable_to_non_nullable
+as String?,submittedAt: freezed == submittedAt ? _self.submittedAt : submittedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,reviewedAt: freezed == reviewedAt ? _self.reviewedAt : reviewedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
   ));
 }
 

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy · Fazoura Party</title>
+<meta name="description" content="What Fazoura Party does with your data, and what it doesn't.">
+<link rel="icon" href="/favicon.png">
+<style>
+  :root {
+    --bg: #061917;
+    --panel: #0A2422;
+    --ink: #EAF4F1;
+    --dim: #A9C2BC;
+    --line: #1C3D39;
+    --amber: #FFB000;
+    --pink: #FF2D6F;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 40px 16px 64px;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 28px clamp(18px, 5vw, 40px);
+  }
+  h1 { font-size: clamp(26px, 6vw, 34px); line-height: 1.2; margin: 0 0 6px; }
+  h2 { font-size: 20px; margin: 36px 0 8px; color: var(--amber); }
+  h3 { font-size: 16px; margin: 22px 0 4px; }
+  p, ul { margin: 0 0 14px; }
+  ul { padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  a { color: var(--amber); }
+  a:hover { color: var(--pink); }
+  .meta { color: var(--dim); font-size: 14px; margin-bottom: 24px; }
+  .summary {
+    border-left: 3px solid var(--amber);
+    padding: 4px 0 4px 16px;
+    margin: 0 0 8px;
+  }
+  code { font-family: ui-monospace, "DM Mono", monospace; font-size: 0.92em; }
+</style>
+</head>
+<body>
+<main>
+<article class="card">
+<h1>Privacy Policy</h1>
+<p class="meta">Fazoura Party · Last updated 23 September 2026</p>
+
+<div class="summary">
+  <p><strong>The short version.</strong> Fazoura Party has no accounts, no ads, no analytics and no tracking. You don't give us your name, email or phone number, and we don't ask. A game lives in the server's memory while it is being played and is gone when the room closes. The only things we keep are quizzes that someone asked us to publish, and reports people send us about them.</p>
+</div>
+
+<p>This policy covers the Fazoura Party app for Android, the web app, and the server they connect to (together, “the service”). The service is run by Anis Abdellatif (“we”, “us”). If you have a question about it, write to <a href="mailto:contact@anisabdellatif.me">contact@anisabdellatif.me</a>.</p>
+
+<h2>What stays on your device</h2>
+<p>These are stored by the app on your phone or in your browser, and never sent to us unless described below:</p>
+<ul>
+  <li><strong>Private quizzes</strong> you create or save, including their photos.</li>
+  <li><strong>A publisher key</strong> — a random value the app generates once. It is how the server recognises that a public quiz was published from your device, so that only you can change or remove it. It is not linked to who you are.</li>
+  <li><strong>Room tokens</strong> for games you recently joined, so you can get back into a game if your connection drops. They are forgotten when the room closes.</li>
+</ul>
+<p>Uninstalling the app, or clearing the site's data in your browser, deletes all of this.</p>
+
+<h2>Playing a game</h2>
+<p>To join a game you enter a display name. It can be anything; it doesn't need to be your real name. While a game is running, the server holds in memory:</p>
+<ul>
+  <li>the display names of the players and a colour assigned to each,</li>
+  <li>the answers each player submits and the scores that result,</li>
+  <li>the questions being played.</li>
+</ul>
+<p>Everyone in the room sees each player's display name and score. After each question, the host and the players see the answers that were given. None of this is written to a database: it is deleted when the room closes, which happens shortly after everyone leaves or a few minutes after the game ends, and whenever the server restarts.</p>
+<p>When a private quiz is hosted, the app sends it — photos included — to the server with the request to open the room. It is held in memory for as long as that room exists and is never stored.</p>
+
+<h3>Local network games</h3>
+<p>When a game is hosted on a local network, the players' devices talk directly to the host's device. Nothing about that game passes through our server.</p>
+
+<h2>Public quizzes</h2>
+<p>If you ask for a quiz to be made public, your device sends the whole quiz — title, description, tags, questions, answers and photos — to our server as a single file, and it waits in a queue until we have read it. Nothing is listed or playable by anyone else until we approve it. Your own copy stays on your device the whole time, and you can keep hosting games with it while it waits.</p>
+<ul>
+  <li>While it waits, we hold that file so that we can read it. If we turn the quiz down, we keep a short note of why — which only your device is shown — and delete the file. We delete the note itself after 90 days. You can withdraw the quiz at any time, which deletes everything about it straight away.</li>
+  <li>Once approved, the quiz is stored on our server and anyone using the service can browse, play and download it. Please don't publish anything you wouldn't want the public to see.</li>
+  <li>A published quiz is linked only to a one-way hash of your device's publisher key — not to your name, email, IP address or any account.</li>
+  <li>The app removes photo metadata (such as camera details and GPS location) on your device before a photo leaves it.</li>
+  <li>Editing a public quiz sends the change back through the same queue. The version already published stays as it is until we have read the change.</li>
+  <li>You can unpublish a quiz at any time from the device that published it. Its photos are then deleted automatically within about a day.</li>
+  <li>If you've lost that device and want a quiz you published removed, email us and tell us which quiz it is.</li>
+  <li>We may remove published quizzes that break the law or are abusive.</li>
+</ul>
+
+<h2>Reporting a quiz</h2>
+<p>Any public quiz can be reported from inside the app. We store what you chose as the reason, anything you typed in the box, and a one-way hash of your device's publisher key. The hash is there only so that one device counts as one report; it does not tell us who you are, and it is never shown to the person who published the quiz.</p>
+<ul>
+  <li>We read every report and decide within about a day whether to remove the quiz.</li>
+  <li>Reports are visible only to us. If we remove the quiz, its reports are deleted with it. If we decide the quiz is fine, we delete the report 90 days later.</li>
+  <li>Don't put anything in the box you wouldn't want us to read, and please don't include anyone's personal details — the box is for what is wrong with the quiz.</li>
+</ul>
+
+<h2>Technical data</h2>
+<ul>
+  <li><strong>IP addresses.</strong> To protect the service from abuse, the server counts requests per IP address over short windows (about a minute). These counters live in memory only and are never written to disk.</li>
+  <li><strong>Server logs.</strong> Like any web server, ours keeps logs of requests (time, address requested, and whether it succeeded) to diagnose problems and keep the service secure. We use them only for that, and don't combine them with anything else to identify people.</li>
+  <li><strong>Cookies.</strong> The service sets no cookies for players or visitors. The only cookie is a session cookie for our own administration dashboard.</li>
+</ul>
+
+<h2>Photos and permissions (Android)</h2>
+<p>The app asks for only one permission: internet access. When you add a photo to a quiz, you pick it using Android's own photo picker, and the app only ever sees the photo you chose.</p>
+
+<h2>Third parties</h2>
+<p>We don't sell, rent or share your data with anyone, and there is no advertising or analytics code in the app. A few parts of the service involve another company's servers, which may see your IP address when they're used:</p>
+<ul>
+  <li><strong>GitHub</strong> — an app installed from our website checks GitHub for new versions and downloads updates from there. See <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement" rel="noopener">GitHub's privacy statement</a>.</li>
+  <li><strong>Google Play</strong> — if you installed the app from Google Play, Google handles installs and updates under <a href="https://policies.google.com/privacy" rel="noopener">Google's privacy policy</a>.</li>
+  <li><strong>Google Fonts</strong> — the web app bundles its own fonts, but if a quiz contains characters those fonts don't cover (such as some emoji or scripts), your browser may fetch a fallback font from Google's font servers.</li>
+</ul>
+
+<h2>Children</h2>
+<p>Fazoura Party is a party game, and we expect children to play it — usually alongside adults, in the same room. We've built it so that playing needs nothing from them: no account, no email, no name we keep. A display name is visible to the others in the room while the game runs and is gone when it ends.</p>
+<ul>
+  <li><strong>Nothing a child types is stored.</strong> Display names and answers live in the server's memory for the length of the game and are never written down.</li>
+  <li><strong>Nothing reaches the public library unread.</strong> Every quiz offered for publication is looked at by a person first, and anything sexual, hateful, violent or otherwise unsuitable is refused.</li>
+  <li><strong>Anyone can report a public quiz</strong> from inside the app, including from the game itself, and we answer reports within about a day.</li>
+  <li><strong>Photos are stripped of camera and location data</strong> on the device before they are ever sent.</li>
+</ul>
+<p>Publishing a quiz is different from playing one: it goes to strangers, it stays up until somebody removes it, and we read it first. If you are under 13, please ask a parent before publishing a quiz or sending us a report.</p>
+<p>If you believe we hold anything about a child that we shouldn't, email <a href="mailto:contact@anisabdellatif.me">contact@anisabdellatif.me</a> and we'll remove it.</p>
+
+<h2>Why we're allowed to do this, and how long we keep it</h2>
+<p>Where the GDPR applies, our lawful basis for everything above is <strong>legitimate interests</strong> (Article 6(1)(f)): running a game service that isn't abused, and keeping a public library of quizzes that people can trust. We think this is fair to you because there are no accounts, nothing is combined into a profile, and nothing about you is sold, shared or used to advertise. You can object to it at any time — see below.</p>
+<p>How long things last:</p>
+<ul>
+  <li><strong>Games</strong> — in memory while the room is open, gone when it closes. Nothing about a game is written to disk.</li>
+  <li><strong>Abuse counters</strong> — about a minute, in memory only.</li>
+  <li><strong>A quiz waiting to be reviewed</strong> — until we approve it, turn it down, or you withdraw it.</li>
+  <li><strong>A note explaining why a quiz was turned down</strong> — 90 days.</li>
+  <li><strong>A published quiz</strong> — until you unpublish it or we remove it. Its photos are deleted about a day later.</li>
+  <li><strong>A report</strong> — until we have answered it, then 90 days. Deleted immediately if we remove the quiz.</li>
+  <li><strong>Server logs</strong> — kept only as long as they are useful for diagnosing problems.</li>
+</ul>
+
+<h2>Your rights</h2>
+<p>Because we don't collect names, emails or accounts, we usually have nothing that identifies you. Depending on where you live (for example, under the GDPR in the EU and UK), you have the right to ask what data we hold about you, to have it corrected or deleted, to object to our using it, to ask us to restrict how we use it, and to complain to your local data protection authority. Email <a href="mailto:contact@anisabdellatif.me">contact@anisabdellatif.me</a> and we'll respond within 30 days.</p>
+<p>Two practical notes. To act on a request about a quiz you published, we need to know which quiz — we have no way to look you up, because there is nothing to look up. And a report you sent is anonymous to us in the same way: tell us which quiz and roughly when, and we'll find it.</p>
+
+<h2>Security</h2>
+<p>All connections to the server are encrypted with HTTPS. Publisher keys are stored only as hashes, so even we can't use them to act on your behalf.</p>
+
+<h2>Changes to this policy</h2>
+<p>If we change this policy, we'll update this page and the date at the top. If a change affects what we collect, we'll say so in the app's release notes.</p>
+
+<h2>Contact</h2>
+<p>Anis Abdellatif — <a href="mailto:contact@anisabdellatif.me">contact@anisabdellatif.me</a></p>
+</article>
+</main>
+</body>
+</html>

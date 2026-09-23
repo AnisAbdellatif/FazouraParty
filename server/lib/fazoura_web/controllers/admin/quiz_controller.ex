@@ -1,6 +1,6 @@
 defmodule FazouraWeb.Admin.QuizController do
   @moduledoc """
-  Downloading a quiz from the dashboard as a `.fazoura` package (ADMIN.md §3.2).
+  Downloading a quiz from the dashboard as a `.fazoura` package (ADMIN.md §3.4).
 
   The public API sends the same bytes at `GET /api/quizzes/:id/archive`, but metered at
   ten a minute — a rate for a guest saving a quiz for offline play, not for an admin

@@ -110,6 +110,20 @@ defmodule Fazoura.Rooms do
   @spec status(String.t(), String.t() | nil) :: {:ok, map()} | {:error, :room_not_found}
   def status(code, host_token), do: call(code, {:status, host_token})
 
+  @doc """
+  The stored quiz a question in this room was snapshotted from, for somebody in
+  the room who wants to report it (QUIZ_FORMAT.md §5.9).
+
+  `token` is either token a join issues, and a wrong one gets `room_not_found`
+  rather than a refusal — a caller who is not in the room is not told it exists.
+  `question_id` may be nil, meaning the question the room is on.
+  """
+  @spec source_quiz(String.t(), String.t() | nil, String.t() | nil) ::
+          {:ok, String.t()}
+          | {:error, :room_not_found | :question_not_found | :quiz_not_public}
+  def source_quiz(code, question_id, token),
+    do: call(code, {:source_quiz, question_id, token})
+
   @doc "Forces timer/expiry evaluation now. Used by tests with an injected clock."
   @spec tick(String.t()) :: :ok | {:error, :room_not_found}
   def tick(code), do: call(code, :tick)

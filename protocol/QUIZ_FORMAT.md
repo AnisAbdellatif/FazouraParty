@@ -16,9 +16,10 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 
 1. **One canonical JSON document** for a quiz. Built-in files, API bodies and exports all
    use it, so a quiz can move between them unchanged.
-2. **Evolvable.** Every document carries `format_version`. New optional fields can be
-   added without a version bump; readers ignore unknown keys. Removing or re-meaning a
-   field, or adding a required one, bumps `format_version` and needs a migration path.
+2. **Evolvable.** Every document carries `format_version`, as `<major>.<minor>`. New
+   optional fields bump the minor and cost nobody anything, because readers ignore unknown
+   keys and a reader accepts any document of its own major. Removing or re-meaning a field,
+   or adding a required one, bumps the major and needs a migration path (§7).
 3. **Room-safe.** Rooms snapshot a quiz when created (PROTOCOL.md §6.2), so editing a quiz
    never affects a running game.
 4. **No accidental answer leaks.** Accepted answers are omitted from public listings and
@@ -30,12 +31,12 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
    database for everyone). A per-device secret lets the publishing device update or
    unpublish; the model leaves room for a user id later without changing the document.
 
-## 2. Quiz document (format version 1)
+## 2. Quiz document (format version 1.0)
 
 ```json
 {
-  "format_version": 1,
-  "version": "1.0",
+  "format_version": "1.0",
+  "version": 1,
   "id": "3f0c2a5e-6b1e-4f0a-9d8e-2b7c1e4a9f10",
   "slug": null,
   "title": "Movie Night",
@@ -86,8 +87,8 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 
 | Field | Type | Rules |
 |---|---|---|
-| `format_version` | int | Required on input; currently `1` |
-| `version` | string | Content revision in `<major>.<minor>` format, starting at `"1.0"`; the minor version increments whenever a published quiz is replaced. Clients use it to detect stale offline copies |
+| `format_version` | string | The format this document was written for, `<major>.<minor>`; currently `"1.0"`. Required on input. **A reader accepts any document whose major matches its own**, whatever the minor, because a minor only ever adds keys and an unknown key is ignored; a different major is refused. An integer (`1`) is a document from before the minor existed and means `1.0` |
+| `version` | int | How many times this quiz has been published: `1` the first time, +1 on every replacement. Clients compare it with their saved copy's to spot a stale offline download. Not a contract and nothing branches on it — a counter. A `<major>.<minor>` string is the old scheme, where the minor did the counting: `"1.4"` was the fifth revision and reads as `5` |
 | `id` | uuid string | Server-assigned; ignored on create |
 | `slug` | string \| null | Stable human id for built-in quizzes (`general-knowledge`); `null` for custom |
 | `title` | string | Required, 1–80 characters (trimmed) |
@@ -113,7 +114,7 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 | `accepted_answers` | string[] | Required, 1–10 answers, each 1–100 characters. Matching is PROTOCOL.md §8 |
 | `difficulty` | `"easy"` \| `"medium"` \| `"hard"` | Default `"easy"`; drives the difficulty bonus (PROTOCOL.md §9) |
 | `time_limit_ms` | int \| null | Reserved for per-question overrides; ignored by rooms today |
-| `image` | object \| null | Required for `text_photo`, must be `null` for `text`. Fields: `key` (from §5.6, when publishing); `data` (base64 JPEG/PNG/WebP ≤ 2 MB, for private quizzes sent inline, §5.7, and how the app keeps photos on the device); `path` (a file beside the document — inside a `.fazoura` archive, §5.3b, or beside a preset's JSON, §6); optional `alt` (≤ 140 chars); `url` is output only |
+| `image` | object \| null | Required for `text_photo`, must be `null` for `text`. Fields: `key` (an upload, §5.7 — what a published quiz carries); `data` (base64 JPEG/PNG/WebP ≤ 2 MB, for private quizzes sent inline, §5.8, and how the app keeps photos on the device); `path` (a file beside the document — inside a `.fazoura` package, §5.3b, which is how a photo reaches the server when publishing, or beside a preset's JSON, §6); optional `alt` (≤ 140 chars); `url` is output only |
 | `explanation` | string \| null | ≤ 280 chars, shown after the reveal in a later release |
 
 ### 2.3 Tags
@@ -143,7 +144,7 @@ changesets), arrays via Ecto's `{:array, :string}`.
 
 ```
 quizzes
-  id uuid PK · slug string UNIQUE NULL · format_version int · version string
+  id uuid PK · slug string UNIQUE NULL · format_version string · version int
   title string · description text NULL · language string
   source string · visibility string · owner_key_hash string NULL (sha256 hex)
   default_time_limit_ms int · default_difficulty_multiplier bool
@@ -184,11 +185,28 @@ images
   it, the whole document is sent with room creation (§5.7); the server validates it, plays
   it, and forgets it (photos included) when the room closes. Friends play it by joining
   the room.
-- **Public:** the device publishes the document (§5.3) and it is stored in the server
-  database, listed for everyone and hostable by anyone. The device keeps its local copy
-  (the one it edits) and remembers the published id.
-- The creator can switch at any time: publishing uploads photos (§5.6) and creates or
-  replaces the stored copy; making it private again deletes the stored copy (§5.5).
+- **Public:** stored in the server database, listed for everyone and hostable by anyone.
+  The device keeps its local copy (the one it edits) and remembers the published id.
+- **Publishing is a submission, and a submission is a package.** Asking for a quiz to be
+  public sends one `.fazoura` (§5.3b, §5.4) and it waits in a queue until somebody reads
+  it (ADMIN.md §3.2). Until then there is no row in `quizzes` and no file in the uploads
+  volume — which is what lets every query against `quizzes` mean "public" with no second
+  condition to forget, and means nothing unreviewed can be found, hosted or served.
+  Approval unpacks the package (§6, the path a dropped-in preset already takes) and only
+  then is there a quiz. Waiting costs its author nothing: the quiz is still on their
+  device and still hosted inline, which never touches the server's library at all.
+- **An edit of a public quiz comes back through the queue too** (§5.5), offered against
+  the quiz it replaces so approval swaps that quiz's contents rather than adding a second
+  copy. Otherwise approval would mean nothing: publish something harmless, then change it.
+  The published version stays exactly as it was while the edit waits, and a turned-down
+  edit leaves it untouched.
+- A rejection carries a note, sent only to the device that submitted it — it is a message
+  to an author, not something published beside a quiz. A device asks for its own
+  submissions with §5.4a, which is how it learns that a quiz went public: approval happens
+  when somebody reads the queue, not while the app is open.
+- Making a quiz private again deletes the stored copy (§5.6) and withdraws anything of it
+  still waiting to be read, as does deleting it on the device — otherwise an admin could
+  approve, and publish, a quiz its author had thrown away.
 - Each app install generates a random **publisher key** (≥ 32 URL-safe characters) once
   and keeps it on the device. It is not an account: it is sent as the `x-owner-key` HTTP
   header and only proves "this device published it". The server stores
@@ -218,7 +236,7 @@ Order: built-in first, then most recently updated.
 
 `tags` are the tags public quizzes actually use, most used first then alphabetically
 (query: `limit`, 1–100, default 30). `suggested` is the admin-maintained quick-pick list
-(§2.3, ADMIN.md §3.4); clients fall back to their built-in list when it is empty or the
+(§2.3, ADMIN.md §3.6); clients fall back to their built-in list when it is empty or the
 server can't be reached.
 
 ```json
@@ -255,7 +273,7 @@ keeps text, accepted answers and binary images together and can be retained or s
 Clients should verify and unpack it in memory or in their local cache before hosting. The JSON
 download endpoint remains available for compatibility.
 
-The same format goes the other way. An admin uploads one from the dashboard (ADMIN.md §3.2) to
+The same format goes the other way. An admin uploads one from the dashboard (ADMIN.md §3.4) to
 add a quiz with its photos in a single step, and `tools/fazoura_pack.py` builds one from a folder
 of JSON and images — so a quiz can be written offline, or moved from one server to another,
 without publishing every photo by hand first:
@@ -271,17 +289,51 @@ checked before anything is decompressed, entries outside `media/` are ignored, a
 are validated like any upload (§5.7) before they are stored. A photo is named inside the
 package by a digest of its own bytes, so the same picture used twice is carried once.
 
-### 5.4 `POST /api/quizzes` (publish)
+### 5.4 `POST /api/quizzes` (submit for review)
 
-Header `x-owner-key` required. Body: a quiz document (server-assigned and output-only
-fields ignored; photos by `key`). `201` with the full document. `422 invalid_quiz` with
-`errors` on validation failure; `401 owner_key_required` without a valid key;
-`422 unknown_image` if a photo key wasn't uploaded with the same key.
+Header `x-owner-key` required. `multipart/form-data` with one `file` part: a `.fazoura`
+package (§5.3b) carrying the quiz and its photos. `201` with the submission document
+below — **not** a quiz. Nothing is published, listed or written to the uploads volume
+until an admin approves it (§4, ADMIN.md §3.2).
 
-### 5.5 `PUT /api/quizzes/:id`
+```json
+201 {
+  "id": "…", "title": "Movie Night", "status": "pending",
+  "question_count": 12, "has_photos": true,
+  "review_note": null, "quiz_id": null, "replaces_quiz_id": null,
+  "submitted_at": "2026-09-23T10:00:00Z", "reviewed_at": null
+}
+```
 
-Publisher only. Replaces the quiz, including all tags and questions (question ids are
-re-issued), and increments `version`. `200` with the full document.
+`status` is `pending`, `approved` or `rejected`; `quiz_id` is filled in once there is a
+published quiz. Errors: `401 owner_key_required` without a valid key;
+`422 invalid_quiz` when the package carries no title or no questions;
+`422 archive_too_large`, `422 invalid_archive`, `422 manifest_missing`,
+`422 manifest_invalid` for a package that cannot be read.
+
+A JSON document is refused with `422 package_required`. Rebuilding one server-side would
+mean its photos had been uploaded first and were already on disk unreviewed, which is the
+one thing the queue exists to prevent — so a client old enough to send one is told to
+update instead, which it can do from inside the app.
+
+### 5.4a `GET /api/submissions` and `DELETE /api/submissions/:id`
+
+What this device has sent and what became of it, newest first. Its own only: the
+`x-owner-key` header decides, and somebody else's submission does not exist to it.
+
+```json
+200 {"submissions": [<submission document>]}
+```
+
+`DELETE` withdraws one, `204`. Anything else is `404 not_found`, never `403`.
+
+### 5.5 `PUT /api/quizzes/:id` (submit an edit)
+
+Publisher only, and a submission like §5.4: `multipart/form-data` with one `file` part,
+`200` with the submission document, `replaces_quiz_id` set to `:id`. The published quiz
+is untouched while the edit waits. On approval it replaces that quiz — same id, all tags
+and questions, question ids re-issued, `version` incremented — so a device that saved it,
+or a room that has it selected, is looking at the same quiz rather than a second copy.
 
 ### 5.6 `DELETE /api/quizzes/:id` (unpublish)
 
@@ -291,13 +343,17 @@ Publisher only. `204`.
 
 Publisher key required. `multipart/form-data` with one `file` part: JPEG, PNG or WebP
 (checked by content, not by filename), ≤ 2 MB. Clients downscale to at most 1280 px on
-the longest side. Only needed to publish.
+the longest side.
 
 ```json
 201 {"key": "5b0e4f1c9a2d7e3f.jpg", "url": "https://…/uploads/5b0e4f1c9a2d7e3f.jpg"}
 ```
 
 Errors: `413 image_too_large`, `415 unsupported_image`.
+
+**No longer part of publishing.** A submission carries its photos inside the package, so
+nothing is uploaded ahead of review. The endpoint remains for clients that predate the
+queue and has no current caller.
 
 ### 5.8 Rooms
 
@@ -322,6 +378,65 @@ listening on, at `http://<host-ip>:<port>/api/room-images/<key>`, with the same 
 fails the intent with `invalid_quiz`, the code Cloud answers with for the same document.
 Clients cannot tell the two apart: both send an ordinary `image_url`.
 
+
+### 5.9 `POST /api/quizzes/:id/report`
+
+Header `x-owner-key` required. Reports a public quiz as something that should not be
+public. `204`, always — the answer says nothing about what happened to the report, not
+whether it is the first, not how many others there are, and not whether an admin has
+already decided. That is moderation state, and a caller does not get to probe it.
+
+```json
+{"reason": "sexual" | "hate" | "violence" | "illegal" | "spam" | "other",
+ "note": "optional, ≤ 500 characters"}
+```
+
+The key identifies a device, not a person and not a permission: anybody may report
+anything public, including a quiz they published themselves. It is stored as
+`sha256(publisher_key)`, the same hash a published quiz carries, and only so that one
+device tapping twice is one report — an admin reads the count as "how many people", so it
+has to mean that. Reporting again replaces what that device said; the first report's
+timestamp stands, because that is when the clock started, and a report already answered
+stays answered.
+
+Errors: `401 owner_key_required`, `404 quiz_not_found`, `422 invalid_report` for a reason
+that isn't one of the six. Metered at ten a minute per IP: somebody who has seen something
+they want gone reports it once.
+
+An admin answers every open report against a quiz by taking the quiz down or by deciding
+it is fine (ADMIN.md §3.3). Google Play requires both the in-app route and a timely answer
+to it, which is why reports are a queue rather than a mailbox.
+
+#### `POST /api/rooms/:code/report` — reporting what is on screen
+
+Browsing a quiz shows a title, a description and tags. The questions and photos somebody
+would actually object to are only ever seen **in a game**, so that is where reporting has
+to be possible, and a player there does not know the quiz's id.
+
+**Cloud only.** A LAN host serves no quiz library: what it is playing was never published,
+so there is nothing anybody could take down (PROTOCOL.md §3.1 makes the same point about
+`GET /api/rooms/:code`).
+
+```json
+{"reason": <as above>, "note": "optional", "question_id": "<from the current state>"}
+```
+
+The room resolves the question to the quiz it was snapshotted from and reports that; the
+id is never sent to a client. **That is the point of the route** — a quiz id during a game
+would also be a cheat button, since §5.3a hands out the accepted answers to anyone who
+asks. `question_id` is optional: without one the room reports the quiz it is playing, as
+long as it is playing only one (a host may merge up to ten, PROTOCOL.md §6.4, and guessing
+which was meant is worse than asking).
+
+A token the room issued — `x-player-token` or `x-host-token` (PROTOCOL.md §3.3) — is
+required in a header, along with `x-owner-key`. Being in the room is the price of reporting
+from it: without that check the route would answer differently for a live six-character
+code than for an invented one, which is exactly the oracle `GET /api/rooms/:code` avoids.
+
+`204` on success. Errors: `404 room_not_found` for a wrong or missing token as well as an
+unknown room — a caller who is not in the room is never told one exists;
+`404 question_not_found`; `422 quiz_not_public` when the question came from a private quiz
+the host sent inline, so nothing was ever published to remove; `422 invalid_report`.
 
 ## 6. Presets
 
@@ -391,12 +506,22 @@ them, and re-running the sync restores them if the uploads volume is ever lost.
 
 ## 7. Evolution checklist
 
-- New optional field → add to this doc, the changeset and the Dart model with a default.
-  No version bump.
-- New suggested tag → an admin adds it in the dashboard; no release needed. Changing the
-  built-in fallback means editing §2.3, `Fazoura.Quizzes.Tag` and the Dart constant.
-- New question `type` → document its fields; old clients skip unknown types when listing
-  and the server refuses to start a room on a client that can't play it (future
-  `min_client_version`).
-- Breaking change → bump `format_version`, keep reading the previous version on import,
-  and write a data migration.
+`format_version` is `<major>.<minor>` and the two halves mean what they do everywhere else
+(PROTOCOL.md §1.1 draws the same line for the wire):
+
+- **New optional field** → add it to this doc, the changeset and the Dart model with a
+  default, and **bump the minor**. A reader of the previous minor still reads the document,
+  because it ignores the key it does not know — which is exactly what the minor promises,
+  and why bumping it costs nobody anything.
+- **New suggested tag** → an admin adds it in the dashboard; no release needed. Changing the
+  built-in fallback means editing §2.3, `Fazoura.Quizzes.Tag` and the Dart constant. No bump.
+- **New question `type`** → document its fields and bump the minor; old clients skip unknown
+  types when listing and the server refuses to start a room on a client that can't play it
+  (future `min_client_version`).
+- **Changing or removing a field a reader relies on** → **bump the major**, keep reading the
+  previous major on import, and write a data migration. This is the expensive one: every
+  stored quiz, every `.fazoura` anybody has saved and every preset in the repository was
+  written for the old major, so "keep reading it" is the whole cost of the change.
+
+A quiz's own `version` is not part of this. It is a revision counter the server maintains,
+and it never affects whether a document can be read.

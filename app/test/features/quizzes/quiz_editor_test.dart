@@ -154,7 +154,7 @@ void main() {
     expect(await tester.runAsync(stored), isEmpty);
   });
 
-  testWidgets('a public photo quiz keeps the photo locally and publishes it', (
+  testWidgets('a public photo quiz keeps the photo and submits it', (
     tester,
   ) async {
     await openEditor(tester);
@@ -162,7 +162,7 @@ void main() {
     await enter(tester, 'quizTitleField', 'Stills');
     await tapKey(tester, 'suggestedTag-movies');
     await tapKey(tester, 'visibilityPublic');
-    expect(find.text('Save & publish'), findsOneWidget);
+    expect(find.text('Save & submit'), findsOneWidget);
     await tapKey(tester, 'questionType-0-photo');
     await enter(tester, 'questionPrompt-0', 'Which film?');
     await enter(tester, 'answerInput-0', 'Alien');
@@ -171,30 +171,31 @@ void main() {
 
     expect(pickerCalls, 1);
     expect(find.byKey(const Key('photoPreview-0')), findsOneWidget);
-    expect(
-      server.requestsWith('POST', '/api/images'),
-      isEmpty,
-      reason: 'nothing uploads until saving',
-    );
 
     await tapKey(tester, 'saveQuizButton');
 
-    expect(server.requestsWith('POST', '/api/images'), hasLength(1));
-    final body = jsonDecode(
-      server.lastWith('POST', '/api/quizzes')!.body,
-    ) as Map<String, dynamic>;
-    final question = (body['questions'] as List).single as Map<String, dynamic>;
-    expect(question['type'], 'text_photo');
-    expect((question['image'] as Map)['key'], 'img1.jpg');
+    // The photo went into the package, not to the uploads volume: nothing an
+    // admin has not read is ever written there.
+    expect(server.requestsWith('POST', '/api/images'), isEmpty);
+    final queued = server.pending.single;
+    expect(queued.hasPhotos, isTrue);
+    final question = queued.document.questions!.single;
+    expect(question.type, 'text_photo');
+    expect(question.image!.key, isNull);
+    expect(base64Decode(question.image!.data!).sublist(0, 3), [
+      0xFF,
+      0xD8,
+      0xFF,
+    ], reason: 'resized to JPEG, and carried inside the package');
 
-    expect(saved?.publishedId, 'pub-2');
-    final image = saved!.quiz.questions!.single.image!;
-    expect(image.key, 'img1.jpg');
-    final jpeg = base64Decode(image.data!);
-    expect(jpeg.sublist(0, 3), [0xFF, 0xD8, 0xFF], reason: 'resized to JPEG');
+    // Not public: it is waiting to be read, and playable here meanwhile.
+    expect(saved?.publishedId, isNull);
+    expect(saved?.inReview, isTrue);
+    expect(server.quizzes, isEmpty);
+    expect(saved!.quiz.questions!.single.image!.data, isNotNull);
   });
 
-  testWidgets('editing a published quiz reorders and republishes it', (
+  testWidgets('editing a published quiz reorders and resubmits it', (
     tester,
   ) async {
     final existing = localQuiz(
@@ -228,21 +229,26 @@ void main() {
     await tapKey(tester, 'deleteQuestion-2');
     await tapKey(tester, 'saveQuizButton');
 
-    final body = jsonDecode(
-      server.lastWith('PUT', '/api/quizzes/pub-1')!.body,
-    ) as Map<String, dynamic>;
-    expect(body['title'], 'New title');
-    expect((body['questions'] as List).map((q) => q['prompt']), [
+    // An edit of a public quiz is offered against it and goes back through the
+    // queue; the published version stays as it was until somebody reads this.
+    expect(server.lastWith('PUT', '/api/quizzes/pub-1'), isNotNull);
+    final queued = server.pending.single;
+    expect(queued.replacesQuizId, 'pub-1');
+    expect(queued.document.title, 'New title');
+    expect(queued.document.questions!.map((q) => q.prompt), [
       'Second',
       'First',
     ]);
+    expect(server.quizzes.single.title, 'Old title');
     expect(saved?.localId, 'local-1');
     expect(saved?.quiz.tags, ['quiz night']);
     expect(saved?.quiz.questions!.first.difficulty, 'hard');
     expect(await tester.runAsync(stored), hasLength(1));
   });
 
-  testWidgets('a failed publish says the quiz was still saved', (tester) async {
+  testWidgets('a failed submission says the quiz was still saved', (
+    tester,
+  ) async {
     await openEditor(tester);
     server.failWrites = true;
 
@@ -253,19 +259,16 @@ void main() {
     await enter(tester, 'answerInput-0', 'Because');
     await tapKey(tester, 'saveQuizButton');
 
-    expect(
-      find.textContaining('Saved on this device, but publishing failed'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('could not be sent for review'), findsOneWidget);
     expect(saved, isNull);
     final quizzes = (await tester.runAsync(stored))!;
     expect(quizzes.single.wantsPublic, isTrue);
-    expect(quizzes.single.isPublished, isFalse);
+    expect(quizzes.single.inReview, isFalse);
 
     // Saving again reuses the same local quiz.
     server.failWrites = false;
     await tapKey(tester, 'saveQuizButton');
-    expect(saved?.publishedId, isNotNull);
+    expect(saved?.inReview, isTrue);
     expect(await tester.runAsync(stored), hasLength(1));
   });
 }

@@ -1,13 +1,16 @@
 name: fazoura_party
 description: "Fazoura Party — party trivia with wagers. Android and Web client."
 publish_to: 'none'
-version: 0.1.4+5
+version: 0.2.0+6
 
 environment:
   sdk: ^3.13.2
 
 dependencies:
   archive: ^4.3.0
+  # Names a photo inside a .fazoura package by a digest of its own bytes, the
+  # same shape the server's upload keys take (core/quizzes/quiz_archive.dart).
+  crypto: ^3.0.6
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.4.3
@@ -32,8 +35,6 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  # tool/build_web.dart: content hashes for the service worker cache key.
-  crypto: ^3.0.6
   flutter_lints: ^6.0.0
   build_runner: ^2.16.1
   riverpod_generator: ^4.0.9

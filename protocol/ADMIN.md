@@ -9,7 +9,7 @@ Companion to [PROTOCOL.md](PROTOCOL.md) (live rooms) and [QUIZ_FORMAT.md](QUIZ_F
 
 The key indicators are live data: running games and connected players are BEAM processes in
 the room registry, not rows in a table. The Phoenix server can read them directly, so the
-dashboard is four LiveViews in the same application — no second service to deploy, no
+dashboard is five LiveViews in the same application — no second service to deploy, no
 extra API to expose the room state, no second set of credentials or CORS rules. The quiz
 database is already here too.
 
@@ -31,6 +31,7 @@ The only JavaScript is the LiveView client, served straight from the dependencie
 
 ## 3. Tabs
 
+
 ### 3.1 Stats (`/admin`)
 
 Refreshes every 2 seconds while open.
@@ -42,7 +43,55 @@ Refreshes every 2 seconds while open.
   distinct tags, uploaded images.
 - **Most used tags** and the **newest quizzes**.
 
-### 3.2 Quizzes (`/admin/quizzes`)
+### 3.2 Review (`/admin/review`)
+
+The queue between somebody writing a quiz and it being public (QUIZ_FORMAT.md §4). Nothing
+here is a quiz: a submission is the `.fazoura` package a device sent, and its photos are
+not in the uploads volume. That is the point — there is nothing for a listing, a room or
+the photo store to find until it has been read.
+
+- Waiting submissions, oldest first, with a count in the tab.
+- **Read** opens one: the package is inflated here and nowhere else, showing every prompt,
+  its accepted answers, the tags and each photo. Photos are served from the package by
+  `GET /admin/submissions/:id/photo?path=…`, behind the same credentials, `no-store` and
+  never sniffed — they are bytes a stranger uploaded that nobody has vouched for yet.
+- **Approve and publish** unpacks it through the same path a dropped-in preset takes, so an
+  approved community quiz is stored exactly like a shipped one. Its photos reach the
+  uploads volume here and not before.
+- **Turn down** keeps the row and the reason, which the submitting device reads back from
+  `GET /api/submissions`. The package is dropped either way once it has been decided.
+
+Approve only exists once a submission is open: there is no way to publish one from the list
+without having read it.
+
+### 3.3 Reports (`/admin/reports`)
+
+The other end of the review queue. Review reads a quiz before it goes out; this hears
+about the ones that got through — because a reader was wrong, or because the author
+edited it afterwards into something else (QUIZ_FORMAT.md §5.9).
+
+Google Play requires an in-app way to report user content and a timely answer to it, so
+this is a queue with a clock on it rather than a mailbox.
+
+- Reported quizzes, longest-waiting first, with a count in the tab. A quiz's place is set
+  by the **first** person who complained about it, not the most recent, so a pile-on
+  cannot push an older complaint down the list.
+- Each row carries how many people reported it and why. One device counts once however
+  many times it taps, so the number means people.
+- **Read** opens it: every reason and note given, and the quiz itself — prompts, accepted
+  answers and photos — because deciding whether something should be public means looking
+  at it, not at a title.
+- Anything left longer than a day is called out in the list, since that is the window Play
+  expects an answer in.
+- **Take it down** deletes the quiz, and its reports go with it. **Keep it** answers every
+  open report and leaves the quiz public. **Edit it instead** opens the editor (§3.5), for
+  a quiz that needs one question removed rather than deleting altogether — the reports stay
+  open until answered either way.
+
+Like approving a submission, both answers exist only once a report is open: there is no
+answering one from the list without having read it.
+
+### 3.4 Quizzes (`/admin/quizzes`)
 
 - Search by title or tag.
 - **Make preset / Unset preset.** A preset is `source: "builtin"`: it gets a slug, is
@@ -61,7 +110,7 @@ Refreshes every 2 seconds while open.
   quiz and become ordinary uploads owned by a key no device holds (§6); a pasted document does
   not, so its photos must already be uploaded. `tools/fazoura_pack.py` builds a package from a
   folder of JSON and images.
-- **Edit** any quiz — its metadata and every question — in the editor (§3.3). A quiz added
+- **Edit** any quiz — its metadata and every question — in the editor (§3.5). A quiz added
   from a package or a pasted document opens there straight away, since a new quiz is the one
   most likely to need a correction before anyone plays it.
 - **Delete** any quiz, preset or community, with its questions and tags. Running games are
@@ -70,7 +119,7 @@ Refreshes every 2 seconds while open.
 Moderation deliberately ignores the publisher key that normally guards a quiz
 (QUIZ_FORMAT.md §4).
 
-### 3.3 Quiz editor (`/admin/quizzes/:id/edit`)
+### 3.5 Quiz editor (`/admin/quizzes/:id/edit`)
 
 Everything about one quiz, community or preset.
 
@@ -106,7 +155,7 @@ Everything about one quiz, community or preset.
 
 The working copy lives in the LiveView until it is saved, so leaving the page discards it.
 
-### 3.4 Tags (`/admin/tags`)
+### 3.6 Tags (`/admin/tags`)
 
 The **suggested tags** the apps offer as quick picks (QUIZ_FORMAT.md §2.3): add, remove,
 reorder, and reset to the built-in list. Each tag shows how many public quizzes use it.

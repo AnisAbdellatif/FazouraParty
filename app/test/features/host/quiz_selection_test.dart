@@ -20,7 +20,7 @@ void main() {
 
   QuizDocument published() => QuizDocument(
     id: 'quiz-1',
-    formatVersion: 1,
+    formatVersion: '1.0',
     title: 'Film Night',
     tags: const ['movies'],
     questions: const [

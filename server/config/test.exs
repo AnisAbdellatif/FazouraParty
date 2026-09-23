@@ -20,6 +20,7 @@ config :fazoura,
 
 # Sweeping and draining are driven directly by their tests, never on a timer.
 config :fazoura, image_sweeper: [enabled: false]
+config :fazoura, moderation_sweeper: [enabled: false]
 config :fazoura, drain_ms: 0
 
 # Off by default: counters are per-IP and every test shares 127.0.0.1, so a suite that

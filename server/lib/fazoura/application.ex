@@ -5,7 +5,7 @@ defmodule Fazoura.Application do
 
   use Application
 
-  alias Fazoura.Quizzes.ImageSweeper
+  alias Fazoura.Quizzes.{ImageSweeper, ModerationSweeper}
 
   @impl true
   def start(_type, _args) do
@@ -24,6 +24,9 @@ defmodule Fazoura.Application do
         {DynamicSupervisor, name: Fazoura.Rooms.Supervisor, strategy: :one_for_one},
         if(Application.get_env(:fazoura, :start_repo, true),
           do: ImageSweeper.child_spec_if_enabled()
+        ),
+        if(Application.get_env(:fazoura, :start_repo, true),
+          do: ModerationSweeper.child_spec_if_enabled()
         ),
         FazouraWeb.Endpoint,
         # Last, so it is the first to stop: it tells live rooms to close while the

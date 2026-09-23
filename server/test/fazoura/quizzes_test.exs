@@ -286,7 +286,7 @@ defmodule Fazoura.QuizzesTest do
       assert {:ok, updated} = Quizzes.replace(quiz.id, params, @owner)
       updated = Repo.preload(updated, :questions, force: true)
       assert {updated.title, updated.question_count} == {"Renamed", 1}
-      assert updated.version == "1.1"
+      assert updated.version == 2
       assert Enum.map(updated.questions, & &1.prompt) == ["Only one"]
 
       assert {:error, %Ecto.Changeset{}} =
@@ -476,7 +476,7 @@ defmodule Fazoura.QuizzesTest do
       dir
     end
 
-    defp package_binary(attrs \\ %{}, photos \\ %{}) do
+    defp package_binary(attrs, photos \\ %{}) do
       {:ok, binary} = Archive.build(quiz_params(attrs), photos)
       binary
     end
@@ -500,7 +500,7 @@ defmodule Fazoura.QuizzesTest do
             )
         })
 
-      assert [quiz] = Quizzes.sync_packages!(dir)
+      assert [_quiz] = Quizzes.sync_packages!(dir)
       assert {:ok, quiz} = Quizzes.fetch("film-night")
 
       # Hostable by name, like any other preset, and its photo arrived with it — there

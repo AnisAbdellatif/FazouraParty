@@ -43,8 +43,8 @@ A complete, minimal example — copy this shape:
 
 ```json
 {
-  "format_version": 1,
-  "version": "1.0",
+  "format_version": "1.0",
+  "version": 1,
   "title": "Film Night",
   "description": "Blockbusters from the last thirty years.",
   "language": "en",
@@ -81,8 +81,8 @@ A complete, minimal example — copy this shape:
 
 | Field | Write it? | Rules |
 |---|---|---|
-| `format_version` | **required** | Exactly `1`. A document without it is refused. |
-| `version` | recommended | `"<major>.<minor>"`, start at `"1.0"`. Bump the minor part whenever you change the questions, or devices holding an offline copy won't know their copy is stale. **Nothing bumps it for you.** |
+| `format_version` | **required** | `"1.0"`. A document without it is refused, and so is one from another major. A plain `1` is the old way of writing the same thing and still works. |
+| `version` | recommended | A whole number, starting at `1`. Add one whenever you change the questions, or devices holding an offline copy won't know their copy is stale. **Nothing bumps it for you.** An old `"1.4"` still reads — as revision 5, since `"1.0"` was the first. |
 | `title` | **required** | 1–80 characters after trimming. |
 | `description` | optional | ≤ 280 characters, or `null`. |
 | `language` | optional | BCP-47-ish, 2–10 characters. Defaults to `"en"`. Use the language the *questions* are in (`"ar"`, `"fr"`, …). |
@@ -247,7 +247,7 @@ Common failures and what they mean:
 
 | Message | Fix |
 |---|---|
-| `the document needs "format_version": 1` | Add the field, value `1`. |
+| `the document needs "format_version": "1.0"` | Add the field, value `"1.0"`. |
 | `the document needs 1 to 10 tags` | `tags` is required — at least one. |
 | `question 7: a text_photo question needs an image` | Either add `image`, or make it `"type": "text"`. |
 | `question 7: only a text_photo question may carry an image` | A `text` question has an `image` — set it to `null`, or change the type. |
@@ -293,7 +293,7 @@ the package is the easier path.
 
 ## 8. Checklist
 
-- [ ] `format_version` is `1`, `version` is set (and bumped if this is a revision).
+- [ ] `format_version` is `"1.0"`, `version` is a number (and one higher if this is a revision).
 - [ ] `title` ≤ 80 characters; 1–10 `tags`, broadest first.
 - [ ] Every question has a `prompt` and at least one accepted answer.
 - [ ] `accepted_answers` lists the realistic spellings, not just the canonical one.

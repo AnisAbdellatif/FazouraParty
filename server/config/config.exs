@@ -26,6 +26,10 @@ config :fazoura,
   packages_drop_dir: nil,
   # Collects photos no quiz references any more (unpublished, replaced, abandoned).
   image_sweeper: [enabled: true, interval_ms: :timer.hours(1), grace_seconds: 86_400],
+  # Forgets moderation records once they are decided and the decision has aged
+  # out — what somebody wrote in a report, and why a submission was turned down.
+  # Nothing still waiting to be read is ever swept.
+  moderation_sweeper: [enabled: true, interval_ms: :timer.hours(6), retention_days: 90],
   # How long shutdown waits for "room closed" to reach live clients.
   drain_ms: 500,
   cors_origins: [],

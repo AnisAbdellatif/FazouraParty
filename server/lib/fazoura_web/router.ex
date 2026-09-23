@@ -24,6 +24,13 @@ defmodule FazouraWeb.Router do
     plug FazouraWeb.Plugs.RateLimit, bucket: :quizzes, limit: 30, window_ms: 60_000
   end
 
+  # Reporting is metered tightly. It writes a row on behalf of anybody at all, and
+  # a person who has seen something they want gone reports it once — a caller
+  # sending more than a handful a minute is not that person.
+  pipeline :report do
+    plug FazouraWeb.Plugs.RateLimit, bucket: :reports, limit: 10, window_ms: 60_000
+  end
+
   # The one expensive read: building a `.fazoura` archive holds the whole quiz and
   # every one of its photos in memory at once, so a handful of concurrent callers is
   # worth far more than a handful of listings. Metered well below the other reads.
@@ -31,7 +38,13 @@ defmodule FazouraWeb.Router do
     plug FazouraWeb.Plugs.RateLimit, bucket: :archives, limit: 10, window_ms: 60_000
   end
 
-  # The admin dashboard is the only HTML this server serves.
+  # Public pages (the privacy policy). No session: nothing on them needs one.
+  pipeline :page do
+    plug :accepts, ["html"]
+    plug :put_secure_browser_headers
+  end
+
+  # The admin dashboard is the only HTML this server renders.
   pipeline :admin do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -48,13 +61,22 @@ defmodule FazouraWeb.Router do
     get "/health", HealthController, :show
   end
 
+  scope "/", FazouraWeb do
+    pipe_through :page
+
+    get "/privacy", PageController, :privacy
+  end
+
   scope "/admin", FazouraWeb.Admin do
     pipe_through :admin
 
     get "/quizzes/:id/archive", QuizController, :archive
+    get "/submissions/:id/photo", SubmissionController, :photo
 
     live_session :admin, on_mount: {FazouraWeb.Admin.Auth, :ensure_admin} do
       live "/", StatsLive
+      live "/review", ReviewLive
+      live "/reports", ReportsLive
       live "/quizzes", QuizzesLive
       live "/quizzes/:id/edit", QuizEditLive
       live "/tags", TagsLive
@@ -82,6 +104,14 @@ defmodule FazouraWeb.Router do
     post "/quizzes", QuizController, :create
     put "/quizzes/:id", QuizController, :update
     delete "/quizzes/:id", QuizController, :delete
+    delete "/submissions/:id", QuizController, :withdraw
+  end
+
+  scope "/api", FazouraWeb do
+    pipe_through [:api, :report]
+
+    post "/quizzes/:id/report", QuizController, :report
+    post "/rooms/:code/report", RoomController, :report
   end
 
   scope "/api", FazouraWeb do
@@ -94,6 +124,7 @@ defmodule FazouraWeb.Router do
     pipe_through :api
 
     get "/quizzes", QuizController, :index
+    get "/submissions", QuizController, :submissions
     get "/quizzes/:id/download", QuizController, :download
     get "/quizzes/:id", QuizController, :show
     get "/tags", QuizController, :tags

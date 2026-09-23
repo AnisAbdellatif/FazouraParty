@@ -173,6 +173,27 @@ defmodule Fazoura.Quizzes do
     end
   end
 
+  @doc """
+  Publishes a submission that has been read and accepted.
+
+  The document has already come out of its package and its photos are already
+  stored (`read_archive/1`), so this is the insert and nothing more. Only
+  `Fazoura.Quizzes.Review` calls it: publishing straight from the API is what
+  the queue exists to prevent (QUIZ_FORMAT.md §4).
+  """
+  @spec publish_reviewed(map(), String.t()) :: {:ok, Quiz.t()} | {:error, Ecto.Changeset.t()}
+  def publish_reviewed(params, owner_key_hash) when is_binary(owner_key_hash) do
+    %Quiz{
+      source: "custom",
+      visibility: "public",
+      owner_key_hash: owner_key_hash,
+      questions: [],
+      quiz_tags: []
+    }
+    |> Quiz.changeset(params)
+    |> Repo.insert()
+  end
+
   @doc "Replaces a published quiz and all its questions. Publisher only."
   @spec replace(term(), map(), owner_key()) ::
           {:ok, Quiz.t()}
@@ -185,11 +206,11 @@ defmodule Fazoura.Quizzes do
   end
 
   @doc """
-  Replaces a quiz and all its children from a document, bumping the minor version so a
+  Replaces a quiz and all its children from a document, bumping its revision number so a
   device holding an offline copy can tell it is stale.
 
   Whoever calls this has already decided they are allowed to: `replace/3` checks the
-  publisher key, and `Fazoura.Admin` answers to the dashboard instead (ADMIN.md §3.3).
+  publisher key, and `Fazoura.Admin` answers to the dashboard instead (ADMIN.md §3.5).
   """
   @spec replace_document(Quiz.t(), map()) :: {:ok, Quiz.t()} | {:error, Ecto.Changeset.t()}
   def replace_document(%Quiz{} = quiz, params) do
@@ -574,6 +595,9 @@ defmodule Fazoura.Quizzes do
         Enum.map(quiz.questions, fn question ->
           %Pack.Question{
             id: question.id || "q#{question.position}",
+            # Where this question came from, so a player can report what they
+            # are looking at (QUIZ_FORMAT.md §5.9). It never leaves the server.
+            quiz_id: quiz.id,
             type: question.type,
             prompt: question.prompt,
             accepted_answers: question.accepted_answers,
@@ -763,8 +787,8 @@ defmodule Fazoura.Quizzes do
     quiz |> Quiz.changeset(params) |> Repo.insert_or_update!()
   end
 
-  defp increment_version(version) do
-    [major, minor] = version |> String.split(".", parts: 2) |> Enum.map(&String.to_integer/1)
-    "#{major}.#{minor + 1}"
-  end
+  # A revision counter: the quiz somebody saved is behind when its number is
+  # lower than the one the server holds (QUIZ_FORMAT.md §2.1).
+  defp increment_version(version) when is_integer(version), do: version + 1
+  defp increment_version(_version), do: 1
 end

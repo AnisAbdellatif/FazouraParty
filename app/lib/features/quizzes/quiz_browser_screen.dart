@@ -15,6 +15,10 @@ import '../../shared/widgets/fz_direction.dart';
 import '../../shared/widgets/fz_choice.dart';
 import '../../shared/widgets/stripe_header.dart';
 import 'quiz_choice.dart';
+// Not deferred: the same dialog is reached from inside a game, which every
+// guest loads. Reporting is the one thing that has to be there wherever the
+// content is.
+import '../../shared/report_dialog.dart';
 // The editor carries the photo pipeline and `package:image`; browsing does
 // not need either until someone opens it.
 import 'quiz_editor_screen.dart' deferred as editor;
@@ -73,6 +77,10 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
   List<String> _suggested = defaultQuizTags;
   List<QuizDocument> _public = const [];
   List<LocalQuiz> _local = const [];
+
+  /// Quizzes reported from this screen. Not stored: it only keeps the button
+  /// honest while the browser is open.
+  final _reportedIds = <String>{};
   int? _nextOffset;
   bool _loading = false;
   String? _error;
@@ -159,25 +167,12 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
       final quizzes = await ref.read(quizLibraryProvider).list();
       if (!mounted || request != _localRequest) return;
       setState(() {
-        _local = quizzes;
-        _savedPublicIds
-          ..clear()
-          ..addAll(
-            quizzes
-                .where((quiz) => !quiz.isPublished)
-                .map((quiz) => quiz.quiz.id)
-                .whereType<String>(),
-          );
-        _savedPublicVersions
-          ..clear()
-          ..addEntries(
-            quizzes
-                .where((quiz) => !quiz.isPublished)
-                .where((quiz) => quiz.quiz.id != null)
-                .map((quiz) => MapEntry(quiz.quiz.id!, quiz.quiz.versionRank)),
-          );
+        _applyLocal(quizzes);
         _loading = false;
       });
+      // The device's own copy is on screen either way; asking the server what
+      // became of anything in the review queue can take its time.
+      unawaited(_settleSubmissions(request));
     } catch (error) {
       if (!mounted || request != _localRequest) return;
       setState(() {
@@ -185,6 +180,38 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
         _error = describeError(error);
       });
     }
+  }
+
+  void _applyLocal(List<LocalQuiz> quizzes) {
+    _local = quizzes;
+    _savedPublicIds
+      ..clear()
+      ..addAll(
+        quizzes
+            .where((quiz) => !quiz.isPublished)
+            .map((quiz) => quiz.quiz.id)
+            .whereType<String>(),
+      );
+    _savedPublicVersions
+      ..clear()
+      ..addEntries(
+        quizzes
+            .where((quiz) => !quiz.isPublished)
+            .where((quiz) => quiz.quiz.id != null)
+            .map((quiz) => MapEntry(quiz.quiz.id!, quiz.quiz.versionRank)),
+      );
+  }
+
+  /// Catches the library up on what an admin decided about this device's
+  /// submissions. A quiz only becomes public when somebody reads the queue,
+  /// which will not be while the app is open — so opening the list is when the
+  /// device finds out. Nothing to ask about is the common case, and costs no
+  /// request at all.
+  Future<void> _settleSubmissions(int request) async {
+    if (!_local.any((quiz) => quiz.submission != null)) return;
+    final quizzes = await ref.read(quizLibraryProvider).refreshSubmissions();
+    if (!mounted || request != _localRequest) return;
+    setState(() => _applyLocal(quizzes));
   }
 
   /// Tag chips for the public tab; the suggested list stands in until the
@@ -273,9 +300,35 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
     if (mounted) await _loadLocal();
   }
 
+  /// Public, or waiting to be, both go back to private. Anything else asks for
+  /// review: a rejected quiz is private again, so its button offers another go.
   Future<void> _togglePublished(LocalQuiz quiz) => _run(
-    () => ref.read(quizLibraryProvider).setPublic(quiz, !quiz.isPublished),
+    () => ref
+        .read(quizLibraryProvider)
+        .setPublic(quiz, !(quiz.isPublished || quiz.inReview)),
   );
+
+  /// The line under a local card, when there is something to say about where
+  /// the quiz stands with the server.
+  static String? _localWarning(LocalQuiz quiz) {
+    if (quiz.wasRejected) {
+      final note = quiz.submission?.reviewNote?.trim();
+      final what = quiz.isPublished
+          ? 'Your changes were turned down, so the public copy is unchanged.'
+          : 'Turned down, so it stayed private.';
+      return note == null || note.isEmpty ? what : '$what $note';
+    }
+    if (quiz.inReview) {
+      return quiz.isPublished
+          ? 'Your changes are waiting to be read. The public version is '
+                'unchanged until then.'
+          : 'Waiting to be read. You can host it yourself in the meantime.';
+    }
+    if (quiz.inSync) return null;
+    return quiz.wantsPublic
+        ? 'Not sent for review yet. Tap Submit for review to try again.'
+        : 'Still public on the server. Tap Make private to try again.';
+  }
 
   Future<void> _delete(LocalQuiz quiz) async {
     final title = quiz.quiz.title;
@@ -313,6 +366,20 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
     } else if (_mine) {
       await _loadLocal();
     }
+  }
+
+  /// Reports a public quiz, then remembers that this device did — so the
+  /// button can say so. The server counts one report per device however many
+  /// times it is tapped, so this is only about not leaving somebody wondering
+  /// whether it went through.
+  Future<void> _report(QuizDocument quiz) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final sent = await showReportQuiz(context, quiz);
+    if (!sent || !mounted) return;
+    setState(() => _reportedIds.add(quiz.hostId));
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Reported. Somebody will read it.')),
+    );
   }
 
   Future<void> _saveOffline(QuizDocument quiz) async {
@@ -518,6 +585,19 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
                             ? null
                             : () => _saveOffline(quiz),
                       ),
+                      // Anything anyone can find is something anyone can
+                      // object to (QUIZ_FORMAT.md §5.9).
+                      FzPill(
+                        key: ValueKey('reportQuiz-${quiz.hostId}'),
+                        label: _reportedIds.contains(quiz.hostId)
+                            ? 'Reported'
+                            : 'Report',
+                        icon: _reportedIds.contains(quiz.hostId)
+                            ? Icons.flag
+                            : Icons.outlined_flag,
+                        color: FzColors.dim,
+                        onPressed: () => _report(quiz),
+                      ),
                     ],
                     tags: [
                       if (quiz.isBuiltin)
@@ -565,12 +645,16 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
           key: ValueKey('quizVisibility-$id'),
           color: quiz.isPublished ? FzColors.ok : FzColors.ac,
         ),
+        // Beside PUBLIC this reads as "public, and something of it is waiting"
+        // — which is what an edit in the queue is. The line below says which.
+        if (quiz.inReview)
+          FzTag(
+            'In review',
+            key: ValueKey('quizReview-$id'),
+            color: FzColors.ac,
+          ),
       ],
-      warning: quiz.inSync
-          ? null
-          : quiz.wantsPublic
-          ? 'Not published yet. Tap Publish to try again.'
-          : 'Still public on the server. Tap Make private to try again.',
+      warning: _localWarning(quiz),
       warningKey: ValueKey('quizSyncWarning-$id'),
       actions: [
         if (widget.onEdit != null)
@@ -582,8 +666,12 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
           ),
         FzPill(
           key: ValueKey('togglePublished-$id'),
-          label: quiz.isPublished ? 'Make private' : 'Publish',
-          icon: quiz.isPublished ? Icons.lock_outline : Icons.public,
+          label: quiz.isPublished || quiz.inReview
+              ? 'Make private'
+              : 'Submit for review',
+          icon: quiz.isPublished || quiz.inReview
+              ? Icons.lock_outline
+              : Icons.public,
           onPressed: () => _togglePublished(quiz),
         ),
         FzPill(

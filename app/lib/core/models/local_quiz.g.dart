@@ -14,6 +14,9 @@ _LocalQuiz _$LocalQuizFromJson(Map<String, dynamic> json) => _LocalQuiz(
       ? null
       : DateTime.parse(json['updated_at'] as String),
   archiveData: json['archive_data'] as String?,
+  submission: json['submission'] == null
+      ? null
+      : QuizSubmission.fromJson(json['submission'] as Map<String, dynamic>),
 );
 
 Map<String, dynamic> _$LocalQuizToJson(_LocalQuiz instance) =>
@@ -23,4 +26,5 @@ Map<String, dynamic> _$LocalQuizToJson(_LocalQuiz instance) =>
       'published_id': instance.publishedId,
       'updated_at': instance.updatedAt?.toIso8601String(),
       'archive_data': instance.archiveData,
+      'submission': instance.submission?.toJson(),
     };

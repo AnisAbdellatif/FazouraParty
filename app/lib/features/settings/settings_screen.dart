@@ -89,8 +89,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         if (named) const SizedBox(height: 14),
         const _UpdateSection(),
       ],
+      if (named || build.supported) const SizedBox(height: 28),
+      const _PrivacySection(),
       if (kDebugMode) ...[
-        if (named) const SizedBox(height: 28),
+        const SizedBox(height: 28),
         Text('Development server', style: fz.h(17)),
         const SizedBox(height: 6),
         Text(
@@ -141,23 +143,56 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         // a viewport.
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 24),
-            // Which of these a build has is decided at compile time and they
-            // can all be absent — a release web build knows no version, cannot
-            // update itself and has no development server. Assembling the list
-            // first is what keeps that case from being a blank screen.
-            if (sections.isEmpty)
-              Text(
-                'No configurable settings are available in this build.',
-                style: fz.m(13, color: FzColors.dim),
-              )
-            else
-              ...sections,
-          ],
+          children: [const SizedBox(height: 24), ...sections],
         ),
       ),
     );
+  }
+}
+
+/// The privacy policy, served by the same server the app talks to
+/// (`FazouraWeb.PageController`). Every build has one, which is why this
+/// screen is never empty.
+class _PrivacySection extends ConsumerWidget {
+  const _PrivacySection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fz = FzTheme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Privacy', style: fz.h(17)),
+        const SizedBox(height: 6),
+        Text(
+          'No accounts, ads or tracking. Games are forgotten when the room '
+          'closes; only quizzes you publish are kept.',
+          style: fz.m(11.5, color: FzColors.dim, height: 1.4),
+        ),
+        const SizedBox(height: 12),
+        Align(
+          alignment: AlignmentDirectional.centerStart,
+          child: FzPill(
+            key: const Key('privacyPolicyButton'),
+            label: 'Privacy policy',
+            icon: Icons.open_in_new,
+            onPressed: () => _open(context, ref),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _open(BuildContext context, WidgetRef ref) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final base = Uri.parse(ref.read(serverBaseUrlProvider));
+    final opened = await ref.read(urlOpenerProvider)(base.resolve('/privacy'));
+    if (!opened) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not open the privacy policy.')),
+      );
+    }
   }
 }
 

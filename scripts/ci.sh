@@ -152,6 +152,47 @@ tools() {
 pubspec_version() { sed -n 's/^version: *\([^+]*\)+.*$/\1/p' "$ROOT/app/pubspec.yaml" | head -1; }
 pubspec_version_code() { sed -n 's/^version: *[^+]*+\(.*\)$/\1/p' "$ROOT/app/pubspec.yaml" | head -1; }
 
+# The build number the last release published, or nothing if there wasn't one.
+# Read out of that tag's own pubspec rather than a file here, because the
+# question is what shipped, not what this checkout happens to say.
+previous_release_code() {
+  local tag
+  for tag in $(git -C "$ROOT" tag --list 'v*' --sort=-v:refname 2>/dev/null); do
+    # An `if`, not `[ ... ] && continue`: this script runs under `set -e`, where
+    # a bare test that comes out false is a failing command and takes the whole
+    # run with it.
+    if [ "$tag" != "$REL_TAG" ]; then
+      git -C "$ROOT" show "${tag}:app/pubspec.yaml" 2>/dev/null |
+        sed -n 's/^version: *[^+]*+\(.*\)$/\1/p' | head -1
+      return
+    fi
+  done
+}
+
+# `<major>.<minor>.<patch>+<build>`, and both halves have rules (AGENTS.md §6).
+#
+# The version is semver and is what the tag must match. The build number is the
+# integer Android orders installs by: it has to go up on every release and can
+# never be reused, because Android refuses to install an APK whose versionCode
+# is not higher than the installed one — which would leave every existing user
+# stuck with no way forward.
+check_release_version() {
+  printf '%s' "$REL_VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$' ||
+    fail "app/pubspec.yaml version '$REL_VERSION' is not <major>.<minor>.<patch>"
+
+  printf '%s' "$REL_CODE" | grep -qE '^[1-9][0-9]*$' ||
+    fail "app/pubspec.yaml build number '+$REL_CODE' is not a positive integer"
+
+  local previous
+  previous="$(previous_release_code)"
+  # No previous release to compare against is the first one, not a pass.
+  [ -n "$previous" ] || return 0
+
+  if [ "$REL_CODE" -le "$previous" ]; then
+    fail "build number +$REL_CODE is not above the last release's +$previous — Android will refuse to install over it"
+  fi
+}
+
 # owner/repo of the GitHub repository releases are published to. CI knows it;
 # locally it comes from the remote, so a fork releases to itself rather than
 # pointing its users at somebody else's APK.
@@ -202,6 +243,8 @@ release_inputs() {
   if [ -n "${RELEASE_TAG:-}" ] && [ "$RELEASE_TAG" != "v$REL_VERSION" ]; then
     fail "tag $RELEASE_TAG does not match app/pubspec.yaml ($REL_VERSION) — bump the pubspec, or tag v$REL_VERSION"
   fi
+
+  check_release_version
 
   # Android has no origin to be served from, so the server it talks to is baked
   # in (app/lib/core/providers/config_providers.dart). Without this the build

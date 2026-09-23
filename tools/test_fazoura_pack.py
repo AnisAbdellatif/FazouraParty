@@ -247,9 +247,20 @@ class PackTest(unittest.TestCase):
         )
         self.fails_with("needs an image")
 
+    def test_a_document_of_this_major_is_readable_whatever_its_minor(self):
+        # A minor only ever adds keys an older reader ignores, and a plain
+        # integer predates the minor existing at all (QUIZ_FORMAT.md §2.1).
+        for format_version in [1, "1.0", "1.4"]:
+            with self.subTest(format_version=format_version):
+                self.write_quiz(quiz(format_version=format_version))
+                manifest, _media = self.read(self.pack())
+                self.assertEqual(manifest["quiz"]["format_version"], format_version)
+
     def test_the_document_checks_the_server_would_make_anyway(self):
         for document, expected in [
             (quiz(format_version=2), "format_version"),
+            (quiz(format_version="2.0"), "format_version"),
+            (quiz(format_version="banana"), "format_version"),
             (quiz(title="  "), "needs a title"),
             (quiz(tags=[]), "1 to 10 tags"),
             (quiz(questions=[]), "at least one question"),

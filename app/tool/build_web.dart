@@ -68,6 +68,7 @@ const bypassPrefixes = <String>[
   '/api/',
   '/admin',
   '/live',
+  '/privacy',
   '/socket',
   '/uploads/',
 ];

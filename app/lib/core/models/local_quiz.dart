@@ -25,6 +25,11 @@ abstract class LocalQuiz with _$LocalQuiz {
 
     /// Base64-encoded `.fazoura` archive for downloaded community quizzes.
     String? archiveData,
+
+    /// The last time this quiz was sent for review, and what became of it
+    /// (QUIZ_FORMAT.md §4). Kept on the device so a rejection has somewhere to
+    /// be read; cleared once the quiz is published.
+    QuizSubmission? submission,
   }) = _LocalQuiz;
 
   factory LocalQuiz.fromJson(Map<String, dynamic> json) =>
@@ -33,8 +38,16 @@ abstract class LocalQuiz with _$LocalQuiz {
   bool get isPublished => publishedId != null;
   bool get wantsPublic => quiz.isPublic;
 
-  /// False when the last publish or unpublish didn't reach the server.
-  bool get inSync => isPublished == wantsPublic;
+  /// Sent for review and not yet read. There is nothing to retry and nothing
+  /// to see on the server: the queue is simply not empty yet.
+  bool get inReview => submission?.isPending ?? false;
+
+  /// Turned down, with a note its author has not acted on yet.
+  bool get wasRejected => submission?.isRejected ?? false;
+
+  /// False when the last submit or unpublish didn't reach the server. Waiting
+  /// in the review queue is not out of sync — it is the normal way to publish.
+  bool get inSync => wantsPublic ? isPublished || inReview : !isPublished;
 
   /// Card summary, with the counts a listing would carry.
   QuizDocument get summary {

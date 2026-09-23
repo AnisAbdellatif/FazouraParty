@@ -103,27 +103,65 @@ class QuizApi {
     );
   }
 
-  Future<QuizDocument> create(QuizDocument quiz) async => QuizDocument.fromJson(
-    await _send('POST', '/api/quizzes', json: quiz.toJson()),
-  );
+  /// Sends a `.fazoura` package for review (§5.4). Publishing is a submission:
+  /// this puts the package in the queue and creates no quiz, so nothing is
+  /// listed and no photo is written to the server until somebody approves it.
+  ///
+  /// [replaces] offers the package as a new version of a quiz this device
+  /// already published. An edit goes through the queue too — otherwise the
+  /// review would mean nothing, since anyone could publish something harmless
+  /// and then swap its contents.
+  Future<QuizSubmission> submit(List<int> package, {String? replaces}) async =>
+      QuizSubmission.fromJson(
+        await _sendPackage(
+          replaces == null ? 'POST' : 'PUT',
+          replaces == null ? '/api/quizzes' : '/api/quizzes/$replaces',
+          package,
+        ),
+      );
 
-  Future<QuizDocument> replace(String id, QuizDocument quiz) async =>
-      QuizDocument.fromJson(
-        await _send('PUT', '/api/quizzes/$id', json: quiz.toJson()),
+  /// What this device has sent for review, newest first (§5.4a).
+  Future<List<QuizSubmission>> submissions() async {
+    final body = await _send('GET', '/api/submissions');
+    return [
+      for (final item in body['submissions'] as List<dynamic>? ?? const [])
+        QuizSubmission.fromJson(item as Map<String, dynamic>),
+    ];
+  }
+
+  /// Takes a submission back out of the queue. This device's own only.
+  Future<void> withdraw(String id) => _send('DELETE', '/api/submissions/$id');
+
+  /// Reports a public quiz as something that should not be public (§5.9).
+  ///
+  /// The server answers the same way whatever it does with it — first report or
+  /// fifth, already dismissed or not. That is deliberate: what an admin has
+  /// decided is not something a caller gets to probe.
+  Future<void> report(String id, {required String reason, String? note}) =>
+      _send(
+        'POST',
+        '/api/quizzes/$id/report',
+        json: {
+          'reason': reason,
+          if (note != null && note.isNotEmpty) 'note': note,
+        },
       );
 
   /// Unpublishes a quiz this device published (§5.5).
   Future<void> delete(String id) => _send('DELETE', '/api/quizzes/$id');
 
-  /// Uploads a (pre-resized) photo; returns its key and url (§5.6).
-  Future<QuizImage> uploadImage(
-    List<int> bytes, {
-    String filename = 'photo.jpg',
-  }) async {
-    final request = http.MultipartRequest('POST', _uri('/api/images'))
+  void close() => _client.close();
+
+  Future<Map<String, dynamic>> _sendPackage(
+    String method,
+    String path,
+    List<int> package,
+  ) async {
+    final request = http.MultipartRequest(method, _uri(path))
       ..headers['x-owner-key'] = await ownerKey()
+      ..headers['accept'] = 'application/json'
       ..files.add(
-        http.MultipartFile.fromBytes('file', bytes, filename: filename),
+        http.MultipartFile.fromBytes('file', package, filename: 'quiz.fazoura'),
       );
     final http.Response response;
     try {
@@ -131,11 +169,8 @@ class QuizApi {
     } on Object {
       throw _unreachable;
     }
-    final body = _check(response);
-    return QuizImage(key: body['key'] as String, url: body['url'] as String?);
+    return _check(response);
   }
-
-  void close() => _client.close();
 
   static const _unreachable = GameError(
     code: GameError.connectionFailed,

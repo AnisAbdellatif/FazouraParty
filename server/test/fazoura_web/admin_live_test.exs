@@ -13,8 +13,16 @@ defmodule FazouraWeb.AdminLiveTest do
 
   setup %{conn: conn} do
     QuizFixtures.builtin!("general-knowledge")
-    {:ok, quiz} = Quizzes.create(QuizFixtures.quiz_params(), QuizFixtures.owner_key())
+    quiz = QuizFixtures.published!()
     %{conn: as_admin(conn), quiz: quiz}
+  end
+
+  defp uploaded_files do
+    Uploads.dir()
+    |> Path.join("**/*")
+    |> Path.wildcard()
+    |> Enum.filter(&File.regular?/1)
+    |> Enum.sort()
   end
 
   defp as_admin(conn, password \\ @password) do
@@ -384,7 +392,7 @@ defmodule FazouraWeb.AdminLiveTest do
       assert {saved.default_time_limit_ms, saved.default_difficulty_multiplier} == {45_000, true}
 
       # A device holding an offline copy has to be able to tell it is stale.
-      assert saved.version == "1.1"
+      assert saved.version == 2
     end
 
     test "edits a question", %{conn: conn, quiz: quiz} do
@@ -458,7 +466,7 @@ defmodule FazouraWeb.AdminLiveTest do
       assert html =~ "tags must be a list of 1 to 10 tags"
 
       # Nothing was written, and the form still holds what was typed.
-      assert {:ok, %{title: "Movie Night", version: "1.0"}} = Quizzes.fetch(quiz.id)
+      assert {:ok, %{title: "Movie Night", version: 1}} = Quizzes.fetch(quiz.id)
     end
 
     test "a question cannot be saved empty", %{conn: conn, quiz: quiz} do
@@ -467,7 +475,7 @@ defmodule FazouraWeb.AdminLiveTest do
       fields(view, %{"questions" => %{"q1" => %{"prompt" => "", "accepted_answers" => ""}}})
 
       assert save(view) =~ "questions"
-      assert {:ok, %{version: "1.0"}} = Quizzes.fetch(quiz.id)
+      assert {:ok, %{version: 1}} = Quizzes.fetch(quiz.id)
     end
 
     test "a question with no photo does not pretend to have one", %{conn: conn, quiz: quiz} do
@@ -583,6 +591,230 @@ defmodule FazouraWeb.AdminLiveTest do
         |> render_submit()
 
       assert html =~ "at most 24 characters"
+    end
+  end
+
+  describe "reported quizzes" do
+    alias Fazoura.Quizzes.Reports
+
+    defp reported(quiz, letter, params) do
+      {:ok, report} = Reports.submit(quiz.id, "k-" <> String.duplicate(letter, 40), params)
+      report
+    end
+
+    test "lists what has been reported, with the reasons given", %{conn: conn, quiz: quiz} do
+      reported(quiz, "a", %{"reason" => "hate", "note" => "Question 3 is vile."})
+      reported(quiz, "b", %{"reason" => "hate"})
+
+      {:ok, _live, html} = live(conn, ~p"/admin/reports")
+
+      assert html =~ quiz.title
+      assert html =~ "1 waiting"
+      assert html =~ "Hate speech or harassment ×2"
+    end
+
+    test "nothing reported is nothing to answer", %{conn: conn} do
+      {:ok, _live, html} = live(conn, ~p"/admin/reports")
+
+      assert html =~ "Nothing reported."
+    end
+
+    test "opening one shows the notes and the quiz itself", %{conn: conn, quiz: quiz} do
+      reported(quiz, "a", %{"reason" => "sexual", "note" => "The photo on question 1."})
+
+      {:ok, live, _html} = live(conn, ~p"/admin/reports")
+
+      html =
+        live
+        |> element(~s(button[phx-click="open"][phx-value-id="#{quiz.id}"]))
+        |> render_click()
+
+      assert html =~ "The photo on question 1."
+      assert html =~ "Sexual or adult content"
+      # The quiz is public, so deciding about it means reading it here rather
+      # than going to look it up.
+      assert html =~ hd(quiz.questions).prompt
+    end
+
+    test "taking it down removes the quiz and clears the queue", %{conn: conn, quiz: quiz} do
+      reported(quiz, "a", %{"reason" => "illegal"})
+
+      {:ok, live, _html} = live(conn, ~p"/admin/reports")
+
+      # Like approving a submission, deciding only exists once it is open:
+      # there is no answering a report from the list without reading it.
+      live
+      |> element(~s(button[phx-click="open"][phx-value-id="#{quiz.id}"]))
+      |> render_click()
+
+      live
+      |> element(~s(button[phx-click="take_down"][phx-value-id="#{quiz.id}"]))
+      |> render_click()
+
+      refute Repo.exists?(from q in Quiz, where: q.id == ^quiz.id)
+      assert render(live) =~ "Nothing reported."
+    end
+
+    test "keeping it answers the reports and leaves the quiz up", %{conn: conn, quiz: quiz} do
+      reported(quiz, "a", %{"reason" => "spam"})
+
+      {:ok, live, _html} = live(conn, ~p"/admin/reports")
+
+      live
+      |> element(~s(button[phx-click="open"][phx-value-id="#{quiz.id}"]))
+      |> render_click()
+
+      live
+      |> element(~s(button[phx-click="dismiss"][phx-value-id="#{quiz.id}"]))
+      |> render_click()
+
+      assert Repo.exists?(from q in Quiz, where: q.id == ^quiz.id)
+      assert render(live) =~ "Nothing reported."
+      assert Reports.open() == []
+    end
+
+    test "a report left longer than a day is called out", %{conn: conn, quiz: quiz} do
+      report = reported(quiz, "a", %{"reason" => "spam"})
+
+      # Play expects an answer within a day; the screen has to say which ones
+      # are past that rather than leaving an admin to work it out from a date.
+      Repo.update_all(
+        from(r in Fazoura.Quizzes.Report, where: r.id == ^report.id),
+        set: [reported_at: DateTime.add(DateTime.utc_now(), -30, :hour)]
+      )
+
+      {:ok, _live, html} = live(conn, ~p"/admin/reports")
+
+      assert html =~ "overdue"
+      assert html =~ "1d ago"
+    end
+  end
+
+  describe "the review queue" do
+    alias Fazoura.Quizzes.Review
+
+    test "lists what is waiting and nothing that is already public", %{conn: conn} do
+      {:ok, _} =
+        Review.submit(
+          QuizFixtures.package(%{"title" => "Waiting"}),
+          "k-" <> String.duplicate("a", 40)
+        )
+
+      {:ok, _live, html} = live(conn, ~p"/admin/review")
+
+      assert html =~ "Waiting"
+      assert html =~ "1 waiting"
+      # The quiz from the setup is already public, so it is not in the queue.
+      refute html =~ "Movie Night"
+    end
+
+    test "approving publishes the quiz, and only then", %{conn: conn} do
+      key = "k-" <> String.duplicate("b", 40)
+      {:ok, submission} = Review.submit(QuizFixtures.package(%{"title" => "Newcomer"}), key)
+
+      {:ok, live, _html} = live(conn, ~p"/admin/review")
+
+      # Nothing is a quiz yet.
+      refute Repo.exists?(from q in Quiz, where: q.title == "Newcomer")
+
+      # Approve only exists once the submission is open: there is no way to
+      # publish one from the list without having read it.
+      live
+      |> element(~s(button[phx-click="open"][phx-value-id="#{submission.id}"]))
+      |> render_click()
+
+      live
+      |> element(~s(button[phx-click="approve"][phx-value-id="#{submission.id}"]))
+      |> render_click()
+
+      assert Repo.exists?(
+               from q in Quiz, where: q.title == "Newcomer" and q.visibility == "public"
+             )
+
+      assert render(live) =~ "Nothing waiting."
+    end
+
+    test "turning one down keeps the reason for its author", %{conn: conn} do
+      key = "k-" <> String.duplicate("c", 40)
+      {:ok, submission} = Review.submit(QuizFixtures.package(%{"title" => "Not this"}), key)
+
+      {:ok, live, _html} = live(conn, ~p"/admin/review")
+
+      live
+      |> element(~s(button[phx-click="open"][phx-value-id="#{submission.id}"]))
+      |> render_click()
+
+      live
+      |> form(~s(form[phx-submit="reject"]), %{"note" => "Question 1 is not suitable."})
+      |> render_submit()
+
+      assert {:ok, reviewed} = Review.fetch(submission.id)
+      assert reviewed.status == "rejected"
+      assert reviewed.review_note == "Question 1 is not suitable."
+      refute Repo.exists?(from q in Quiz, where: q.title == "Not this")
+    end
+
+    test "a photo is served out of the package, never from disk", %{conn: conn} do
+      key = "k-" <> String.duplicate("e", 40)
+      # Unique bytes: uploads are content-addressed, so a photo that has been
+      # stored before adds no file and the check below would prove nothing.
+      # Random rather than a counter, because a counter restarts with the node
+      # and the volume outlives a single run.
+      photo = QuizFixtures.png_with_text(Base.encode16(:crypto.strong_rand_bytes(8)))
+
+      document = %{
+        format_version: 1,
+        title: "With a photo",
+        tags: ["fixture"],
+        questions: [
+          %{
+            type: "text_photo",
+            prompt: "What is this?",
+            accepted_answers: ["a dot"],
+            image: %{path: Archive.media_path("shot"), alt: nil}
+          }
+        ]
+      }
+
+      {:ok, package} = Archive.build(document, %{Archive.media_path("shot") => photo})
+
+      before = uploaded_files()
+      {:ok, submission} = Review.submit(package, key)
+
+      conn =
+        get(conn, ~p"/admin/submissions/#{submission.id}/photo", %{
+          "path" => Archive.media_path("shot")
+        })
+
+      assert response(conn, 200) == photo
+      # Unreviewed bytes somebody uploaded: never sniffed, framed or kept.
+      assert get_resp_header(conn, "x-content-type-options") == ["nosniff"]
+      assert get_resp_header(conn, "cache-control") == ["no-store"]
+
+      # And nothing has reached the uploads volume: the photo only exists
+      # inside the package until somebody approves it.
+      assert uploaded_files() == before
+
+      # Approving is what puts it there, and not before.
+      {:ok, _quiz} = Review.approve(submission.id)
+      assert length(uploaded_files()) == length(before) + 1
+    end
+
+    test "reading one shows what is in the package", %{conn: conn} do
+      key = "k-" <> String.duplicate("d", 40)
+      {:ok, submission} = Review.submit(QuizFixtures.package(), key)
+
+      {:ok, live, _html} = live(conn, ~p"/admin/review")
+
+      html =
+        live
+        |> element(~s(button[phx-click="open"][phx-value-id="#{submission.id}"]))
+        |> render_click()
+
+      # The prompts and the accepted answers, which is the whole point of
+      # reading it before it is public.
+      assert html =~ "Who directed Jurassic Park?"
+      assert html =~ "Steven Spielberg"
     end
   end
 end

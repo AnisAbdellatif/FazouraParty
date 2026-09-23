@@ -1,7 +1,9 @@
 defmodule FazouraWeb.QuizControllerTest do
   use FazouraWeb.ConnCase, async: false
 
-  alias Fazoura.{QuizFixtures, Quizzes}
+  alias Fazoura.QuizFixtures
+  alias Fazoura.Quizzes.Reports
+  alias Fazoura.Quizzes.Review
 
   @owner QuizFixtures.owner_key()
   @other QuizFixtures.other_key()
@@ -13,44 +15,123 @@ defmodule FazouraWeb.QuizControllerTest do
 
   defp as(conn, key), do: put_req_header(conn, "x-owner-key", key)
 
-  defp create!(conn, attrs \\ %{}) do
+  # What the API takes: a `.fazoura` package, which goes into the queue (§4).
+  defp submit!(conn, attrs \\ %{}) do
     conn
     |> as(@owner)
-    |> post(~p"/api/quizzes", QuizFixtures.quiz_params(attrs))
+    |> post(~p"/api/quizzes", %{"file" => QuizFixtures.package_upload(attrs)})
     |> json_response(201)
   end
 
-  test "publishing returns the full document, always public", %{conn: conn} do
-    doc = create!(conn, %{"visibility" => "private"})
-
-    assert %{
-             "format_version" => 1,
-             "source" => "custom",
-             "visibility" => "public",
-             "is_owner" => true,
-             "question_count" => 1,
-             "has_photos" => false,
-             "default_settings" => %{"time_limit_ms" => 30_000, "difficulty_multiplier" => false},
-             "questions" => [
-               %{"type" => "text", "accepted_answers" => ["Steven Spielberg", "Spielberg"]}
-             ]
-           } = doc
+  # A quiz that is actually live: submitted, then approved. Anything expecting
+  # a quiz other people can find has to come through the queue first.
+  defp create!(conn, attrs \\ %{}) do
+    submission = submit!(conn, attrs)
+    {:ok, quiz} = Review.approve(submission["id"])
+    conn |> get(~p"/api/quizzes/#{quiz.id}") |> json_response(200)
   end
 
-  test "publishing requires a publisher key and a valid document", %{conn: conn} do
-    assert %{"code" => "owner_key_required"} =
-             conn |> post(~p"/api/quizzes", QuizFixtures.quiz_params()) |> json_response(401)
+  test "publishing queues the package rather than publishing it", %{conn: conn} do
+    assert %{
+             "id" => id,
+             "status" => "pending",
+             "title" => "Movie Night",
+             "question_count" => 1,
+             "has_photos" => false,
+             "quiz_id" => nil
+           } = submit!(conn)
 
-    assert %{"code" => "invalid_quiz", "errors" => errors} =
+    # Nothing is public, and nothing is a quiz.
+    assert %{"quizzes" => listed} = conn |> get(~p"/api/quizzes") |> json_response(200)
+    refute "Movie Night" in Enum.map(listed, & &1["title"])
+
+    assert %{"code" => "quiz_not_found"} =
+             conn |> post(~p"/api/rooms", %{quiz_id: id}) |> json_response(404)
+  end
+
+  test "an app too old to build a package is told to update", %{conn: conn} do
+    assert %{"code" => "package_required"} =
              conn
              |> as(@owner)
-             |> post(
-               ~p"/api/quizzes",
-               QuizFixtures.quiz_params(%{"title" => "", "questions" => []})
-             )
+             |> post(~p"/api/quizzes", QuizFixtures.quiz_params())
              |> json_response(422)
+  end
 
-    assert %{"title" => _, "questions" => _} = errors
+  test "a device sees what it submitted, and nobody else's", %{conn: conn} do
+    %{"id" => id} = submit!(conn)
+
+    assert %{"submissions" => [%{"id" => ^id, "status" => "pending"}]} =
+             conn |> as(@owner) |> get(~p"/api/submissions") |> json_response(200)
+
+    assert %{"submissions" => []} =
+             conn |> as(@other) |> get(~p"/api/submissions") |> json_response(200)
+  end
+
+  test "a rejection comes back with its reason", %{conn: conn} do
+    %{"id" => id} = submit!(conn)
+    {:ok, _} = Review.reject(id, "Question 1 is not suitable.")
+
+    assert %{"submissions" => [%{"status" => "rejected", "review_note" => note}]} =
+             conn |> as(@owner) |> get(~p"/api/submissions") |> json_response(200)
+
+    assert note == "Question 1 is not suitable."
+  end
+
+  test "a submission can be withdrawn by the device that sent it, and nobody else", %{conn: conn} do
+    %{"id" => id} = submit!(conn)
+
+    assert conn |> as(@other) |> delete(~p"/api/submissions/#{id}") |> response(404)
+    assert conn |> as(@owner) |> delete(~p"/api/submissions/#{id}") |> response(204)
+
+    assert %{"submissions" => []} =
+             conn |> as(@owner) |> get(~p"/api/submissions") |> json_response(200)
+  end
+
+  test "approving publishes it, owned by the device that sent it", %{conn: conn} do
+    doc = create!(conn)
+
+    assert %{
+             "format_version" => "1.0",
+             "source" => "custom",
+             "visibility" => "public",
+             "question_count" => 1,
+             "has_photos" => false,
+             "default_settings" => %{"time_limit_ms" => 30_000, "difficulty_multiplier" => false}
+           } = doc
+
+    assert %{"is_owner" => true, "questions" => [%{"accepted_answers" => _}]} =
+             conn |> as(@owner) |> get(~p"/api/quizzes/#{doc["id"]}") |> json_response(200)
+  end
+
+  test "editing a public quiz sends it back to the queue", %{conn: conn} do
+    %{"id" => id} = create!(conn)
+
+    assert %{"status" => "pending", "replaces_quiz_id" => ^id} =
+             conn
+             |> as(@owner)
+             |> put(~p"/api/quizzes/#{id}", %{
+               "file" => QuizFixtures.package_upload(%{"title" => "Swapped"})
+             })
+             |> json_response(200)
+
+    # Until somebody approves it, the live quiz is the one that was reviewed.
+    assert %{"title" => "Movie Night"} =
+             conn |> get(~p"/api/quizzes/#{id}") |> json_response(200)
+  end
+
+  test "submitting requires a publisher key and a package with a quiz in it", %{conn: conn} do
+    assert %{"code" => "owner_key_required"} =
+             conn
+             |> post(~p"/api/quizzes", %{"file" => QuizFixtures.package_upload()})
+             |> json_response(401)
+
+    assert %{"code" => "invalid_quiz"} =
+             conn
+             |> as(@owner)
+             |> post(~p"/api/quizzes", %{
+               "file" => QuizFixtures.package_upload(%{"title" => "", "questions" => []})
+             })
+             |> json_response(422)
   end
 
   test "index lists published quizzes without questions", %{conn: conn} do
@@ -218,33 +299,123 @@ defmodule FazouraWeb.QuizControllerTest do
   test "publisher updates and unpublishes", %{conn: conn} do
     %{"id" => id} = create!(conn)
 
-    replacement =
-      QuizFixtures.quiz_params(%{
-        "title" => "Renamed",
-        "questions" => [
-          %{
-            "type" => "text",
-            "prompt" => "One",
-            "accepted_answers" => ["1"],
-            "difficulty" => "hard"
-          },
-          %{"type" => "text", "prompt" => "Two", "accepted_answers" => ["2"]}
-        ]
-      })
+    replacement = fn ->
+      %{
+        "file" =>
+          QuizFixtures.package_upload(%{
+            "title" => "Renamed",
+            "questions" => [
+              %{
+                "type" => "text",
+                "prompt" => "One",
+                "accepted_answers" => ["1"],
+                "difficulty" => "hard"
+              },
+              %{"type" => "text", "prompt" => "Two", "accepted_answers" => ["2"]}
+            ]
+          })
+      }
+    end
 
-    assert %{"code" => "quiz_not_found"} =
-             conn |> as(@other) |> put(~p"/api/quizzes/#{id}", replacement) |> json_response(404)
+    assert %{"code" => "not_found"} =
+             conn
+             |> as(@other)
+             |> put(~p"/api/quizzes/#{id}", replacement.())
+             |> json_response(404)
 
+    # An edit is a submission: it goes to the queue, and the live quiz is
+    # unchanged until somebody approves it.
+    assert %{"status" => "pending", "id" => edit_id} =
+             conn
+             |> as(@owner)
+             |> put(~p"/api/quizzes/#{id}", replacement.())
+             |> json_response(200)
+
+    {:ok, _} = Review.approve(edit_id)
+
+    # Approving replaces the quiz in place, keeping its id, so anybody who
+    # saved it is looking at the same quiz rather than a second copy.
     assert %{
+             "id" => ^id,
              "title" => "Renamed",
              "question_count" => 2,
              "questions" => [%{"difficulty" => "hard"}, _]
-           } =
-             conn |> as(@owner) |> put(~p"/api/quizzes/#{id}", replacement) |> json_response(200)
+           } = conn |> as(@owner) |> get(~p"/api/quizzes/#{id}") |> json_response(200)
 
     assert conn |> as(@other) |> delete(~p"/api/quizzes/#{id}") |> json_response(404)
     assert conn |> as(@owner) |> delete(~p"/api/quizzes/#{id}") |> response(204)
     assert conn |> get(~p"/api/quizzes/#{id}") |> json_response(404)
+  end
+
+  describe "reporting a public quiz" do
+    test "anybody can report one, and is told nothing back", %{conn: conn} do
+      quiz = QuizFixtures.published!()
+
+      assert conn
+             |> as(@other)
+             |> post(~p"/api/quizzes/#{quiz.id}/report", %{
+               "reason" => "sexual",
+               "note" => "Question 2."
+             })
+             |> response(204)
+
+      assert [queued] = Reports.open()
+      assert queued.quiz.id == quiz.id
+      assert [report] = queued.reports
+      assert report.reason == "sexual"
+      assert report.note == "Question 2."
+    end
+
+    test "the publisher may report their own, pointless as that is", %{conn: conn} do
+      quiz = QuizFixtures.published!()
+
+      assert conn
+             |> as(@owner)
+             |> post(~p"/api/quizzes/#{quiz.id}/report", %{"reason" => "spam"})
+             |> response(204)
+    end
+
+    test "a made-up reason is refused", %{conn: conn} do
+      quiz = QuizFixtures.published!()
+
+      assert %{"code" => "invalid_report", "message" => message} =
+               conn
+               |> as(@other)
+               |> post(~p"/api/quizzes/#{quiz.id}/report", %{"reason" => "boring"})
+               |> json_response(422)
+
+      assert message =~ "sexual"
+      assert Reports.open() == []
+    end
+
+    test "a quiz nobody published cannot be reported", %{conn: conn} do
+      assert conn
+             |> as(@other)
+             |> post(~p"/api/quizzes/#{Ecto.UUID.generate()}/report", %{"reason" => "spam"})
+             |> json_response(404)
+    end
+
+    test "without a key there is nothing to count devices by", %{conn: conn} do
+      quiz = QuizFixtures.published!()
+
+      assert %{"code" => "owner_key_required"} =
+               conn
+               |> post(~p"/api/quizzes/#{quiz.id}/report", %{"reason" => "spam"})
+               |> json_response(401)
+    end
+
+    test "the answer never says what an admin has already decided", %{conn: conn} do
+      quiz = QuizFixtures.published!()
+      {:ok, _} = Reports.submit(quiz.id, @other, %{"reason" => "spam"})
+      {:ok, 1} = Reports.dismiss(quiz.id)
+
+      # Same empty answer as the first report: a caller cannot probe moderation
+      # state by watching how the endpoint replies.
+      assert conn
+             |> as(@other)
+             |> post(~p"/api/quizzes/#{quiz.id}/report", %{"reason" => "hate"})
+             |> response(204) == ""
+    end
   end
 
   test "CORS preflight allows the publisher key header and write methods", %{conn: conn} do

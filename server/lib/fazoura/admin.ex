@@ -8,8 +8,11 @@ defmodule Fazoura.Admin do
 
   import Ecto.Query
 
-  alias Fazoura.{Metrics, Quizzes, Repo, Rooms}
-  alias Fazoura.Quizzes.{Image, Question, Quiz, Tag}
+  alias Fazoura.Metrics
+  alias Fazoura.Quizzes
+  alias Fazoura.Quizzes.{Image, Question, Quiz, Reports, Review, Tag}
+  alias Fazoura.Repo
+  alias Fazoura.Rooms
 
   ## Stats
 
@@ -155,7 +158,7 @@ defmodule Fazoura.Admin do
   end
 
   @doc """
-  The quiz the editor works on, with its questions and tags (ADMIN.md §3.3).
+  The quiz the editor works on, with its questions and tags (ADMIN.md §3.5).
   """
   @spec fetch_quiz(term()) :: {:ok, Quiz.t()} | {:error, :quiz_not_found}
   def fetch_quiz(id) do
@@ -236,4 +239,39 @@ defmodule Fazoura.Admin do
   end
 
   defp taken?(slug), do: Repo.exists?(from q in Quiz, where: q.slug == ^slug)
+
+  ## The review queue (ADMIN.md §3.2)
+
+  @doc "Submissions waiting to be read, oldest first."
+  defdelegate pending_submissions(limit \\ 50), to: Review, as: :pending
+
+  @doc "How many are waiting."
+  defdelegate pending_submission_count(), to: Review, as: :pending_count
+
+  @doc "One submission."
+  defdelegate fetch_submission(id), to: Review, as: :fetch
+
+  @doc "What is inside a submission's package, for somebody to read before deciding."
+  defdelegate submission_contents(submission), to: Review, as: :contents
+
+  @doc "Publishes a submission. Its photos reach the uploads volume here and not before."
+  defdelegate approve_submission(id), to: Review, as: :approve
+
+  @doc "Turns a submission down, with a note its author's device can show."
+  defdelegate reject_submission(id, note), to: Review, as: :reject
+
+  ## Reported quizzes (ADMIN.md §3.3)
+
+  @doc "Published quizzes somebody has objected to, longest-waiting first."
+  defdelegate reported_quizzes(limit \\ 50), to: Reports, as: :open
+
+  @doc "How many quizzes are waiting on an answer."
+  defdelegate reported_quiz_count(), to: Reports, as: :open_count
+
+  @doc """
+  Answers every open report against a quiz without taking it down.
+
+  The other answer is `delete_quiz/1`, which takes the quiz's reports with it.
+  """
+  defdelegate dismiss_reports(quiz_id), to: Reports, as: :dismiss
 end

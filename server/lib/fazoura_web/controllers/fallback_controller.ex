@@ -5,6 +5,21 @@ defmodule FazouraWeb.FallbackController do
 
   import FazouraWeb.ApiHelpers, only: [error: 4, error: 5]
 
+  alias Fazoura.Quizzes.Report
+
+  # A submission that is not this device's, or is gone (QUIZ_FORMAT.md §4).
+  def call(conn, {:error, :not_found}),
+    do: error(conn, :not_found, "not_found", "That does not exist.")
+
+  def call(conn, {:error, :invalid_quiz}),
+    do:
+      error(
+        conn,
+        :unprocessable_entity,
+        "invalid_quiz",
+        "That package is not a quiz with a title and at least one question."
+      )
+
   def call(conn, {:error, :quiz_not_found}),
     do:
       error(
@@ -21,6 +36,35 @@ defmodule FazouraWeb.FallbackController do
         :unauthorized,
         "owner_key_required",
         "Send this device's publisher key in the x-owner-key header."
+      )
+
+  def call(conn, {:error, :invalid_report}),
+    do:
+      error(
+        conn,
+        :unprocessable_entity,
+        "invalid_report",
+        "Pick one of: #{Enum.join(Report.reasons(), ", ")}."
+      )
+
+  # Reporting a question from a room that came from a private quiz: nothing was
+  # published, so there is nothing anybody could take down (QUIZ_FORMAT.md §5.9).
+  def call(conn, {:error, :quiz_not_public}),
+    do:
+      error(
+        conn,
+        :unprocessable_entity,
+        "quiz_not_public",
+        "That quiz isn't published — the host made it on their own device, so there is nothing for us to remove."
+      )
+
+  def call(conn, {:error, :question_not_found}),
+    do:
+      error(
+        conn,
+        :not_found,
+        "question_not_found",
+        "That question isn't in this room."
       )
 
   def call(conn, {:error, :unknown_image}),

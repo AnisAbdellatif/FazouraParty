@@ -94,6 +94,65 @@ class RoomApi {
     return null;
   }
 
+  /// `POST /api/rooms/:code/report` — reports the quiz a question in this room
+  /// came from (QUIZ_FORMAT.md §5.9).
+  ///
+  /// The room is where content is actually seen: browsing a quiz shows a title,
+  /// a description and tags, and nothing anybody would object to. The server
+  /// resolves the question to its quiz itself, so no quiz id is ever broadcast
+  /// — one during a game would also be a cheat button, since the download
+  /// endpoint hands out the accepted answers.
+  ///
+  /// Either token this room issued is proof of being in it, and one is
+  /// required: without it this would say which six-character codes are live
+  /// games. A host who is also playing has only a host token, so both are
+  /// accepted. Throws [GameError] — `quiz_not_public` when the host made the
+  /// quiz themselves, so there is nothing published to take down.
+  Future<void> reportRoom(
+    String code, {
+    required String reason,
+    required String ownerKey,
+    String? playerToken,
+    String? hostToken,
+    String? questionId,
+    String? note,
+  }) async {
+    final base = baseUrl.endsWith('/')
+        ? baseUrl.substring(0, baseUrl.length - 1)
+        : baseUrl;
+    final http.Response response;
+    try {
+      response = await _client.post(
+        Uri.parse('$base/api/rooms/$code/report'),
+        headers: {
+          'content-type': 'application/json',
+          'accept': 'application/json',
+          'x-player-token': ?playerToken,
+          'x-host-token': ?hostToken,
+          'x-owner-key': ownerKey,
+        },
+        body: jsonEncode({
+          'reason': reason,
+          'question_id': ?questionId,
+          if (note != null && note.isNotEmpty) 'note': note,
+        }),
+      );
+    } on Object {
+      throw const GameError(
+        code: GameError.connectionFailed,
+        message: 'Could not reach the game server.',
+      );
+    }
+    if (response.statusCode >= 200 && response.statusCode < 300) return;
+    final decoded = _decode(response.body);
+    final code0 = decoded['code'];
+    final message = decoded['message'];
+    throw GameError(
+      code: code0 is String ? code0 : 'http_${response.statusCode}',
+      message: message is String ? message : null,
+    );
+  }
+
   void close() => _client.close();
 
   static Map<String, dynamic> _decode(String body) {

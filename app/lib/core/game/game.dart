@@ -25,7 +25,7 @@ const protocolMajor = 9;
 /// snapshot and ignored by clients; it exists so a LAN host built from an
 /// older tag can be told apart from the cloud. Must equal
 /// `Fazoura.Game.protocol_minor/0`.
-const protocolMinor = 2;
+const protocolMinor = 3;
 
 /// How long a question keeps waiting for a player whose connection has gone.
 /// A locked screen or a walk past a thick wall drops the socket for a few

@@ -71,13 +71,20 @@ defmodule FazouraWeb.Endpoint do
   plug Plug.RequestId
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
-  # Only room creation carries a whole private quiz with base64 photos
-  # (QUIZ_FORMAT.md §5.7); everywhere else a body that large is either a mistake or an
-  # attempt to make the server buffer megabytes for free, so the general limit is small
-  # and the large one is scoped to the single route that needs it.
+  # Two things carry a whole quiz with its photos: room creation, which sends a private
+  # quiz inline (QUIZ_FORMAT.md §5.8), and publishing, which sends a `.fazoura` package
+  # (§5.4, §5.5) — both bounded by `Fazoura.Quizzes.Archive.max_bytes/0`. Everywhere else
+  # a body that large is either a mistake or an attempt to make the server buffer
+  # megabytes for free, so the general limit is small and the large one is scoped to the
+  # routes that need it.
   plug FazouraWeb.Plugs.BodyLimit,
     default: 1_000_000,
-    routes: %{["api", "rooms"] => 32_000_000, ["api", "images"] => 4_000_000}
+    routes: %{
+      ["api", "rooms"] => 32_000_000,
+      ["api", "quizzes"] => 32_000_000,
+      ["api", "quizzes", :_] => 32_000_000,
+      ["api", "images"] => 4_000_000
+    }
 
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],

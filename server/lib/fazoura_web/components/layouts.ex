@@ -38,6 +38,8 @@ defmodule FazouraWeb.Layouts do
         <div class="brand">FAZOURA <span>admin</span></div>
         <nav>
           <.link navigate={~p"/admin"} class={nav_class(@page, :stats)}>Stats</.link>
+          <.link navigate={~p"/admin/review"} class={nav_class(@page, :review)}>Review</.link>
+          <.link navigate={~p"/admin/reports"} class={nav_class(@page, :reports)}>Reports</.link>
           <.link navigate={~p"/admin/quizzes"} class={nav_class(@page, :quizzes)}>Quizzes</.link>
           <.link navigate={~p"/admin/tags"} class={nav_class(@page, :tags)}>Tags</.link>
         </nav>
@@ -97,6 +99,8 @@ defmodule FazouraWeb.Layouts do
     tr:last-child td { border-bottom: 0; }
     .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
     .empty { color: var(--dim); padding: 16px; }
+    /* A report older than the day Play expects an answer in. */
+    .overdue { color: var(--ac2); font-weight: 600; }
     .pill {
       display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px;
       border: 1px solid var(--line); color: var(--dim); margin-right: 5px;

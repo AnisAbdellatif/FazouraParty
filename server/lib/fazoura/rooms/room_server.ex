@@ -127,6 +127,15 @@ defmodule Fazoura.Rooms.RoomServer do
   # than that their token is wrong, so this cannot be used to find live rooms by
   # guessing codes, and a demoted host cannot use it to confirm the room is
   # still running.
+  # Which stored quiz a question in this room came from (QUIZ_FORMAT.md §5.9).
+  #
+  # The id is answered to somebody already in the room and never broadcast: a
+  # quiz id in a `state` would let any player fetch the accepted answers from
+  # `GET /api/quizzes/:id/download` mid-game.
+  def handle_call({:source_quiz, question_id, token}, _from, state) do
+    {:reply, source_quiz(state, question_id, token), state}
+  end
+
   def handle_call({:status, host_token}, _from, state) do
     reply =
       if current_host_token?(state, host_token) do
@@ -166,6 +175,54 @@ defmodule Fazoura.Rooms.RoomServer do
     case Map.pop(state.conns, pid) do
       {nil, _conns} -> {:noreply, state}
       {actor, conns} -> {:noreply, remove_conn(%{state | conns: conns}, actor)}
+    end
+  end
+
+  defp source_quiz(state, question_id, token) do
+    with :ok <- verify_member(state, token),
+         {:ok, quiz_id} <- source_quiz_id(state.game.pack, question_id) do
+      # An inline quiz was never published, so there is nothing anybody could
+      # take down. Saying so is more use than accepting the report into a void.
+      if quiz_id, do: {:ok, quiz_id}, else: {:error, :quiz_not_public}
+    end
+  end
+
+  # Proof that the caller is in this room, by either token a join issues
+  # (PROTOCOL.md §3.3). Without it this would answer differently for a real room
+  # code than for a made-up one, and become the room-code oracle that §3.1 goes
+  # out of its way not to be. A wrong token is `room_not_found` for the same
+  # reason `GET /api/rooms/:code` gives that answer to everything.
+  defp verify_member(state, token) when is_binary(token) do
+    if current_host_token?(state, token) or current_player_token?(state, token),
+      do: :ok,
+      else: {:error, :room_not_found}
+  end
+
+  defp verify_member(_state, _token), do: {:error, :room_not_found}
+
+  defp current_player_token?(state, token) do
+    case Phoenix.Token.verify(FazouraWeb.Endpoint, "player", token, max_age: @token_max_age_s) do
+      {:ok, {code, id}} -> code == state.game.room_code and Game.player?(state.game, id)
+      _ -> false
+    end
+  end
+
+  # A named question is exact, and it is what a client showing one sends.
+  defp source_quiz_id(pack, question_id) when is_binary(question_id) do
+    case Enum.find(pack.questions, &(&1.id == question_id)) do
+      nil -> {:error, :question_not_found}
+      question -> {:ok, question.quiz_id}
+    end
+  end
+
+  # Without one — in the lobby, or once the game has finished — the quiz the
+  # room is playing, as long as there is only one of them for that to mean. A
+  # host may merge up to ten into one pool (PROTOCOL.md §6.4), and guessing
+  # which of them somebody meant would be worse than asking them to name it.
+  defp source_quiz_id(pack, _question_id) do
+    case pack.questions |> Enum.map(& &1.quiz_id) |> Enum.uniq() do
+      [quiz_id] -> {:ok, quiz_id}
+      _several_or_none -> {:error, :question_not_found}
     end
   end
 

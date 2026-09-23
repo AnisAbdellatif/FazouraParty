@@ -8,9 +8,11 @@ part of 'quiz.dart';
 
 _QuizDocument _$QuizDocumentFromJson(Map<String, dynamic> json) =>
     _QuizDocument(
-      formatVersion: (json['format_version'] as num?)?.toInt() ?? 1,
-      version: json['version'] == null
+      formatVersion: json['format_version'] == null
           ? '1.0'
+          : quizFormatVersionFromJson(json['format_version']),
+      version: json['version'] == null
+          ? 1
           : quizVersionFromJson(json['version']),
       id: json['id'] as String?,
       slug: json['slug'] as String?,
@@ -118,4 +120,36 @@ Map<String, dynamic> _$QuizImageToJson(_QuizImage instance) =>
       'url': instance.url,
       'alt': instance.alt,
       'data': instance.data,
+    };
+
+_QuizSubmission _$QuizSubmissionFromJson(Map<String, dynamic> json) =>
+    _QuizSubmission(
+      id: json['id'] as String,
+      title: json['title'] as String? ?? '',
+      status: json['status'] as String? ?? QuizSubmission.pending,
+      questionCount: (json['question_count'] as num?)?.toInt() ?? 0,
+      hasPhotos: json['has_photos'] as bool? ?? false,
+      reviewNote: json['review_note'] as String?,
+      quizId: json['quiz_id'] as String?,
+      replacesQuizId: json['replaces_quiz_id'] as String?,
+      submittedAt: json['submitted_at'] == null
+          ? null
+          : DateTime.parse(json['submitted_at'] as String),
+      reviewedAt: json['reviewed_at'] == null
+          ? null
+          : DateTime.parse(json['reviewed_at'] as String),
+    );
+
+Map<String, dynamic> _$QuizSubmissionToJson(_QuizSubmission instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'title': instance.title,
+      'status': instance.status,
+      'question_count': instance.questionCount,
+      'has_photos': instance.hasPhotos,
+      'review_note': instance.reviewNote,
+      'quiz_id': instance.quizId,
+      'replaces_quiz_id': instance.replacesQuizId,
+      'submitted_at': instance.submittedAt?.toIso8601String(),
+      'reviewed_at': instance.reviewedAt?.toIso8601String(),
     };

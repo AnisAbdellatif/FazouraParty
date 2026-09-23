@@ -131,21 +131,23 @@ defmodule FazouraWeb.SecurityTest do
       conn = put_req_header(conn, "x-owner-key", key)
 
       for _ <- 1..30 do
-        conn |> post(~p"/api/quizzes", QuizFixtures.quiz_params()) |> json_response(201)
+        conn
+        |> post(~p"/api/quizzes", %{"file" => QuizFixtures.package_upload()})
+        |> json_response(201)
       end
 
       assert %{"code" => "rate_limited"} =
-               conn |> post(~p"/api/quizzes", QuizFixtures.quiz_params()) |> json_response(429)
+               conn
+               |> post(~p"/api/quizzes", %{"file" => QuizFixtures.package_upload()})
+               |> json_response(429)
     end
 
     test "archives are capped well below the other reads", %{conn: conn} do
       key = QuizFixtures.owner_key()
 
-      %{"id" => id} =
-        conn
-        |> put_req_header("x-owner-key", key)
-        |> post(~p"/api/quizzes", QuizFixtures.quiz_params())
-        |> json_response(201)
+      # An archive is only offered for a quiz that is actually public, and a
+      # quiz only becomes public through the queue (QUIZ_FORMAT.md §4).
+      %{id: id} = QuizFixtures.published!(%{}, key)
 
       # Building one holds the whole quiz and every photo in memory, so 10 a
       # minute (router), not the unmetered rate the cheap reads get.
@@ -266,11 +268,14 @@ defmodule FazouraWeb.SecurityTest do
 
   describe "body size" do
     test "a large body is refused on routes that never need one", %{conn: conn} do
+      # Which routes do need one, and why, is pinned in
+      # `FazouraWeb.Plugs.BodyLimitTest`; this is the other half — that the small
+      # default still bites everywhere else.
       conn =
         conn
         |> put_req_header("content-length", "2000000")
         |> put_req_header("x-owner-key", QuizFixtures.owner_key())
-        |> post(~p"/api/quizzes", QuizFixtures.quiz_params())
+        |> post(~p"/api/submissions", %{})
 
       assert %{"code" => "payload_too_large"} = json_response(conn, 413)
     end
