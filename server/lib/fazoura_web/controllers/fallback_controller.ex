@@ -5,6 +5,19 @@ defmodule FazouraWeb.FallbackController do
 
   import FazouraWeb.ApiHelpers, only: [error: 4, error: 5]
 
+  # A submission that is not this device's, or is gone (QUIZ_FORMAT.md §4).
+  def call(conn, {:error, :not_found}),
+    do: error(conn, :not_found, "not_found", "That does not exist.")
+
+  def call(conn, {:error, :invalid_quiz}),
+    do:
+      error(
+        conn,
+        :unprocessable_entity,
+        "invalid_quiz",
+        "That package is not a quiz with a title and at least one question."
+      )
+
   def call(conn, {:error, :quiz_not_found}),
     do:
       error(

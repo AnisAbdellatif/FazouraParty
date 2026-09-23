@@ -35,6 +35,12 @@ defmodule Fazoura.Repo.Migrations.CreateQuizSubmissions do
       # The quiz it became, so its author's device can follow it once it is live.
       add :quiz_id, references(:quizzes, type: :binary_id, on_delete: :nilify_all)
 
+      # Set when this is an edit of a quiz that is already public: approving
+      # replaces that quiz rather than adding another. Editing has to come back
+      # through here, or the review means nothing — publish something harmless,
+      # then swap its contents.
+      add :replaces_quiz_id, references(:quizzes, type: :binary_id, on_delete: :delete_all)
+
       # Microseconds, unlike the other timestamps here, because this one orders
       # the queue: at second resolution two submissions a moment apart tie and
       # "oldest first" falls back to a random uuid.

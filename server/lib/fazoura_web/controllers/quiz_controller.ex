@@ -3,9 +3,10 @@ defmodule FazouraWeb.QuizController do
 
   use FazouraWeb, :controller
 
-  import FazouraWeb.ApiHelpers, only: [owner_key: 1, int_param: 2]
+  import FazouraWeb.ApiHelpers, only: [owner_key: 1, int_param: 2, error: 4]
 
   alias Fazoura.Quizzes
+  alias Fazoura.Quizzes.Review
 
   action_fallback FazouraWeb.FallbackController
 
@@ -68,26 +69,58 @@ defmodule FazouraWeb.QuizController do
     end
   end
 
-  def create(conn, _params) do
-    with {:ok, quiz} <- Quizzes.create(conn.body_params, owner_key(conn)) do
-      conn |> put_status(:created) |> render_owned(quiz)
+  # Publishing is a submission (§4, §5.4). The device sends one `.fazoura` and
+  # it waits in the queue; no quiz row and no photo on disk until somebody has
+  # read it.
+  def create(conn, %{"file" => %Plug.Upload{path: path}}) do
+    with {:ok, package} <- File.read(path),
+         {:ok, submission} <- Review.submit(package, owner_key(conn)) do
+      conn |> put_status(:created) |> json(Review.to_document(submission))
     end
   end
 
-  def update(conn, %{"id" => id}) do
-    with {:ok, quiz} <- Quizzes.replace(id, conn.body_params, owner_key(conn)) do
-      render_owned(conn, quiz)
+  def create(conn, _params), do: package_required(conn)
+
+  # Editing a public quiz comes back through the queue too. Otherwise the review
+  # means nothing: publish something harmless, then swap its contents.
+  def update(conn, %{"id" => id, "file" => %Plug.Upload{path: path}}) do
+    with {:ok, package} <- File.read(path),
+         {:ok, submission} <- Review.submit(package, owner_key(conn), replaces: id) do
+      json(conn, Review.to_document(submission))
     end
+  end
+
+  def update(conn, _params), do: package_required(conn)
+
+  @doc "What this device has sent for review, and what became of it (§5.4a)."
+  def submissions(conn, _params) do
+    json(conn, %{
+      submissions: Enum.map(Review.for_owner(owner_key(conn)), &Review.to_document/1)
+    })
+  end
+
+  def withdraw(conn, %{"id" => id}) do
+    with :ok <- Review.withdraw(id, owner_key(conn)) do
+      send_resp(conn, :no_content, "")
+    end
+  end
+
+  # A client old enough to send a JSON document predates the queue. Rebuilding
+  # the package here would mean its photos were uploaded first and are already
+  # on disk unreviewed, which is the one thing this is for — so it is told to
+  # update instead, which it can do from inside the app.
+  defp package_required(conn) do
+    error(
+      conn,
+      :unprocessable_entity,
+      "package_required",
+      "Update the app: a quiz is now submitted for review as a .fazoura file part."
+    )
   end
 
   def delete(conn, %{"id" => id}) do
     with :ok <- Quizzes.delete(id, owner_key(conn)) do
       send_resp(conn, :no_content, "")
     end
-  end
-
-  defp render_owned(conn, quiz) do
-    quiz = Fazoura.Repo.preload(quiz, [:questions, :quiz_tags], force: true)
-    json(conn, Quizzes.to_document(quiz, owner?: true))
   end
 end

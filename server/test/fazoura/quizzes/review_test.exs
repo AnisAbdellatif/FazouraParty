@@ -2,23 +2,12 @@ defmodule Fazoura.Quizzes.ReviewTest do
   use Fazoura.DataCase, async: false
 
   alias Fazoura.{QuizFixtures, Quizzes}
-  alias Fazoura.Quizzes.{Archive, Review}
+  alias Fazoura.Quizzes.Review
 
   @owner QuizFixtures.owner_key()
   @other QuizFixtures.other_key()
 
-  defp package(attrs \\ %{}) do
-    document = QuizFixtures.quiz_params(attrs) |> Map.put("format_version", 1)
-    {:ok, binary} = Archive.build(atomise(document), %{})
-    binary
-  end
-
-  # Archive.build/2 takes the document in the shape `to_document/2` produces.
-  defp atomise(map) when is_map(map),
-    do: Map.new(map, fn {k, v} -> {String.to_atom(k), atomise(v)} end)
-
-  defp atomise(list) when is_list(list), do: Enum.map(list, &atomise/1)
-  defp atomise(other), do: other
+  defp package(attrs \\ %{}), do: QuizFixtures.package(attrs)
 
   describe "submitting" do
     test "queues the package and nothing else" do

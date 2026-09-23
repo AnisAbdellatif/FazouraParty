@@ -32,6 +32,7 @@ defmodule Fazoura.Quizzes.Submission do
     field :reviewed_at, :utc_datetime
 
     belongs_to :quiz, Quiz
+    belongs_to :replaces_quiz, Quiz
 
     timestamps(type: :utc_datetime)
   end
@@ -44,7 +45,14 @@ defmodule Fazoura.Quizzes.Submission do
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(submission, params) do
     submission
-    |> cast(params, [:package, :title, :question_count, :has_photos, :owner_key_hash])
+    |> cast(params, [
+      :package,
+      :title,
+      :question_count,
+      :has_photos,
+      :owner_key_hash,
+      :replaces_quiz_id
+    ])
     |> validate_required([:package, :title, :owner_key_hash])
     |> validate_length(:title, min: 1, max: 80)
     |> put_change(:status, "pending")

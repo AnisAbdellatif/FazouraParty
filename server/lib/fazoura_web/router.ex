@@ -94,6 +94,7 @@ defmodule FazouraWeb.Router do
     post "/quizzes", QuizController, :create
     put "/quizzes/:id", QuizController, :update
     delete "/quizzes/:id", QuizController, :delete
+    delete "/submissions/:id", QuizController, :withdraw
   end
 
   scope "/api", FazouraWeb do
@@ -106,6 +107,7 @@ defmodule FazouraWeb.Router do
     pipe_through :api
 
     get "/quizzes", QuizController, :index
+    get "/submissions", QuizController, :submissions
     get "/quizzes/:id/download", QuizController, :download
     get "/quizzes/:id", QuizController, :show
     get "/tags", QuizController, :tags

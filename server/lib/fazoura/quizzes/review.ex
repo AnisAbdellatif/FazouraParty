@@ -29,19 +29,39 @@ defmodule Fazoura.Quizzes.Review do
   no further: it is untrusted input that nobody has looked at yet, so it is
   stored as the bytes that arrived rather than unpacked into anything.
   """
-  @spec submit(binary(), String.t() | nil) ::
+  @spec submit(binary(), String.t() | nil, keyword()) ::
           {:ok, Submission.t()} | {:error, reason() | Ecto.Changeset.t()}
-  def submit(package, owner_key) when is_binary(package) do
+  def submit(package, owner_key, opts \\ [])
+
+  def submit(package, owner_key, opts) when is_binary(package) do
     with {:ok, hash} <- hash_key(owner_key),
+         {:ok, replaces} <- replaced_quiz(opts[:replaces], hash),
          {:ok, %{document: document}} <- Archive.read(package),
          {:ok, summary} <- summarise(document) do
       %Submission{}
-      |> Submission.changeset(Map.merge(summary, %{package: package, owner_key_hash: hash}))
+      |> Submission.changeset(
+        Map.merge(summary, %{
+          package: package,
+          owner_key_hash: hash,
+          replaces_quiz_id: replaces
+        })
+      )
       |> Repo.insert()
     end
   end
 
-  def submit(_package, _owner_key), do: {:error, :invalid_quiz}
+  def submit(_package, _owner_key, _opts), do: {:error, :invalid_quiz}
+
+  # An edit may only be offered for a quiz this device published; anybody
+  # else's does not exist to it (§4 — 404, never 403).
+  defp replaced_quiz(nil, _hash), do: {:ok, nil}
+
+  defp replaced_quiz(id, hash) do
+    case Quizzes.fetch(id) do
+      {:ok, %{owner_key_hash: ^hash} = quiz} -> {:ok, quiz.id}
+      _ -> {:error, :not_found}
+    end
+  end
 
   @doc "Submissions waiting to be read, oldest first."
   @spec pending(pos_integer()) :: [Submission.t()]
@@ -107,7 +127,7 @@ defmodule Fazoura.Quizzes.Review do
   def approve(id) do
     with {:ok, submission} <- fetch(id),
          {:ok, params} <- Quizzes.read_archive(submission.package),
-         {:ok, quiz} <- Quizzes.publish_reviewed(params, submission.owner_key_hash) do
+         {:ok, quiz} <- publish(submission, params) do
       submission
       |> Ecto.Changeset.change(
         status: "approved",
@@ -157,6 +177,37 @@ defmodule Fazoura.Quizzes.Review do
       # (§4 — 404, never 403).
       _ -> {:error, :not_found}
     end
+  end
+
+  # An edit replaces the quiz it was offered against, keeping its id — so a
+  # device that saved it, or a room that has it selected, is looking at the
+  # same quiz rather than a second copy.
+  defp publish(%Submission{replaces_quiz_id: nil} = submission, params),
+    do: Quizzes.publish_reviewed(params, submission.owner_key_hash)
+
+  defp publish(%Submission{replaces_quiz_id: id}, params) do
+    with {:ok, quiz} <- Quizzes.fetch(id) do
+      Quizzes.replace_document(quiz, params)
+    end
+  end
+
+  @doc "What a device is told about something it submitted (QUIZ_FORMAT.md §5.4)."
+  @spec to_document(Submission.t()) :: map()
+  def to_document(%Submission{} = submission) do
+    %{
+      id: submission.id,
+      title: submission.title,
+      status: submission.status,
+      question_count: submission.question_count,
+      has_photos: submission.has_photos,
+      # Only ever sent to the device that submitted it; a rejection is a message
+      # to its author, not something published beside a quiz.
+      review_note: submission.review_note,
+      quiz_id: submission.quiz_id,
+      replaces_quiz_id: submission.replaces_quiz_id,
+      submitted_at: submission.submitted_at,
+      reviewed_at: submission.reviewed_at
+    }
   end
 
   defp summarise(document) do

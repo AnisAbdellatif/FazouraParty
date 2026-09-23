@@ -2,7 +2,7 @@ defmodule Fazoura.QuizFixtures do
   @moduledoc "Test helpers for quizzes and packs."
 
   alias Fazoura.Game.Pack
-  alias Fazoura.Quizzes.Quiz
+  alias Fazoura.Quizzes.{Archive, Quiz, Review}
   alias Fazoura.Repo
 
   @doc """
@@ -34,6 +34,40 @@ defmodule Fazoura.QuizFixtures do
     )
     |> Repo.insert!()
   end
+
+  @doc """
+  A `.fazoura` package built from `quiz_params/1`.
+
+  Publishing is a submission of one of these now (QUIZ_FORMAT.md §4), so this
+  is what a test sends where it used to post a JSON document.
+  """
+  def package(attrs \\ %{}) do
+    {:ok, binary} = Archive.build(atomise(quiz_params(attrs)), %{})
+    binary
+  end
+
+  @doc "The same, as the multipart file part the API takes."
+  def package_upload(attrs \\ %{}) do
+    path =
+      Path.join(System.tmp_dir!(), "fazoura-#{System.unique_integer([:positive])}.fazoura")
+
+    File.write!(path, package(attrs))
+    %Plug.Upload{path: path, filename: "quiz.fazoura", content_type: "application/zip"}
+  end
+
+  @doc "Submits a package and approves it: a quiz that is actually live."
+  def published!(attrs \\ %{}, key \\ owner_key()) do
+    {:ok, submission} = Review.submit(package(attrs), key)
+    {:ok, quiz} = Review.approve(submission.id)
+    quiz
+  end
+
+  # `Archive.build/2` takes the document in the shape `to_document/2` produces.
+  defp atomise(map) when is_map(map),
+    do: Map.new(map, fn {k, v} -> {String.to_atom(k), atomise(v)} end)
+
+  defp atomise(list) when is_list(list), do: Enum.map(list, &atomise/1)
+  defp atomise(other), do: other
 
   def owner_key, do: "test-owner-key-aaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   def other_key, do: "test-other-key-bbbbbbbbbbbbbbbbbbbbbbbbbbbb"
