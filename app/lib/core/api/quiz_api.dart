@@ -1,8 +1,19 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:http/http.dart' as http;
 
 import '../models/models.dart';
+
+/// A new publisher key: 32 random bytes, base64url without padding (43 chars,
+/// QUIZ_FORMAT.md §4). Here rather than beside the provider that stores it, so
+/// anything that talks to [QuizApi] — `tools/fazoura-cli` too — makes the same
+/// kind of key.
+String generateOwnerKey([Random? random]) {
+  final source = random ?? Random.secure();
+  final bytes = List<int>.generate(32, (_) => source.nextInt(256));
+  return base64Url.encode(bytes).replaceAll('=', '');
+}
 
 /// Quiz REST API (protocol/QUIZ_FORMAT.md §5). Every request carries this
 /// device's publisher key so the server recognises quizzes it published.

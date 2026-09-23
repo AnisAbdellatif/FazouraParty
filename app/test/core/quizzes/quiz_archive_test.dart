@@ -189,4 +189,22 @@ void main() {
 
     expect(QuizArchive.encode(quiz), QuizArchive.encode(quiz));
   });
+
+  test('stamps every entry with one fixed time, not the clock', () {
+    final package = QuizArchive.encode(
+      document([
+        QuizQuestion(
+          type: QuizQuestion.typePhoto,
+          prompt: 'One',
+          acceptedAnswers: const ['a'],
+          image: QuizImage(data: jpeg),
+        ),
+      ]),
+    );
+
+    // Same-second calls can't tell a fixed stamp from the clock; the stamp can.
+    for (final file in ZipDecoder().decodeBytes(package).files) {
+      expect(file.lastModDateTime.year, 1980, reason: file.name);
+    }
+  });
 }

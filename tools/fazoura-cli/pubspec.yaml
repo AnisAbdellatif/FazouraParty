@@ -1,0 +1,26 @@
+name: fazoura_cli
+description: >-
+  Drive a Fazoura Party server from the terminal - host, join, bots and quizzes -
+  through the app's own client code.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.9.0
+
+executables:
+  fazoura: fazoura
+
+dependencies:
+  # The app's pure-Dart core: API clients, the Phoenix connection, the models,
+  # the .fazoura archive and the LAN host. Nothing under lib/core/providers or
+  # anything else that imports Flutter may be imported from here.
+  fazoura_party:
+    path: ../../app
+  archive: ^4.3.0
+  args: ^2.7.0
+  phoenix_socket: ^0.8.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.26.0

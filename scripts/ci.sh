@@ -5,7 +5,7 @@
 #   scripts/ci.sh              # server + app + image (what a pull request runs)
 #   scripts/ci.sh server       # Elixir: compile, format, credo, test, dialyzer
 #   scripts/ci.sh app          # Flutter: format, analyze, test, web build, worker
-#   scripts/ci.sh tools        # Python: the .fazoura packaging utility
+#   scripts/ci.sh tools        # Dart: tools/fazoura-cli (format, analyze, test)
 #   scripts/ci.sh image        # build the production Docker image
 #   scripts/ci.sh apk          # signed Android APK + the release manifest
 #   scripts/ci.sh aab          # Android App Bundle, for uploading to Play
@@ -135,14 +135,17 @@ app() {
   cd "$ROOT"
 }
 
-# The packaging utility is standard-library Python, so there is nothing to pin and
-# nothing to install: any python3 a developer or a runner already has will do.
+# tools/fazoura-cli is plain Dart, but it is built on the app's own client code
+# (app/lib/core), and that package declares Flutter — so resolving it needs the
+# same pinned Flutter SDK the app does, and its `dart`.
 tools() {
-  step "Tools (Python)"
-  cd "$ROOT/tools"
+  step "Tools (fazoura CLI)"
+  cd "$ROOT/tools/fazoura-cli"
 
-  have python3 || fail "python3 not found"
-  python3 -m unittest discover --start-directory . --pattern 'test_*.py'
+  dart pub get
+  dart format --set-exit-if-changed bin lib test
+  dart analyze --fatal-infos
+  dart test
 
   cd "$ROOT"
 }
@@ -470,8 +473,8 @@ main() {
     versions) versions "${2:-all}" ;;
     server)   versions server; server ;;
     app)      versions app; app ;;
-    # No toolchain check: this one needs nothing the other two pin.
-    tools)    tools ;;
+    # The CLI resolves against the app package, so the app's Flutter pin is its.
+    tools)    versions app; tools ;;
     image)    image ;;
     # Neither: building a release needs an Android SDK and the signing key, so
     # it is never part of a check run.

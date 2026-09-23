@@ -26,7 +26,7 @@ That folder is the source form. From it you get one of three things:
 
 | You want | Do this |
 |---|---|
-| A single shareable file (`.fazoura`) to import in the app or upload in the admin dashboard | run `tools/fazoura_pack.py` (§6) |
+| A single shareable file (`.fazoura`) to import in the app or upload in the admin dashboard | run `tools/fazoura-cli/fazoura quiz pack` (§6) |
 | A preset that ships with the server | drop the same layout into `server/priv/quizzes/` (§7) |
 | A quiz on someone's device | import the `.fazoura` in the app |
 
@@ -212,21 +212,24 @@ Two more things worth knowing while writing prompts:
 
 ## 5. Checking the folder before you pack
 
-Quick sanity pass on a document you just wrote:
+Check a folder without writing anything:
 
 ```bash
-python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); qs=d["questions"]; print(len(qs),"questions,",sum(1 for q in qs if q["type"]=="text_photo"),"photos"); print("bad type:",[i for i,q in enumerate(qs,1) if q["type"] not in ("text","text_photo")]); print("no answers:",[i for i,q in enumerate(qs,1) if not q.get("accepted_answers")]); print("photo without image:",[i for i,q in enumerate(qs,1) if q["type"]=="text_photo" and not q.get("image")])' film-night/film-night.json
+tools/fazoura-cli/fazoura quiz inspect film-night
 ```
 
-The packer repeats these checks and more, and points at the question number that is wrong — so
-the real check is just to pack it.
+It makes the checks the server would — format version, title, tags, every question's type,
+prompt and answers, every photo's format and size — and points at the question number that is
+wrong. Packing makes exactly the same checks, so the real check is just to pack it.
+
+`tools/fazoura-cli/fazoura quiz init film-night` starts a folder from a template.
 
 ---
 
 ## 6. Packing it
 
 ```bash
-tools/fazoura_pack.py film-night
+tools/fazoura-cli/fazoura quiz pack film-night
 ```
 
 ```text
@@ -236,7 +239,8 @@ film-night.fazoura · 12 questions · 2 photos · 1409 KB
 - Writes `film-night.fazoura` beside the folder (`-o` to put it elsewhere).
 - Finds the quiz document by itself when the folder holds exactly one `.json`; name it with
   `-q` when there is more than one.
-- Standard-library Python 3.9+, nothing to install.
+- Part of `tools/fazoura-cli` (its README), which needs the Flutter SDK the app uses; the
+  first run compiles it.
 - Deterministic: packing the same folder twice gives a byte-identical file.
 
 The package it writes is a ZIP containing `manifest.json` (the document, under a `quiz` key)
@@ -303,5 +307,5 @@ the package is the easier path.
 - [ ] `alt` written, and it doesn't give the answer away.
 - [ ] No `id`, `slug`, `source`, `visibility`, `question_count`, `has_photos`, `created_at` or
       `updated_at`.
-- [ ] `tools/fazoura_pack.py <folder>` succeeds and reports the question and photo counts you
+- [ ] `tools/fazoura-cli/fazoura quiz pack <folder>` succeeds and reports the question and photo counts you
       expect.

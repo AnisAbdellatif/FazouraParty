@@ -21,6 +21,7 @@ comparison will ever agree.
 | [`protocol/`](protocol/) | The wire protocol, quiz format and admin spec, plus shared JSON fixtures both sides are tested against. **This is the contract.** |
 | [`server/`](server/) | Elixir/Phoenix: rooms, channels, scoring, the quiz library and the admin dashboard. |
 | [`app/`](app/) | Flutter client — Android and Web (installable as a PWA). |
+| [`tools/fazoura-cli/`](tools/fazoura-cli/) | `fazoura`, the game from a terminal: host, join, bots, the quiz library, publishing and packing — on the app's own client code. |
 | [`deploy/`](deploy/) | Dockerfile, compose stack and the VPS deployment, driven from CI. |
 | [`design/`](design/) | Visual source: the design prototype and the icon artwork everything is generated from. |
 | [`AGENTS.md`](AGENTS.md) | The rules of the repo. Read it before changing anything. |
@@ -58,6 +59,7 @@ Everything CI runs, runnable locally — literally, since CI calls this script t
 scripts/ci.sh                 # server + app + Docker image
 scripts/ci.sh server          # compile, format, credo, test, dialyzer
 scripts/ci.sh app             # format, analyze, test, web build, service worker
+scripts/ci.sh tools           # the fazoura CLI: format, analyze, test
 scripts/ci.sh image           # build the production image
 scripts/ci.sh apk             # signed Android APK (needs a key — see below)
 
@@ -75,6 +77,18 @@ Caddy or TLS — see [deploy/README.md](deploy/README.md#running-the-stack-local
 scripts/ci.sh up      # everything on http://localhost:4000
 scripts/ci.sh down
 ```
+
+### Playing from a terminal
+
+`tools/fazoura-cli/fazoura` does what the app does, so a game can be run and checked without
+driving a browser or a phone — and many instances at once can fill a room:
+
+```bash
+tools/fazoura-cli/fazoura host --auto --quiz world-capitals --start-when 4 &
+tools/fazoura-cli/fazoura join K7QX2M --count 4 --answers-from world-capitals --accuracy 0.7
+```
+
+See [its README](tools/fazoura-cli/README.md).
 
 ## Quizzes
 

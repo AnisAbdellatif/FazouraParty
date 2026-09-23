@@ -108,7 +108,7 @@ answering one from the list without having read it.
 - **Add a preset** either by uploading that package or by pasting a quiz document (§2) — the same JSON as `server/priv/quizzes/*.json`. No publisher key
   is involved and photo keys are trusted. A package carries its photos, so they arrive with the
   quiz and become ordinary uploads owned by a key no device holds (§6); a pasted document does
-  not, so its photos must already be uploaded. `tools/fazoura_pack.py` builds a package from a
+  not, so its photos must already be uploaded. `tools/fazoura-cli/fazoura quiz pack` builds a package from a
   folder of JSON and images.
 - **Edit** any quiz — its metadata and every question — in the editor (§3.5). A quiz added
   from a package or a pasted document opens there straight away, since a new quiz is the one

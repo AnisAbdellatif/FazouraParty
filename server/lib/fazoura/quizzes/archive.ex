@@ -4,7 +4,7 @@ defmodule Fazoura.Quizzes.Archive do
   questions name under `media/` (protocol/QUIZ_FORMAT.md §5.3b).
 
   Both directions live here so they cannot drift. `build/2` is what
-  `GET /api/quizzes/:id/archive` sends and what `tools/fazoura_pack.py` writes from a
+  `GET /api/quizzes/:id/archive` sends and what `tools/fazoura-cli/fazoura quiz pack` writes from a
   folder; `read/1` is what an admin upload takes back apart.
 
   `read/1` is the untrusted direction and treats the file as hostile. The package is
