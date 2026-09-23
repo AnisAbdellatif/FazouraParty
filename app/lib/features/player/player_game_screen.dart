@@ -7,6 +7,7 @@ import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../core/providers/room_tokens.dart';
 import '../../shared/describe_error.dart';
+import '../../shared/report_dialog.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/connection_banner.dart';
 import '../../shared/widgets/fz.dart';
@@ -46,6 +47,14 @@ class PlayerGameScreen extends ConsumerWidget {
                 GameTopBar(
                   label: 'Room $roomCode',
                   onLeave: () => Navigator.of(context).maybePop(),
+                  // A game is where questions and photos are actually seen, so
+                  // it is where saying something about one has to be possible
+                  // (QUIZ_FORMAT.md §5.9). Nothing to report in an empty lobby.
+                  trailing: switch (snapshot) {
+                    AsyncData(:final value) when closedReason == null =>
+                      _ReportButton(roomCode: roomCode, state: value),
+                    _ => null,
+                  },
                 ),
                 const ConnectionBanner(),
                 Expanded(
@@ -68,6 +77,44 @@ class PlayerGameScreen extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Reports the quiz behind the question on screen.
+///
+/// Quiet on purpose: it sits beside the room code rather than under the
+/// question, because a party game's screen belongs to the game. Somebody who
+/// wants it will look for it.
+class _ReportButton extends ConsumerWidget {
+  const _ReportButton({required this.roomCode, required this.state});
+
+  final String roomCode;
+  final RoomState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // The lobby has nothing but a title on it, and a room with nothing
+    // selected has not even that.
+    if (state.packTitles.isEmpty) return const SizedBox.shrink();
+
+    return FzCircleButton(
+      key: const Key('reportQuestion'),
+      icon: Icons.outlined_flag,
+      tooltip: 'Report this quiz',
+      onPressed: () async {
+        final messenger = ScaffoldMessenger.of(context);
+        final sent = await showReportQuestion(
+          context,
+          roomCode: roomCode,
+          title: state.packTitles.join(' · '),
+          questionId: state.question?.id,
+        );
+        if (!sent) return;
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Reported. Somebody will read it.')),
+        );
+      },
     );
   }
 }

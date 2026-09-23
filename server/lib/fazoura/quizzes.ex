@@ -595,6 +595,9 @@ defmodule Fazoura.Quizzes do
         Enum.map(quiz.questions, fn question ->
           %Pack.Question{
             id: question.id || "q#{question.position}",
+            # Where this question came from, so a player can report what they
+            # are looking at (QUIZ_FORMAT.md §5.9). It never leaves the server.
+            quiz_id: quiz.id,
             type: question.type,
             prompt: question.prompt,
             accepted_answers: question.accepted_answers,

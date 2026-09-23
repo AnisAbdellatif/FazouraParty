@@ -31,6 +31,10 @@ Ending a question as soon as everyone has answered (§6) is the example to reaso
 client already has to handle the question ending at any moment, because `host_next` ends it —
 so nothing a client does needed to change, and it was a minor.
 
+A cloud-only HTTP route is a minor too, for the same reason: a client that has never heard
+of it simply does not call it. `GET /api/rooms/:code` (§3.1) was 9.2 and
+`POST /api/rooms/:code/report` is 9.3.
+
 - All payloads are JSON objects. Keys are `snake_case`.
 - Timestamps are **integers, milliseconds since the Unix epoch, UTC**.
 - IDs (`player_id`, `question_id`) are opaque strings. Clients must not parse them.
@@ -113,6 +117,19 @@ never told that a room exists, so this cannot be used to find live games by gues
 
 A client must treat only a `404` as "forget this room". A request that failed to complete
 means the answer is unknown, and a remembered room is worth more than a network blip.
+
+#### `POST /api/rooms/:code/report` — this is not okay
+
+A player only ever sees a quiz's questions and photos inside a game, so that is where
+reporting one has to be possible. The room maps the question to the quiz it was
+snapshotted from; **no quiz id is ever broadcast**, which is deliberate — one during a
+game would let any player fetch the accepted answers (QUIZ_FORMAT.md §5.3a).
+
+A token this room issued is required (§3.3), in `x-player-token` or `x-host-token`, so
+this cannot be used to find live games by guessing codes. Cloud only, like the route
+above: a LAN host is playing something that was never published.
+
+The body, the answers and the reasons are QUIZ_FORMAT.md §5.9.
 
 ### 3.2 Room code *(provisional — open item §10.5)*
 
@@ -262,7 +279,7 @@ it per socket rather than broadcasting one identical payload.
 ```json
 {
   "protocol_version": 9,
-  "protocol_minor": 1,
+  "protocol_minor": 3,
   "room_code": "K7QX2M",
   "mode": "cloud",
   "phase": "question",

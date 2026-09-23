@@ -406,6 +406,37 @@ An admin answers every open report against a quiz by taking the quiz down or by 
 it is fine (ADMIN.md §3.3). Google Play requires both the in-app route and a timely answer
 to it, which is why reports are a queue rather than a mailbox.
 
+#### `POST /api/rooms/:code/report` — reporting what is on screen
+
+Browsing a quiz shows a title, a description and tags. The questions and photos somebody
+would actually object to are only ever seen **in a game**, so that is where reporting has
+to be possible, and a player there does not know the quiz's id.
+
+**Cloud only.** A LAN host serves no quiz library: what it is playing was never published,
+so there is nothing anybody could take down (PROTOCOL.md §3.1 makes the same point about
+`GET /api/rooms/:code`).
+
+```json
+{"reason": <as above>, "note": "optional", "question_id": "<from the current state>"}
+```
+
+The room resolves the question to the quiz it was snapshotted from and reports that; the
+id is never sent to a client. **That is the point of the route** — a quiz id during a game
+would also be a cheat button, since §5.3a hands out the accepted answers to anyone who
+asks. `question_id` is optional: without one the room reports the quiz it is playing, as
+long as it is playing only one (a host may merge up to ten, PROTOCOL.md §6.4, and guessing
+which was meant is worse than asking).
+
+A token the room issued — `x-player-token` or `x-host-token` (PROTOCOL.md §3.3) — is
+required in a header, along with `x-owner-key`. Being in the room is the price of reporting
+from it: without that check the route would answer differently for a live six-character
+code than for an invented one, which is exactly the oracle `GET /api/rooms/:code` avoids.
+
+`204` on success. Errors: `404 room_not_found` for a wrong or missing token as well as an
+unknown room — a caller who is not in the room is never told one exists;
+`404 question_not_found`; `422 quiz_not_public` when the question came from a private quiz
+the host sent inline, so nothing was ever published to remove; `422 invalid_report`.
+
 ## 6. Presets
 
 A preset is an ordinary public quiz. Nothing about it is a separate kind of thing: same

@@ -15,9 +15,10 @@ import '../../shared/widgets/fz_direction.dart';
 import '../../shared/widgets/fz_choice.dart';
 import '../../shared/widgets/stripe_header.dart';
 import 'quiz_choice.dart';
-// The report sheet is only reached by tapping Report, and carries its own
-// form; a guest browsing never downloads it.
-import 'report_quiz.dart' deferred as reporting;
+// Not deferred: the same dialog is reached from inside a game, which every
+// guest loads. Reporting is the one thing that has to be there wherever the
+// content is.
+import '../../shared/report_dialog.dart';
 // The editor carries the photo pipeline and `package:image`; browsing does
 // not need either until someone opens it.
 import 'quiz_editor_screen.dart' deferred as editor;
@@ -373,9 +374,7 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
   /// whether it went through.
   Future<void> _report(QuizDocument quiz) async {
     final messenger = ScaffoldMessenger.of(context);
-    await reporting.loadLibrary();
-    if (!mounted) return;
-    final sent = await reporting.showReportQuiz(context, quiz);
+    final sent = await showReportQuiz(context, quiz);
     if (!sent || !mounted) return;
     setState(() => _reportedIds.add(quiz.hostId));
     messenger.showSnackBar(

@@ -47,6 +47,26 @@ defmodule FazouraWeb.FallbackController do
         "Pick one of: #{Enum.join(Report.reasons(), ", ")}."
       )
 
+  # Reporting a question from a room that came from a private quiz: nothing was
+  # published, so there is nothing anybody could take down (QUIZ_FORMAT.md §5.9).
+  def call(conn, {:error, :quiz_not_public}),
+    do:
+      error(
+        conn,
+        :unprocessable_entity,
+        "quiz_not_public",
+        "That quiz isn't published — the host made it on their own device, so there is nothing for us to remove."
+      )
+
+  def call(conn, {:error, :question_not_found}),
+    do:
+      error(
+        conn,
+        :not_found,
+        "question_not_found",
+        "That question isn't in this room."
+      )
+
   def call(conn, {:error, :unknown_image}),
     do:
       error(

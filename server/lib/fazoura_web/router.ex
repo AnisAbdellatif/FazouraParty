@@ -111,6 +111,7 @@ defmodule FazouraWeb.Router do
     pipe_through [:api, :report]
 
     post "/quizzes/:id/report", QuizController, :report
+    post "/rooms/:code/report", RoomController, :report
   end
 
   scope "/api", FazouraWeb do
