@@ -31,7 +31,13 @@ defmodule FazouraWeb.Router do
     plug FazouraWeb.Plugs.RateLimit, bucket: :archives, limit: 10, window_ms: 60_000
   end
 
-  # The admin dashboard is the only HTML this server serves.
+  # Public pages (the privacy policy). No session: nothing on them needs one.
+  pipeline :page do
+    plug :accepts, ["html"]
+    plug :put_secure_browser_headers
+  end
+
+  # The admin dashboard is the only HTML this server renders.
   pipeline :admin do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -46,6 +52,12 @@ defmodule FazouraWeb.Router do
     pipe_through :api
 
     get "/health", HealthController, :show
+  end
+
+  scope "/", FazouraWeb do
+    pipe_through :page
+
+    get "/privacy", PageController, :privacy
   end
 
   scope "/admin", FazouraWeb.Admin do
