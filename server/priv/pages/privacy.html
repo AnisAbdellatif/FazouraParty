@@ -89,7 +89,7 @@
 <h2>Public quizzes</h2>
 <p>If you ask for a quiz to be made public, your device sends the whole quiz — title, description, tags, questions, answers and photos — to our server as a single file, and it waits in a queue until we have read it. Nothing is listed or playable by anyone else until we approve it. Your own copy stays on your device the whole time, and you can keep hosting games with it while it waits.</p>
 <ul>
-  <li>While it waits, we hold that file so that we can read it. If we turn the quiz down, we keep a short note of why — which only your device is shown — and delete the file. You can withdraw it at any time, which deletes it.</li>
+  <li>While it waits, we hold that file so that we can read it. If we turn the quiz down, we keep a short note of why — which only your device is shown — and delete the file. We delete the note itself after 90 days. You can withdraw the quiz at any time, which deletes everything about it straight away.</li>
   <li>Once approved, the quiz is stored on our server and anyone using the service can browse, play and download it. Please don't publish anything you wouldn't want the public to see.</li>
   <li>A published quiz is linked only to a one-way hash of your device's publisher key — not to your name, email, IP address or any account.</li>
   <li>The app removes photo metadata (such as camera details and GPS location) on your device before a photo leaves it.</li>
@@ -103,8 +103,8 @@
 <p>Any public quiz can be reported from inside the app. We store what you chose as the reason, anything you typed in the box, and a one-way hash of your device's publisher key. The hash is there only so that one device counts as one report; it does not tell us who you are, and it is never shown to the person who published the quiz.</p>
 <ul>
   <li>We read every report and decide within about a day whether to remove the quiz.</li>
-  <li>Reports are visible only to us. If we remove the quiz, its reports are deleted with it.</li>
-  <li>Don't put anything in the box you wouldn't want us to read.</li>
+  <li>Reports are visible only to us. If we remove the quiz, its reports are deleted with it. If we decide the quiz is fine, we delete the report 90 days later.</li>
+  <li>Don't put anything in the box you wouldn't want us to read, and please don't include anyone's personal details — the box is for what is wrong with the quiz.</li>
 </ul>
 
 <h2>Technical data</h2>
@@ -126,10 +126,32 @@
 </ul>
 
 <h2>Children</h2>
-<p>The service doesn't ask anyone for personal information, and it is not directed at children under 13. Published quizzes are visible to everyone, so children should publish only with a parent's help.</p>
+<p>Fazoura Party is a party game, and we expect children to play it — usually alongside adults, in the same room. We've built it so that playing needs nothing from them: no account, no email, no name we keep. A display name is visible to the others in the room while the game runs and is gone when it ends.</p>
+<ul>
+  <li><strong>Nothing a child types is stored.</strong> Display names and answers live in the server's memory for the length of the game and are never written down.</li>
+  <li><strong>Nothing reaches the public library unread.</strong> Every quiz offered for publication is looked at by a person first, and anything sexual, hateful, violent or otherwise unsuitable is refused.</li>
+  <li><strong>Anyone can report a public quiz</strong> from inside the app, including from the game itself, and we answer reports within about a day.</li>
+  <li><strong>Photos are stripped of camera and location data</strong> on the device before they are ever sent.</li>
+</ul>
+<p>Publishing a quiz is different from playing one: it goes to strangers, it stays up until somebody removes it, and we read it first. If you are under 13, please ask a parent before publishing a quiz or sending us a report.</p>
+<p>If you believe we hold anything about a child that we shouldn't, email <a href="mailto:contact@anisabdellatif.me">contact@anisabdellatif.me</a> and we'll remove it.</p>
+
+<h2>Why we're allowed to do this, and how long we keep it</h2>
+<p>Where the GDPR applies, our lawful basis for everything above is <strong>legitimate interests</strong> (Article 6(1)(f)): running a game service that isn't abused, and keeping a public library of quizzes that people can trust. We think this is fair to you because there are no accounts, nothing is combined into a profile, and nothing about you is sold, shared or used to advertise. You can object to it at any time — see below.</p>
+<p>How long things last:</p>
+<ul>
+  <li><strong>Games</strong> — in memory while the room is open, gone when it closes. Nothing about a game is written to disk.</li>
+  <li><strong>Abuse counters</strong> — about a minute, in memory only.</li>
+  <li><strong>A quiz waiting to be reviewed</strong> — until we approve it, turn it down, or you withdraw it.</li>
+  <li><strong>A note explaining why a quiz was turned down</strong> — 90 days.</li>
+  <li><strong>A published quiz</strong> — until you unpublish it or we remove it. Its photos are deleted about a day later.</li>
+  <li><strong>A report</strong> — until we have answered it, then 90 days. Deleted immediately if we remove the quiz.</li>
+  <li><strong>Server logs</strong> — kept only as long as they are useful for diagnosing problems.</li>
+</ul>
 
 <h2>Your rights</h2>
-<p>Because we don't collect names, emails or accounts, we usually have nothing that identifies you. Depending on where you live (for example, under the GDPR in the EU and UK), you have the right to ask what data we hold about you, to have it corrected or deleted, and to complain to your local data protection authority. Email <a href="mailto:contact@anisabdellatif.me">contact@anisabdellatif.me</a> and we'll respond within 30 days.</p>
+<p>Because we don't collect names, emails or accounts, we usually have nothing that identifies you. Depending on where you live (for example, under the GDPR in the EU and UK), you have the right to ask what data we hold about you, to have it corrected or deleted, to object to our using it, to ask us to restrict how we use it, and to complain to your local data protection authority. Email <a href="mailto:contact@anisabdellatif.me">contact@anisabdellatif.me</a> and we'll respond within 30 days.</p>
+<p>Two practical notes. To act on a request about a quiz you published, we need to know which quiz — we have no way to look you up, because there is nothing to look up. And a report you sent is anonymous to us in the same way: tell us which quiz and roughly when, and we'll find it.</p>
 
 <h2>Security</h2>
 <p>All connections to the server are encrypted with HTTPS. Publisher keys are stored only as hashes, so even we can't use them to act on your behalf.</p>

@@ -114,6 +114,40 @@ defmodule Fazoura.Quizzes.Reports do
     end
   end
 
+  @doc """
+  Forgets reports that have been answered, once the answer is old enough.
+
+  A report is somebody's account of what is wrong with a quiz, in their own
+  words, and it is kept only as long as it is any use: to decide, and then
+  briefly in case the decision is questioned. After that it is a stranger's
+  free text about a stranger's quiz sitting in a database for no reason
+  (GDPR Art. 5(1)(e)).
+
+  Open reports are never swept — they are the queue. Reports about a quiz that
+  was taken down went with it.
+
+  Options: `:retention_days`, `:now` (a `DateTime`, for tests).
+  """
+  @spec sweep(keyword()) :: non_neg_integer()
+  def sweep(opts \\ []) do
+    {count, _} =
+      Report
+      |> where([r], r.status == "dismissed" and r.reviewed_at < ^cutoff(opts))
+      |> Repo.delete_all()
+
+    count
+  end
+
+  @doc "When a decided record stops being worth keeping."
+  @spec cutoff(keyword()) :: DateTime.t()
+  def cutoff(opts) do
+    days = Keyword.get(opts, :retention_days, 90)
+
+    opts
+    |> Keyword.get(:now, DateTime.utc_now())
+    |> DateTime.add(-days * 24 * 60 * 60, :second)
+  end
+
   # One entry per quiz, keeping the order the rows arrived in — which is
   # oldest report first, so a quiz's place in the queue is set by the first
   # person who complained about it rather than the most recent.

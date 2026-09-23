@@ -172,10 +172,18 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
                 minLines: 2,
                 style: fz.h(14),
                 decoration: const InputDecoration(
-                  hintText: 'Anything else worth knowing (optional)',
+                  hintText: 'What is wrong with it (optional)',
                   counterText: '',
                 ),
               ),
+            ),
+            const SizedBox(height: 4),
+            // The box is free text going into a moderator's queue, so it is
+            // the one place a reporter could hand us somebody else's personal
+            // details without meaning to.
+            Text(
+              "Please don't include anyone's personal details.",
+              style: fz.m(10, color: FzColors.dim, height: 1.5),
             ),
             if (_error != null) ...[
               const SizedBox(height: 6),

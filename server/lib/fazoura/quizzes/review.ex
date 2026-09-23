@@ -17,7 +17,7 @@ defmodule Fazoura.Quizzes.Review do
   import Ecto.Query
 
   alias Fazoura.Quizzes
-  alias Fazoura.Quizzes.{Archive, OwnerKey, Submission}
+  alias Fazoura.Quizzes.{Archive, OwnerKey, Reports, Submission}
   alias Fazoura.Repo
 
   @type reason :: :owner_key_required | :not_found | Archive.reason() | :invalid_quiz
@@ -189,6 +189,32 @@ defmodule Fazoura.Quizzes.Review do
     with {:ok, quiz} <- Quizzes.fetch(id) do
       Quizzes.replace_document(quiz, params)
     end
+  end
+
+  @doc """
+  Forgets submissions that have been decided, once the decision is old enough.
+
+  An approved one has done its job: the quiz carries the content and the
+  publisher key now, so the row is a second copy of who published what. A
+  rejected one is kept for its note, which is a message to its author — and a
+  message nobody has come back for in three months is not worth keeping
+  forever (GDPR Art. 5(1)(e)).
+
+  Pending submissions are never swept: deleting somebody's unread request
+  because nobody got to it would be the queue failing quietly. Emptying it is
+  what `/admin/review` is for.
+
+  Options: `:retention_days`, `:now` (a `DateTime`, for tests).
+  """
+  @spec sweep(keyword()) :: non_neg_integer()
+  def sweep(opts \\ []) do
+    {count, _} =
+      Submission
+      |> where([s], s.status in ["approved", "rejected"])
+      |> where([s], s.reviewed_at < ^Reports.cutoff(opts))
+      |> Repo.delete_all()
+
+    count
   end
 
   @doc "What a device is told about something it submitted (QUIZ_FORMAT.md §5.4)."
