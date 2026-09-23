@@ -81,7 +81,7 @@ class QuizArchive {
   /// `tools/fazoura-cli` names photos exactly as the app does.
   ///
   /// An unrecognised format is called `jpg`: everything the editor produces is
-  /// JPEG (`preparePhoto`), and an extension that turns out wrong costs
+  /// JPEG or PNG (`preparePhoto`), and an extension that turns out wrong costs
   /// nothing, since the server reads the bytes, not the name.
   static String mediaPath(List<int> bytes) =>
       'media/${sha256.convert(bytes).toString().substring(0, 24)}'

@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:fazoura_cli/src/pack.dart';
+import 'package:fazoura_party/core/quizzes/photo_resize.dart';
+import 'package:image/image.dart' as img;
 import 'package:test/test.dart';
 
 /// A real 1x1 PNG: the server validates structurally, not by magic bytes alone.
@@ -112,8 +114,9 @@ void main() {
     final (document, media) = read(pack());
     final image = (document['questions'] as List).single['image'] as Map;
     expect(image['alt'], 'A still');
+    // A blank PNG is smallest as a PNG, so it stays one.
     expect(image['path'], matches(RegExp(r'^media/[0-9a-f]{24}\.png$')));
-    expect(media[image['path']], png());
+    expect(media[image['path']], preparePhoto(png()));
   });
 
   test('a photo can be inline base64 instead', () {
@@ -126,7 +129,7 @@ void main() {
       }),
     );
     final (_, media) = read(pack());
-    expect(media.values.single, png());
+    expect(media.values.single, preparePhoto(png()));
   });
 
   test('the same photo twice is stored once', () {
@@ -246,8 +249,31 @@ void main() {
     failsWith('not a JPEG, PNG or WebP');
   });
 
-  test('a photo over the two megabyte limit', () {
-    writePhoto('huge.png', png(padding: List.filled(2 * 1024 * 1024, 0)));
+  test('a big photo is shrunk to what a phone can show, as the app does', () {
+    final logo = img.Image(width: 4000, height: 2000, numChannels: 4)
+      ..clear(img.ColorRgba8(200, 30, 30, 0));
+    writePhoto('logo.png', img.encodePng(logo));
+    writeQuiz(
+      quiz({
+        'questions': [
+          photoQuestion({'path': 'media/logo.png'}),
+        ],
+      }),
+    );
+
+    final archive = ZipDecoder().decodeBytes(pack());
+    final photo = archive.files.singleWhere((f) => f.name.startsWith('media/'));
+    final packed = img.decodePng(photo.content)!;
+    expect((packed.width, packed.height), (1280, 640));
+    expect(packed.getPixel(0, 0).a, 0, reason: 'clear pixels stay clear');
+  });
+
+  test('a photo over the two megabyte limit even once prepared', () {
+    // A PNG signature over junk: not decodable, so it cannot be shrunk.
+    writePhoto('huge.png', [
+      ...png().take(8),
+      ...List.filled(2 * 1024 * 1024, 7),
+    ]);
     writeQuiz(
       quiz({
         'questions': [
@@ -353,7 +379,7 @@ void main() {
     final inline = loadQuiz(package.path).toInlineDocument();
     final image = inline.questions!.single.image!;
     expect(inline.title, 'Film Night');
-    expect(base64Decode(image.data!), png());
+    expect(base64Decode(image.data!), preparePhoto(png()));
     expect(image.alt, 'A still');
   });
 

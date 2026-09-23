@@ -128,6 +128,11 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 - No `BuildContext`-dependent lookups in providers/logic.
 - `dart:io` code (LAN server) must be behind conditional imports so the Web build compiles.
 - **`lib/core` outside `providers/` and `storage/` stays pure Dart** — no Flutter, Riverpod or plugin import, directly or through anything it imports. `tools/fazoura-cli` runs the API clients, the Phoenix connection, the models, `QuizArchive` and the LAN host from there, in a plain Dart VM; one Flutter import in that graph and the CLI stops compiling. Something both need that lives in a provider file (as `generateOwnerKey` did) moves down into the pure file rather than being copied.
+- **Every quiz photo goes through `preparePhoto`** (`core/quizzes/photo_resize.dart`) — the
+  editor and `fazoura quiz pack` alike: ≤ 1280 px, metadata stripped, PNG kept where a pixel
+  is transparent, otherwise the smaller encoding. Every player downloads a question's photo the
+  moment it starts, so its size is paid once per player; the server never decodes an image, so
+  this is the only place it is decided.
 - **Publishing from the app is a submission** (`core/quizzes/`). `QuizArchive` builds the
   `.fazoura` the device sends and reads one back, so the container is decided in one place
   on this side as `Fazoura.Quizzes.Archive` decides it on the other; photos travel inside

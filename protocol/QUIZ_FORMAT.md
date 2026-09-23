@@ -342,8 +342,10 @@ Publisher only. `204`.
 ### 5.7 `POST /api/images`
 
 Publisher key required. `multipart/form-data` with one `file` part: JPEG, PNG or WebP
-(checked by content, not by filename), ≤ 2 MB. Clients downscale to at most 1280 px on
-the longest side.
+(checked by content, not by filename), ≤ 2 MB. Clients prepare a photo before sending it —
+the app's editor and `fazoura quiz pack` alike (`preparePhoto` in `app/lib/core/quizzes/`):
+at most 1280 px on the longest side, metadata stripped, a PNG kept for a picture with
+transparent pixels, and otherwise whichever of JPEG or PNG is smaller.
 
 ```json
 201 {"key": "5b0e4f1c9a2d7e3f.jpg", "url": "https://…/uploads/5b0e4f1c9a2d7e3f.jpg"}

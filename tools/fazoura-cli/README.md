@@ -144,7 +144,9 @@ sembast is not built for two processes writing at once.
 
 `pack` is what `tools/fazoura_pack.py` was: the folder layout, the checks and the package it
 writes are those of QUIZ_FORMAT.md §5.3b and QUIZ_AUTHORING.md, photos are named exactly as
-the app names them, and packing the same folder twice gives the same bytes.
+the app names them, and packing the same folder twice gives the same bytes. Every photo is
+prepared by the app's own `preparePhoto` — at most 1280 px, metadata stripped, clear
+backgrounds kept as PNG — so a packed quiz is the size the app would have made it.
 
 Publishing is done as a **publisher key**, like a device: the CLI keeps one per machine in
 `~/.config/fazoura/owner_key` (`$FAZOURA_CONFIG_DIR` or `$XDG_CONFIG_HOME` to move it), shared

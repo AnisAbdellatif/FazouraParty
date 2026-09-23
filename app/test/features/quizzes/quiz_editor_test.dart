@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:fazoura_party/core/models/models.dart';
 import 'package:fazoura_party/core/providers/quiz_providers.dart';
+import 'package:fazoura_party/core/quizzes/photo_resize.dart';
 import 'package:fazoura_party/core/storage/local_quiz_store.dart';
 import 'package:fazoura_party/features/quizzes/quiz_editor_screen.dart';
 import 'package:flutter/material.dart';
@@ -179,11 +180,11 @@ void main() {
     final question = queued.document.questions!.single;
     expect(question.type, 'text_photo');
     expect(question.image!.key, isNull);
-    expect(base64Decode(question.image!.data!).sublist(0, 3), [
-      0xFF,
-      0xD8,
-      0xFF,
-    ], reason: 'resized to JPEG, and carried inside the package');
+    expect(
+      base64Decode(question.image!.data!),
+      preparePhoto(photoBytes),
+      reason: 'prepared, and carried inside the package',
+    );
 
     // Not public: it is waiting to be read, and playable here meanwhile.
     expect(saved?.publishedId, isNull);

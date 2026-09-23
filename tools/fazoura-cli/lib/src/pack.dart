@@ -12,9 +12,13 @@
 /// folder (`"image": {"path": "media/matrix.jpg"}`), or carried inline as
 /// base64 `"data"`, which is how the app keeps them on the device.
 ///
-/// Every photo is checked the way the server checks an upload — JPEG, PNG or
-/// WebP by content, at most 2 MB — so a package built here is one the server
-/// will take. Photos are named exactly as the app names them
+/// Every photo is prepared exactly as the app's editor prepares one
+/// ([preparePhoto]: at most 1280 px, metadata stripped, PNG only where it has
+/// clear pixels), so a quiz is the same size however it was made and nobody in
+/// a room downloads pixels their screen cannot show. It is then checked the way
+/// the server checks an upload — JPEG, PNG or WebP by content, at most 2 MB — so
+/// a package built here is one the server will take. Photos are named exactly
+/// as the app names them
 /// ([QuizArchive.mediaPath]), and every entry carries the same fixed timestamp,
 /// so packing a folder twice gives the same bytes.
 library;
@@ -25,6 +29,7 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:fazoura_party/core/models/models.dart';
+import 'package:fazoura_party/core/quizzes/photo_resize.dart';
 import 'package:fazoura_party/core/quizzes/quiz_archive.dart';
 
 /// What `Fazoura.Uploads` accepts.
@@ -162,10 +167,11 @@ PackedQuiz packFolder(Directory folder, File document) {
       continue;
     }
 
-    final data = _photoBytes(folder, image, where);
-    if (QuizArchive.photoExtension(data) == null) {
+    final original = _photoBytes(folder, image, where);
+    if (QuizArchive.photoExtension(original) == null) {
       throw PackError('$where: the photo is not a JPEG, PNG or WebP');
     }
+    final data = preparePhoto(original);
     if (data.length > maxPhotoBytes) {
       throw PackError(
         '$where: the photo is ${_megabytes(data.length)} MB, '

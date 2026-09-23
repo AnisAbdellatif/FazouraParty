@@ -16,7 +16,7 @@ import '../../shared/widgets/fz.dart';
 import '../../shared/widgets/fz_direction.dart';
 import '../../shared/widgets/fz_choice.dart';
 import '../../shared/widgets/question_photo.dart';
-import 'photo_resize.dart';
+import '../../core/quizzes/photo_resize.dart';
 
 const maxQuizTitleLength = 80;
 const maxQuizDescriptionLength = 280;

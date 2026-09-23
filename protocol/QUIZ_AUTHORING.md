@@ -149,18 +149,16 @@ that packs is a folder the server will take:
 
 - **JPEG, PNG or WebP** — checked by the file's own bytes, not by its extension. A PNG named
   `.jpg` is fine; a `.jpg` that is really a HEIC or a GIF is refused.
-- **≤ 2 MB per photo.**
+- **≤ 2 MB per photo** — after `quiz pack` has prepared it, below.
 - **≤ 32 MB for the whole package.** Photos dominate that budget: roughly twenty 1.5 MB photos
   and you are at the ceiling.
-- Downscale to at most **1280 px on the longest side** before packing. That is what the app
-  does when it uploads, it is more than enough on a phone, and it is the easiest way to stay
-  under both limits.
-
-Resizing a folder of photos in one go:
-
-```bash
-mogrify -resize 1280x1280\> -quality 82 media/*.jpg
-```
+- **`quiz pack` prepares every photo the way the app does**, so there is nothing to resize by
+  hand: at most **1280 px on the longest side** (more than a phone shows, and every player
+  downloads each photo the moment its question starts), metadata stripped (a camera photo's
+  EXIF can carry where it was taken), and a picture with clear pixels — a logo — kept as a
+  PNG so its background stays clear. Anything else becomes whichever of JPEG or PNG is
+  smaller, and a PNG that is already small enough keeps its own pixels. Leave originals in
+  the folder; the package gets the prepared copies.
 
 ---
 
@@ -302,8 +300,8 @@ the package is the easier path.
 - [ ] Every question has a `prompt` and at least one accepted answer.
 - [ ] `accepted_answers` lists the realistic spellings, not just the canonical one.
 - [ ] `type` is `text` or `text_photo`; `image` is `null` on every `text` question.
-- [ ] Every `image.path` points at a file that exists inside the folder, ≤ 2 MB, JPEG/PNG/WebP,
-      ≤ 1280 px on the longest side.
+- [ ] Every `image.path` points at a file that exists inside the folder, JPEG/PNG/WebP. `quiz
+      pack` shrinks it to 1280 px and strips its metadata.
 - [ ] `alt` written, and it doesn't give the answer away.
 - [ ] No `id`, `slug`, `source`, `visibility`, `question_count`, `has_photos`, `created_at` or
       `updated_at`.
