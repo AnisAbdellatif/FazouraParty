@@ -42,6 +42,14 @@ config :fazoura, FazouraWeb.Endpoint,
   secret_key_base: "k5SUwu1ij5bJE6SE8bvDYEvD/QzbkH+KkX3vDO4VlS7udhu4/OuehxD2RmMZ8zeH",
   server: false
 
+# Channel and room tests wait on messages, and 84 of them used ExUnit's 100 ms default.
+# The suite runs up to 32 cases at once, so a room that is merely slow to be scheduled
+# looked exactly like one that never replied: `mix test` failed on maybe one seed in six,
+# always somewhere different. A second is still instant when the message is coming and
+# only costs that second on a real failure. `refute_receive` keeps the short default —
+# proving a message never arrives is the one case where waiting is the whole cost.
+config :ex_unit, assert_receive_timeout: 1_000
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 
