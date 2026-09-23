@@ -969,6 +969,35 @@ void main() {
       );
     });
 
+    test('the host sizes the room, never below who is in it (§6.5)', () {
+      final game = gameWithPlayers(['sam', 'kim']);
+      expect((game.roomSize, game.roomSizeLimit), (maxPlayers, maxPlayers));
+
+      host(game, 'host_set_room_size', {'room_size': 2});
+      expect(game.roomSize, 2);
+      expect(() => game.addPlayer('lee', 'Lee'), throwsCode('room_full'));
+      expect(
+        () => host(game, 'host_set_room_size', {'room_size': 1}),
+        throwsCode('invalid_room_size'),
+      );
+      expect(
+        () => host(game, 'host_set_room_size', {'room_size': maxPlayers + 1}),
+        throwsCode('invalid_room_size'),
+      );
+      expect(
+        () => host(game, 'host_set_room_size', {'room_size': '3'}),
+        throwsCode('invalid_payload'),
+      );
+    });
+
+    test('a LAN host has no room size codes to redeem (§6.5)', () {
+      final game = gameWithPlayers(['sam']);
+      expect(
+        () => host(game, 'host_redeem_size_code', {'code': 'ABCD-EFGH-JKLM'}),
+        throwsCode('cloud_only'),
+      );
+    });
+
     test('a LAN host has no public list to put a room on', () {
       final game = gameWithPlayers(['sam']);
       expect(
@@ -988,6 +1017,8 @@ void main() {
         'room_code',
         'mode',
         'listed',
+        'room_size',
+        'room_size_limit',
         'phase',
         'server_time',
         'pack_titles',

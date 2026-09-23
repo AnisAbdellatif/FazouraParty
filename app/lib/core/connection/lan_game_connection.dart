@@ -108,5 +108,13 @@ class LanGameConnection implements GameConnection {
       _inner.hostRemovePlayer(playerId);
 
   @override
+  Future<void> hostSetRoomSize(int roomSize) =>
+      _inner.hostSetRoomSize(roomSize);
+
+  @override
+  Future<void> hostRedeemSizeCode(String code) =>
+      _inner.hostRedeemSizeCode(code);
+
+  @override
   Future<void> leave() => _inner.leave();
 }

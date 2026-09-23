@@ -101,6 +101,13 @@ class Repl {
         final on =
             args.isEmpty || const {'on', 'yes', 'true'}.contains(args.first);
         await seat.send('listed', () => _connection.hostSetListed(on));
+      case 'size':
+        final size = int.tryParse(rest);
+        if (size == null) return seat.output.error('size <players>');
+        await seat.send('size', () => _connection.hostSetRoomSize(size));
+      case 'code' || 'unlock':
+        if (rest.isEmpty) return seat.output.error('code <room size code>');
+        await seat.send('code', () => _connection.hostRedeemSizeCode(rest));
       case 'override' || 'right' || 'wrong':
         await _override(command, args);
       case 'remove' || 'kick':
@@ -235,6 +242,8 @@ Type an answer and press enter to lock it in. Commands start with /:
   select <quiz>...        choose quizzes: ids, slugs, or .json/.fazoura/folders
   set questions=10 time=20 scoring=on difficulties=easy,hard
   listed on|off           put the room on the public list, or take it off
+  size <players>          how many players the room lets in
+  code <room size code>   raise the room's limit with a code from an admin
   remove <player>         take a player out of the room
   report <player> <reason> [note]
   transfer <player>       hand the host role over

@@ -55,6 +55,10 @@ class PhoenixGameConnection implements GameConnection {
     'player_id': playerId,
   };
 
+  static Map<String, dynamic> roomSizePayload(int roomSize) => {
+    'room_size': roomSize,
+  };
+
   static Map<String, dynamic> removePlayerPayload(String playerId) => {
     'player_id': playerId,
   };
@@ -231,6 +235,14 @@ class PhoenixGameConnection implements GameConnection {
   @override
   Future<void> hostRemovePlayer(String playerId) =>
       _push('host_remove_player', removePlayerPayload(playerId));
+
+  @override
+  Future<void> hostSetRoomSize(int roomSize) =>
+      _push('host_set_room_size', roomSizePayload(roomSize));
+
+  @override
+  Future<void> hostRedeemSizeCode(String code) =>
+      _push('host_redeem_size_code', {'code': code});
 
   @override
   Future<void> leave() async {

@@ -35,6 +35,7 @@ defmodule Fazoura.Rooms.Listing do
       phase: Atom.to_string(game.phase),
       pack_titles: if(game.pack.questions == [], do: [], else: game.pack.titles),
       player_count: map_size(game.players),
+      room_size: game.room_size,
       question_index: game.question_index,
       question_count: game.settings.question_count
     }
@@ -48,7 +49,7 @@ defmodule Fazoura.Rooms.Listing do
   def all do
     @registry
     |> Registry.select([{{:_, :_, :"$1"}, [{:"/=", :"$1", nil}], [:"$1"]}])
-    |> Enum.reject(&(&1.player_count >= Game.max_players()))
+    |> Enum.reject(&(&1.player_count >= &1.room_size))
     |> Enum.sort_by(&{&1.phase != "lobby", -&1.player_count, &1.room_code})
     |> Enum.take(@max_listed)
   end

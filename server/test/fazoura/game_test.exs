@@ -179,6 +179,61 @@ defmodule Fazoura.GameTest do
     end
   end
 
+  describe "room size (§6.5)" do
+    test "the host makes the room smaller, never below who is already in it" do
+      game = game_with_players(["Sam", "Kim"])
+      assert {game.room_size, game.room_size_limit} == {Game.max_players(), Game.max_players()}
+
+      game = ok!(host(game, {:set_room_size, %{"room_size" => 2}}))
+      assert game.room_size == 2
+      assert Game.add_player(game, "p3", "Lee") == {:error, :room_full}
+
+      assert host(game, {:set_room_size, %{"room_size" => 1}}) == {:error, :invalid_room_size}
+
+      assert host(game, {:set_room_size, %{"room_size" => Game.max_players() + 1}}) ==
+               {:error, :invalid_room_size}
+
+      assert host(game, {:set_room_size, %{"room_size" => "3"}}) == {:error, :invalid_payload}
+
+      assert Game.handle(game, {:player, "Sam"}, {:set_room_size, %{"room_size" => 3}}, @t0) ==
+               {:error, :not_host}
+    end
+
+    test "it can change mid-game, and a rematch or a new quiz leaves it alone" do
+      game = game_with_players(["Sam"]) |> host(:next) |> ok!()
+      game = ok!(host(game, {:set_room_size, %{"room_size" => 5}}))
+      game = ok!(Game.select_quiz(%{game | phase: :lobby}, pack(3)))
+      assert game.room_size == 5
+    end
+
+    test "a code raises the limit and grows the room to it, and never lowers it" do
+      game = game_with_players(["Sam"])
+      game = ok!(host(game, {:set_room_size, %{"room_size" => 4}}))
+
+      game = ok!(host(game, {:unlock_room_size, 60}))
+      assert {game.room_size, game.room_size_limit} == {60, 60}
+
+      game = ok!(host(game, {:unlock_room_size, 40}))
+      assert game.room_size_limit == 60
+      assert ok!(host(game, {:set_room_size, %{"room_size" => 50}})).room_size == 50
+    end
+
+    test "a LAN room has no codes to redeem" do
+      game = Game.new("LAN001", pack(), mode: :lan)
+      assert host(game, {:unlock_room_size, 60}) == {:error, :cloud_only}
+      assert Game.check_unlock(game, :host) == {:error, :cloud_only}
+    end
+
+    test "only whoever holds the host role may unlock" do
+      game = game_with_players(["Sam", "Kim"])
+      assert Game.check_unlock(game, :host) == :ok
+      assert Game.check_unlock(game, {:player, "Sam"}) == {:error, :not_host}
+
+      game = %{game | host_player_id: "Sam"}
+      assert Game.check_unlock(game, {:player, "Sam"}) == :ok
+    end
+  end
+
   describe "phases" do
     test "full cycle over two questions" do
       game = game_with_players(["sam"])

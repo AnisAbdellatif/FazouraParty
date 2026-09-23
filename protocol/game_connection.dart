@@ -55,6 +55,21 @@ abstract interface class GameConnection {
   /// passes the role on instead.
   Future<void> hostClose();
 
+  /// Lobby only: puts the room on the public list, or takes it off (§3.5).
+  Future<void> hostSetListed(bool listed);
+
+  /// Takes a player out of the room (§4.2).
+  Future<void> hostRemovePlayer(String playerId);
+
+  /// Any phase: how many players the room lets in, from the players already
+  /// here up to `room_size_limit` (§6.5). Refused with `invalid_room_size`.
+  Future<void> hostSetRoomSize(int roomSize);
+
+  /// Raises the room's limit with a room size code an admin handed out, and
+  /// grows the room to it (§6.5). Refused with `invalid_code`, `code_expired`
+  /// or `code_used_up`, and with `cloud_only` by a LAN host.
+  Future<void> hostRedeemSizeCode(String code);
+
   Future<void> leave();
 }
 

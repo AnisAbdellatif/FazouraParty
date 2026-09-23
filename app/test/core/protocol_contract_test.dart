@@ -95,6 +95,7 @@ void main() {
         'host_select_quiz',
         'host_rematch',
         'host_remove_player',
+        'host_set_room_size',
       });
     });
 
@@ -398,6 +399,10 @@ Map<String, dynamic>? _encodeIntent(
       return PhoenixGameConnection.removePlayerPayload(
         payload['player_id'] as String,
       );
+    case 'host_set_room_size':
+      final size = payload['room_size'];
+      if (size is! int) return null;
+      return PhoenixGameConnection.roomSizePayload(size);
     case 'host_select_quiz':
       final entries = payload['quizzes'] as List;
       // A fixture entry naming a stored quiz is rebuilt exactly; one carrying

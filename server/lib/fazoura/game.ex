@@ -17,7 +17,7 @@ defmodule Fazoura.Game do
   # the minor and leaves every installed app working. Changing or removing
   # anything a client already relies on moves the major, and that is a cutover.
   @protocol_major 9
-  @protocol_minor 8
+  @protocol_minor 9
   # Points per question by difficulty (PROTOCOL.md §9). A wrong answer costs more on an
   # easy question than on a hard one: you are expected to know the easy ones, and a hard
   # one is worth a guess. Letting the question go by costs @skip_points whatever its
@@ -67,6 +67,8 @@ defmodule Fazoura.Game do
           | {:transfer, map()}
           | {:set_listed, map()}
           | {:remove_player, map()}
+          | {:set_room_size, map()}
+          | {:unlock_room_size, pos_integer()}
   @type error :: {:error, atom()}
 
   @type player :: %{
@@ -107,6 +109,8 @@ defmodule Fazoura.Game do
           question_offset: non_neg_integer(),
           question_order: [non_neg_integer()],
           shuffle_questions?: boolean(),
+          room_size: pos_integer(),
+          room_size_limit: pos_integer(),
           players: %{String.t() => player()},
           submissions: %{String.t() => submission()},
           asked: MapSet.t(String.t())
@@ -132,6 +136,12 @@ defmodule Fazoura.Game do
     deadline: nil,
     paused_remaining_ms: nil,
     host_player_id: nil,
+    # How many players the room lets in, which the host may lower, up to
+    # `room_size_limit`: `@max_players` unless a room size code raised it
+    # (PROTOCOL.md §6.5). A room's own, so choosing another quiz or a rematch
+    # leaves both alone.
+    room_size: @max_players,
+    room_size_limit: @max_players,
     players: %{},
     submissions: %{},
     # Who was in the room when the current question started. Only they can be
@@ -170,9 +180,20 @@ defmodule Fazoura.Game do
     }
   end
 
-  @doc "Most players one room holds."
+  @doc "Most players a room holds unless a room size code raised its limit."
   @spec max_players() :: pos_integer()
   def max_players, do: @max_players
+
+  @doc """
+  Whether `actor` may raise the room's limit with a room size code (PROTOCOL.md §6.5):
+  the rule `{:unlock_room_size, size}` applies, asked before a code's use is counted.
+  """
+  @spec check_unlock(t(), actor()) :: :ok | error()
+  def check_unlock(%__MODULE__{} = game, {:player, id}) when id != game.host_player_id,
+    do: {:error, :not_host}
+
+  def check_unlock(%__MODULE__{mode: :lan}, _actor), do: {:error, :cloud_only}
+  def check_unlock(%__MODULE__{}, _actor), do: :ok
 
   @doc "How long a question stays open once the host has ended it."
   @spec closing_window_ms() :: pos_integer()
@@ -255,7 +276,7 @@ defmodule Fazoura.Game do
 
     cond do
       String.length(name) not in 1..@max_name_length -> {:error, :invalid_name}
-      map_size(game.players) >= @max_players -> {:error, :room_full}
+      map_size(game.players) >= game.room_size -> {:error, :room_full}
       name_taken?(game, name) -> {:error, :name_taken}
       # Strangers read a public room's names (PROTOCOL.md §3.5).
       game.listed and not Profanity.clean?(name) -> {:error, :name_not_allowed}
@@ -481,6 +502,28 @@ defmodule Fazoura.Game do
          :ok <- if(listed and not names_clean?(game), do: {:error, :name_not_allowed}, else: :ok) do
       {:ok, %{game | listed: listed}}
     end
+  end
+
+  # The host may make the room smaller than its limit, in any phase — never smaller
+  # than the players already in it, who would otherwise be over a size nobody can
+  # meet (PROTOCOL.md §6.5).
+  def handle(game, :host, {:set_room_size, %{"room_size" => size}}, _now)
+      when is_integer(size) do
+    if size in max(map_size(game.players), 1)..game.room_size_limit//1,
+      do: {:ok, %{game | room_size: size}},
+      else: {:error, :invalid_room_size}
+  end
+
+  def handle(_game, :host, {:set_room_size, _payload}, _now), do: {:error, :invalid_payload}
+
+  # A room size code, already checked and counted by whoever redeemed it: the limit
+  # only ever goes up, and the room grows to it at once, since raising the limit is
+  # what the host asked for (§6.5). Codes are the server's; a LAN host has none.
+  def handle(%{mode: :lan}, :host, {:unlock_room_size, _size}, _now), do: {:error, :cloud_only}
+
+  def handle(game, :host, {:unlock_room_size, size}, _now) when is_integer(size) do
+    limit = max(game.room_size_limit, size)
+    {:ok, %{game | room_size_limit: limit, room_size: limit}}
   end
 
   # Taking a player out of the room (PROTOCOL.md §4.2): gone from the players, from

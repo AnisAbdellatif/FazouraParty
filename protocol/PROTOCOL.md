@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `9.8`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
+**Protocol version: `9.9`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -55,6 +55,12 @@ as the room ending and an unknown error by its message — both of which are tru
 from how many snapshots arrived, only from what the last one said, so none had to change.
 
 9.8 lowered `max_players` from 100 to 32. A client already had to handle `room_full`.
+
+9.9 added room size (§6.5): `room_size` and `room_size_limit` in every `RoomState` and in the
+public list, the `host_set_room_size` and `host_redeem_size_code` intents, and the
+`invalid_room_size`, `invalid_code`, `code_expired` and `code_used_up` error codes. A client
+that has never heard of them shows no control for them, and a room it hosts stays at
+`max_players`.
 
 **This is semver's major and minor, and there is deliberately no patch.** The number
 exists to answer one question — does this host behave exactly like that one? — and the
@@ -222,13 +228,13 @@ it for published quizzes first.
 ```json
 200 {"rooms": [
   {"room_code": "K7QX2M", "phase": "lobby", "pack_titles": ["Capitals"],
-   "player_count": 3, "question_index": null, "question_count": 10}
+   "player_count": 3, "room_size": 32, "question_index": null, "question_count": 10}
 ]}
 ```
 
 Listed rooms only, in any phase: a player can join a game in progress and plays from the
-next question (§9). Rooms waiting to start come first, then the busiest; full rooms are
-left out, and the list holds at most 50. `pack_titles` is empty while the host is still
+next question (§9). Rooms waiting to start come first, then the busiest; full rooms —
+`player_count` at the room's own `room_size` (§6.5) — are left out, and the list holds at most 50. `pack_titles` is empty while the host is still
 choosing. **No names**, the host's included: the list is read by strangers, and a quiz
 title is the only text on it a person has reviewed. No token is needed, and a room joined
 by code never appears, so this says nothing about rooms nobody chose to list.
@@ -340,6 +346,8 @@ room, §3.5), `banned` (a public room, from a connection kept out of them, §3.5
 | `host_transfer` | host | `{"player_id": string}` | any | Hands the host role to a connected player (§3.4) |
 | `host_close` | host | `{}` | any | Ends the room now: every client gets `room_closed: closed` |
 | `host_set_listed` | host | `{"listed": bool}` | `lobby` | Puts the room on the public list, or takes it off (§3.5). Cloud only |
+| `host_set_room_size` | host | `{"room_size": int}` | any | Sets how many players the room lets in (§6.5) |
+| `host_redeem_size_code` | host | `{"code": string}` | any | Raises the room's limit with a room size code, and the room to it (§6.5). Cloud only |
 | `host_remove_player` | host | `{"player_id": string}` | any | Takes that player out of the room: gone from the players, from this question's answers and from the people it was asked of — no skip penalty, and the question stops waiting for them. Their connections get `room_closed: removed` and their token no longer lets them back in. Not the host's own seat (`invalid_payload`) |
 
 Successful intents reply `{"status": "ok", "response": {}}` and — if state changed — trigger a
@@ -358,7 +366,8 @@ WebP — QUIZ_FORMAT.md §5.7), `invalid_settings` (question count outside 1..`m
 `min_time_limit_ms`..`max_time_limit_ms`, or any field missing or of the wrong type),
 `not_connected` (`host_transfer` naming a player who is not currently connected, or the
 host itself), `quiz_not_public` (an inline quiz in a listed room, §3.5), `cloud_only`
-(`host_set_listed` on a LAN host), `name_not_allowed` and `banned` (`host_set_listed` to
+(`host_set_listed` or `host_redeem_size_code` on a LAN host), `invalid_room_size`,
+`invalid_code`, `code_expired` and `code_used_up` (§6.5), `name_not_allowed` and `banned` (`host_set_listed` to
 `true`, §3.5), `invalid_payload` (unknown event, or a payload with missing/mistyped fields
 not covered by a more specific code).
 
@@ -395,10 +404,12 @@ it per socket rather than broadcasting one identical payload.
 ```json
 {
   "protocol_version": 9,
-  "protocol_minor": 8,
+  "protocol_minor": 9,
   "room_code": "K7QX2M",
   "mode": "cloud",
   "listed": false,
+  "room_size": 32,
+  "room_size_limit": 32,
   "phase": "question",
   "server_time": 1789502400000,
 
@@ -450,6 +461,8 @@ it per socket rather than broadcasting one identical payload.
 | `protocol_minor` | int | Which revision of that major the host implements. A client may ignore it |
 | `mode` | `"cloud"` \| `"lan"` | |
 | `listed` | bool | On the public room list (§3.5). Always `false` from a LAN host |
+| `room_size` | int | How many players the room lets in; a join beyond it is `room_full` (§6.5) |
+| `room_size_limit` | int | The most the host may set `room_size` to: `max_players`, or what a room size code raised it to (§6.5) |
 | `phase` | `"lobby"` \| `"question"` \| `"scoring"` \| `"leaderboard"` \| `"finished"` | §6 |
 | `server_time` | timestamp | Host clock when the snapshot was built. Clients compute `offset = server_time - local_now` and render timers from `deadline - (local_now + offset)` |
 | `pack_titles` | string[] | Titles of the selected quizzes, in the order the host chose them. Empty while none are selected (§6.4) |
@@ -599,6 +612,27 @@ a host can play a published quiz alongside one that never leaves their device.
   ids are opaque (§1), so hosts are free to rewrite them, and must, because clients use them to
   tell one question from the next.
 - `pack_titles` (§5.1) lists the selected titles in order, so clients can name the round.
+
+### 6.5 Room size
+
+A room lets in `room_size` players, the host counted when playing; one more join is
+`room_full`. It starts at `max_players` (32, `fixtures/constants.json`), which is also its
+first `room_size_limit`.
+
+- **The host makes it smaller** with `host_set_room_size`, in any phase — a game under way
+  can make room for a late friend. Never below the players already in the room, and never
+  above `room_size_limit`; either is `invalid_room_size`. Nobody is removed by it.
+- **A room size code raises the limit.** An admin makes one on the cloud server (ADMIN.md
+  §3.7) for a size above `max_players`, up to 200, good for a set number of rooms and
+  optionally until a date. The host sends it with `host_redeem_size_code`; the room's
+  `room_size_limit` becomes the code's size, and `room_size` grows to it. Codes are 12
+  characters from the room-code alphabet, shown as `XXXX-XXXX-XXXX`; case, spaces and dashes
+  in what the host types do not matter. Refused as `invalid_code` (unknown or revoked),
+  `code_expired`, or `code_used_up` (it has unlocked every room it was made for). Redeeming the
+  same code again in the same room succeeds and uses nothing; a use is only counted for a
+  room that takes it. A LAN host has no codes and answers `cloud_only`.
+- **A room keeps its size and limit** through choosing other quizzes and rematches; they are
+  the room's, not the game's.
 
 ## 7. Visibility rules
 

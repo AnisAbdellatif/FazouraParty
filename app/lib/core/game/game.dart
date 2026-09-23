@@ -29,7 +29,7 @@ const protocolMajor = 9;
 /// snapshot and ignored by clients; it exists so a LAN host built from an
 /// older tag can be told apart from the cloud. Must equal
 /// `Fazoura.Game.protocol_minor/0`.
-const protocolMinor = 8;
+const protocolMinor = 9;
 
 /// How long a question keeps waiting for a player whose connection has gone.
 /// A locked screen or a walk past a thick wall drops the socket for a few
@@ -227,6 +227,11 @@ class Game {
   String? hostPlayerId;
   int gameNumber = 1;
 
+  /// How many players the room lets in, which the host may lower (§6.5). A LAN
+  /// host has no room size codes, so the limit is always [maxPlayers].
+  int roomSize = maxPlayers;
+  int get roomSizeLimit => maxPlayers;
+
   /// Offset into the shuffled order for the current game.
   int questionOffset = 0;
   List<int> questionOrder;
@@ -299,7 +304,7 @@ class Game {
     if (length < 1 || length > maxNameLength) {
       throw const GameRuleError('invalid_name');
     }
-    if (players.length >= maxPlayers) throw const GameRuleError('room_full');
+    if (players.length >= roomSize) throw const GameRuleError('room_full');
     if (_nameTaken(trimmed)) throw const GameRuleError('name_taken');
 
     players[id] = GamePlayer(id: id, name: trimmed, avatarHue: avatarHue);
@@ -393,13 +398,27 @@ class Game {
             _transfer(payload);
           case 'host_remove_player':
             _removePlayer(payload, now);
-          // A LAN host has no public list to be on (PROTOCOL.md §3.5).
-          case 'host_set_listed':
+          case 'host_set_room_size':
+            _setRoomSize(payload);
+          // A LAN host has no public list to be on (PROTOCOL.md §3.5), and no
+          // room size codes, which the server keeps (§6.5).
+          case 'host_set_listed' || 'host_redeem_size_code':
             throw const GameRuleError('cloud_only');
           default:
             throw const GameRuleError('invalid_payload');
         }
     }
+  }
+
+  /// Any phase; never below the players already here (§6.5).
+  void _setRoomSize(Map<String, dynamic> payload) {
+    final size = payload['room_size'];
+    if (size is! int) throw const GameRuleError('invalid_payload');
+    final smallest = players.isEmpty ? 1 : players.length;
+    if (size < smallest || size > roomSizeLimit) {
+      throw const GameRuleError('invalid_room_size');
+    }
+    roomSize = size;
   }
 
   void _submit(String id, Map<String, dynamic> payload, int now) {

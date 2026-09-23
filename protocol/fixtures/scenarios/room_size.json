@@ -1,0 +1,163 @@
+{
+  "name": "the host sizes the room, from the players already in it up to its limit",
+  "pack": {
+    "title": "Fixture Pack",
+    "questions": [
+      {
+        "id": "q1",
+        "type": "text",
+        "prompt": "2 + 2?",
+        "accepted_answers": [
+          "4"
+        ],
+        "time_limit_ms": 30000
+      }
+    ]
+  },
+  "steps": [
+    {
+      "actor": "host",
+      "join": {
+        "protocol_version": 9,
+        "host_token": "$host_token"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "expect_state": {
+        "room_size": 32,
+        "room_size_limit": 32
+      }
+    },
+    {
+      "actor": "sam",
+      "join": {
+        "protocol_version": 9,
+        "display_name": "Sam"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "kim",
+      "join": {
+        "protocol_version": 9,
+        "display_name": "Kim"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "_comment": "Only the host sizes the room.",
+      "actor": "sam",
+      "push": "host_set_room_size",
+      "payload": {
+        "room_size": 5
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "not_host"
+        }
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_set_room_size",
+      "payload": {
+        "room_size": 2
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "expect_state": {
+        "room_size": 2,
+        "room_size_limit": 32
+      }
+    },
+    {
+      "actor": "lee",
+      "join": {
+        "protocol_version": 9,
+        "display_name": "Lee"
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "room_full"
+        }
+      }
+    },
+    {
+      "_comment": "Never below the players already here, never above the limit.",
+      "actor": "host",
+      "push": "host_set_room_size",
+      "payload": {
+        "room_size": 1
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "invalid_room_size"
+        }
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_set_room_size",
+      "payload": {
+        "room_size": 33
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "invalid_room_size"
+        }
+      }
+    },
+    {
+      "_comment": "Any phase: a game under way can make room for one more.",
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_set_room_size",
+      "payload": {
+        "room_size": 3
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "lee",
+      "join": {
+        "protocol_version": 9,
+        "display_name": "Lee"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "lee",
+      "expect_state": {
+        "room_size": 3,
+        "room_size_limit": 32
+      }
+    }
+  ]
+}

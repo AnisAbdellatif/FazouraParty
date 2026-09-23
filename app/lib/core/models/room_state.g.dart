@@ -12,6 +12,8 @@ _RoomState _$RoomStateFromJson(Map<String, dynamic> json) => _RoomState(
   roomCode: json['room_code'] as String,
   mode: $enumDecode(_$ModeEnumMap, json['mode']),
   listed: json['listed'] as bool? ?? false,
+  roomSize: (json['room_size'] as num?)?.toInt(),
+  roomSizeLimit: (json['room_size_limit'] as num?)?.toInt(),
   phase: $enumDecode(_$PhaseEnumMap, json['phase']),
   serverTime: (json['server_time'] as num).toInt(),
   packTitles:
@@ -51,6 +53,8 @@ Map<String, dynamic> _$RoomStateToJson(_RoomState instance) =>
       'room_code': instance.roomCode,
       'mode': _$ModeEnumMap[instance.mode]!,
       'listed': instance.listed,
+      'room_size': instance.roomSize,
+      'room_size_limit': instance.roomSizeLimit,
       'phase': _$PhaseEnumMap[instance.phase]!,
       'server_time': instance.serverTime,
       'pack_titles': instance.packTitles,

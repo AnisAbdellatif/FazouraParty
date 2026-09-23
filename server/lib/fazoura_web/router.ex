@@ -86,6 +86,7 @@ defmodule FazouraWeb.Router do
       live "/quizzes", QuizzesLive
       live "/quizzes/:id/edit", QuizEditLive
       live "/tags", TagsLive
+      live "/codes", CodesLive
     end
   end
 

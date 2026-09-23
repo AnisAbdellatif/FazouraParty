@@ -131,6 +131,7 @@ defmodule FazouraWeb.RoomControllerTest do
                "phase" => "lobby",
                "pack_titles" => [],
                "player_count" => 0,
+               "room_size" => Fazoura.Game.max_players(),
                "question_index" => nil,
                "question_count" => 0
              }
@@ -146,6 +147,28 @@ defmodule FazouraWeb.RoomControllerTest do
                conn
                |> post(~p"/api/rooms", %{quiz: QuizFixtures.quiz_params(), listed: true})
                |> json_response(422)
+    end
+
+    test "a room full at the size its host chose is off the list", %{conn: conn} do
+      %{"room_code" => code, "host_token" => host_token} =
+        conn |> post(~p"/api/rooms", %{listed: true}) |> json_response(201)
+
+      {:ok, _reply, _room} = Fazoura.Rooms.join(code, self(), %{"host_token" => host_token})
+      :ok = Fazoura.Rooms.intent(code, self(), {:set_room_size, %{"room_size" => 1}})
+
+      listed_codes = fn ->
+        conn
+        |> get(~p"/api/rooms")
+        |> json_response(200)
+        |> Map.fetch!("rooms")
+        |> Enum.map(& &1["room_code"])
+      end
+
+      assert code in listed_codes.()
+
+      player = spawn_link(fn -> Process.sleep(:infinity) end)
+      {:ok, _reply, _room} = Fazoura.Rooms.join(code, player, %{"display_name" => "Sam"})
+      refute code in listed_codes.()
     end
 
     test "listed must be a boolean", %{conn: conn} do

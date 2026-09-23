@@ -6,7 +6,7 @@ defmodule FazouraWeb.RoomChannel do
 
   use FazouraWeb, :channel
 
-  alias Fazoura.{Game, Moderation, Rooms}
+  alias Fazoura.{Game, Moderation, Rooms, RoomSizeCodes}
 
   @error_messages %{
     unsupported_protocol_version: "This app version is not compatible with the server.",
@@ -37,7 +37,11 @@ defmodule FazouraWeb.RoomChannel do
     quiz_too_large: "That quiz's photos are too large to host from here.",
     image_too_large: "A photo in that quiz is over 2 MB.",
     unsupported_image: "A photo in that quiz isn't a JPEG, PNG or WebP.",
-    banned: "You can't join public rooms from this connection for now."
+    banned: "You can't join public rooms from this connection for now.",
+    invalid_room_size: "Choose a room size from the players already here up to the room's limit.",
+    invalid_code: "That code doesn't work. Check it with whoever gave it to you.",
+    code_expired: "That code has expired.",
+    code_used_up: "That code has unlocked as many rooms as it can."
   }
 
   @impl true
@@ -51,7 +55,30 @@ defmodule FazouraWeb.RoomChannel do
     end
   end
 
+  # The code is looked up and counted here, in the channel process, because the room
+  # never reads the database during play (AGENTS.md §4). The room is asked first,
+  # so a code it already took is not counted twice and a player's attempt costs
+  # nothing; a use counted for a room that then refuses it is given back (§6.5).
   @impl true
+  def handle_in("host_redeem_size_code", %{"code" => typed}, socket) do
+    room = socket.assigns.room_code
+
+    with {:ok, code} <- RoomSizeCodes.find(typed),
+         :new <- Rooms.intent(room, self(), {:check_size_code, code}),
+         {:ok, code} <- RoomSizeCodes.take(code) do
+      case Rooms.intent(room, self(), {:redeem_size_code, code}) do
+        :ok ->
+          {:reply, {:ok, %{}}, socket}
+
+        other ->
+          RoomSizeCodes.refund(code)
+          redeem_reply(other, socket)
+      end
+    else
+      other -> redeem_reply(other, socket)
+    end
+  end
+
   def handle_in(event, payload, socket) do
     with {:ok, intent} <- to_intent(event, payload),
          :ok <- Rooms.intent(socket.assigns.room_code, self(), intent) do
@@ -106,7 +133,12 @@ defmodule FazouraWeb.RoomChannel do
   defp to_intent("host_close", _payload), do: {:ok, :close}
   defp to_intent("host_set_listed", payload), do: {:ok, {:set_listed, payload}}
   defp to_intent("host_remove_player", payload), do: {:ok, {:remove_player, payload}}
+  defp to_intent("host_set_room_size", payload), do: {:ok, {:set_room_size, payload}}
   defp to_intent(_event, _payload), do: {:error, :invalid_payload}
+
+  # `:already`: this room took the code before, which is success, not a second use.
+  defp redeem_reply(:already, socket), do: {:reply, {:ok, %{}}, socket}
+  defp redeem_reply({:error, code}, socket), do: {:reply, {:error, error(code)}, socket}
 
   defp error(code), do: %{code: Atom.to_string(code), message: Map.fetch!(@error_messages, code)}
 end

@@ -54,6 +54,7 @@ void main() {
     List<String> titles = const ['Capitals'],
     int players = 2,
     int? questionIndex,
+    int? roomSize,
   }) => {
     'room_code': code,
     'phase': phase,
@@ -61,6 +62,7 @@ void main() {
     'player_count': players,
     'question_index': questionIndex,
     'question_count': 10,
+    'room_size': ?roomSize,
   };
 
   testWidgets('shows each room by what it plays and where it is', (
@@ -76,6 +78,14 @@ void main() {
     expect(find.text('Waiting to start · 1 player'), findsOneWidget);
     expect(find.text('Question 4 of 10 · 5 players'), findsOneWidget);
     expect(find.text('Choosing quizzes…'), findsOneWidget);
+  });
+
+  testWidgets('says how full a room is when the host sent its size', (
+    tester,
+  ) async {
+    await pumpList(tester, [room('AAAAAA', players: 3, roomSize: 16)]);
+
+    expect(find.text('Waiting to start · 3 / 16 players'), findsOneWidget);
   });
 
   testWidgets('tapping a room opens Join with its code filled in', (

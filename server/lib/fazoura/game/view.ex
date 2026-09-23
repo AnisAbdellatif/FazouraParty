@@ -26,6 +26,8 @@ defmodule Fazoura.Game.View do
       room_code: game.room_code,
       mode: Atom.to_string(game.mode),
       listed: game.listed,
+      room_size: game.room_size,
+      room_size_limit: game.room_size_limit,
       phase: Atom.to_string(game.phase),
       server_time: now,
       pack_titles: if(game.pack.questions == [], do: [], else: game.pack.titles),

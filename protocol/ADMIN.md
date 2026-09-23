@@ -9,7 +9,7 @@ Companion to [PROTOCOL.md](PROTOCOL.md) (live rooms) and [QUIZ_FORMAT.md](QUIZ_F
 
 The key indicators are live data: running games and connected players are BEAM processes in
 the room registry, not rows in a table. The Phoenix server can read them directly, so the
-dashboard is five LiveViews in the same application — no second service to deploy, no
+dashboard is seven LiveViews in the same application — no second service to deploy, no
 extra API to expose the room state, no second set of credentials or CORS rules. The quiz
 database is already here too.
 
@@ -176,6 +176,21 @@ reorder, and reset to the built-in list. Each tag shows how many public quizzes 
 Saving is immediate; the apps pick changes up the next time they call `GET /api/tags`.
 
 People can still type any tag they like — this list is a convenience, not a whitelist.
+
+### 3.7 Room size codes (`/admin/codes`)
+
+A room holds `max_players` (32). A **room size code** lets a host raise that from the lobby
+(PROTOCOL.md §6.5). The admin fills in who it is for, the size (33–200), how many rooms it may
+unlock, and optionally a last day, and gets a code like `K7QX-2MPA-9RTE` to pass on.
+
+**The code is shown once**, right after it is made. Only its SHA-256 is stored, so a leaked
+database gives away no working code, and the list tells codes apart by their last four
+characters. The list shows each code's size, rooms used out of rooms allowed, expiry and
+status (active, used up, expired, revoked). **Revoke** stops a code working; rooms it already
+unlocked keep their size until they close.
+
+A use is counted when a room takes the code, not when a host types it: a wrong attempt, a
+player trying it, or the same room entering it twice costs nothing.
 
 ## 4. Storage
 

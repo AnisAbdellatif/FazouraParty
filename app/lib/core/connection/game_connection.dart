@@ -73,6 +73,15 @@ abstract interface class GameConnection {
   /// `removed`, and their token no longer lets them back in.
   Future<void> hostRemovePlayer(String playerId);
 
+  /// Any phase: how many players the room lets in, from the players already
+  /// here up to `room_size_limit` (§6.5). Refused with `invalid_room_size`.
+  Future<void> hostSetRoomSize(int roomSize);
+
+  /// Raises the room's limit with a room size code an admin handed out, and
+  /// grows the room to it (§6.5). Refused with `invalid_code`, `code_expired`
+  /// or `code_used_up`, and with `cloud_only` by a LAN host.
+  Future<void> hostRedeemSizeCode(String code);
+
   Future<void> leave();
 }
 

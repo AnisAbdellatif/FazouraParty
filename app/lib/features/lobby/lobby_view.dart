@@ -18,6 +18,7 @@ class LobbyView extends StatelessWidget {
     this.settingsEditor,
     this.lanAddress,
     this.listingControl,
+    this.roomSizeControl,
     this.onPlayerTap,
   });
 
@@ -28,6 +29,9 @@ class LobbyView extends StatelessWidget {
   /// The host's switch for the public room list (PROTOCOL.md §3.5). Everyone
   /// else is only told whether the room is on it.
   final Widget? listingControl;
+
+  /// The host's room size, and a room size code to raise it (§6.5).
+  final Widget? roomSizeControl;
 
   /// What tapping a player does: removing or reporting them, where this device
   /// may (`features/players/player_actions.dart`).
@@ -113,7 +117,11 @@ class LobbyView extends StatelessWidget {
             children: [
               Expanded(child: Text('In the room', style: fz.h(19))),
               Text(
-                '$count ${count == 1 ? 'player' : 'players'}',
+                switch (state.roomSize) {
+                  final size? => '$count / $size players',
+                  null => '$count ${count == 1 ? 'player' : 'players'}',
+                },
+                key: const Key('lobbyPlayerCount'),
                 style: fz.m(11.5, color: FzColors.dim),
               ),
             ],
@@ -124,6 +132,10 @@ class LobbyView extends StatelessWidget {
             youId: state.you.playerId,
             onTap: onPlayerTap,
           ),
+          if (roomSizeControl case final control?) ...[
+            const SizedBox(height: 20),
+            control,
+          ],
           const SizedBox(height: 20),
           settingsEditor ??
               FzPanel(

@@ -244,5 +244,16 @@ void main() {
         'closing · 3s left',
       ]);
     });
+
+    test('says when the room is resized or unlocked', () {
+      final usual = state({'room_size': 32, 'room_size_limit': 32});
+      expect(narrate(usual, state({'room_size': 8, 'room_size_limit': 32})), [
+        'room size 8',
+      ]);
+      expect(narrate(usual, state({'room_size': 60, 'room_size_limit': 60})), [
+        'room size unlocked up to 60',
+        'room size 60',
+      ]);
+    });
   });
 }

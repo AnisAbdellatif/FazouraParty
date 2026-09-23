@@ -22,6 +22,11 @@ abstract class RoomState with _$RoomState {
     /// On the public room list (PROTOCOL.md §3.5). A listed room plays
     /// published quizzes only. Absent from a host older than 9.5.
     @Default(false) bool listed,
+
+    /// How many players the room lets in, and the most the host may set it to
+    /// (PROTOCOL.md §6.5). Absent from a host older than 9.9.
+    int? roomSize,
+    int? roomSizeLimit,
     required Phase phase,
 
     /// Host clock (ms since epoch) when the snapshot was built.

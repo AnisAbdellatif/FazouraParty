@@ -84,6 +84,8 @@ defmodule Fazoura.Rooms.RoomServer do
       # takes the hash, and a room that goes public keeps banned hosts out.
       ip_hashes: %{},
       banned: MapSet.new(),
+      # The room size codes this room has taken, by id, so the same one twice counts once.
+      size_codes: %{},
       empty_since: now.(),
       finished_at: nil,
       timer: nil,
@@ -321,6 +323,33 @@ defmodule Fazoura.Rooms.RoomServer do
       {:reply, :ok, state}
     else
       {:error, _code} = error -> {:reply, error, state}
+    end
+  end
+
+  # Before the channel counts a use of a room size code (PROTOCOL.md §6.5): may this
+  # connection unlock the room, and has the room had this code before, which costs no
+  # second use.
+  defp handle_intent(state, actor, {:check_size_code, %{id: id}}) do
+    case Game.check_unlock(state.game, actor) do
+      :ok when is_map_key(state.size_codes, id) -> {:reply, :already, state}
+      :ok -> {:reply, :new, state}
+      {:error, _code} = error -> {:reply, error, state}
+    end
+  end
+
+  # A room size code the channel has counted. Checked again, since the room may have
+  # changed between the two calls; the channel gives the use back on anything but `:ok`.
+  defp handle_intent(state, actor, {:redeem_size_code, %{id: id, room_size: size}}) do
+    case Game.handle(state.game, actor, {:unlock_room_size, size}, state.now.()) do
+      {:ok, _game} when is_map_key(state.size_codes, id) ->
+        {:reply, :already, state}
+
+      {:ok, game} ->
+        state = %{state | size_codes: Map.put(state.size_codes, id, true)}
+        {:reply, :ok, update_game(state, game)}
+
+      {:error, _code} = error ->
+        {:reply, error, state}
     end
   end
 

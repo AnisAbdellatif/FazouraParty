@@ -17,6 +17,7 @@ List<String> narrate(RoomState? before, RoomState now) {
       'in room ${now.roomCode} as ${now.you.role.name}'
       '${now.you.playerId == null ? '' : ' (${nameOf(now.you.playerId!)})'}'
       ' · ${now.phase.name} · ${_count(count, 'player')}'
+      '${now.roomSize == null ? '' : ' of ${now.roomSize}'}'
       '${now.listed ? ' · public' : ''}',
     );
     if (now.packTitles.isNotEmpty) lines.add(_quizzes(now));
@@ -54,6 +55,12 @@ List<String> narrate(RoomState? before, RoomState now) {
     }
   }
 
+  if (before.roomSizeLimit != now.roomSizeLimit) {
+    lines.add('room size unlocked up to ${now.roomSizeLimit}');
+  }
+  if (before.roomSize != now.roomSize && now.roomSize != null) {
+    lines.add('room size ${now.roomSize}');
+  }
   if (before.listed != now.listed) {
     lines.add(now.listed ? 'room is now public' : 'room is now code-only');
   }

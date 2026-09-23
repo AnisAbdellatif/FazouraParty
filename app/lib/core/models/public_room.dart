@@ -18,6 +18,9 @@ abstract class PublicRoom with _$PublicRoom {
     /// Empty while the host is still choosing.
     @Default(<String>[]) List<String> packTitles,
     required int playerCount,
+
+    /// How many the room lets in (PROTOCOL.md §6.5). Absent before 9.9.
+    int? roomSize,
     int? questionIndex,
     required int questionCount,
   }) = _PublicRoom;

@@ -29,6 +29,8 @@ Map<String, dynamic> roomState(Game game, Actor recipient, int now) {
     'room_code': game.roomCode,
     'mode': game.mode,
     'listed': false,
+    'room_size': game.roomSize,
+    'room_size_limit': game.roomSizeLimit,
     'phase': game.phase.wire,
     'server_time': now,
     'pack_titles': game.pack.questions.isEmpty

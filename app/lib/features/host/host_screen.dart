@@ -29,6 +29,7 @@ import '../leaderboard/leaderboard_view.dart'
 import '../lobby/game_settings_editor.dart';
 import 'host_exit_dialog.dart';
 import '../lobby/lobby_view.dart';
+import '../lobby/room_size_control.dart';
 import '../player_question/player_question_view.dart';
 import '../quizzes/quiz_choice.dart';
 // The browser drags in the editor, the photo pipeline and `package:image`
@@ -216,6 +217,14 @@ class _HostPhase extends ConsumerWidget {
                   await run(() => connection.hostSetListed(value));
                 },
               ),
+        roomSizeControl: RoomSizeControl(
+          state: state,
+          onSetSize: connection.hostSetRoomSize,
+          // Codes are the server's; a room on this Wi-Fi has none (§6.5).
+          onRedeem: state.mode == Mode.lan
+              ? null
+              : connection.hostRedeemSizeCode,
+        ),
         settingsEditor: state.packTitles.isEmpty || state.settings == null
             ? null
             : GameSettingsEditor(

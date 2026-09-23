@@ -160,9 +160,11 @@ class _RoomCard extends StatelessWidget {
   /// Where the game is, in words: a lobby is the best room to walk into, so
   /// it says so rather than a question number.
   String get _status {
-    final players = room.playerCount == 1
-        ? '1 player'
-        : '${room.playerCount} players';
+    final players = switch (room.roomSize) {
+      final size? => '${room.playerCount} / $size players',
+      null when room.playerCount == 1 => '1 player',
+      null => '${room.playerCount} players',
+    };
     final index = room.questionIndex;
     final where = switch (room.phase) {
       Phase.lobby => 'Waiting to start',

@@ -40,7 +40,8 @@ fazoura join K7QX2M --name Sam                  # join it and type answers
 
 A **host** types commands: `start`, `end` / `next`, `pause`, `resume`, `right Sam`,
 `wrong Sam`, `remove Sam`, `report Sam hate <note>`, `select <quiz>...`,
-`set questions=10 time=20 scoring=on difficulties=easy,hard`, `listed on|off`, `transfer Sam`, `rematch`, `close`, `players`, `state`, and `a <answer>` to
+`set questions=10 time=20 scoring=on difficulties=easy,hard`, `listed on|off`, `size 12`,
+`code K7QX-2MPA-9RTE`, `transfer Sam`, `rematch`, `close`, `players`, `state`, and `a <answer>` to
 answer when playing along (`--name`). A **player** types an answer and presses enter;
 commands start with `/` (`/players`, `/state`, `/report Sam spam`, `/leave`). Reporting
 a player is for rooms on the server.
@@ -53,6 +54,8 @@ kept on the device. `--quiz` repeats, up to ten, and they are drawn from as one 
 fazoura host --name Hana --quiz tech-acronyms --quiz ./film-night --questions 15 --time 20
 fazoura host --listed --quiz world-capitals     # on the public list: library quizzes only
 fazoura host --lan --quiz ./film-night          # hosted by this process, for the local network
+fazoura host --room-size 8 --quiz world-capitals               # a smaller room
+fazoura host --size-code K7QX-2MPA-9RTE --quiz world-capitals  # a bigger one, with an admin's code
 fazoura join K7QX2M --lan 192.168.1.20:4040
 ```
 

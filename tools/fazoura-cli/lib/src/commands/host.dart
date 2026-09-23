@@ -44,6 +44,16 @@ class HostCommand extends Command<int> {
         help: 'Port for --lan.',
         defaultsTo: '$defaultLanPort',
       )
+      ..addOption(
+        'size-code',
+        help:
+            'A room size code from an admin, redeemed as soon as the room '
+            'opens, to let in more than the usual number of players.',
+      )
+      ..addOption(
+        'room-size',
+        help: 'How many players the room lets in (after --size-code).',
+      )
       ..addOption('questions', help: 'Questions per game.')
       ..addOption('time', help: 'Seconds per question (10-120).')
       ..addFlag(
@@ -101,6 +111,11 @@ class HostCommand extends Command<int> {
     final lan = args.flag('lan');
     final listed = args.flag('listed');
     if (lan && listed) throw const UsageError('a LAN room cannot be listed');
+    final sizeCode = args['size-code'] as String?;
+    if (lan && sizeCode != null) {
+      throw const UsageError('a LAN room has no room size codes');
+    }
+    final roomSize = _int(args, 'room-size');
     final displayName = args['name'] as String?;
 
     final selection = [
@@ -161,6 +176,24 @@ class HostCommand extends Command<int> {
           'LAN: fazoura join $code --lan ${lanHost.joinUrl ?? '127.0.0.1:${lanHost.port}'}',
       ].join('\n'),
     );
+
+    // Before the lobby fills, so `--start-when` can count past the usual size.
+    final sized =
+        (sizeCode == null ||
+            await seat.send(
+              'code',
+              () => connection.hostRedeemSizeCode(sizeCode),
+            )) &&
+        (roomSize == null ||
+            await seat.send(
+              'size',
+              () => connection.hostSetRoomSize(roomSize),
+            ));
+    if (!sized) {
+      await seat.leave();
+      await lanHost?.stop();
+      return 1;
+    }
 
     await prepareLobby(seat, selection, configure);
 

@@ -40,7 +40,14 @@ String describeError(Object error) {
     // the server's own words are the right ones in either place.
     'quiz_not_public' =>
       error.message ?? 'A public room plays quizzes from the library only.',
-    'cloud_only' => 'Only an online room can be listed publicly.',
+    'cloud_only' => 'Only an online room can do that.',
+    'invalid_room_size' =>
+      "The room can't be smaller than the players already in it, or bigger "
+          'than its limit.',
+    'invalid_code' =>
+      "That code doesn't work. Check it with whoever gave it to you.",
+    'code_expired' => 'That code has expired.',
+    'code_used_up' => 'That code has unlocked as many rooms as it can.',
     'name_not_allowed' => "That name can't be used in a public room.",
     'banned' => "Public rooms aren't available from this connection for now.",
     'unknown_player' => "That player isn't in the room any more.",

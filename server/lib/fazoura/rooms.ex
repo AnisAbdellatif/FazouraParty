@@ -72,7 +72,18 @@ defmodule Fazoura.Rooms do
   @spec join(String.t(), pid(), map()) :: {:ok, map(), pid()} | {:error, atom()}
   def join(code, pid, params, meta \\ %{}), do: call(code, {:join, pid, params, meta})
 
-  @spec intent(String.t(), pid(), Fazoura.Game.intent()) :: :ok | {:error, atom()}
+  @doc """
+  Applies an intent from the connection `pid`. Two are the channel's half of redeeming a
+  room size code (`FazouraWeb.RoomChannel`): `{:check_size_code, code}` answers `:new`,
+  or `:already` when this room took that code before; `{:redeem_size_code, code}` applies
+  one the caller has counted, and anything but `:ok` means the use should be given back.
+  """
+  @spec intent(
+          String.t(),
+          pid(),
+          Fazoura.Game.intent()
+          | {:check_size_code | :redeem_size_code, Fazoura.RoomSizeCodes.Code.t()}
+        ) :: :ok | :new | :already | {:error, atom()}
   def intent(code, pid, intent), do: call(code, {:intent, pid, intent})
 
   @doc """
