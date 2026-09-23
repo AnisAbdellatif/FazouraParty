@@ -89,9 +89,13 @@ defmodule FazouraWeb.RoomChannel do
   end
 
   @impl true
+  # Hibernating compacts the heap. Encoding a snapshot grows it, and between one
+  # snapshot and the next nearly all of it is garbage: ~170 KB per player, measured,
+  # against ~3 KB live (decisions.md, Connection Memory). A hibernated process wakes
+  # for the next message at the cost of one small collection.
   def handle_info({:room_state, view}, socket) do
     push(socket, "state", view)
-    {:noreply, socket}
+    {:noreply, socket, :hibernate}
   end
 
   def handle_info({:room_closed, reason}, socket) do

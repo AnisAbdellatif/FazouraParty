@@ -107,6 +107,46 @@ Saving a public quiz for offline use downloads one `.fazoura` archive containing
 accepted answers and question images. The app keeps that compressed archive as the local source
 and expands its contents only when it needs the quiz document for hosting.
 
+## Capacity
+
+Measured with `tools/fazoura-cli` bots — the app's own connection code, thousands of players
+from one machine — against a production build of the server, on a Ryzen 9 7940HS. Every answer
+in every run below was counted. The numbers are for this machine, not targets; rerun them
+before relying on them for different hardware.
+
+**One room.** Every change sends a complete snapshot to every player, so a room's cost grows
+with the square of its size. Snapshots are paced — at most one broadcast every 100 ms — and
+compressed (permessage-deflate). Three questions, answers spread over 20 s:
+
+| Players in one room | Worst snapshot delay | Server CPU, peak | Sent for the game |
+|---|---|---|---|
+| 100 | 20 ms | 0.7 cores | 7 MB |
+| 200 | 92 ms | 2.4 cores | 41 MB |
+| 400 | 295 ms | 6.2 cores | 627 MB |
+
+Before pacing and compression, 400 players fell seconds behind and 336 of their answers
+missed the deadline. A room holds **32 players** (`max_players`); a room size code from the
+admin dashboard raises one to at most 200.
+
+**Many rooms.** Rooms of 16, the server limited to 4 cores and 8 GB — the VPS it runs on:
+
+| Rooms × 16 | Players | Worst snapshot delay | Server CPU, average / peak | Memory, peak |
+|---|---|---|---|---|
+| 250 | 4,000 | 25 ms | 0.9 / 1.6 cores | 1.5 GB |
+| 500 | 8,000 | 44 ms | 1.4 / 2.2 cores | 2.7 GB |
+
+A connected player costs about **340 KB** of server memory (it was ~800 KB before channels
+hibernated between snapshots). The VPS's vCPUs are roughly half as fast as these cores, so
+there CPU is the limit, at about the server's own ceiling of 500 rooms.
+
+**Photos** are the largest thing a player downloads: everyone fetches a question's photo the
+moment it starts. Every photo is at most 1280 px, and the shipped car-logos quiz is 3.7 MB for
+44 photos (median 68 KB). Games themselves are small once compressed: 4,000 players over a
+three-question game sent 48 MB, against 767 MB uncompressed.
+
+What one broadcast costs inside the server, without sockets, is measured by the scripts in
+[`server/bench/`](server/bench/) (`mix bench`).
+
 ## Deploying
 
 A push to `main` runs both suites, builds an image, pushes it to GitHub Container

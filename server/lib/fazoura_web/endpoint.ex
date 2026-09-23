@@ -37,7 +37,13 @@ defmodule FazouraWeb.Endpoint do
     websocket: [
       connect_info: [:peer_data, :x_headers],
       max_frame_size: @max_frame_size,
-      compress: true
+      compress: true,
+      # Every client speaks V2; the V1 entry is Phoenix's default, kept so nothing
+      # that worked stops working.
+      serializer: [
+        {Phoenix.Socket.V1.JSONSerializer, "~> 1.0.0"},
+        {FazouraWeb.RoomSerializer, "~> 2.0.0"}
+      ]
     ],
     longpoll: false
 

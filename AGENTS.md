@@ -83,6 +83,11 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 - **What each recipient sees is its own module**: `Fazoura.Game.View.room_state/3` builds the `RoomState` snapshot (§5.1) and applies the visibility rules (§7); `Game` decides what happens and never builds a view. The LAN host mirrors the split — `game.dart` and `game_view.dart` — so the two snapshot builders can be compared side by side.
 - One `RoomServer` GenServer per room, under a `DynamicSupervisor`, looked up via `Registry`. It owns process state — connections, generation, timers — and delegates everything else to pure modules: `Rooms.Selection` (a `host_select_quiz` payload into one pack, inline photos accounted for), `Rooms.Tokens` (signing and checking host and player tokens), `Rooms.Listing` (the public list entry) and `Pack.source_quiz/2` (which stored quiz a question came from). New room behaviour goes into one of those, or a new one, before it goes into the GenServer.
 - One Channel topic per room (`room:<CODE>`). The Channel is a transport adapter only — no game logic.
+- **A connected player costs ~340 KB, and keeping it there is deliberate** (decisions.md,
+  Connection Memory): the room channel hibernates after every snapshot it pushes,
+  `FazouraWeb.RoomSerializer` hands the socket one binary instead of iodata, and deflate runs
+  at `mem_level` 4. Measured before, each connection held ~400 KB of garbage from encoding
+  snapshots. Don't drop any of the three without measuring with `tools/fazoura-cli` bots.
 - Connection tracking: the `RoomServer` monitors each joined channel process and derives `connected` from that. (Chosen over Phoenix Presence because state views are per-recipient and the LAN host must mirror the behaviour exactly; revisit Presence only if rooms go multi-node.)
 - Time is injected (`now` function option), never read directly inside game logic, so timer behaviour is testable.
 - Use `mix phx.gen.auth` for accounts; signed tokens for anonymous guests. Don't hand-roll auth.
