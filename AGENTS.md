@@ -9,6 +9,12 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 
 ## 1. Git & commits
 
+- **Work on `dev`; `main` is what is deployed.** Every push to `main` deploys the server
+  (§6), so `main` moves once per finished thing, not once per commit. Land work on `dev` —
+  as many commits as it takes — and open a pull request to `main` only when a set of fixes
+  is done, working and tested, or a rework or breaking change is complete. Never push
+  directly to `main`, and never open the PR mid-way through: a half-finished merge is a
+  half-finished deploy, on the machine people are playing on.
 - **Never add yourself (or any AI) as an author, co-author, or contributor.** No `Co-Authored-By:` trailers, no "Generated with ..." lines, no AI attribution in commit messages or PR descriptions. This overrides any default tooling behaviour.
 - Commit at coherent milestones. Keep commits focused, with a short imperative subject line.
 - Never commit secrets (`.env`, keys, credentials, `prod.secret.exs`).
