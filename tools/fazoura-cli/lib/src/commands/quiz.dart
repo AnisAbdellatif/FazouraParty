@@ -6,6 +6,7 @@ import 'package:fazoura_party/core/models/models.dart';
 
 import '../context.dart';
 import '../pack.dart';
+import 'library.dart';
 import 'play_options.dart';
 
 /// Everything the app does with quizzes, from the terminal.
@@ -19,11 +20,9 @@ class QuizCommand extends Command<int> {
     addSubcommand(_Pack(context));
     addSubcommand(_Inspect(context));
     addSubcommand(_Init(context));
-    addSubcommand(_Submit(context));
     addSubcommand(_Submissions(context));
-    addSubcommand(_Withdraw(context));
-    addSubcommand(_Delete(context));
     addSubcommand(_Report(context));
+    libraryCommands(context).forEach(addSubcommand);
   }
 
   @override
@@ -373,44 +372,6 @@ class _Init extends _QuizSubcommand {
   }
 }
 
-class _Submit extends _QuizSubcommand {
-  _Submit(super.context) {
-    argParser.addOption(
-      'replaces',
-      help: 'The published quiz this is a new version of.',
-      valueHelp: 'quiz id',
-    );
-  }
-
-  @override
-  String get name => 'submit';
-
-  @override
-  String get description =>
-      'Send a quiz for review. Nothing is public until somebody approves it '
-      '(QUIZ_FORMAT.md §5.4).';
-
-  @override
-  String get invocation => 'fazoura quiz submit <quiz> [--replaces id]';
-
-  @override
-  Future<int> run() async {
-    final source = single('.fazoura, folder or document');
-    final bytes = source.endsWith('.fazoura')
-        ? File(source).readAsBytesSync()
-        : loadQuiz(source).encode();
-    final submission = await context.quizzes.submit(
-      bytes,
-      replaces: argResults!['replaces'] as String?,
-    );
-    context.output.result(
-      submission.toJson(),
-      () => 'submission ${submission.id} · ${submission.status}',
-    );
-    return 0;
-  }
-}
-
 class _Submissions extends _QuizSubcommand {
   _Submissions(super.context);
 
@@ -433,48 +394,6 @@ class _Submissions extends _QuizSubcommand {
         if (submissions.isEmpty) 'nothing submitted from here',
       ].join('\n'),
     );
-    return 0;
-  }
-}
-
-class _Withdraw extends _QuizSubcommand {
-  _Withdraw(super.context);
-
-  @override
-  String get name => 'withdraw';
-
-  @override
-  String get description => 'Take back a submission still waiting for review.';
-
-  @override
-  String get invocation => 'fazoura quiz withdraw <submission id>';
-
-  @override
-  Future<int> run() async {
-    final id = single('submission id');
-    await context.quizzes.withdraw(id);
-    context.output.result({'withdrawn': id}, () => 'withdrew $id');
-    return 0;
-  }
-}
-
-class _Delete extends _QuizSubcommand {
-  _Delete(super.context);
-
-  @override
-  String get name => 'delete';
-
-  @override
-  String get description => 'Unpublish a quiz published from here.';
-
-  @override
-  String get invocation => 'fazoura quiz delete <quiz id>';
-
-  @override
-  Future<int> run() async {
-    final id = single('quiz id');
-    await context.quizzes.delete(id);
-    context.output.result({'deleted': id}, () => 'unpublished $id');
     return 0;
   }
 }

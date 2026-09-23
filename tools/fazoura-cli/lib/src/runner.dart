@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
 import 'package:fazoura_party/core/models/models.dart';
+import 'package:http/http.dart' as http;
 
 import 'commands/host.dart';
 import 'commands/join.dart';
@@ -17,6 +18,7 @@ import 'pack.dart';
 Future<int> runFazoura(
   List<String> arguments, {
   Map<String, String>? environment,
+  http.Client? client,
 }) async {
   final env = environment ?? Platform.environment;
   final globals = ArgParser(allowTrailingOptions: true)
@@ -60,6 +62,7 @@ Future<int> runFazoura(
     output: output,
     ownerKey: early?['owner-key'] as String?,
     environment: env,
+    client: client,
   );
 
   final runner =

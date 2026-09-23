@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:fazoura_party/core/connection/game_connection.dart';
 import 'package:fazoura_party/core/models/models.dart';
+import 'package:fazoura_party/core/time/lock_in_timer.dart';
 
 import 'seat.dart';
 
@@ -76,25 +77,27 @@ class AnswerPlan {
 
 /// Answers every question put to [seat] according to [plan].
 ///
-/// It keeps to the rules a person's phone does: one answer per question,
-/// never while paused, and in before the deadline. The deadline can move —
-/// the host ending a question pulls it in to a short closing window
-/// (PROTOCOL.md §6) — so a pending answer is brought forward when it does,
-/// the same way the app sends a typed answer before time runs out.
+/// It keeps to the rules a person's phone does, with the phone's own timing
+/// (`LockInTimer`): one answer per question, never while paused, and in
+/// before the deadline — brought forward when the host ending the question
+/// pulls the deadline in (PROTOCOL.md §6).
 class PlayerBot {
   PlayerBot(this.seat, this.plan);
 
   final Seat seat;
   final AnswerPlan plan;
 
-  /// How early before the deadline an answer must leave to be sure to land.
-  static const _margin = Duration(milliseconds: 900);
-
   StreamSubscription<RoomState>? _subscription;
   String? _answeredKey;
-  String? _pendingKey;
-  Timer? _timer;
-  int? _fireAt;
+
+  /// The question being answered, its key, and when the bot means to answer
+  /// it — chosen once per question, so later snapshots only ever bring the
+  /// answer forward.
+  (String, Question, int)? _pending;
+
+  /// The app's own timing (`LockInTimer`): what a person's phone does with a
+  /// typed answer is what a bot does with its chosen one.
+  late final LockInTimer _lockIn = LockInTimer(onDue: _due);
 
   void start() {
     _subscription = seat.updates.listen(_onState);
@@ -103,7 +106,7 @@ class PlayerBot {
   }
 
   void stop() {
-    _timer?.cancel();
+    _lockIn.disarm();
     unawaited(_subscription?.cancel());
   }
 
@@ -117,36 +120,33 @@ class PlayerBot {
         state.you.submission == null &&
         _answeredKey != key;
 
-    if (!waiting || state.deadline == null) {
-      // Over, answered, or paused: nothing may be sent now. A paused
-      // question is picked up again by the snapshot that resumes it.
-      _cancel();
+    if (!waiting) {
+      _pending = null;
+      _lockIn.disarm();
       return;
     }
 
-    final latest = seat.remainingMs(state.deadline!) - _margin.inMilliseconds;
-    final now = DateTime.now().millisecondsSinceEpoch;
-    if (_pendingKey == key && _fireAt != null && _fireAt! <= now + latest) {
-      return;
-    }
-    final wait = _pendingKey == key
-        ? max(0, latest)
-        : max(0, min(plan.delay().inMilliseconds, latest));
-    _cancel();
-    _pendingKey = key;
-    _fireAt = now + wait;
-    _timer = Timer(Duration(milliseconds: wait), () => _answer(key, question));
+    final pending = _pending;
+    final at = pending != null && pending.$1 == key
+        ? pending.$3
+        : DateTime.now().millisecondsSinceEpoch + plan.delay().inMilliseconds;
+    _pending = (key, question, at);
+    // A paused question has no deadline, which disarms; the resume arms again.
+    _lockIn.arm(
+      deadline: state.deadline,
+      offsetMs: seat.offsetMs,
+      preferredAtLocalMs: at,
+    );
   }
 
-  void _cancel() {
-    _timer?.cancel();
-    _timer = null;
-    _pendingKey = null;
-    _fireAt = null;
+  void _due() {
+    final pending = _pending;
+    if (pending == null) return;
+    unawaited(_answer(pending.$1, pending.$2));
   }
 
   Future<void> _answer(String key, Question question) async {
-    _pendingKey = null;
+    _pending = null;
     _answeredKey = key;
     final answer = plan.answerFor(question);
     if (answer == null) {

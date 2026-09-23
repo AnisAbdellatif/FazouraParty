@@ -76,8 +76,9 @@ fazoura join K7QX2M --count 3 --name "Guess {n}" --answers-from world-capitals \
   purpose (`not Paris`). `--skip` — chance of letting a question go by. `--answer TEXT` —
   what to say when nothing is known.
 - `--delay 1-4` — seconds before answering, random in the range, always in before the
-  deadline. When the host ends a question early the deadline moves in, and a pending answer
-  moves with it, as the app's does.
+  deadline. The timing is the app's own (`LockInTimer`): when the host ends a question early
+  the deadline moves in, and a pending answer moves with it, exactly as a typed answer does
+  on a phone.
 - `--count N` — N players on N sockets in one process; `{n}` in `--name` is replaced by the
   number. Several processes fill a room just as well, and are how several hosts run at once.
 - Bots leave when the game ends; `--stay` keeps them for a rematch. A host playing along with
@@ -110,13 +111,33 @@ fazoura quiz inspect film-night                 # check it the way the server wo
 fazoura quiz pack film-night                    # → film-night.fazoura
 fazoura quiz inspect film-night.fazoura --extract out/   # and back again
 
-fazoura quiz submit film-night                  # send for review (folder, .json or .fazoura)
-fazoura quiz submit film-night --replaces <id>  # a new version of a published quiz
-fazoura quiz submissions                        # what became of them
-fazoura quiz withdraw <submission id>
-fazoura quiz delete <quiz id>                   # unpublish
 fazoura quiz report <quiz id> --reason spam --note "…"
+fazoura quiz submissions                        # the server's side of what was sent from here
 ```
+
+### This machine's quizzes
+
+The app keeps "My quizzes" on the device and publishes from there; the CLI does the same,
+through the app's own `QuizLibrary` and `LocalQuizStore` — a sembast file,
+`~/.config/fazoura/library.db` — so publishing from here runs the app's publishing code.
+
+```bash
+fazoura quiz import film-night                  # saved here, private
+fazoura quiz publish "film night"               # sent for review
+fazoura quiz mine                               # asks what became of it, as the app does
+fazoura quiz import film-night --into "film night"   # an edit: republishing goes through review
+fazoura quiz unpublish "film night"             # withdrawn from review, or taken down
+fazoura quiz forget "film night"                # and off this machine
+fazoura quiz submit film-night                  # import + publish in one step
+fazoura quiz save car-logos                     # "Save offline": photos and all
+
+fazoura host --quiz @film-night                 # host one of them, as the app would
+```
+
+A library quiz is named by its title, its slug, or the start of its id (`quiz mine` shows
+them). Hosting one goes the way the app sends it: whole, except an offline copy of a
+published quiz, which a cloud room is sent by id. Run library commands one at a time —
+sembast is not built for two processes writing at once.
 
 `pack` is what `tools/fazoura_pack.py` was: the folder layout, the checks and the package it
 writes are those of QUIZ_FORMAT.md §5.3b and QUIZ_AUTHORING.md, photos are named exactly as
@@ -124,7 +145,7 @@ the app names them, and packing the same folder twice gives the same bytes.
 
 Publishing is done as a **publisher key**, like a device: the CLI keeps one per machine in
 `~/.config/fazoura/owner_key` (`$FAZOURA_CONFIG_DIR` or `$XDG_CONFIG_HOME` to move it), shared
-by every instance, so `submissions` and `delete` find what was published from here.
+by every instance, so the library and `submissions` find what was published from here.
 `--owner-key` or `FAZOURA_OWNER_KEY` act as somebody else.
 
 ## Checks
@@ -134,5 +155,10 @@ scripts/ci.sh tools     # format, analyze, test
 ```
 
 The tests include a whole game — an automatic host and two bots, one always right and one
-always wrong — played over real sockets against the app's LAN host in the same process, so
-they need no server.
+always wrong — played over real sockets against the app's LAN host in the same process, a bot
+answering inside the closing window when the host ends a question, and the whole publishing
+flow through the library against a stand-in server. None of them need a real server.
+
+**What the CLI does not cover** is the app's screens — layout, taps, animation, the rules
+sheet, error wording — which `flutter test` covers with a fake connection. Everything under
+`app/lib/core` it runs as the app runs it.

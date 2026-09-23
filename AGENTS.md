@@ -138,6 +138,7 @@ Background and rationale: [project-assessment.md](project-assessment.md).
 - Phoenix Channel tests for join / submit / next / override flows.
 - Flutter widget tests with mocked providers.
 - Don't mark work done if tests fail; report failures honestly.
+- **Client behaviour that is not about pixels lives in `lib/core`, so the CLI runs it too.** The answer timing is `LockInTimer` (the app's auto-submit and the CLI's bots), publishing is `QuizLibrary` (the app's browser and `fazoura quiz …`), and how a quiz is sent is `quiz_selection.dart`. A rule like these written inside a widget is one the CLI cannot exercise — move it down instead.
 - **Drive games with `tools/fazoura-cli`, not the UI, when what is being checked is the game.** `fazoura host --auto` and `fazoura join --count N --answers-from <quiz>` fill a room from the terminal, several processes at once, against the dev server or a LAN host; `--json` makes every snapshot scriptable. It speaks through the app's own connection code, so it is the client, not a second implementation. Its own tests play a whole game over an in-process LAN host.
 - **Agents test the Flutter client on the Web build only** (`flutter test`, `flutter run -d chrome` / `flutter build web`). Never launch or drive the Android emulator — the project owner tests Android manually.
 

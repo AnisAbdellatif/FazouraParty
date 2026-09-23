@@ -42,9 +42,8 @@ class Seat {
   Stream<RoomState> get updates => _updates.stream;
   Future<RoomClosedReason> get closed => connection.closed;
 
-  /// Milliseconds until [deadline] by the server's clock.
-  int remainingMs(int deadline) =>
-      deadline - (DateTime.now().millisecondsSinceEpoch + _offsetMs);
+  /// `server_time - local_now` from the latest snapshot (PROTOCOL.md §5.1).
+  int get offsetMs => _offsetMs;
 
   /// Starts printing what happens. Call before joining, so the first snapshot
   /// is not missed.

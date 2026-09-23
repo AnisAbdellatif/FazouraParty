@@ -8,6 +8,7 @@ import 'package:fazoura_party/core/quizzes/quiz_selection.dart';
 import '../context.dart';
 import '../pack.dart';
 import '../play/bots.dart';
+import 'library.dart';
 
 /// Options that make a seat answer on its own. Shared by `join` and by a host
 /// playing along with `host --name`.
@@ -67,6 +68,9 @@ Future<AnswerPlan> answerPlan(Context context, ArgResults args) async {
 /// A whole quiz, answers included: from disk, or downloaded (QUIZ_FORMAT.md
 /// §5.3a — the same explicit download the app's "save offline" makes).
 Future<QuizDocument> loadDocument(Context context, String source) async {
+  if (source.startsWith('@')) {
+    return (await findLocal(context, source.substring(1))).quiz;
+  }
   if (FileSystemEntity.typeSync(source) != FileSystemEntityType.notFound) {
     return loadQuiz(source).toInlineDocument();
   }
@@ -81,6 +85,14 @@ Future<QuizSelection> resolveSelection(
   String source, {
   required bool lan,
 }) async {
+  // A quiz in this machine's library goes the way the app sends one of its
+  // own ("My quizzes").
+  if (source.startsWith('@')) {
+    return selectLocalQuiz(
+      await findLocal(context, source.substring(1)),
+      lan: lan,
+    );
+  }
   if (FileSystemEntity.typeSync(source) != FileSystemEntityType.notFound) {
     return InlineQuizSelection(loadQuiz(source).toInlineDocument());
   }

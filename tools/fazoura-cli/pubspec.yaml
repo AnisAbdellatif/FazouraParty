@@ -19,6 +19,8 @@ dependencies:
     path: ../../app
   archive: ^4.3.0
   args: ^2.7.0
+  http: ^1.6.0
+  sembast: ^3.8.10
   phoenix_socket: ^0.8.0
 
 dev_dependencies:

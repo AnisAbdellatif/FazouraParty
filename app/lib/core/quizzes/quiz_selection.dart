@@ -1,5 +1,6 @@
 import '../api/quiz_api.dart';
 import '../connection/game_connection.dart';
+import '../models/models.dart';
 
 /// A published quiz as `host_select_quiz` should carry it (PROTOCOL.md §6.4),
 /// for a room on the cloud server or on a LAN host.
@@ -22,3 +23,22 @@ Future<QuizSelection> selectPublishedQuiz(
   required bool lan,
 }) async =>
     lan ? InlineQuizSelection(await api.download(id)) : StoredQuizSelection(id);
+
+/// A quiz from this device's library as `host_select_quiz` should carry it.
+///
+/// A quiz the device holds is sent whole — it may be private, or carry edits
+/// the server has not approved. The exception is an offline copy of somebody
+/// else's published quiz (`QuizLibrary.saveCommunityQuiz`): the cloud server
+/// already has that one, photos and all, so a cloud room is sent its id. That
+/// keeps a big quiz from being uploaded again only to overflow the inline cap
+/// (QUIZ_FORMAT.md §5.7), and lets it be played in a public room, which takes
+/// published quizzes only (PROTOCOL.md §3.5). A LAN host has no library, so it
+/// always gets the whole document — which is what the copy was saved for.
+QuizSelection selectLocalQuiz(LocalQuiz local, {required bool lan}) {
+  final publishedId = local.quiz.id;
+  final offlineCopy =
+      publishedId != null && !local.quiz.isOwner && local.publishedId == null;
+  return offlineCopy && !lan
+      ? StoredQuizSelection(publishedId)
+      : InlineQuizSelection(local.quiz);
+}

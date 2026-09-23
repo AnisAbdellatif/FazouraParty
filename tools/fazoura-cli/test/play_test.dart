@@ -126,6 +126,60 @@ void main() {
     });
   });
 
+  test(
+    'a slow bot still answers when the host ends the question early',
+    () => absorbSocketNoise(() async {
+      final lan = await LanHost.start(port: 0);
+      addTearDown(lan.stop);
+      final url = 'http://127.0.0.1:${lan.port}';
+      final output = Output(
+        json: false,
+        out: IOSink(_Lines()),
+        err: IOSink(_Lines()),
+      );
+
+      Seat seat(String label) => Seat(
+        label: label,
+        connection: LanGameConnection(baseUrl: url),
+        output: output,
+      )..watch();
+
+      final host = seat('host');
+      await host.connection.joinAsHost(lan.roomCode, lan.hostToken);
+      await prepareLobby(host, const [InlineQuizSelection(_quiz)], null);
+
+      final slow = seat('Slow');
+      final other = seat('Other');
+      await slow.connection.join(lan.roomCode, 'Slow');
+      await other.connection.join(lan.roomCode, 'Other');
+      // Means to answer in 30 s; the question gives it far less than that.
+      final bot = PlayerBot(
+        slow,
+        AnswerPlan(
+          knowledge: AnswerPlan.learn([_quiz]),
+          minDelay: const Duration(seconds: 30),
+          maxDelay: const Duration(seconds: 30),
+        ),
+      )..start();
+
+      await host.connection.hostNext();
+      await slow.updates.firstWhere((s) => s.phase == Phase.question);
+      // The host ends it: the deadline comes in to the closing window, and the
+      // bot's answer comes in with it, as the app's typed answer would.
+      await host.connection.hostNext();
+
+      final scored = await slow.updates
+          .firstWhere((s) => s.phase == Phase.scoring)
+          .timeout(const Duration(seconds: 10));
+      expect(scored.you.submission?.correct, isTrue);
+
+      bot.stop();
+      for (final s in [host, slow, other]) {
+        await s.leave();
+      }
+    }),
+  );
+
   group('narrator', () {
     RoomState state(Map<String, Object?> overrides) => RoomState.fromJson({
       'protocol_version': 9,

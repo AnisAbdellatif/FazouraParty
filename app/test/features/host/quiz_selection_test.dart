@@ -63,7 +63,11 @@ void main() {
   });
 
   test("a quiz of this device's own travels inline either way", () async {
-    final local = LocalQuiz(localId: 'local-1', quiz: published());
+    // Written here: the editor gives it no server id.
+    final local = LocalQuiz(
+      localId: 'local-1',
+      quiz: published().copyWith(id: null),
+    );
 
     for (final isLan in [true, false]) {
       final selection = await quizSelectionFor(
@@ -77,4 +81,45 @@ void main() {
       expect(inline.quiz.questions, isNotEmpty, reason: 'isLan: $isLan');
     }
   });
+
+  test('an offline copy of a published quiz goes by id to the cloud', () async {
+    // Saved offline: the server already has it, photos and all, so re-sending
+    // it would only risk the inline cap — and a public room takes it this way.
+    final copy = LocalQuiz(
+      localId: 'local-2',
+      quiz: published().copyWith(visibility: 'private', isOwner: false),
+    );
+
+    final cloud = await quizSelectionFor(
+      server.api(),
+      LocalQuizChoice(copy),
+      isLan: false,
+    );
+    expect((cloud as StoredQuizSelection).quizId, 'quiz-1');
+
+    // A LAN host has no library: that is what the copy was saved for.
+    final lan = await quizSelectionFor(
+      server.api(),
+      LocalQuizChoice(copy),
+      isLan: true,
+    );
+    expect((lan as InlineQuizSelection).quiz.questions, isNotEmpty);
+  });
+
+  test(
+    'a quiz this device published is sent as it is here, edits and all',
+    () async {
+      final mine = LocalQuiz(
+        localId: 'local-3',
+        publishedId: 'quiz-1',
+        quiz: published().copyWith(id: null, isOwner: true),
+      );
+      final selection = await quizSelectionFor(
+        server.api(),
+        LocalQuizChoice(mine),
+        isLan: false,
+      );
+      expect(selection, isA<InlineQuizSelection>());
+    },
+  );
 }

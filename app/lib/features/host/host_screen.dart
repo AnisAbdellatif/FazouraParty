@@ -298,14 +298,14 @@ class _HostPhase extends ConsumerWidget {
   }
 }
 
-/// A browser choice as the intent carries it (PROTOCOL.md §6.4): a quiz on
-/// this device is sent whole, a published one as [selectPublishedQuiz] decides.
+/// A browser choice as the intent carries it (PROTOCOL.md §6.4), as
+/// [selectLocalQuiz] and [selectPublishedQuiz] decide.
 Future<QuizSelection> quizSelectionFor(
   QuizApi api,
   QuizChoice choice, {
   required bool isLan,
 }) async => switch (choice) {
-  LocalQuizChoice(:final quiz) => InlineQuizSelection(quiz.quiz),
+  LocalQuizChoice(:final quiz) => selectLocalQuiz(quiz, lan: isLan),
   PublicQuizChoice(:final quiz) => await selectPublishedQuiz(
     api,
     quiz.hostId,

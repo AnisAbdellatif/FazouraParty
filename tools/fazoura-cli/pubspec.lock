@@ -256,7 +256,7 @@ packages:
     source: hosted
     version: "2.2.0"
   http:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: http
       sha256: "87721a4a50b19c7f1d49001e51409bddc46303966ce89a65af4f4e6004896412"
@@ -640,7 +640,7 @@ packages:
     source: hosted
     version: "0.28.0"
   sembast:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: sembast
       sha256: a976f04d492b82b06c74b3c654795ca5bbf9b670468081a339f6035f121359a3

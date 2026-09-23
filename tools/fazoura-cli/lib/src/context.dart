@@ -3,6 +3,10 @@ import 'dart:io';
 
 import 'package:fazoura_party/core/api/quiz_api.dart';
 import 'package:fazoura_party/core/api/room_api.dart';
+import 'package:fazoura_party/core/quizzes/quiz_library.dart';
+import 'package:fazoura_party/core/storage/local_quiz_store.dart';
+import 'package:http/http.dart' as http;
+import 'package:sembast/sembast_io.dart';
 
 /// Where the CLI talks to when nothing says otherwise: the local stack
 /// (`scripts/ci.sh up`) and `mix phx.server` both listen here.
@@ -16,7 +20,9 @@ class Context {
     required this.output,
     String? ownerKey,
     Map<String, String>? environment,
-  }) : server = server.endsWith('/')
+    http.Client? client,
+  }) : _client = client,
+       server = server.endsWith('/')
            ? server.substring(0, server.length - 1)
            : server,
        _ownerKey = ownerKey,
@@ -25,10 +31,32 @@ class Context {
   final String server;
   final Output output;
   final Map<String, String> _environment;
+  final http.Client? _client;
   String? _ownerKey;
 
-  late final RoomApi rooms = RoomApi(baseUrl: server);
-  late final QuizApi quizzes = QuizApi(baseUrl: server, ownerKey: ownerKey);
+  late final RoomApi rooms = RoomApi(baseUrl: server, client: _client);
+  late final QuizApi quizzes = QuizApi(
+    baseUrl: server,
+    ownerKey: ownerKey,
+    client: _client,
+  );
+
+  /// This machine's quizzes — the CLI's "My quizzes" — kept exactly as the app
+  /// keeps a device's: the app's own [QuizLibrary] over the app's own
+  /// [LocalQuizStore], in a sembast file beside the publisher key. Publishing,
+  /// tracking a submission and withdrawing all go through the app's code.
+  ///
+  /// One file per machine, shared by every instance. Sembast is not built for
+  /// two processes writing at once, so library commands are best run one at a
+  /// time; playing is not affected.
+  late final QuizLibrary library = QuizLibrary(
+    store: LocalQuizStore(
+      databaseFactoryIo.openDatabase(
+        '${configDirectory(_environment).path}/library.db',
+      ),
+    ),
+    api: quizzes,
+  );
 
   /// This machine's publisher key — the CLI's equivalent of the one the app
   /// keeps per device (QUIZ_FORMAT.md §4). It is what lets `quiz delete`
