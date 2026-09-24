@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -94,7 +95,12 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
   /// honest while the browser is open.
   final _reportedIds = <String>{};
   int? _nextOffset;
-  bool _loading = false;
+  // One flag per list: the device's own quizzes load much faster than the
+  // server's, and with a shared flag the first to finish cleared it for both,
+  // so the public tab said "Nothing matches" while its list was still coming.
+  bool _loadingPublic = false;
+  bool _loadingLocal = false;
+  bool get _loading => _mine ? _loadingLocal : _loadingPublic;
   String? _error;
   int _request = 0;
   int _localRequest = 0;
@@ -143,7 +149,7 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
     final request = ++_request;
     final offset = reset ? 0 : (_nextOffset ?? 0);
     setState(() {
-      _loading = true;
+      _loadingPublic = true;
       _error = null;
       if (reset) {
         _public = const [];
@@ -158,12 +164,12 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
       setState(() {
         _public = reset ? page.quizzes : [..._public, ...page.quizzes];
         _nextOffset = page.nextOffset;
-        _loading = false;
+        _loadingPublic = false;
       });
     } catch (error) {
       if (!mounted || request != _request) return;
       setState(() {
-        _loading = false;
+        _loadingPublic = false;
         _error = describeError(error);
       });
     }
@@ -172,7 +178,7 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
   Future<void> _loadLocal() async {
     final request = ++_localRequest;
     setState(() {
-      _loading = true;
+      _loadingLocal = true;
       _error = null;
     });
     try {
@@ -180,7 +186,7 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
       if (!mounted || request != _localRequest) return;
       setState(() {
         _applyLocal(quizzes);
-        _loading = false;
+        _loadingLocal = false;
       });
       // The device's own copy is on screen either way; asking the server what
       // became of anything in the review queue can take its time.
@@ -188,7 +194,7 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
     } catch (error) {
       if (!mounted || request != _localRequest) return;
       setState(() {
-        _loading = false;
+        _loadingLocal = false;
         _error = describeError(error);
       });
     }
@@ -356,11 +362,13 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
         ),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(foregroundColor: FzColors.dim),
             onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Keep'),
           ),
           TextButton(
             key: const Key('confirmDeleteQuiz'),
+            style: TextButton.styleFrom(foregroundColor: FzColors.ac2),
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Delete'),
           ),
@@ -516,26 +524,34 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
             const SizedBox(height: 12),
             SizedBox(
               height: 36,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  FzChoice(
-                    key: const Key('tagFilterAll'),
-                    label: 'All tags',
-                    selected: _tag == null,
-                    onTap: () => _setTag(null),
-                  ),
-                  for (final tag in _tagChoices)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 7),
-                      child: FzChoice(
-                        key: ValueKey('tagFilter-$tag'),
-                        label: tag,
-                        selected: _tag == tag,
-                        onTap: () => _setTag(_tag == tag ? null : tag),
-                      ),
+              // A mouse can drag the row too. Flutter leaves the mouse out of
+              // drag scrolling by default, and a vertical wheel does not move
+              // a horizontal list, so on a desktop the tags past the edge of
+              // the column could not be reached at all.
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(context)
+                    .copyWith(dragDevices: PointerDeviceKind.values.toSet()),
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    FzChoice(
+                      key: const Key('tagFilterAll'),
+                      label: 'All tags',
+                      selected: _tag == null,
+                      onTap: () => _setTag(null),
                     ),
-                ],
+                    for (final tag in _tagChoices)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 7),
+                        child: FzChoice(
+                          key: ValueKey('tagFilter-$tag'),
+                          label: tag,
+                          selected: _tag == tag,
+                          onTap: () => _setTag(_tag == tag ? null : tag),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 18),
@@ -848,7 +864,7 @@ class _QuizCard extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     meta.toUpperCase(),
-                    style: fz.m(9.5, color: FzColors.faint, tracking: .12),
+                    style: fz.m(10, color: FzColors.dim, tracking: .12),
                   ),
                   if (warning != null) ...[
                     const SizedBox(height: 8),

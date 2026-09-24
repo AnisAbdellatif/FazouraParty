@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:fazoura_party/core/models/models.dart';
 import 'package:fazoura_party/core/providers/quiz_providers.dart';
 import 'package:fazoura_party/features/quizzes/quiz_browser_screen.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -199,6 +202,60 @@ void main() {
     await tapKey(tester, const ValueKey('tagFilter-movies'));
     expect(find.text('Science Fair'), findsOneWidget);
     expect(server.requests.last.url.queryParameters['tag'], isNull);
+  });
+
+  testWidgets('says nothing matches only once the list has come', (
+    tester,
+  ) async {
+    final hold = Completer<void>();
+    await openBrowser(
+      tester,
+      public: [quiz('gk', 'General Knowledge', source: 'builtin')],
+      // The device's own quizzes arrive first; the public list is slower.
+      local: [localQuiz('a', 'Secret Party')],
+      queued: (server) => server.holdLists = hold,
+    );
+
+    expect(find.byKey(const Key('quizBrowserEmpty')), findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    hold.complete();
+    await settle(tester);
+    expect(find.text('General Knowledge'), findsOneWidget);
+  });
+
+  testWidgets('a mouse can drag the tag row along', (tester) async {
+    // A desktop browser has no touch to swipe with, and a vertical wheel
+    // does not move a horizontal list.
+    await openBrowser(
+      tester,
+      public: [
+        for (var i = 0; i < 12; i++)
+          quiz('q$i', 'Quiz $i', tags: ['tag number $i']),
+      ],
+    );
+
+    // The row's own scrollable: a text field has a horizontal one too.
+    final row = find.descendant(
+      of: find.byType(ListView),
+      matching: find.byType(Scrollable),
+    );
+    double offset() => tester.state<ScrollableState>(row.first).position.pixels;
+    expect(offset(), 0);
+
+    // Slowly, so it is a drag and not a fling that throws the row away.
+    final mouse = await tester.startGesture(
+      tester.getCenter(find.byKey(const Key('tagFilterAll'))),
+      kind: PointerDeviceKind.mouse,
+    );
+    for (var i = 0; i < 15; i++) {
+      await mouse.moveBy(const Offset(-10, 0));
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+    await mouse.up();
+    await tester.pump();
+
+    expect(offset(), greaterThan(100));
   });
 
   testWidgets('switching tabs clears the tag filter', (tester) async {
