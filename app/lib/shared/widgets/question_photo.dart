@@ -39,30 +39,52 @@ class QuestionPhoto extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxHeight, minHeight: 80),
-        child: Container(
-          key: const Key('photoMat'),
-          width: double.infinity,
-          color: FzColors.photoMat,
-          alignment: Alignment.center,
-          child: bytes != null
-              ? Image.memory(
-                  bytes!,
-                  fit: BoxFit.contain,
-                  semanticLabel: semanticLabel,
-                  errorBuilder: error,
-                )
-              : Image.network(
-                  url!,
-                  fit: BoxFit.contain,
-                  semanticLabel: semanticLabel,
-                  loadingBuilder: (context, child, progress) => progress == null
-                      ? child
-                      : const Padding(
-                          padding: EdgeInsets.all(28),
-                          child: CircularProgressIndicator(color: FzColors.bg),
-                        ),
-                  errorBuilder: error,
-                ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Decode to the size it is drawn at, not the size it was saved at.
+            // `preparePhoto` caps a photo at 1280px, and the mat is a few
+            // hundred wide: without this the full-size bitmap is decoded and
+            // held in the image cache, costing several times the memory and
+            // the decode time for pixels that are thrown away on the way to
+            // the screen. Null when the width is unbounded, which leaves
+            // Flutter's own behaviour.
+            final width = constraints.maxWidth.isFinite
+                ? (constraints.maxWidth *
+                          MediaQuery.devicePixelRatioOf(context))
+                      .round()
+                : null;
+
+            return Container(
+              key: const Key('photoMat'),
+              width: double.infinity,
+              color: FzColors.photoMat,
+              alignment: Alignment.center,
+              child: bytes != null
+                  ? Image.memory(
+                      bytes!,
+                      fit: BoxFit.contain,
+                      cacheWidth: width,
+                      semanticLabel: semanticLabel,
+                      errorBuilder: error,
+                    )
+                  : Image.network(
+                      url!,
+                      fit: BoxFit.contain,
+                      cacheWidth: width,
+                      semanticLabel: semanticLabel,
+                      loadingBuilder: (context, child, progress) =>
+                          progress == null
+                          ? child
+                          : const Padding(
+                              padding: EdgeInsets.all(28),
+                              child: CircularProgressIndicator(
+                                color: FzColors.bg,
+                              ),
+                            ),
+                      errorBuilder: error,
+                    ),
+            );
+          },
         ),
       ),
     );

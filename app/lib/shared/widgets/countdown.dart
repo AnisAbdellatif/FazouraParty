@@ -98,69 +98,74 @@ class _CountdownState extends ConsumerState<Countdown> {
         ? FzColors.alarm
         : FzColors.ac;
 
-    return FzTint(
-      color: target,
-      builder: (context, color) {
-        final label = AnimatedScale(
-          // Grows toward the bar, never off the edge of the screen.
-          alignment: Alignment.centerRight,
-          scale: finale ? 2 : 1,
-          duration: quick,
-          curve: Curves.easeOutBack,
-          child: FzPop(
-            trigger: warning ? seconds : null,
-            scale: finale ? 1.4 : 1.25,
-            duration: Duration(milliseconds: finale ? 340 : 260),
-            child: Text(
-              paused ? 'PAUSED · ${seconds}s' : '$seconds',
-              key: const Key('countdown'),
-              style: fz
-                  .m(15, color: color)
-                  .copyWith(
-                    shadows: finale
-                        ? [
-                            Shadow(
-                              color: color.withValues(alpha: .7),
-                              blurRadius: 12,
-                            ),
-                          ]
-                        : null,
-                  ),
+    // Its own layer: this rebuilds four times a second all question long, and
+    // every frame for the last three. Without a boundary each of those ticks
+    // dirties the whole page's display list.
+    return RepaintBoundary(
+      child: FzTint(
+        color: target,
+        builder: (context, color) {
+          final label = AnimatedScale(
+            // Grows toward the bar, never off the edge of the screen.
+            alignment: Alignment.centerRight,
+            scale: finale ? 2 : 1,
+            duration: quick,
+            curve: Curves.easeOutBack,
+            child: FzPop(
+              trigger: warning ? seconds : null,
+              scale: finale ? 1.4 : 1.25,
+              duration: Duration(milliseconds: finale ? 340 : 260),
+              child: Text(
+                paused ? 'PAUSED · ${seconds}s' : '$seconds',
+                key: const Key('countdown'),
+                style: fz
+                    .m(15, color: color)
+                    .copyWith(
+                      shadows: finale
+                          ? [
+                              Shadow(
+                                color: color.withValues(alpha: .7),
+                                blurRadius: 12,
+                              ),
+                            ]
+                          : null,
+                    ),
+              ),
             ),
-          ),
-        );
+          );
 
-        final limit = widget.timeLimitMs;
-        if (limit == null || limit <= 0) return label;
-        return Row(
-          children: [
-            Expanded(
-              child: FzFlash(
-                key: const Key('countdownBar'),
-                trigger: finale ? seconds : null,
-                color: color,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: AnimatedContainer(
-                    duration: quick,
-                    height: finale ? 8 : 5,
-                    color: const Color(0x1AFBF6EC),
-                    alignment: Alignment.centerLeft,
-                    child: AnimatedFractionallySizedBox(
-                      duration: const Duration(milliseconds: 250),
-                      widthFactor: (ms / limit).clamp(0.0, 1.0),
-                      heightFactor: 1,
-                      child: ColoredBox(color: color),
+          final limit = widget.timeLimitMs;
+          if (limit == null || limit <= 0) return label;
+          return Row(
+            children: [
+              Expanded(
+                child: FzFlash(
+                  key: const Key('countdownBar'),
+                  trigger: finale ? seconds : null,
+                  color: color,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: AnimatedContainer(
+                      duration: quick,
+                      height: finale ? 8 : 5,
+                      color: const Color(0x1AFBF6EC),
+                      alignment: Alignment.centerLeft,
+                      child: AnimatedFractionallySizedBox(
+                        duration: const Duration(milliseconds: 250),
+                        widthFactor: (ms / limit).clamp(0.0, 1.0),
+                        heightFactor: 1,
+                        child: ColoredBox(color: color),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 20),
-            label,
-          ],
-        );
-      },
+              const SizedBox(width: 20),
+              label,
+            ],
+          );
+        },
+      ),
     );
   }
 }
