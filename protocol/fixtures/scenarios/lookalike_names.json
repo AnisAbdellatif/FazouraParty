@@ -1,0 +1,105 @@
+{
+  "name": "a name is compared without the characters that draw nothing, and cannot be made of them alone",
+  "pack": {
+    "title": "Fixture Pack",
+    "questions": [
+      {
+        "id": "q1",
+        "type": "text",
+        "prompt": "2 + 2?",
+        "accepted_answers": [
+          "4"
+        ],
+        "time_limit_ms": 30000
+      }
+    ]
+  },
+  "steps": [
+    {
+      "actor": "host",
+      "join": {
+        "protocol_version": 9,
+        "host_token": "$host_token"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "join": {
+        "protocol_version": 9,
+        "display_name": "Sam"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "_comment": "A zero-width space inside a taken name: it looks the same to everybody reading the room.",
+      "actor": "fake",
+      "join": {
+        "protocol_version": 9,
+        "display_name": "S\u200bam"
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "name_taken"
+        }
+      }
+    },
+    {
+      "_comment": "A right-to-left mark in front does not make it someone else either.",
+      "actor": "fake2",
+      "join": {
+        "protocol_version": 9,
+        "display_name": "\u200fSAM"
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "name_taken"
+        }
+      }
+    },
+    {
+      "_comment": "Nothing but invisible characters is no name.",
+      "actor": "ghost",
+      "join": {
+        "protocol_version": 9,
+        "display_name": "\u200b\u200d"
+      },
+      "expect": {
+        "status": "error",
+        "response": {
+          "code": "invalid_name"
+        }
+      }
+    },
+    {
+      "_comment": "A joiner that belongs in a name is kept as typed.",
+      "actor": "kim",
+      "join": {
+        "protocol_version": 9,
+        "display_name": "Ki\u200dm"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "players": [
+          {
+            "name": "Ki\u200dm"
+          },
+          {
+            "name": "Sam"
+          }
+        ]
+      }
+    }
+  ]
+}

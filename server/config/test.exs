@@ -33,6 +33,14 @@ config :fazoura, broadcast_interval_ms: 0
 # rate-limit tests turn it on for themselves.
 config :fazoura, rate_limit_enabled: false
 
+# Every test creates its rooms from 127.0.0.1, and a channel test's sockets all share
+# the test process as their connection: the real limits would trip on the suite
+# itself. The tests of `Fazoura.Rooms.Limits` set them back down.
+config :fazoura, Fazoura.Rooms.Limits,
+  rooms_per_address: 100_000,
+  rooms_per_network: 100_000,
+  rooms_per_connection: 100_000
+
 config :fazoura, admin: [username: "admin", password: "test-admin-password"]
 
 # We don't run a server during test. If one is required,

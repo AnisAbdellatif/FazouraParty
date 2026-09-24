@@ -116,7 +116,9 @@ defmodule Fazoura.Game.View do
   defp shown_answer(_game, submission, true), do: submission.answer
 
   defp shown_answer(_game, submission, false) do
-    if Game.correct?(submission) or Profanity.clean?(submission.answer),
+    clean? = Map.get_lazy(submission, :clean?, fn -> Profanity.clean?(submission.answer) end)
+
+    if Game.correct?(submission) or clean?,
       do: submission.answer,
       else: "***"
   end

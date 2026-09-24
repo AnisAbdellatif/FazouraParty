@@ -304,6 +304,10 @@ class Game {
     if (length < 1 || length > maxNameLength) {
       throw const GameRuleError('invalid_name');
     }
+    // Nothing but invisible characters is no name at all.
+    if (_visible(trimmed).trim().isEmpty) {
+      throw const GameRuleError('invalid_name');
+    }
     if (players.length >= roomSize) throw const GameRuleError('room_full');
     if (_nameTaken(trimmed)) throw const GameRuleError('name_taken');
 
@@ -331,10 +335,18 @@ class Game {
     );
   }
 
+  /// Compared without format characters (zero-width spaces and joiners,
+  /// direction marks): they draw nothing, so "Sam" with one tucked inside is
+  /// "Sam" to everybody reading the room. The name is kept as typed — Arabic
+  /// and Persian need a joiner now and then — only the comparison ignores them.
+  /// The same rule as `Fazoura.Game`.
   bool _nameTaken(String name) {
-    final key = name.toLowerCase();
-    return players.values.any((p) => p.name.toLowerCase() == key);
+    final key = _visible(name).toLowerCase();
+    return players.values.any((p) => _visible(p.name).toLowerCase() == key);
   }
+
+  static final _format = RegExp(r'\p{Cf}', unicode: true);
+  static String _visible(String text) => text.replaceAll(_format, '');
 
   /// A random hue (0..359) kept as far as possible from those already in the
   /// room, so two players never look alike. Server-assigned by design: every

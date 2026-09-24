@@ -77,6 +77,13 @@ that has never heard of them shows no control for them, and a room it hosts stay
   never counted, so a room reconnecting at once is not affected.
 - **Tokens.** Tokens are scoped to one room *instance*, not only its code (§3.3), so a token
   from a room that has ended opens nothing, even a later room that draws the same code.
+- **Names** are compared without format characters and cannot be made of them alone (§4.1),
+  on both hosts: a zero-width space made "Sam" and `S\u200Bam` two players who look alike.
+- **Cloud limits** (§4.1): a player the host removed is kept out under a new name
+  (`removed`); a public room takes 6 new players from one address (`address_full`); one
+  connection is in at most 3 rooms and one address holds at most 10 (40 for an IPv6 /48);
+  channel events are metered; photos of private quizzes have a server-wide budget
+  (`too_many_rooms`). An older client shows these by their message.
 
 **This is semver's major and minor, and there is deliberately no patch.** The number
 exists to answer one question — does this host behave exactly like that one? — and the
@@ -136,6 +143,8 @@ Pushes from the host (§5) have `ref = null`.
 The host then selects the quizzes to play in the lobby with `host_select_quiz` (§6.4).
 `{"listed": true}` creates it on the public room list instead (§3.5); `listed` may accompany
 any of the bodies below and must be a boolean (`422 invalid_payload` otherwise).
+One address may hold 10 rooms at once (an IPv6 /48, 40); past that, `429 rate_limited` until
+one of them ends.
 
 For backwards compatibility the endpoint also accepts a **single** quiz body and snapshots it
 immediately: `{"quiz_id": "<uuid or built-in slug>"}` for a stored (public) quiz (`pack_id` is
@@ -335,7 +344,9 @@ whole join fails and the host is **not** connected; the `host_token` stays valid
 should let the host retry with another name (or without one).
 
 `display_name`: trimmed, 1–20 characters after trimming (Unicode grapheme clusters), unique
-(case-insensitive) within the room. The same length unit applies to `answer` (§4.2).
+(case-insensitive, and ignoring format characters — `\p{Cf}`, such as zero-width spaces and
+joiners and direction marks — which draw nothing) within the room, and not made of format
+characters alone (`invalid_name`). The name is kept as typed; only the comparison drops them. The same length unit applies to `answer` (§4.2).
 
 **Reconnects:** after its first successful join a player client must always rejoin (including
 automatic transport reconnects) with `player_token` only. If a rejoin fails with
@@ -360,7 +371,16 @@ Join error codes: `unsupported_protocol_version`, `room_not_found`, `invalid_tok
 room, §3.5), `banned` (a public room, from a connection kept out of them, §3.5),
 `rate_limited` (this address has failed to join 30 times in the last minute; failures are
 `room_not_found` and `invalid_token`, and a join that succeeds is never counted — so this
-only ever meets somebody guessing codes, who then learns nothing from the answer).
+only ever meets somebody guessing codes, who then learns nothing from the answer; the cloud
+host also answers it to a connection already in 3 rooms). Cloud only, for a join that would
+add a new player — a rejoin by token is never refused by these: `removed` (the host removed a
+player from this address, and the room keeps it out under any name until the room ends) and
+`address_full` (a public room already has 6 players from this address).
+
+On the cloud host every event a channel sends is metered: at most 60 in 10 seconds, and
+`host_select_quiz` and `host_redeem_size_code` at most 10 a minute; past either the reply is
+`rate_limited`. `host_select_quiz` can also answer `too_many_rooms` when the server holds as
+many private-quiz photos as it will.
 
 ### 4.2 Intents
 

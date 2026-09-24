@@ -70,6 +70,24 @@ defmodule Fazoura.Quizzes.ReviewTest do
       assert Review.submit(package(), QuizFixtures.owner_key()) == {:error, :review_queue_full}
     end
 
+    test "a package with no photos is held to what a quiz's text could need" do
+      # 5 MB of filler that is not a photo: stored, not compressed, so the package
+      # really is that big. The manifest is the only thing a photo-less package carries.
+      filler = :binary.copy("x", 5 * 1024 * 1024)
+
+      {:ok, {_name, binary}} =
+        :zip.create(
+          ~c"q.fazoura",
+          [
+            {~c"manifest.json", Jason.encode!(%{quiz: Jason.decode!(Jason.encode!(%{}))})},
+            {~c"notes.txt", filler}
+          ],
+          [:memory, {:uncompress, :all}]
+        )
+
+      assert Review.submit(binary, @owner) == {:error, :archive_too_large}
+    end
+
     test "listing the queue never loads the packages themselves" do
       {:ok, submission} = Review.submit(package(), @owner)
 

@@ -1,7 +1,7 @@
 defmodule FazouraWeb.RoomController do
   use FazouraWeb, :controller
 
-  import FazouraWeb.ApiHelpers, only: [error: 4, owner_key: 1]
+  import FazouraWeb.ApiHelpers, only: [error: 4, owner_key: 1, report_counts?: 1]
 
   alias Fazoura.{Moderation, Quizzes, Rooms}
   alias Fazoura.Quizzes.Reports
@@ -12,10 +12,13 @@ defmodule FazouraWeb.RoomController do
   # POST /api/rooms (PROTOCOL.md §3.1). `listed: true` puts the room on the public
   # list (§3.5); it is the one key that may come with any of the forms below.
   def create(conn, %{"listed" => listed} = params) when is_boolean(listed),
-    do: create(conn, Map.delete(params, "listed"), listed: listed)
+    do: create(conn, Map.delete(params, "listed"), listed: listed, creator: creator(conn))
 
   def create(conn, %{"listed" => _}), do: invalid_listed(conn)
-  def create(conn, params), do: create(conn, params, [])
+  def create(conn, params), do: create(conn, params, creator: creator(conn))
+
+  # One address may hold only so many rooms at once (`Fazoura.Rooms.Limits`).
+  defp creator(conn), do: FazouraWeb.ClientIp.from_conn(conn)
 
   defp create(conn, params, opts) when map_size(params) == 0 do
     with {:ok, room_code, host_token} <-
@@ -26,7 +29,7 @@ defmodule FazouraWeb.RoomController do
 
   # A listed room plays published quizzes only, so it cannot be opened with one
   # that was sent inline.
-  defp create(conn, %{"quiz" => _}, listed: true) do
+  defp create(conn, %{"quiz" => _}, [listed: true] ++ _) do
     error(
       conn,
       :unprocessable_entity,
@@ -91,8 +94,12 @@ defmodule FazouraWeb.RoomController do
   def report(conn, %{"code" => code, "player_id" => player_id} = params)
       when is_binary(player_id) do
     with {:ok, reported} <- Rooms.player_report(code, player_id, room_token(conn)),
+         true <- report_counts?(conn) or :dropped,
          {:ok, _report} <- Moderation.report_player(reported, owner_key(conn), params) do
       send_resp(conn, :no_content, "")
+    else
+      :dropped -> send_resp(conn, :no_content, "")
+      error -> error
     end
   end
 
@@ -100,8 +107,12 @@ defmodule FazouraWeb.RoomController do
     token = room_token(conn)
 
     with {:ok, quiz_id} <- Rooms.source_quiz(code, params["question_id"], token),
+         true <- report_counts?(conn) or :dropped,
          {:ok, _report} <- Reports.submit(quiz_id, owner_key(conn), params) do
       send_resp(conn, :no_content, "")
+    else
+      :dropped -> send_resp(conn, :no_content, "")
+      error -> error
     end
   end
 

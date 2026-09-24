@@ -45,7 +45,9 @@ defmodule Fazoura.Quizzes do
   @spec list(keyword()) :: {:ok, [Quiz.t()], non_neg_integer() | nil}
   def list(opts \\ []) do
     limit = opts |> Keyword.get(:limit, 20) |> max(1) |> min(50)
-    offset = opts |> Keyword.get(:offset, 0) |> max(0)
+    # Bounded above too: an offset past what a bigint holds was a 500 from the database,
+    # and nobody pages 10,000 quizzes deep.
+    offset = opts |> Keyword.get(:offset, 0) |> max(0) |> min(10_000)
 
     rows =
       from(q in Quiz, where: q.visibility == "public", preload: [:quiz_tags])
@@ -410,14 +412,14 @@ defmodule Fazoura.Quizzes do
   """
   @spec inline_pack(term(), non_neg_integer()) ::
           {:ok, Pack.t(), [String.t()], non_neg_integer()}
-          | {:error, Ecto.Changeset.t() | :image_too_large | :unsupported_image}
+          | {:error, Ecto.Changeset.t() | :image_too_large | :unsupported_image | :too_many_rooms}
   def inline_pack(params, spent \\ 0) do
     with {:ok, params, images, spent} <- extract_inline_images(params, spent),
          {:ok, quiz} <-
            %Quiz{source: "inline", visibility: "private", questions: [], quiz_tags: []}
            |> Quiz.changeset(params)
-           |> Ecto.Changeset.apply_action(:insert) do
-      Images.put(images)
+           |> Ecto.Changeset.apply_action(:insert),
+         :ok <- Images.put(images) do
       {:ok, to_pack(quiz, &Images.url/1), Enum.map(images, &elem(&1, 0)), spent}
     end
   end

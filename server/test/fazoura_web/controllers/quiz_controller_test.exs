@@ -4,6 +4,7 @@ defmodule FazouraWeb.QuizControllerTest do
   alias Fazoura.QuizFixtures
   alias Fazoura.Quizzes.Reports
   alias Fazoura.Quizzes.Review
+  alias Fazoura.Rooms.Listing
 
   @owner QuizFixtures.owner_key()
   @other QuizFixtures.other_key()
@@ -258,12 +259,29 @@ defmodule FazouraWeb.QuizControllerTest do
       refute inspect(room) =~ id
     end
 
-    test "a room only people with the code can join does not hold it back", %{
-      conn: conn,
-      id: id,
-      pack: pack
-    } do
-      {:ok, _code, _token} = Fazoura.Rooms.create(pack, listed: false)
+    test "a private room holds it back just the same", %{conn: conn, id: id, pack: pack} do
+      # The players in a private room see the title too, and need not know each other.
+      {:ok, code, _token} = Fazoura.Rooms.create(pack, listed: false)
+
+      assert %{"code" => "quiz_in_play"} =
+               conn |> get(~p"/api/quizzes/#{id}/download") |> json_response(409)
+
+      # And it is still on no list.
+      assert %{"rooms" => rooms} = conn |> get(~p"/api/rooms") |> json_response(200)
+      refute Enum.any?(rooms, &(&1["room_code"] == code))
+    end
+
+    test "once the room has gone, the quiz can be saved again", %{conn: conn, id: id, pack: pack} do
+      {:ok, code, _token} = Fazoura.Rooms.create(pack, listed: false)
+      [{pid, _}] = Registry.lookup(Fazoura.Rooms.Registry, code)
+      ref = Process.monitor(pid)
+      DynamicSupervisor.terminate_child(Fazoura.Rooms.Supervisor, pid)
+      assert_receive {:DOWN, ^ref, _, _, _}
+
+      Enum.find_value(1..100, fn _ ->
+        not Listing.in_play?(id) || Process.sleep(10)
+      end)
+
       assert conn |> get(~p"/api/quizzes/#{id}/download") |> json_response(200)
     end
   end

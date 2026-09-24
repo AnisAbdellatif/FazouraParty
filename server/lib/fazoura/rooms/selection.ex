@@ -80,7 +80,8 @@ defmodule Fazoura.Rooms.Selection do
         {:ok, pack, image_keys, spent}
 
       # Worth saying which: "too big" is something the host can act on.
-      {:error, reason} when reason in [:quiz_too_large, :image_too_large, :unsupported_image] ->
+      {:error, reason}
+      when reason in [:quiz_too_large, :image_too_large, :unsupported_image, :too_many_rooms] ->
         {:error, reason}
 
       _ ->

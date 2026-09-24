@@ -264,9 +264,9 @@ store the resulting document privately on the device. This endpoint is intention
 opt-in answer disclosure: without the answers, the device could not host the quiz offline.
 `is_owner` is true only for the publisher's own `x-owner-key`, as everywhere else.
 
-`409 quiz_in_play` while a public room (PROTOCOL.md §3.5) has the quiz chosen or under way.
-Everybody in a public room sees its quiz's title, and a title finds the quiz — so without
-this any stranger in the room could look the answers up mid-game. It does not make the
+`409 quiz_in_play` while any room — public or private — has the quiz chosen or under way.
+Everybody in a room sees its quiz's title, and a title finds the quiz — so without this
+anybody in the room could look the answers up mid-game. It does not make the
 answers secret: they can be saved before a room picks the quiz. What it stops is the
 lookup at the one moment it is a cheat. The same applies to §5.3b.
 
@@ -322,8 +322,11 @@ until an admin approves it (§4, ADMIN.md §3.2).
 published quiz. Errors: `401 owner_key_required` without a valid key;
 `422 invalid_quiz` when the package carries no title or no questions;
 `422 archive_too_large`, `422 invalid_archive`, `422 manifest_missing`,
-`422 manifest_invalid` for a package that cannot be read;
-`429 too_many_submissions` when this key already has 10 submissions waiting;
+`422 manifest_invalid` for a package that cannot be read, and `archive_too_large` too for a
+package with no photos over 4 MB (a manifest alone never needs that);
+`429 too_many_submissions` when this key already has 10 submissions waiting, or this
+address has sent 10 packages (or 128 MB) for review today — the key is the caller's to
+choose, so the address is what really bounds the queue;
 `503 review_queue_full` when everything waiting adds up to more than the server will hold
 (1 GB). A submission is kept whole until somebody reads it, so these are what stop the
 queue filling the disk; either clears as soon as submissions are approved or rejected.
@@ -400,7 +403,10 @@ Clients cannot tell the two apart: both send an ordinary `image_url`.
 Header `x-owner-key` required. Reports a public quiz as something that should not be
 public. `204`, always — the answer says nothing about what happened to the report, not
 whether it is the first, not how many others there are, and not whether an admin has
-already decided. That is moderation state, and a caller does not get to probe it.
+already decided. That is moderation state, and a caller does not get to probe it. One
+address's reports (quiz and player reports together) are kept up to 20 a day; past that
+they are answered the same and dropped, so one caller with many publisher keys cannot make
+one complaint read as many.
 
 ```json
 {"reason": "sexual" | "hate" | "violence" | "illegal" | "spam" | "other",

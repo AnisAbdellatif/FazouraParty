@@ -6,7 +6,7 @@ defmodule Fazoura.Rooms do
 
   alias Fazoura.Game.Pack
   alias Fazoura.Metrics
-  alias Fazoura.Rooms.{Images, Listing, RoomServer, Tokens}
+  alias Fazoura.Rooms.{Images, Limits, Listing, RoomServer, Tokens}
 
   @code_alphabet ~c"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
   @code_length 6
@@ -19,12 +19,13 @@ defmodule Fazoura.Rooms do
 
   @doc """
   Starts a room for `pack`. Options: `:now` (0-arity fun returning epoch ms, for tests),
-  `:mode` (`:cloud` | `:lan`), `:image_keys` (private-quiz photos in
+  `:mode` (`:cloud` | `:lan`), `:creator` (the caller's address, `FazouraWeb.ClientIp`,
+  which may hold only so many rooms at once: `Fazoura.Rooms.Limits`), `:image_keys` (private-quiz photos in
   `Fazoura.Rooms.Images`, freed when the room exits), `:broadcast_interval_ms` (the
   shortest gap between two snapshots, `Fazoura.Rooms.RoomServer`).
   """
   @spec create(Pack.t(), keyword()) ::
-          {:ok, String.t(), String.t()} | {:error, :empty_pack | :too_many_rooms}
+          {:ok, String.t(), String.t()} | {:error, :empty_pack | :too_many_rooms | :rate_limited}
   def create(pack, opts \\ [])
 
   # A pack with no questions is only legal as the empty lobby a room is created
@@ -32,10 +33,10 @@ defmodule Fazoura.Rooms do
   def create(%Pack{questions: [], titles: [_ | _]}, _opts), do: {:error, :empty_pack}
 
   def create(%Pack{} = pack, opts) do
-    if count() >= max_rooms() do
-      {:error, :too_many_rooms}
-    else
-      start_room(pack, opts)
+    cond do
+      count() >= max_rooms() -> {:error, :too_many_rooms}
+      not Limits.may_create?(opts[:creator]) -> {:error, :rate_limited}
+      true -> start_room(pack, opts)
     end
   end
 

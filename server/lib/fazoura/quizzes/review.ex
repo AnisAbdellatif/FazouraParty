@@ -54,7 +54,8 @@ defmodule Fazoura.Quizzes.Review do
     with {:ok, hash} <- hash_key(owner_key),
          :ok <- check_room_in_queue(hash, byte_size(package)),
          {:ok, replaces} <- replaced_quiz(opts[:replaces], hash),
-         {:ok, %{document: document}} <- Archive.read(package),
+         {:ok, %{document: document} = read} <- Archive.read(package),
+         :ok <- check_text_only_size(read, package),
          {:ok, summary} <- summarise(document) do
       %Submission{}
       |> Submission.changeset(
@@ -72,6 +73,17 @@ defmodule Fazoura.Quizzes.Review do
 
   defp max_pending_bytes,
     do: Application.get_env(:fazoura, :review_queue_bytes, @default_max_pending_bytes)
+
+  # A package is capped at 32 MB for its photos. One with none is a manifest, and even
+  # the largest quiz there can be is a small fraction of that; the rest would be bytes
+  # somebody wanted stored, not a quiz.
+  @max_text_only_bytes 4 * 1024 * 1024
+
+  defp check_text_only_size(%{photos: photos}, package)
+       when map_size(photos) == 0 and byte_size(package) > @max_text_only_bytes,
+       do: {:error, :archive_too_large}
+
+  defp check_text_only_size(_read, _package), do: :ok
 
   defp check_room_in_queue(hash, bytes) do
     waiting = from(s in Submission, where: s.status == "pending")

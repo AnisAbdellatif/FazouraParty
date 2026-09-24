@@ -25,14 +25,48 @@ defmodule Fazoura.Rooms.Images do
   @spec url(String.t()) :: String.t()
   def url(key), do: Uploads.public_url() <> "/api/room-images/" <> key
 
-  @spec put([image()]) :: :ok
+  # Every room's inline photos together. One room is held to `Quizzes.max_inline_bytes/0`,
+  # but rooms are many and anonymous: this is what bounds the memory all of them can
+  # take between them, so a flood of rooms full of photos meets a "busy" rather than
+  # the node running out of memory.
+  @default_max_total_bytes 1024 * 1024 * 1024
+  @total :__total_bytes__
+
+  @doc "The most photo bytes all rooms together may hold."
+  @spec max_total_bytes() :: pos_integer()
+  def max_total_bytes,
+    do: Application.get_env(:fazoura, :max_room_image_bytes, @default_max_total_bytes)
+
+  @doc "Photo bytes held right now, across every room."
+  @spec total_bytes() :: non_neg_integer()
+  def total_bytes do
+    case :ets.lookup(@table, @total) do
+      [{@total, bytes}] -> bytes
+      [] -> 0
+    end
+  end
+
+  @doc "How many photos are held, across every room."
+  @spec count() :: non_neg_integer()
+  def count, do: :ets.select_count(@table, [{{:"$1", :_, :_}, [{:is_binary, :"$1"}], [true]}])
+
+  @spec put([image()]) :: :ok | {:error, :too_many_rooms}
+  def put([]), do: :ok
+
   def put(images) do
-    :ets.insert(@table, images)
-    :ok
+    bytes = images |> Enum.map(fn {_key, _type, binary} -> byte_size(binary) end) |> Enum.sum()
+
+    if :ets.update_counter(@table, @total, {2, bytes}, {@total, 0}) > max_total_bytes() do
+      :ets.update_counter(@table, @total, {2, -bytes})
+      {:error, :too_many_rooms}
+    else
+      :ets.insert(@table, images)
+      :ok
+    end
   end
 
   @spec fetch(String.t()) :: {:ok, String.t(), binary()} | :error
-  def fetch(key) do
+  def fetch(key) when is_binary(key) do
     case :ets.lookup(@table, key) do
       [{^key, content_type, binary}] -> {:ok, content_type, binary}
       [] -> :error
@@ -41,7 +75,12 @@ defmodule Fazoura.Rooms.Images do
 
   @spec delete([String.t()]) :: :ok
   def delete(keys) do
-    Enum.each(keys, &:ets.delete(@table, &1))
+    Enum.each(keys, fn key ->
+      case :ets.take(@table, key) do
+        [{^key, _type, binary}] -> :ets.update_counter(@table, @total, {2, -byte_size(binary)})
+        [] -> :ok
+      end
+    end)
   end
 
   @doc "Deletes `keys` once `pid` (the room) exits."

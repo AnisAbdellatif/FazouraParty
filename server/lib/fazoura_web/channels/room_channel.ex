@@ -7,6 +7,7 @@ defmodule FazouraWeb.RoomChannel do
   use FazouraWeb, :channel
 
   alias Fazoura.{Game, Moderation, RateLimit, Rooms, RoomSizeCodes}
+  alias Fazoura.Rooms.Limits
 
   @error_messages %{
     unsupported_protocol_version: "This app version is not compatible with the server.",
@@ -42,7 +43,10 @@ defmodule FazouraWeb.RoomChannel do
     invalid_code: "That code doesn't work. Check it with whoever gave it to you.",
     code_expired: "That code has expired.",
     code_used_up: "That code has unlocked as many rooms as it can.",
-    rate_limited: "Too many tries from this connection. Wait a minute and try again."
+    rate_limited: "Too many tries from this connection. Wait a minute and try again.",
+    too_many_rooms: "The server is too busy for that right now. Try again in a few minutes.",
+    removed: "The host removed you from this room.",
+    address_full: "Too many players in this room are on your connection already."
   }
 
   # Failed joins per address per minute. A join is how a room code is tested, and
@@ -55,8 +59,11 @@ defmodule FazouraWeb.RoomChannel do
   @impl true
   def join("room:" <> code, params, socket) do
     with :ok <- check_join_budget(socket),
+         :ok <- check_connection_rooms(socket),
          :ok <- check_protocol_version(params),
          {:ok, reply, room_pid} <- Rooms.join(code, self(), params, moderation(socket)) do
+      # Counted against the connection for as long as this channel lives.
+      :ok = Limits.joined_over(socket.transport_pid)
       Process.monitor(room_pid)
       {:ok, reply, assign(socket, room_code: code, room_pid: room_pid)}
     else
@@ -64,6 +71,13 @@ defmodule FazouraWeb.RoomChannel do
         count_failed_join(socket, reason)
         {:error, error(reason)}
     end
+  end
+
+  # One connection may be in only so many rooms (`Fazoura.Rooms.Limits`): otherwise
+  # one socket could keep hundreds of rooms alive, since a room lives while anybody
+  # is connected to it.
+  defp check_connection_rooms(socket) do
+    if Limits.may_join?(socket.transport_pid), do: :ok, else: {:error, :rate_limited}
   end
 
   defp check_join_budget(socket) do
@@ -92,13 +106,49 @@ defmodule FazouraWeb.RoomChannel do
   defp join_key(socket), do: socket.assigns[:ip_hash] || "unknown"
   defp join_metered?, do: Application.get_env(:fazoura, :rate_limit_enabled, true)
 
+  # What one channel may send. Every event costs the room process a call, and some
+  # much more: choosing quizzes loads them from the database, redeeming a code looks
+  # it up there. The general allowance is well above a host overriding a whole room's
+  # answers in a hurry; the heavy one is above anybody choosing quizzes by hand.
+  @events_per_window 60
+  @event_window_ms 10_000
+  @heavy_events ["host_select_quiz", "host_redeem_size_code"]
+  @heavy_per_window 10
+  @heavy_window_ms 60_000
+
+  @impl true
+  def handle_in(event, payload, socket) do
+    case meter(event) do
+      :ok -> handle_event(event, payload, socket)
+      {:error, code} -> {:reply, {:error, error(code)}, socket}
+    end
+  end
+
+  defp meter(event) do
+    key = self() |> :erlang.pid_to_list() |> to_string()
+
+    cond do
+      not Application.get_env(:fazoura, :rate_limit_enabled, true) ->
+        :ok
+
+      RateLimit.check(:channel_events, key, @events_per_window, @event_window_ms) != :ok ->
+        {:error, :rate_limited}
+
+      event in @heavy_events and
+          RateLimit.check(:heavy_events, key, @heavy_per_window, @heavy_window_ms) != :ok ->
+        {:error, :rate_limited}
+
+      true ->
+        :ok
+    end
+  end
+
   # The code is looked up and counted here, in the channel process, because the room
   # never reads the database during play (AGENTS.md §4). The room is asked first,
   # so a code it already took is not counted twice and a player's attempt costs
   # nothing; a use counted for a room that then refuses it is given back (§6.5).
-  @impl true
-  def handle_in("host_redeem_size_code", %{"code" => typed}, socket)
-      when is_binary(typed) and byte_size(typed) <= 64 do
+  defp handle_event("host_redeem_size_code", %{"code" => typed}, socket)
+       when is_binary(typed) and byte_size(typed) <= 64 do
     room = socket.assigns.room_code
 
     # Whether this connection may unlock the room at all comes first: it costs the
@@ -121,7 +171,7 @@ defmodule FazouraWeb.RoomChannel do
     end
   end
 
-  def handle_in(event, payload, socket) do
+  defp handle_event(event, payload, socket) do
     with {:ok, intent} <- to_intent(event, payload),
          :ok <- Rooms.intent(socket.assigns.room_code, self(), intent) do
       {:reply, {:ok, %{}}, socket}

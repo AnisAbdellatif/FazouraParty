@@ -45,6 +45,17 @@ defmodule FazouraWeb.FallbackController do
           "waiting for review. Try again once some have been read."
       )
 
+  # The same code as the per-key cap: to the author it is the same thing, "not now".
+  def call(conn, {:error, :daily_submissions}),
+    do:
+      error(
+        conn,
+        :too_many_requests,
+        "too_many_submissions",
+        "That is as many quizzes as can be sent for review from here today. " <>
+          "Try again tomorrow."
+      )
+
   def call(conn, {:error, :review_queue_full}),
     do:
       error(

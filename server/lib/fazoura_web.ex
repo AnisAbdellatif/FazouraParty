@@ -32,7 +32,11 @@ defmodule FazouraWeb do
 
   def channel do
     quote do
-      use Phoenix.Channel
+      # Not logged: Phoenix writes a join's parameters at :info, and a room join's
+      # are its host or player token and the player's name. Tokens in a log are
+      # tokens anyone with the log can use for a day, and /privacy says the logs
+      # hold the time, the address requested and whether it succeeded — no more.
+      use Phoenix.Channel, log_join: false, log_handle_in: false
     end
   end
 

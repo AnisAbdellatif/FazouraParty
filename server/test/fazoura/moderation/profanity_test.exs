@@ -20,6 +20,15 @@ defmodule Fazoura.Moderation.ProfanityTest do
     end
   end
 
+  test "an invisible character inside a word does not walk it past the list" do
+    # Zero-width space, zero-width joiner, soft hyphen, a direction mark: each draws
+    # nothing, and used to split a whole-word entry in two for the tokenizer (a stem
+    # already matched across separators).
+    for text <- ["sh\u200Bit", "rap\u200Dist", "pu\u00ADssy", "sh\u200Fit"] do
+      refute Profanity.clean?(text), inspect(text)
+    end
+  end
+
   test "leaves innocent words alone, including the ones that contain a bad one" do
     for text <- [
           "Sam",
