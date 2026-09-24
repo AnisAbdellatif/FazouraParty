@@ -57,12 +57,10 @@ class FinishedView extends StatelessWidget {
               onPressed: onRematch,
             )
           else
-            FzBlink(
-              child: Text(
+            const Center(
+              child: FzWaiting(
                 'Waiting for the host to start a rematch…',
-                key: const Key('waitingForRematch'),
-                textAlign: TextAlign.center,
-                style: fz.m(12, color: FzColors.dim),
+                key: Key('waitingForRematch'),
               ),
             ),
           SizedBox(height: isHost ? 10 : 14),
@@ -252,11 +250,11 @@ class _PodiumColumn extends StatelessWidget {
               Text(
                 const ['1ST', '2ND', '3RD'][rank - 1],
                 style: fz.m(
-                  9,
+                  10,
                   tracking: .14,
                   color: first
-                      ? FzColors.bg.withValues(alpha: .6)
-                      : FzColors.faint,
+                      ? FzColors.bg.withValues(alpha: .75)
+                      : FzColors.dim,
                 ),
               ),
             ],

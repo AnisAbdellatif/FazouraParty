@@ -64,7 +64,7 @@ class _RoomSizeControlState extends State<RoomSizeControl> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const FzEyebrow('Room size', size: 9.5),
+          const FzEyebrow('Room size', size: 10.5),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -172,7 +172,6 @@ class _CodeDialogState extends State<_CodeDialog> {
   Widget build(BuildContext context) {
     final fz = FzTheme.of(context);
     return AlertDialog(
-      backgroundColor: FzColors.bg,
       title: const Text('Unlock a bigger room'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -207,6 +206,7 @@ class _CodeDialogState extends State<_CodeDialog> {
       ),
       actions: [
         TextButton(
+          style: TextButton.styleFrom(foregroundColor: FzColors.dim),
           onPressed: _sending ? null : () => Navigator.of(context).pop(false),
           child: const Text('Cancel'),
         ),

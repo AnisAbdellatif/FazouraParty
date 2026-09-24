@@ -105,7 +105,7 @@ class _GameSettingsEditorState extends ConsumerState<GameSettingsEditor> {
         children: [
           Row(
             children: [
-              const Expanded(child: FzEyebrow('Tonight', size: 9.5)),
+              const Expanded(child: FzEyebrow('Tonight', size: 10.5)),
               Flexible(
                 child: Text(
                   widget.packTitle,

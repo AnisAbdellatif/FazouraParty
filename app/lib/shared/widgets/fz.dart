@@ -206,7 +206,7 @@ class FzButton extends StatelessWidget {
               trailing!,
               style: fz.m(
                 13,
-                color: filled ? fg.withValues(alpha: .6) : FzColors.dim,
+                color: filled ? fg.withValues(alpha: .75) : FzColors.dim,
               ),
             ),
           ),
@@ -337,7 +337,7 @@ class FzEyebrow extends StatelessWidget {
     this.text, {
     super.key,
     this.color = FzColors.dim,
-    this.size = 10,
+    this.size = 11,
   });
 
   final String text;
@@ -355,7 +355,7 @@ class FzEyebrow extends StatelessWidget {
 
 /// Tiny uppercase tag (YOU, HOST, READY).
 class FzTag extends StatelessWidget {
-  const FzTag(this.text, {super.key, this.color = FzColors.faint});
+  const FzTag(this.text, {super.key, this.color = FzColors.dim});
 
   final String text;
   final Color color;
@@ -364,7 +364,7 @@ class FzTag extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text.toUpperCase(),
-      style: FzTheme.of(context).m(9, color: color, tracking: .14),
+      style: FzTheme.of(context).m(10, color: color, tracking: .14),
     );
   }
 }
@@ -453,7 +453,43 @@ class FzAvatar extends StatelessWidget {
   }
 }
 
-/// Endless soft opacity pulse ("locked in — waiting for the room").
+/// A line that says the app is waiting on somebody else, with a pulsing dot
+/// in front of it ("Waiting for the host to start…").
+///
+/// Only the dot pulses. The whole line used to, and at the bottom of the pulse
+/// the text was a third of its colour — unreadable for half of every second,
+/// on the screens people stare at longest while they wait.
+class FzWaiting extends StatelessWidget {
+  const FzWaiting(this.text, {super.key, this.color = FzColors.dim});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FzBlink(
+          child: Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Flexible(
+          child: Text(
+            text,
+            style: FzTheme.of(context).m(12.5, color: color, height: 1.4),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Endless soft opacity pulse (the dot in [FzWaiting]).
 class FzBlink extends StatefulWidget {
   const FzBlink({
     super.key,

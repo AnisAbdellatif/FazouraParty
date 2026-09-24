@@ -37,7 +37,14 @@ class FzChoice extends StatelessWidget {
                 Icon(icon, size: 14, color: fg),
                 const SizedBox(width: 6),
               ],
-              Text(label, style: FzTheme.of(context).m(12.5, color: fg)),
+              // Flexible, so a long label wraps inside a narrow dialog rather
+              // than running off the chip.
+              Flexible(
+                child: Text(
+                  label,
+                  style: FzTheme.of(context).m(12.5, color: fg),
+                ),
+              ),
             ],
           ),
         ),

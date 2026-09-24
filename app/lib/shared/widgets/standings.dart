@@ -21,7 +21,7 @@ class HostBadge extends StatelessWidget {
       ),
       child: Text(
         'HOST',
-        style: FzTheme.of(context).m(8.5, color: FzColors.ac2, tracking: .14),
+        style: FzTheme.of(context).m(9.5, color: FzColors.ac2, tracking: .14),
       ),
     );
   }

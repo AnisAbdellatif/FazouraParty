@@ -194,6 +194,8 @@ class _RoomCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    FzEyebrow('Room ${room.roomCode}', size: 10),
+                    const SizedBox(height: 6),
                     if (titles.isEmpty)
                       Text(
                         'Choosing quizzes…',
@@ -221,7 +223,14 @@ class _RoomCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Text(room.roomCode, style: fz.m(13, color: FzColors.faint)),
+              // The whole card joins; the arrow is what says so. The code
+              // it used to hold here now heads the card, where it no longer
+              // squeezes the status line onto two lines on a phone.
+              Icon(
+                Icons.arrow_forward,
+                size: 20,
+                color: waiting ? FzColors.ac : FzColors.dim,
+              ),
             ],
           ),
         ),

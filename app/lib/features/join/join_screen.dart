@@ -386,17 +386,14 @@ class _CodeBoxes extends StatelessWidget {
               ? FzColors.ac
               : active
               ? FzColors.ink.withValues(alpha: .5)
-              : const Color(0x21FBF6EC),
+              : FzColors.line,
         ),
       ),
       child: FittedBox(
         fit: BoxFit.scaleDown,
         child: Text(
           char ?? '·',
-          style: fz.m(
-            30,
-            color: filled ? FzColors.ink : const Color(0x33FBF6EC),
-          ),
+          style: fz.m(30, color: filled ? FzColors.ink : FzColors.faint),
         ),
       ),
     );

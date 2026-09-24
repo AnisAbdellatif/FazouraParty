@@ -119,15 +119,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: FzPage(
         header: Row(
           children: [
-            IconButton(
+            // The same back button and title placement as every other
+            // screen reached from home.
+            FzCircleButton(
               key: const Key('settingsBackButton'),
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.arrow_back),
-              color: FzColors.ink,
+              icon: Icons.arrow_back,
               tooltip: 'Back',
+              onPressed: () => Navigator.of(context).pop(),
             ),
-            const SizedBox(width: 4),
-            Text('Settings', style: fz.t(25)),
           ],
         ),
         // Only the development server is a *setting*; everything else on this
@@ -144,7 +143,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         // a viewport.
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [const SizedBox(height: 24), ...sections],
+          children: [
+            const SizedBox(height: 12),
+            Text('Settings', style: fz.t(31, tracking: -.03)),
+            const SizedBox(height: 24),
+            ...sections,
+          ],
         ),
       ),
     );
@@ -277,7 +281,7 @@ class _UpdateSection extends ConsumerWidget {
               // like something went wrong.
               'Opens in your browser. Android will ask you to allow the '
               'install once.${release.sizeLabel == null ? '' : ' ${release.sizeLabel} download.'}',
-              style: fz.m(11, color: FzColors.faint, height: 1.4),
+              style: fz.m(11, color: FzColors.dim, height: 1.4),
             ),
           ],
         ],

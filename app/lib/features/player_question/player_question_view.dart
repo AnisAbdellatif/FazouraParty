@@ -328,7 +328,7 @@ class _Stake extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: fz.m(9.5, color: FzColors.faint, tracking: .14)),
+          Text(label, style: fz.m(10, color: FzColors.dim, tracking: .14)),
           const SizedBox(height: 4),
           Text(
             formatDelta(value),
@@ -377,30 +377,26 @@ class _LockedIn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fz = FzTheme.of(context);
-    return FzBlink(
+    // Steady and green: the answer is in, and it is what the player reads
+    // while everyone else is still typing. Only the dot says "waiting".
+    return FzPanel(
       key: const Key('ownSubmission'),
-      child: FzPanel(
-        color: Colors.transparent,
-        borderColor: FzColors.line,
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-        child: Column(
-          children: [
-            Text(
-              'locked in — waiting for the room',
-              textAlign: TextAlign.center,
-              style: fz.m(12, color: FzColors.dim),
-            ),
-            const SizedBox(height: 12),
-            FzDirection(
-              text: 'Your answer: $answer',
-              child: Text(
-                'Your answer: $answer',
-                textAlign: TextAlign.center,
-                style: fz.h(17),
-              ),
-            ),
-          ],
-        ),
+      color: FzColors.ok.withValues(alpha: .07),
+      borderColor: FzColors.ok.withValues(alpha: .45),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const FzWaiting(
+            'Locked in · waiting for the room',
+            color: FzColors.ok,
+          ),
+          const SizedBox(height: 12),
+          FzDirection(
+            text: 'Your answer: $answer',
+            child: Text('Your answer: $answer', style: fz.h(19, height: 1.3)),
+          ),
+        ],
       ),
     );
   }

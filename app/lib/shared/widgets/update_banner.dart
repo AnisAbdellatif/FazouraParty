@@ -63,7 +63,7 @@ class UpdateBanner extends ConsumerWidget {
               onPressed: () =>
                   ref.read(availableUpdateProvider.notifier).dismiss(),
               icon: const Icon(Icons.close, size: 18),
-              color: FzColors.faint,
+              color: FzColors.dim,
             ),
           ],
         ),
