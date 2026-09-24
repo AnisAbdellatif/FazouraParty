@@ -24,6 +24,7 @@ comparison will ever agree.
 | [`tools/fazoura-cli/`](tools/fazoura-cli/) | `fazoura`, the game from a terminal: host, join, bots, the quiz library, publishing and packing — on the app's own client code. |
 | [`deploy/`](deploy/) | Dockerfile, compose stack and the VPS deployment, driven from CI. |
 | [`design/`](design/) | Visual source: the design prototype and the icon artwork everything is generated from. |
+| [`store_listing/`](store_listing/) | The Google Play listing: descriptions, feature graphic and phone screenshots. |
 | [`AGENTS.md`](AGENTS.md) | The rules of the repo. Read it before changing anything. |
 
 A game lives entirely in memory as one process per room, and the server is authoritative:

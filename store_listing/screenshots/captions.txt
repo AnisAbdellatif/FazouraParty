@@ -1,0 +1,10 @@
+# One line per screenshot: <raw file>|<first line>|<second line, in amber>
+# The raw file is written by app/tool/store_screenshots/screenshots_test.dart.
+1-home|Party trivia for a|room full of phones
+2-lobby|One code, and everyone|joins from their phone
+3-question|Type the answer.|No multiple choice.
+4-photo|Hard questions|pay +50
+5-override|The host has the final|word on close calls
+6-leaderboard|Every question|shakes up the standings
+7-library|Pick from the library,|or write your own
+8-finished|Crown a champion,|then play again
