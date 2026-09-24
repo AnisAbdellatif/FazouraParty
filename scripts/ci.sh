@@ -249,6 +249,16 @@ release_inputs() {
 
   check_release_version
 
+  # A release is what every installed app is offered as an update, so it has to be
+  # something that went through review: a tag on a commit that never reached main
+  # would ship whatever the tagger pushed. Checked only when a tag is named.
+  if [ -n "${RELEASE_TAG:-}" ]; then
+    git -C "$ROOT" rev-parse --verify --quiet origin/main >/dev/null ||
+      fail "origin/main is not fetched, so the tag cannot be checked against it"
+    git -C "$ROOT" merge-base --is-ancestor HEAD origin/main ||
+      fail "$RELEASE_TAG is on a commit that is not on main — tag what was merged, not a branch"
+  fi
+
   # Android has no origin to be served from, so the server it talks to is baked
   # in (app/lib/core/providers/config_providers.dart). Without this the build
   # would quietly point at localhost and never reach a game.
@@ -432,6 +442,8 @@ up() {
     lan="$(lan_address)"
     public_url="http://${lan:-localhost}:4000"
   fi
+  # A fresh admin password per run: the stack is reachable from the whole Wi-Fi.
+  export LOCAL_ADMIN_PASSWORD="${LOCAL_ADMIN_PASSWORD:-$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')}"
   PUBLIC_URL="$public_url" compose up --build --wait
   # Migrations and the built-in quizzes, exactly as a deploy runs them.
   compose run --rm --no-TTY app bin/fazoura eval 'Fazoura.Release.setup()'
@@ -444,7 +456,7 @@ up() {
   cat <<EOF
 
   The app, the API and the WebSocket are all on http://localhost:4000
-  Admin dashboard:  http://localhost:4000/admin  (admin / admin)
+  Admin dashboard:  http://localhost:4000/admin  (admin / $LOCAL_ADMIN_PASSWORD)
   Postgres:         localhost:5433  (user fazoura, password local-development-only)
   Photo links:      $public_url
 

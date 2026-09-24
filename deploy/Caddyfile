@@ -14,6 +14,12 @@
 party.example.com {
 	encode zstd gzip
 
+	# The largest body the app ever takes is 32 MB (a private quiz sent inline, or a
+	# package for review). Refused here, before a byte reaches the app.
+	request_body {
+		max_size 33MB
+	}
+
 	# The service worker owns caching (AGENTS.md §5): the app answers with
 	# `max-age=0, must-revalidate` and ETags, and nothing here may extend that.
 	reverse_proxy 127.0.0.1:4000 {

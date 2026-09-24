@@ -61,6 +61,14 @@ ssh-copy-id -i deploy_key.pub fazoura@<host>
 ssh-keyscan -p 22 <host>        # → DEPLOY_KNOWN_HOSTS
 ```
 
+`ssh-keyscan` believes whatever answers. Before pasting its output into
+`DEPLOY_KNOWN_HOSTS`, compare the fingerprint (`ssh-keygen -lf <(ssh-keyscan <host>)`)
+with the one your provider's console shows, or with `ssh-keygen -lf
+/etc/ssh/ssh_host_ed25519_key.pub` run on the machine itself.
+
+On the VPS, prefix the key's line in `~fazoura/.ssh/authorized_keys` with
+`restrict,` so it can open no forwarding, agent or pty — the deploy only runs commands.
+
 Then delete the private key from your machine; GitHub has it and nothing else needs it.
 
 ### 4. Secrets on the VPS
@@ -110,7 +118,8 @@ Repository **variables** (Settings → Secrets and variables → Actions → Var
 | `DEPLOY_PATH` | no | defaults to `/srv/fazoura` |
 | `PUBLIC_HOST` | no | the domain the smoke check hits; defaults to `DEPLOY_HOST` |
 
-Repository or `production`-environment **secrets**:
+`production`-environment **secrets** — not repository secrets, which every workflow on
+every branch can read:
 
 | Secret | Meaning |
 |---|---|
@@ -131,6 +140,15 @@ to work without a login.
 
 The deploy job targets the `production` environment, so adding a required reviewer
 there turns every deploy into an approval — worth it once other people are playing.
+
+**Protect the `production` environment and the release tags.** The environment holds the
+deploy key and the Android signing key, and it only protects them if GitHub is told who
+may use it: in *Settings → Environments → production → Deployment branches and tags*,
+allow `main` and the tag pattern `v*` and nothing else. Add a tag ruleset for `v*` that
+only maintainers can create. Without both, anybody who can push a branch can write a
+workflow that names `production` and reads the keystore — and with it, sign an APK every
+installed app would accept as an update. `scripts/ci.sh apk` also refuses a tag whose
+commit is not on `main`.
 
 ## Every deploy
 

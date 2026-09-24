@@ -46,7 +46,13 @@ RUN apt-get update -y \
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8
 
+# No Erlang distribution. `bin/fazoura start` would otherwise open EPMD and a
+# distribution port on every interface of the container, guarded only by the cookie
+# `mix release` wrote into this image — readable by anyone who can pull it. Nothing
+# here needs a second node, and `bin/fazoura eval` (migrations, Release.setup) works
+# without one; `bin/fazoura remote` does not, by design.
 ENV MIX_ENV=prod \
+    RELEASE_DISTRIBUTION=none \
     PHX_SERVER=true \
     PORT=4000 \
     WEB_DIR=/app/web \

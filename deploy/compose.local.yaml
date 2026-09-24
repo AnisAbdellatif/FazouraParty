@@ -65,9 +65,13 @@ services:
       # some other way and it falls back to plain localhost, which is enough for
       # a browser on this machine.
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:4000}
-      # The dashboard is worth having locally; production sets real credentials.
+      # The dashboard is worth having locally, but this stack listens on every
+      # interface (below), so anybody on the same Wi-Fi can reach it: a fixed
+      # admin/admin was a login for all of them. `scripts/ci.sh up` makes a new
+      # password each time and prints it; run the stack some other way without
+      # setting one and the dashboard is simply not there (it answers 404).
       ADMIN_USERNAME: admin
-      ADMIN_PASSWORD: admin
+      ADMIN_PASSWORD: ${LOCAL_ADMIN_PASSWORD:-}
       # Rate limiting counts per client IP. There is no proxy here, so the socket
       # address is the honest answer and X-Forwarded-For must not be trusted.
       TRUST_PROXY: "false"
