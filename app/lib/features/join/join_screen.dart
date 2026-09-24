@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -240,7 +241,10 @@ class _JoinScreenState extends ConsumerState<JoinScreen> {
                   validator: validateDisplayName,
                 ),
               ),
-              if (widget.initialCode == null) ...[
+              // Not in a browser: the web app is served over https, which may
+              // not open the plain ws:// a LAN host speaks, and the host refuses
+              // any connection a browser makes (`websocket_guard_io.dart`).
+              if (widget.initialCode == null && !kIsWeb) ...[
                 const SizedBox(height: 8),
                 SwitchListTile(
                   key: const Key('joinOverLanSwitch'),

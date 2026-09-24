@@ -19,6 +19,7 @@ import 'dart:io';
 import '../game/game.dart';
 import '../game/lan_room.dart';
 import '../game/pack.dart';
+import 'websocket_guard_io.dart';
 
 /// Default port. 0 asks the OS for a free one, which is what tests use.
 const defaultLanPort = 4040;
@@ -29,9 +30,20 @@ const heartbeatTimeout = Duration(seconds: 60);
 
 /// The largest message a guest may send, the cloud host's `max_frame_size`: a
 /// host selecting a private quiz sends its photos inline, and nothing else
-/// comes near it. `dart:io` has no limit of its own to set, so a message past
-/// this has already arrived; closing the socket is what stops the next one.
-const maxLanFrameChars = 14000000;
+/// comes near it. Enforced on the raw bytes as frame headers arrive
+/// (`websocket_guard_io.dart`), so a bigger one is never buffered.
+const maxLanFrameBytes = 14000000;
+
+/// Sockets one host will hold at once, and from any one address. A full room
+/// is 32 players and the host; the margin is for phones reconnecting before
+/// their old socket has timed out. Each open socket costs the phone memory,
+/// and nobody needs a room code to open one.
+const maxLanSockets = 48;
+const maxLanSocketsPerAddress = 4;
+
+/// How long a socket may stay open without joining the room. A real client
+/// joins the moment it connects.
+const lanJoinDeadline = Duration(seconds: 10);
 
 /// Failed joins one address may make per minute before it is refused outright,
 /// as the cloud host does (`FazouraWeb.RoomChannel`): a join is how a room code
@@ -186,7 +198,18 @@ class LanHost {
   Future<void> _upgrade(HttpRequest request) async {
     try {
       final address = request.connectionInfo?.remoteAddress.address ?? '';
-      final webSocket = await WebSocketTransformer.upgrade(request);
+      final fromAddress = _sockets.where((s) => s._address == address).length;
+      if (_sockets.length >= maxLanSockets ||
+          fromAddress >= maxLanSocketsPerAddress) {
+        request.response.statusCode = HttpStatus.serviceUnavailable;
+        await request.response.close();
+        return;
+      }
+      final webSocket = await upgradeGuarded(
+        request,
+        maxMessageBytes: maxLanFrameBytes,
+      );
+      if (webSocket == null) return;
       final socket = _LanSocket(this, webSocket, address);
       _sockets.add(socket);
       socket.listen();
@@ -262,8 +285,14 @@ class _LanSocket implements LanConnection {
   Timer? _idleTimer;
   bool _closing = false;
 
+  Timer? _joinTimer;
+
   void listen() {
     _resetIdleTimer();
+    // Open without joining is not a guest; it is a socket somebody is holding.
+    _joinTimer = Timer(lanJoinDeadline, () {
+      if (_topic == null) unawaited(close());
+    });
     _webSocket.listen(
       _onFrame,
       onDone: _onDone,
@@ -282,10 +311,6 @@ class _LanSocket implements LanConnection {
   void _onFrame(Object? raw) {
     _resetIdleTimer();
     if (raw is! String) return;
-    if (raw.length > maxLanFrameChars) {
-      unawaited(close());
-      return;
-    }
 
     final Object? decoded;
     try {
@@ -444,6 +469,7 @@ class _LanSocket implements LanConnection {
   void _onDone() {
     _idleTimer?.cancel();
     _idleTimer = null;
+    _joinTimer?.cancel();
     _host._remove(this);
   }
 
@@ -452,6 +478,7 @@ class _LanSocket implements LanConnection {
     _closing = true;
     _idleTimer?.cancel();
     _idleTimer = null;
+    _joinTimer?.cancel();
     try {
       await _webSocket.close();
     } on Object {
