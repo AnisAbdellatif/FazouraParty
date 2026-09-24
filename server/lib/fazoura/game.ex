@@ -17,7 +17,7 @@ defmodule Fazoura.Game do
   # the minor and leaves every installed app working. Changing or removing
   # anything a client already relies on moves the major, and that is a cutover.
   @protocol_major 9
-  @protocol_minor 9
+  @protocol_minor 10
   # Points per question by difficulty (PROTOCOL.md §9). A wrong answer costs more on an
   # easy question than on a hard one: you are expected to know the easy ones, and a hard
   # one is worth a guess. Letting the question go by costs @skip_points whatever its

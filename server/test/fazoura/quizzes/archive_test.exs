@@ -7,8 +7,6 @@ defmodule Fazoura.Quizzes.ArchiveTest do
   """
   use ExUnit.Case, async: true
 
-  import ExUnit.CaptureLog
-
   alias Fazoura.Quizzes.Archive
 
   defp document(questions \\ []) do
@@ -22,6 +20,60 @@ defmodule Fazoura.Quizzes.ArchiveTest do
       ])
 
     binary
+  end
+
+  # Rewrites every uncompressed-size field, in the central directory and the local
+  # headers, to `size`: what a hand-built decompression bomb does.
+  defp declare_sizes(binary, size) do
+    binary
+    |> patch_all(<<0x02014B50::little-32>>, 24, size)
+    |> patch_all(<<0x04034B50::little-32>>, 22, size)
+  end
+
+  defp patch_all(binary, signature, field, value) do
+    binary
+    |> :binary.matches(signature)
+    |> Enum.reduce(binary, fn {at, _}, acc ->
+      skip = at + field
+      <<head::binary-size(^skip), _old::little-32, tail::binary>> = acc
+      <<head::binary, value::little-32, tail::binary>>
+    end)
+  end
+
+  # `:zip` deflates everything; a stored entry is method 0, which other tools write
+  # for photos that do not compress.
+  defp stored_zip do
+    entries = [
+      {"manifest.json", Jason.encode!(%{quiz: document()})},
+      {"media/a.png", "abc"}
+    ]
+
+    {locals, centrals, _offset} =
+      Enum.reduce(entries, {[], [], 0}, fn {name, data}, {locals, centrals, offset} ->
+        crc = :erlang.crc32(data)
+        size = byte_size(data)
+
+        fields =
+          <<20::little-16, 0::16, 0::little-16, 0::32, crc::little-32, size::little-32,
+            size::little-32, byte_size(name)::little-16, 0::16>>
+
+        local = <<0x04034B50::little-32, fields::binary, name::binary, data::binary>>
+
+        central =
+          <<0x02014B50::little-32, 20::little-16, fields::binary, 0::16, 0::16, 0::16, 0::32,
+            offset::little-32, name::binary>>
+
+        {[local | locals], [central | centrals], offset + byte_size(local)}
+      end)
+
+    body = locals |> Enum.reverse() |> IO.iodata_to_binary()
+    directory = centrals |> Enum.reverse() |> IO.iodata_to_binary()
+
+    body <>
+      directory <>
+      <<0x06054B50::little-32, 0::16, 0::16, length(entries)::little-16,
+        length(entries)::little-16, byte_size(directory)::little-32, byte_size(body)::little-32,
+        0::16>>
   end
 
   describe "round trip" do
@@ -81,6 +133,30 @@ defmodule Fazoura.Quizzes.ArchiveTest do
                {:error, :archive_too_large}
     end
 
+    test "a package that lies about how much it expands to" do
+      # The same bomb, with every size field rewritten to claim one byte. `:zip.unzip`
+      # inflated entries like this to their full size regardless; the declared size is
+      # now the most an entry may inflate to.
+      bomb =
+        zip([
+          {"manifest.json", Jason.encode!(%{quiz: document()})},
+          {"media/big.png", :binary.copy(<<0>>, 50 * 1024 * 1024)}
+        ])
+        |> declare_sizes(1)
+
+      assert Archive.read(bomb) == {:error, :archive_too_large}
+    end
+
+    test "an entry whose contents do not match its checksum" do
+      binary = zip([{"manifest.json", Jason.encode!(%{quiz: document()})}])
+      [{at, _}] = :binary.matches(binary, <<0x02014B50::little-32>>)
+      skip = at + 16
+      <<head::binary-size(^skip), crc::little-32, tail::binary>> = binary
+      corrupt = <<head::binary, crc + 1::little-32, tail::binary>>
+
+      assert Archive.read(corrupt) == {:error, :invalid_archive}
+    end
+
     test "a package that claims to expand into far more than it is" do
       # ~50 MB of zeros compresses to a few tens of kilobytes, so this sails past the
       # size check on the file itself. The central directory is what gives it away, and
@@ -114,12 +190,13 @@ defmodule Fazoura.Quizzes.ArchiveTest do
         ])
 
       # Two things have to go wrong for a name like that to matter, and neither can:
-      # `:zip` drops it while unpacking (the log line below is its own), and nothing
-      # here writes to disk in the first place.
-      assert capture_log(fn ->
-               assert {:ok, %{photos: photos}} = Archive.read(binary)
-               assert photos == %{}
-             end) =~ "Illegal path"
+      # the reader drops it, and nothing here writes to disk in the first place.
+      assert {:ok, %{photos: photos}} = Archive.read(binary)
+      assert photos == %{}
+    end
+
+    test "a package of stored (uncompressed) entries reads too" do
+      assert {:ok, %{photos: %{"media/a.png" => "abc"}}} = Archive.read(stored_zip())
     end
   end
 end

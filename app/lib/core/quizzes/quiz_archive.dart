@@ -111,8 +111,22 @@ class QuizArchive {
   /// The modification time every entry of a package carries.
   static final packageTimestamp = DateTime(1980);
 
+  /// The server's limits on a package (`Fazoura.Quizzes.Archive`): what it may
+  /// weigh, and what it may say it unpacks into.
+  static const maxBytes = 32 * 1024 * 1024;
+  static const maxUnpackedBytes = 48 * 1024 * 1024;
+
   static QuizArchive decode(List<int> bytes) {
+    // Only ever handed a package the server built or this device wrote, but a
+    // decoder is no place to find out otherwise by running out of memory.
+    if (bytes.length > maxBytes) {
+      throw const FormatException('Quiz archive is too large.');
+    }
     final archive = ZipDecoder().decodeBytes(bytes, verify: true);
+    final unpacked = archive.files.fold<int>(0, (sum, file) => sum + file.size);
+    if (unpacked > maxUnpackedBytes) {
+      throw const FormatException('Quiz archive unpacks into too much.');
+    }
     final manifestFile = archive.findFile('manifest.json');
     if (manifestFile == null) {
       throw const FormatException('Quiz archive has no manifest.');

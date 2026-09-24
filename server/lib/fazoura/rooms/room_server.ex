@@ -66,6 +66,9 @@ defmodule Fazoura.Rooms.RoomServer do
     state = %{
       game: game,
       now: now,
+      # What this room's tokens are signed for (`Tokens.scope/1`): its code and a
+      # value of its own, so a token outlives neither the room nor its code.
+      token_scope: Keyword.get_lazy(opts, :token_scope, fn -> Tokens.scope(code) end),
       conns: %{},
       # Which host_token is currently valid; bumped on every change of host.
       generation: 0,
@@ -105,7 +108,7 @@ defmodule Fazoura.Rooms.RoomServer do
   @impl true
   def handle_call({:join, pid, params, meta}, _from, state) do
     with :ok <- admit(state.game, meta),
-         {:ok, actor, reply, game} <- authenticate(state.game, state.generation, params) do
+         {:ok, actor, reply, game} <- authenticate(state, params) do
       state =
         state
         |> put_game(game)
@@ -255,7 +258,7 @@ defmodule Fazoura.Rooms.RoomServer do
   end
 
   defp current_player_token?(state, token) do
-    case Tokens.player_id(token, state.game.room_code) do
+    case Tokens.player_id(token, state.token_scope) do
       {:ok, id} -> Game.player?(state.game, id)
       :error -> false
     end
@@ -264,7 +267,7 @@ defmodule Fazoura.Rooms.RoomServer do
   # The same test `authenticate/3` makes, without joining anything: the token has
   # to verify, name this room, and belong to the generation currently in force.
   defp current_host_token?(state, token),
-    do: Tokens.host?(token, state.game.room_code, state.generation)
+    do: Tokens.host?(token, state.token_scope, state.generation)
 
   # The host connection that handed the role away keeps its socket, its player id
   # and its score, but loses its powers — so it acts as that player from now on,
@@ -326,6 +329,10 @@ defmodule Fazoura.Rooms.RoomServer do
     end
   end
 
+  # Before the channel so much as looks a room size code up.
+  defp handle_intent(state, actor, :check_unlock),
+    do: {:reply, Game.check_unlock(state.game, actor), state}
+
   # Before the channel counts a use of a room size code (PROTOCOL.md §6.5): may this
   # connection unlock the room, and has the room had this code before, which costs no
   # second use.
@@ -375,7 +382,9 @@ defmodule Fazoura.Rooms.RoomServer do
   defp apply_selection(state, pack, image_keys) do
     case Game.handle(state.game, :host, {:select_quiz, pack}, state.now.()) do
       {:ok, game} ->
-        :ok = Images.attach(image_keys, self())
+        # The new selection's photos replace the old one's rather than joining them,
+        # so a room holds one selection's worth (≤ 8 MB) however often it chooses.
+        :ok = Images.replace(image_keys, self())
         {:reply, :ok, update_game(state, game)}
 
       # Nothing is holding these photos: without this they would sit in memory
@@ -441,21 +450,32 @@ defmodule Fazoura.Rooms.RoomServer do
     |> mark_empty_if_deserted()
   end
 
-  defp authenticate(game, generation, %{"host_token" => token} = params)
-       when is_binary(token) do
+  defp authenticate(state, %{"host_token" => token} = params) when is_binary(token) do
+    game = state.game
+
     # Only the current generation: a token from before a transfer is as good as
     # forged, or a demoted host could take the room back (§3.3).
-    if Tokens.host?(token, game.room_code, generation) do
-      with {:ok, game} <- maybe_add_host_player(game, params["display_name"]) do
-        {:ok, :host, %{role: "host", player_id: game.host_player_id, player_token: nil}, game}
-      end
-    else
-      {:error, :invalid_token}
+    cond do
+      not Tokens.host?(token, state.token_scope, state.generation) ->
+        {:error, :invalid_token}
+
+      # After a hand-over the token in force was minted for the player who now holds
+      # the role, so it joins as that player. As `:host` it would have been taken for
+      # the connection that handed the role away, and seated in that player's place.
+      not state.held_by_host_conn? ->
+        id = game.host_player_id
+        {:ok, {:player, id}, %{role: "host", player_id: id, player_token: nil}, game}
+
+      true ->
+        with {:ok, game} <- maybe_add_host_player(game, params["display_name"]) do
+          {:ok, :host, %{role: "host", player_id: game.host_player_id, player_token: nil}, game}
+        end
     end
   end
 
-  defp authenticate(game, _generation, %{"player_token" => token}) when is_binary(token) do
-    with {:ok, id} <- Tokens.player_id(token, game.room_code),
+  defp authenticate(%{game: game} = state, %{"player_token" => token})
+       when is_binary(token) do
+    with {:ok, id} <- Tokens.player_id(token, state.token_scope),
          true <- Game.player?(game, id) do
       {:ok, {:player, id}, player_reply(id, token), game}
     else
@@ -463,13 +483,13 @@ defmodule Fazoura.Rooms.RoomServer do
     end
   end
 
-  defp authenticate(game, _generation, params) do
+  defp authenticate(%{game: game} = state, params) do
     id = new_player_id()
 
     hue = Game.pick_avatar_hue(game)
 
     with {:ok, game} <- Game.add_player(game, id, params["display_name"], hue) do
-      token = Tokens.player_token(game.room_code, id)
+      token = Tokens.player_token(state.token_scope, id)
       {:ok, {:player, id}, player_reply(id, token), game}
     end
   end
@@ -550,7 +570,7 @@ defmodule Fazoura.Rooms.RoomServer do
           Map.put(
             state.pending_tokens,
             player_id,
-            Tokens.host_token(state.game.room_code, generation)
+            Tokens.host_token(state.token_scope, generation)
           )
     }
   end

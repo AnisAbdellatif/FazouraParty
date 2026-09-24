@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `9.9`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
+**Protocol version: `9.10`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -61,6 +61,18 @@ public list, the `host_set_room_size` and `host_redeem_size_code` intents, and t
 `invalid_room_size`, `invalid_code`, `code_expired` and `code_used_up` error codes. A client
 that has never heard of them shows no control for them, and a room it hosts stays at
 `max_players`.
+
+9.10 came out of a security audit, and changes nothing a correct client does:
+
+- **Hand-over.** A player who was handed the host role (§3.4) and rejoins with the
+  `host_token` they were given now comes back as themselves, holding the role. Both hosts
+  used to seat that connection in the *former* host's place — answering as them — which is
+  a fix bringing the hosts in line with §3.3, so a minor.
+- **Join errors.** Failed joins are limited per address: past 30 in a minute every join
+  from it answers `rate_limited` until the minute is out (§4.1). Joins that succeed are
+  never counted, so a room reconnecting at once is not affected.
+- **Tokens.** Tokens are scoped to one room *instance*, not only its code (§3.3), so a token
+  from a room that has ended opens nothing, even a later room that draws the same code.
 
 **This is semver's major and minor, and there is deliberately no patch.** The number
 exists to answer one question — does this host behave exactly like that one? — and the
@@ -186,8 +198,12 @@ The body, the answers and the reasons are QUIZ_FORMAT.md §5.9.
   previous one is refused with `invalid_token`, so a former host cannot take the room back.
 - `player_token` — issued on a player's first join; lets that player reclaim the same
   `player_id` and score after a disconnect. Unaffected by host changes.
-- Tokens are opaque, signed by the host implementation, and scoped to one room.
-  Clients store them per room code and must discard them when the room is gone.
+- A **promoted or transferred-to player** who joins with the `host_token` they were given
+  joins as themselves — their own `player_id`, holding the role — never in the place of
+  the host who handed it over.
+- Tokens are opaque, signed by the host implementation, and scoped to one room: that room,
+  not merely its code, since codes are reused once a room ends. Clients store them per
+  room code and must discard them when the room is gone.
 
 ### 3.4 The host role
 
@@ -329,7 +345,10 @@ Players may join in **any phase** (late join starts at score `0`).
 
 Join error codes: `unsupported_protocol_version`, `room_not_found`, `invalid_token`,
 `invalid_name`, `name_taken`, `room_full`, `name_not_allowed` (a blocked word in a public
-room, §3.5), `banned` (a public room, from a connection kept out of them, §3.5).
+room, §3.5), `banned` (a public room, from a connection kept out of them, §3.5),
+`rate_limited` (this address has failed to join 30 times in the last minute; failures are
+`room_not_found` and `invalid_token`, and a join that succeeds is never counted — so this
+only ever meets somebody guessing codes, who then learns nothing from the answer).
 
 ### 4.2 Intents
 
@@ -404,7 +423,7 @@ it per socket rather than broadcasting one identical payload.
 ```json
 {
   "protocol_version": 9,
-  "protocol_minor": 9,
+  "protocol_minor": 10,
   "room_code": "K7QX2M",
   "mode": "cloud",
   "listed": false,
@@ -723,7 +742,9 @@ Scenario format:
 ```
 
 - `actor` names are local labels; the runner maps them to sockets and substitutes
-  `"$player_id:<actor>"` placeholders with real IDs.
+  `"$player_id:<actor>"` placeholders with real IDs. `"$host_token"` is the token the room
+  was created with, and `"$host_token:<actor>"` the host token that actor was last handed
+  in a `state` (`you.host_token`, §3.4).
 - `expect_state` is a **partial match**: every key present must equal; absent keys are unchecked.
   It checks the latest `state` received by that actor.
 - `advance_clock_ms` requires implementations to accept an injectable clock in tests.

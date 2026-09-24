@@ -15,11 +15,12 @@ defmodule FazouraWeb.Plugs.BodyLimit do
   would otherwise let *every* route buffer 32 MB, which is free amplification for a
   caller and real memory for the server. This narrows it to the routes that need it.
 
-  This checks the declared `content-length`, which a caller can lie about or omit. That
-  is still worth doing — it rejects the honest large request before a byte of body is
-  read — but the backstop for a lying one is `Plug.Parsers`' own `:length`, which is
-  fixed at compile time and cannot be narrowed per request. So: this plug bounds what a
-  route accepts, and the endpoint's 32 MB bounds everything else.
+  This checks the declared `content-length`. A body sent without one — chunked — is
+  refused with `411`: it would otherwise count as empty here and be read up to the
+  endpoint's 32 MB on any route, before any rate limit, which let one caller make the
+  server parse 32 MB a request. Every client of this API (browsers, the app, the CLI)
+  sends a length. A caller who declares a length and sends more is stopped at the
+  declared length by the adapter, and one who sends less simply fails to parse.
   """
 
   @behaviour Plug
@@ -38,17 +39,38 @@ defmodule FazouraWeb.Plugs.BodyLimit do
   def call(conn, %{default: default, routes: routes}) do
     limit = limit_for(conn.path_info, routes, default)
 
-    if declared_length(conn) > limit do
-      conn
-      |> error(
-        :request_entity_too_large,
-        "payload_too_large",
-        "That request is too large for this endpoint."
-      )
-      |> Plug.Conn.halt()
-    else
-      conn
+    cond do
+      unmeasured_body?(conn) ->
+        conn
+        |> error(
+          :length_required,
+          "length_required",
+          "Send the request with a Content-Length."
+        )
+        |> Plug.Conn.halt()
+
+      declared_length(conn) > limit ->
+        too_large(conn)
+
+      true ->
+        conn
     end
+  end
+
+  defp too_large(conn) do
+    conn
+    |> error(
+      :request_entity_too_large,
+      "payload_too_large",
+      "That request is too large for this endpoint."
+    )
+    |> Plug.Conn.halt()
+  end
+
+  # A body is coming but nobody said how long: `transfer-encoding` with no length.
+  defp unmeasured_body?(conn) do
+    Plug.Conn.get_req_header(conn, "content-length") == [] and
+      Plug.Conn.get_req_header(conn, "transfer-encoding") != []
   end
 
   # An exact route wins over one with a wildcard in it, so a specific limit can never be

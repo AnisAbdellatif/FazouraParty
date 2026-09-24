@@ -96,6 +96,7 @@ void main() {
         'host_rematch',
         'host_remove_player',
         'host_set_room_size',
+        'host_transfer',
       });
     });
 
@@ -394,6 +395,10 @@ Map<String, dynamic>? _encodeIntent(
         timeLimitMs: payload['time_limit_ms'] as int,
         difficultyMultiplier: multiplier,
         difficulties: (payload['difficulties'] as List).cast<String>(),
+      );
+    case 'host_transfer':
+      return PhoenixGameConnection.transferPayload(
+        payload['player_id'] as String,
       );
     case 'host_remove_player':
       return PhoenixGameConnection.removePlayerPayload(

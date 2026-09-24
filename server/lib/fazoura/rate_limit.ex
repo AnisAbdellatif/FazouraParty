@@ -51,6 +51,23 @@ defmodule Fazoura.RateLimit do
     ArgumentError -> :ok
   end
 
+  @doc """
+  Whether `key` is already over `limit` in `bucket`'s current window, without counting
+  anything. For meters that count failures: the attempt is let through or not by this,
+  and only one that fails is counted with `check/4`.
+  """
+  @spec exceeded?(bucket(), String.t(), pos_integer(), pos_integer()) :: boolean()
+  def exceeded?(bucket, key, limit, window_ms) do
+    window_start = div(now_ms(), window_ms) * window_ms
+
+    case :ets.lookup(@table, {bucket, key, window_start}) do
+      [{_key, count}] -> count >= limit
+      [] -> false
+    end
+  rescue
+    ArgumentError -> false
+  end
+
   @doc "Forgets every counter. Tests only."
   @spec reset() :: :ok
   def reset do

@@ -69,6 +69,15 @@ defmodule FazouraWeb.Plugs.WebAppTest do
     assert get(conn, "/../mix.exs").status == 404
   end
 
+  test "no other site may frame the app", %{conn: conn} do
+    for path <- ["/", "/main.dart.js"] do
+      served = get(conn, path)
+      assert response(served, 200)
+      assert get_resp_header(served, "content-security-policy") == ["frame-ancestors 'none'"]
+      assert get_resp_header(served, "x-frame-options") == ["DENY"]
+    end
+  end
+
   test "serves the app shell at the root", %{conn: conn} do
     conn = get(conn, "/")
 

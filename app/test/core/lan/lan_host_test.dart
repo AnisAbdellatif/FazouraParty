@@ -190,6 +190,35 @@ void main() {
       await guest.close();
     });
 
+    test('guessing room codes is cut off, joining is not', () async {
+      final guest = await _Guest.connect(host.port);
+      for (var i = 0; i < maxFailedLanJoins; i++) {
+        final reply = await guest.join('NOPE$i', {'display_name': 'G'});
+        expect((reply['response'] as Map)['code'], 'room_not_found');
+      }
+
+      // Past the limit even the real room is refused, so an answer says nothing.
+      final late = await guest.join(host.roomCode, {'display_name': 'Sam'});
+      expect((late['response'] as Map)['code'], 'rate_limited');
+      await guest.close();
+    });
+
+    test('a frame of the wrong shape is dropped, not a crash', () async {
+      final socket = await WebSocket.connect(
+        'ws://127.0.0.1:${host.port}/socket/websocket',
+      );
+      // Numbers where strings belong used to throw inside the listener.
+      socket.add(jsonEncode([1, 2, 3, 4, {}]));
+      socket.add(jsonEncode(['1', '2', 'room:${host.roomCode}', 7, {}]));
+      await socket.close();
+
+      // The host is still serving.
+      final guest = await _Guest.connect(host.port);
+      final reply = await guest.join(host.roomCode, {'display_name': 'Sam'});
+      expect(reply['status'], 'ok');
+      await guest.close();
+    });
+
     test('heartbeats are answered so the socket is kept alive', () async {
       final guest = await _Guest.connect(host.port);
       final reply = await guest.send('phoenix', 'heartbeat', {});

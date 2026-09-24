@@ -149,6 +149,15 @@ defmodule FazouraWeb.ProtocolScenariosTest do
 
   ## Placeholders and partial matching (PROTOCOL.md §11)
 
+  # `$host_token:<actor>` is the host token that actor was last handed in a snapshot
+  # (§3.4): only known once it has arrived, so asked for when it is used.
+  defp subst("$host_token:" <> name = value, ctx) do
+    case Map.fetch(ctx.actors, name) do
+      {:ok, actor} -> actor_call(actor, :host_token) || value
+      :error -> value
+    end
+  end
+
   defp subst(value, ctx) when is_binary(value), do: Map.get(ctx.vars, value, value)
 
   defp subst(value, ctx) when is_map(value),
@@ -197,7 +206,17 @@ defmodule FazouraWeb.ProtocolScenariosTest do
         actor_loop(socket, latest_state, closed)
 
       %Phoenix.Socket.Message{event: "state", payload: payload} ->
-        actor_loop(socket, wire(payload), closed)
+        state = wire(payload)
+
+        case state do
+          %{"you" => %{"host_token" => token}} when is_binary(token) ->
+            Process.put(:host_token, token)
+
+          _ ->
+            :ok
+        end
+
+        actor_loop(socket, state, closed)
 
       %Phoenix.Socket.Message{event: "room_closed", payload: %{reason: reason}} ->
         actor_loop(socket, latest_state, reason)
@@ -230,6 +249,10 @@ defmodule FazouraWeb.ProtocolScenariosTest do
 
       {:call, from, ref, :latest_state} ->
         send(from, {ref, latest_state})
+        actor_loop(socket, latest_state, closed)
+
+      {:call, from, ref, :host_token} ->
+        send(from, {ref, Process.get(:host_token)})
         actor_loop(socket, latest_state, closed)
 
       {:call, from, ref, :closed} ->

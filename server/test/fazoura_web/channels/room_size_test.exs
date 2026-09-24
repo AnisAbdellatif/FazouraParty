@@ -75,6 +75,16 @@ defmodule FazouraWeb.RoomSizeTest do
     assert uses(size_code) == 0
   end
 
+  test "a player is refused before any code is looked up" do
+    # "not_host", not "invalid_code": the room is asked first, so a player cannot
+    # make the server query the database for every guess they send.
+    {code, _host} = room()
+    {:ok, _, player} = join_room(code, %{"display_name" => "Sam"})
+
+    ref = Phoenix.ChannelTest.push(player, "host_redeem_size_code", %{"code" => "NOPE-NOPE-NOPE"})
+    assert_reply ref, :error, %{code: "not_host"}
+  end
+
   test "a wrong code is refused by what is wrong with it" do
     {_code, host} = room()
 

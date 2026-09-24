@@ -312,9 +312,14 @@ defmodule Fazoura.Quizzes do
     grace = Keyword.get(opts, :grace_seconds, 86_400)
     cutoff = opts |> Keyword.get(:now, DateTime.utc_now()) |> DateTime.add(-grace, :second)
 
-    orphans = orphan_images(cutoff)
+    # Rows first, and only then the files of rows that are really gone. An approval
+    # can reuse an orphan's row and file (a photo's key is its bytes), and between
+    # listing orphans and deleting them it may have; the delete checks again, and a
+    # row that approval touched or re-created keeps its file.
+    candidates = orphan_images(cutoff)
+    delete_image_rows(Enum.map(candidates, &elem(&1, 0)), cutoff)
+    orphans = still_gone(candidates)
     for {key, _size} <- orphans, do: delete_upload(key)
-    delete_image_rows(Enum.map(orphans, &elem(&1, 0)))
 
     strays = stray_files(cutoff)
     for key <- strays, do: delete_upload(key)
@@ -338,10 +343,30 @@ defmodule Fazoura.Quizzes do
   end
 
   # Chunked: every key becomes a bind parameter, and SQLite caps how many there may be.
-  defp delete_image_rows(keys) do
+  # The orphan conditions are part of the delete itself, not just of the listing.
+  defp delete_image_rows(keys, cutoff) do
     keys
     |> Enum.chunk_every(200)
-    |> Enum.each(&Repo.delete_all(from(i in Image, where: i.key in ^&1)))
+    |> Enum.each(fn chunk ->
+      Repo.delete_all(
+        from i in Image,
+          as: :image,
+          where: i.key in ^chunk and i.inserted_at < ^cutoff,
+          where:
+            not exists(from q in Question, where: q.image_key == parent_as(:image).key, select: 1)
+      )
+    end)
+  end
+
+  defp still_gone(candidates) do
+    remaining =
+      candidates
+      |> Enum.map(&elem(&1, 0))
+      |> Enum.chunk_every(200)
+      |> Enum.flat_map(&Repo.all(from(i in Image, where: i.key in ^&1, select: i.key)))
+      |> MapSet.new()
+
+    Enum.reject(candidates, fn {key, _size} -> MapSet.member?(remaining, key) end)
   end
 
   # Files the database has never heard of. Young ones may be an upload in flight.
@@ -464,7 +489,8 @@ defmodule Fazoura.Quizzes do
 
   @doc """
   The quiz as a JSON document. Questions (and their accepted answers) are included only
-  for the publisher, and only when `questions: true` (default).
+  for the publisher, or when `with_answers: true` (an explicit offline download), and
+  only when `questions: true` (default).
   """
   @spec to_document(Quiz.t(), keyword()) :: map()
   def to_document(%Quiz{} = quiz, opts \\ []) do
@@ -492,7 +518,7 @@ defmodule Fazoura.Quizzes do
       updated_at: quiz.updated_at
     }
 
-    if owner? and Keyword.get(opts, :questions, true),
+    if (owner? or Keyword.get(opts, :with_answers, false)) and Keyword.get(opts, :questions, true),
       do: Map.put(document, :questions, Enum.map(quiz.questions, &question_document/1)),
       else: document
   end
@@ -690,6 +716,13 @@ defmodule Fazoura.Quizzes do
     end
   end
 
+  # A photo named by an upload key rather than carried in the package. Every photo a
+  # published quiz shows has to have been in front of whoever approved it, and one that
+  # points at a key was never in the package they read: it could be anything already in
+  # the uploads volume. So it is refused, not passed through.
+  defp store_photo(%{"image" => %{"key" => key}}, _read) when is_binary(key),
+    do: {:error, {:not_in_the_package, key}}
+
   defp store_photo(question, _read), do: {:ok, question}
 
   # Owned by a key no device holds: nobody can edit or unpublish one of these quizzes
@@ -699,13 +732,22 @@ defmodule Fazoura.Quizzes do
   defp register_photo(stored) do
     {:ok, hash} = OwnerKey.hash(@preset_owner_key)
 
-    Repo.get_by(Image, key: stored.key) ||
-      Repo.insert!(%Image{
-        key: stored.key,
-        content_type: stored.content_type,
-        byte_size: stored.byte_size,
-        owner_key_hash: hash
-      })
+    # An existing row is touched, so the sweeper's grace starts again: it may be an
+    # orphan a moment from being collected, and it is not one any more.
+    case Repo.get_by(Image, key: stored.key) do
+      %Image{} = image ->
+        image
+        |> Ecto.Changeset.change(inserted_at: DateTime.utc_now(:second))
+        |> Repo.update!()
+
+      nil ->
+        Repo.insert!(%Image{
+          key: stored.key,
+          content_type: stored.content_type,
+          byte_size: stored.byte_size,
+          owner_key_hash: hash
+        })
+    end
   end
 
   @doc """

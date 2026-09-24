@@ -38,6 +38,48 @@ defmodule Fazoura.Quizzes.ReviewTest do
     end
   end
 
+  describe "what the queue will hold" do
+    test "a device may have only so many waiting at once" do
+      for n <- 1..Review.max_pending_per_owner() do
+        assert {:ok, _} = Review.submit(package(%{"title" => "Quiz #{n}"}), @owner)
+      end
+
+      assert Review.submit(package(), @owner) == {:error, :too_many_submissions}
+      # Somebody else is not held up by it.
+      assert {:ok, _} = Review.submit(package(), @other)
+    end
+
+    test "a decision makes room again" do
+      ids =
+        for n <- 1..Review.max_pending_per_owner() do
+          {:ok, submission} = Review.submit(package(%{"title" => "Quiz #{n}"}), @owner)
+          submission.id
+        end
+
+      {:ok, _} = Review.reject(hd(ids), "Not for us")
+      assert {:ok, _} = Review.submit(package(), @owner)
+    end
+
+    test "past its total size, new submissions wait for the queue to be read" do
+      one = byte_size(package())
+      Application.put_env(:fazoura, :review_queue_bytes, one * 2)
+      on_exit(fn -> Application.delete_env(:fazoura, :review_queue_bytes) end)
+
+      assert {:ok, _} = Review.submit(package(), @owner)
+      assert {:ok, _} = Review.submit(package(), @other)
+      assert Review.submit(package(), QuizFixtures.owner_key()) == {:error, :review_queue_full}
+    end
+
+    test "listing the queue never loads the packages themselves" do
+      {:ok, submission} = Review.submit(package(), @owner)
+
+      assert [%{package: nil}] = Review.pending()
+      assert [%{package: nil}] = Review.for_owner(@owner)
+      # The one read that needs it has it.
+      assert {:ok, %{package: <<"PK", _::binary>>}} = Review.fetch(submission.id)
+    end
+  end
+
   describe "the queue" do
     test "is oldest first, and counted" do
       {:ok, first} = Review.submit(package(%{"title" => "First"}), @owner)

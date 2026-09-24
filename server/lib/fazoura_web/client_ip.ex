@@ -10,12 +10,17 @@ defmodule FazouraWeb.ClientIp do
 
   Used by the rate limiter and by the room socket, so the two can never disagree about
   who somebody is.
+
+  An IPv6 address answers as its /64 network (`2001:db8:1:2::/64`). One subscriber is
+  normally handed a whole /64 and can use any address in it, so counting single
+  addresses would give anybody with IPv6 a fresh identity per request — past every rate
+  limit and every ban.
   """
 
   @spec from_conn(Plug.Conn.t()) :: String.t()
   def from_conn(conn) do
     forwarded = conn |> Plug.Conn.get_req_header("x-forwarded-for") |> last_forwarded()
-    (trust_forwarded?() && forwarded) || ntoa(conn.remote_ip)
+    normalize((trust_forwarded?() && forwarded) || conn.remote_ip)
   end
 
   @doc "From a socket's `connect_info` (`:peer_data` and `:x_headers`), or nil without it."
@@ -27,11 +32,11 @@ defmodule FazouraWeb.ClientIp do
 
     peer =
       case connect_info do
-        %{peer_data: %{address: address}} -> ntoa(address)
+        %{peer_data: %{address: address}} -> address
         _ -> nil
       end
 
-    (trust_forwarded?() && forwarded) || peer
+    normalize((trust_forwarded?() && forwarded) || peer)
   end
 
   defp last_forwarded(values) do
@@ -43,6 +48,25 @@ defmodule FazouraWeb.ClientIp do
   end
 
   defp trust_forwarded?, do: Application.get_env(:fazoura, :trust_forwarded_for, false)
+
+  defp normalize(nil), do: nil
+
+  defp normalize(address) when is_binary(address) do
+    case :inet.parse_address(String.to_charlist(address)) do
+      {:ok, parsed} -> normalize(parsed)
+      # Not an address: whatever the proxy wrote, as it wrote it.
+      {:error, _reason} -> address
+    end
+  end
+
+  # IPv4 mapped into IPv6 is the IPv4 address.
+  defp normalize({0, 0, 0, 0, 0, 0xFFFF, high, low}),
+    do: normalize({div(high, 256), rem(high, 256), div(low, 256), rem(low, 256)})
+
+  defp normalize({a, b, c, d, _, _, _, _}),
+    do: ntoa({a, b, c, d, 0, 0, 0, 0}) <> "/64"
+
+  defp normalize(address), do: ntoa(address)
 
   defp ntoa(address), do: address |> :inet.ntoa() |> to_string()
 end

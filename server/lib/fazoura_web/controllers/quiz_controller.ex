@@ -7,6 +7,7 @@ defmodule FazouraWeb.QuizController do
 
   alias Fazoura.Quizzes
   alias Fazoura.Quizzes.{Reports, Review}
+  alias Fazoura.Rooms.Listing
 
   action_fallback FazouraWeb.FallbackController
 
@@ -51,13 +52,20 @@ defmodule FazouraWeb.QuizController do
   # An explicit download is the opt-in answer leak required to play a
   # community quiz offline. Normal browsing remains summary-only.
   def download(conn, %{"id" => id}) do
-    with {:ok, quiz} <- Quizzes.fetch(id) do
-      json(conn, Quizzes.to_document(quiz, owner?: true))
+    key = owner_key(conn)
+
+    with {:ok, quiz} <- Quizzes.fetch(id),
+         :ok <- not_in_play(quiz) do
+      json(
+        conn,
+        Quizzes.to_document(quiz, owner?: Quizzes.owner?(quiz, key), with_answers: true)
+      )
     end
   end
 
   def archive(conn, %{"id" => id}) do
     with {:ok, quiz} <- Quizzes.fetch(id),
+         :ok <- not_in_play(quiz),
          {:ok, binary} <- Quizzes.archive(quiz) do
       conn
       |> put_resp_content_type("application/zip")
@@ -136,4 +144,8 @@ defmodule FazouraWeb.QuizController do
       send_resp(conn, :no_content, "")
     end
   end
+
+  # Both carry every accepted answer (§5.3a, §5.3b); see `Rooms.Listing.in_play?/1`.
+  defp not_in_play(quiz),
+    do: if(Listing.in_play?(quiz.id), do: {:error, :quiz_in_play}, else: :ok)
 end

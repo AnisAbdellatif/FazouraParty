@@ -49,8 +49,19 @@ defmodule Fazoura.Rooms.Images do
   def attach([], _pid), do: :ok
   def attach(keys, pid), do: GenServer.call(__MODULE__, {:attach, keys, pid})
 
+  @doc """
+  Makes `keys` the room's photos, deleting whichever it held before.
+
+  For a host choosing quizzes again: the photos of a selection that has been replaced
+  are no longer anybody's, and keeping them until the room ended let a host grow the
+  server's memory 8 MB at a time by re-sending the same selection.
+  """
+  @spec replace([String.t()], pid()) :: :ok
+  def replace(keys, pid), do: GenServer.call(__MODULE__, {:replace, keys, pid})
+
   ## Callbacks
 
+  # State: each room's pid to its monitor and the photo keys it holds.
   @impl true
   def init(nil) do
     :ets.new(@table, [:named_table, :public, :set, read_concurrency: true])
@@ -59,14 +70,27 @@ defmodule Fazoura.Rooms.Images do
 
   @impl true
   def handle_call({:attach, keys, pid}, _from, rooms) do
-    ref = Process.monitor(pid)
-    {:reply, :ok, Map.put(rooms, ref, keys)}
+    {:reply, :ok, Map.put(rooms, pid, {monitor(rooms, pid), held(rooms, pid) ++ keys})}
+  end
+
+  def handle_call({:replace, keys, pid}, _from, rooms) do
+    delete(held(rooms, pid) -- keys)
+    {:reply, :ok, Map.put(rooms, pid, {monitor(rooms, pid), keys})}
   end
 
   @impl true
-  def handle_info({:DOWN, ref, :process, _pid, _reason}, rooms) do
-    {keys, rooms} = Map.pop(rooms, ref, [])
+  def handle_info({:DOWN, _ref, :process, pid, _reason}, rooms) do
+    {{_ref, keys}, rooms} = Map.pop(rooms, pid, {nil, []})
     delete(keys)
     {:noreply, rooms}
+  end
+
+  defp held(rooms, pid), do: rooms |> Map.get(pid, {nil, []}) |> elem(1)
+
+  defp monitor(rooms, pid) do
+    case Map.fetch(rooms, pid) do
+      {:ok, {ref, _keys}} -> ref
+      :error -> Process.monitor(pid)
+    end
   end
 end

@@ -89,7 +89,7 @@ RoomState room({
   final now = DateTime.now().millisecondsSinceEpoch;
   return RoomState.fromJson({
     'protocol_version': 9,
-    'protocol_minor': 9,
+    'protocol_minor': 10,
     'listed': false,
     'room_size': 32,
     'room_size_limit': 32,

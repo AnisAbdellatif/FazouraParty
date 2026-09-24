@@ -255,6 +255,34 @@ defmodule FazouraWeb.SelectQuizTest do
     end
   end
 
+  describe "choosing again" do
+    test "frees the photos of the selection it replaces", %{socket: socket} do
+      # Each re-selection used to add its photos to what the room already held,
+      # until the room ended: a host could grow the server's memory 8 MB a time.
+      before = :ets.info(Fazoura.Rooms.Images, :size)
+
+      for _ <- 1..5 do
+        ref = select(socket, [photo_quiz("Again", 2, 1000)])
+        assert_reply ref, :ok, %{}, 2_000
+      end
+
+      assert :ets.info(Fazoura.Rooms.Images, :size) == before + 2
+    end
+
+    test "a stored quiz after a private one leaves no photos in memory", %{socket: socket} do
+      before = :ets.info(Fazoura.Rooms.Images, :size)
+
+      ref = select(socket, [photo_quiz("Private", 2, 1000)])
+      assert_reply ref, :ok, %{}, 2_000
+      assert :ets.info(Fazoura.Rooms.Images, :size) == before + 2
+
+      stored = QuizFixtures.published!()
+      ref = select(socket, [%{"quiz_id" => stored.id}])
+      assert_reply ref, :ok, %{}, 2_000
+      assert :ets.info(Fazoura.Rooms.Images, :size) == before
+    end
+  end
+
   describe "the pool" do
     test "questions keep their own prompts and ids stay unique across quizzes", %{
       socket: socket

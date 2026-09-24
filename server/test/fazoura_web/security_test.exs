@@ -10,6 +10,10 @@ defmodule FazouraWeb.SecurityTest do
 
   use FazouraWeb.ConnCase, async: false
 
+  import FazouraWeb.RoomJoin
+
+  require Phoenix.ChannelTest
+
   alias Fazoura.{QuizFixtures, Quizzes, RateLimit, Rooms}
 
   setup do
@@ -112,6 +116,24 @@ defmodule FazouraWeb.SecurityTest do
       end)
     end
 
+    test "guessing room codes over the socket is cut off, joining is not" do
+      {:ok, real, _token} = Rooms.create(QuizFixtures.pack())
+
+      # Joins that work are never counted: a whole room, more than the limit, is fine.
+      for n <- 1..32 do
+        assert {:ok, _, _} = join_room(real, %{"display_name" => "Player #{n}"})
+      end
+
+      # Guesses are. Codes are drawn from the room code alphabet, so none is `real`.
+      for n <- 1..30 do
+        guess = "ZZZZ" <> String.pad_leading(Integer.to_string(n, 32), 2, "2")
+        assert {:error, %{code: "room_not_found"}} = join_room(guess, %{"display_name" => "G"})
+      end
+
+      # Past the limit, even the real room is refused, so an answer says nothing.
+      assert {:error, %{code: "rate_limited"}} = join_room(real, %{"display_name" => "Late"})
+    end
+
     test "room creation is capped per caller", %{conn: conn} do
       # 20 per minute (router); the 21st is refused.
       for _ <- 1..20 do
@@ -125,17 +147,20 @@ defmodule FazouraWeb.SecurityTest do
     end
 
     test "publishing is capped per caller", %{conn: conn} do
-      key = QuizFixtures.owner_key()
-      conn = put_req_header(conn, "x-owner-key", key)
+      # A new publisher key every time, as somebody flooding the queue would send:
+      # the key is theirs to make up, so the address is what is counted.
+      as_new_device = fn n ->
+        put_req_header(conn, "x-owner-key", String.pad_trailing("flood-key-#{n}-", 44, "x"))
+      end
 
-      for _ <- 1..30 do
-        conn
+      for n <- 1..30 do
+        as_new_device.(n)
         |> post(~p"/api/quizzes", %{"file" => QuizFixtures.package_upload()})
         |> json_response(201)
       end
 
       assert %{"code" => "rate_limited"} =
-               conn
+               as_new_device.(31)
                |> post(~p"/api/quizzes", %{"file" => QuizFixtures.package_upload()})
                |> json_response(429)
     end
@@ -225,25 +250,40 @@ defmodule FazouraWeb.SecurityTest do
     end
   end
 
+  describe "unreviewed uploads" do
+    test "nothing can be put in the uploads volume without going through review",
+         %{conn: conn} do
+      # `POST /api/images` used to store a photo straight into public `/uploads`:
+      # anonymous image hosting on this domain, and a photo an approved package could
+      # point at without the reviewer ever seeing it.
+      upload = %Plug.Upload{
+        path: Plug.Upload.random_file!("fazoura-test"),
+        filename: "x.png",
+        content_type: "image/png"
+      }
+
+      File.write!(upload.path, QuizFixtures.png())
+
+      assert conn
+             |> put_req_header("x-owner-key", QuizFixtures.owner_key())
+             |> post("/api/images", %{"file" => upload})
+             |> json_response(404)
+    end
+  end
+
   describe "user content headers" do
     test "an uploaded photo cannot be sniffed as anything but its declared type", %{conn: conn} do
       # Only the first bytes are checked when storing, so the tail of a valid image can
       # contain anything; these headers are what stop a browser acting on it.
       # A structurally valid PNG whose ancillary chunk carries markup: the header check
       # cannot object to it, which is exactly why the response headers matter.
-      upload = %Plug.Upload{
-        path: write_temp(QuizFixtures.png_with_text("<script>alert(1)</script>")),
-        filename: "x.png",
-        content_type: "image/png"
-      }
+      {:ok, %{key: key}} =
+        Fazoura.Quizzes.store_image(
+          QuizFixtures.png_with_text("<script>alert(1)</script>"),
+          QuizFixtures.owner_key()
+        )
 
-      %{"key" => key} =
-        conn
-        |> put_req_header("x-owner-key", QuizFixtures.owner_key())
-        |> post(~p"/api/images", %{"file" => upload})
-        |> json_response(201)
-
-      served = get(build_conn(), "/uploads/#{key}")
+      served = get(conn, "/uploads/#{key}")
 
       assert served.status == 200
       assert ["nosniff"] = get_resp_header(served, "x-content-type-options")
@@ -286,12 +326,5 @@ defmodule FazouraWeb.SecurityTest do
                |> post(~p"/api/rooms", inline_quiz([photo_question(1, 100)]))
                |> json_response(201)
     end
-  end
-
-  defp write_temp(binary) do
-    path = Path.join(System.tmp_dir!(), "fazoura-test-#{System.unique_integer([:positive])}")
-    File.write!(path, binary)
-    on_exit(fn -> File.rm(path) end)
-    path
   end
 end

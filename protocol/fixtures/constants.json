@@ -1,7 +1,7 @@
 {
   "_comment": "Every fixed number the protocol names, as both hosts must define it (PROTOCOL.md §11). Both test suites require their implementation's constants to equal this object exactly — so a constant added to one side without the other fails, and so does one added here without either. Keys starting with _ are notes, not constants. The scoring table is scoring.json.",
   "protocol_major": 9,
-  "protocol_minor": 9,
+  "protocol_minor": 10,
   "waiting_grace_ms": 5000,
   "closing_window_ms": 3000,
   "skip_points": -10,

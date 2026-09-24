@@ -20,7 +20,24 @@ defmodule Fazoura.Quizzes.Review do
   alias Fazoura.Quizzes.{Archive, OwnerKey, Reports, Submission}
   alias Fazoura.Repo
 
-  @type reason :: :owner_key_required | :not_found | Archive.reason() | :invalid_quiz
+  @type reason ::
+          :owner_key_required
+          | :not_found
+          | Archive.reason()
+          | :invalid_quiz
+          | :too_many_submissions
+          | :review_queue_full
+
+  # A submission is stored whole until somebody reads it, and nothing waiting is ever
+  # swept (AGENTS.md §5), so without these one caller could fill the disk with
+  # packages. A device with this many still waiting is not somebody writing quizzes by
+  # hand; and past the total, new submissions wait until the queue is read rather than
+  # the database filling up.
+  @max_pending_per_owner 10
+  @default_max_pending_bytes 1024 * 1024 * 1024
+
+  @doc "Most submissions one device may have waiting at once."
+  def max_pending_per_owner, do: @max_pending_per_owner
 
   @doc """
   Takes a `.fazoura` package and puts it in the queue.
@@ -35,6 +52,7 @@ defmodule Fazoura.Quizzes.Review do
 
   def submit(package, owner_key, opts) when is_binary(package) do
     with {:ok, hash} <- hash_key(owner_key),
+         :ok <- check_room_in_queue(hash, byte_size(package)),
          {:ok, replaces} <- replaced_quiz(opts[:replaces], hash),
          {:ok, %{document: document}} <- Archive.read(package),
          {:ok, summary} <- summarise(document) do
@@ -51,6 +69,22 @@ defmodule Fazoura.Quizzes.Review do
   end
 
   def submit(_package, _owner_key, _opts), do: {:error, :invalid_quiz}
+
+  defp max_pending_bytes,
+    do: Application.get_env(:fazoura, :review_queue_bytes, @default_max_pending_bytes)
+
+  defp check_room_in_queue(hash, bytes) do
+    waiting = from(s in Submission, where: s.status == "pending")
+    mine = Repo.aggregate(where(waiting, [s], s.owner_key_hash == ^hash), :count)
+    # `length` of a blob is its size in bytes in both SQLite and Postgres.
+    total = Repo.one(from s in waiting, select: sum(fragment("length(?)", s.package))) || 0
+
+    cond do
+      mine >= @max_pending_per_owner -> {:error, :too_many_submissions}
+      total + bytes > max_pending_bytes() -> {:error, :review_queue_full}
+      true -> :ok
+    end
+  end
 
   # An edit may only be offered for a quiz this device published; anybody
   # else's does not exist to it (§4 — 404, never 403).
@@ -79,12 +113,19 @@ defmodule Fazoura.Quizzes.Review do
   def pending_count,
     do: Repo.aggregate(from(s in Submission, where: s.status == "pending"), :count)
 
-  @doc "One submission, whatever its state."
+  @doc "One submission, whatever its state, with its package."
   @spec fetch(term()) :: {:ok, Submission.t()} | {:error, :not_found}
   def fetch(id) when is_binary(id) do
     case Ecto.UUID.cast(id) do
-      {:ok, uuid} -> Repo.get(Submission, uuid) |> or_missing()
-      :error -> {:error, :not_found}
+      # The one read that brings the package along: approving and showing a
+      # submission need it, and it is one row.
+      {:ok, uuid} ->
+        from(s in Submission, where: s.id == ^uuid, select_merge: %{package: s.package})
+        |> Repo.one()
+        |> or_missing()
+
+      :error ->
+        {:error, :not_found}
     end
   end
 

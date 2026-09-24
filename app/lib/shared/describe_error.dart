@@ -51,6 +51,11 @@ String describeError(Object error) {
     'name_not_allowed' => "That name can't be used in a public room.",
     'banned' => "Public rooms aren't available from this connection for now.",
     'unknown_player' => "That player isn't in the room any more.",
+    'rate_limited' =>
+      error.message ?? 'Too many tries from this connection. Wait a minute.',
+    'quiz_in_play' =>
+      'A public room is playing this quiz right now. Try again once its game '
+          'is over.',
     GameError.connectionFailed => 'Could not reach the game server.',
     GameError.timeout => 'The game server did not answer.',
     _ => error.message ?? 'Something went wrong (${error.code}).',

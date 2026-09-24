@@ -59,14 +59,35 @@ class UpdateApi {
 ///
 /// The manifest is remote content, and the app's response to it is to open a
 /// URL — so the URL has to be constrained rather than trusted. It must be
-/// `https`, and it must be on the same host the manifest itself came from: a
-/// manifest that has been tampered with can then still only point at the
-/// release host it was served by, never at another scheme (`intent://`,
-/// `market://`) or another site.
+/// `https`, on the same host the manifest itself came from, and under the same
+/// repository's releases: a manifest that has been tampered with can then still
+/// only point at this project's own release files — never at another scheme
+/// (`intent://`, `market://`), another site, or another repository on the same
+/// host, which on github.com is anybody's.
+///
+/// The repository is everything in the manifest's path up to `releases`
+/// (`/<owner>/<repo>/releases/latest/download/android.json`); a manifest served
+/// from somewhere without one pins downloads to its own folder instead.
 bool isTrustedDownload(String url, Uri manifest) {
   final target = Uri.tryParse(url);
   if (target == null) return false;
-  return target.scheme == 'https' &&
-      target.host.isNotEmpty &&
-      target.host.toLowerCase() == manifest.host.toLowerCase();
+  if (target.scheme != 'https' ||
+      target.host.isEmpty ||
+      target.host.toLowerCase() != manifest.host.toLowerCase()) {
+    return false;
+  }
+
+  final path = target.pathSegments;
+  if (path.any((segment) => segment == '..' || segment == '.')) return false;
+
+  final from = manifest.pathSegments;
+  final releases = from.indexOf('releases');
+  final root = releases >= 0
+      ? from.sublist(0, releases + 1)
+      : from.sublist(0, from.isEmpty ? 0 : from.length - 1);
+  if (path.length <= root.length) return false;
+  for (var i = 0; i < root.length; i++) {
+    if (path[i] != root[i]) return false;
+  }
+  return true;
 }
