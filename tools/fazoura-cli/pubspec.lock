@@ -135,7 +135,7 @@ packages:
       path: "../../app"
       relative: true
     source: path
-    version: "0.2.0+6"
+    version: "0.3.0+7"
   ffi:
     dependency: transitive
     description:
