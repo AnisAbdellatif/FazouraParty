@@ -68,6 +68,10 @@ that has never heard of them shows no control for them, and a room it hosts stay
   `host_token` they were given now comes back as themselves, holding the role. Both hosts
   used to seat that connection in the *former* host's place — answering as them — which is
   a fix bringing the hosts in line with §3.3, so a minor.
+- **A host who was not playing hands over and keeps nothing.** Its connection is nobody
+  now: every intent from it is refused with `not_host`, and its `you` names no player. The
+  LAN host let its intents through as the host's — including a `submit` recorded as the new
+  host's answer — and both hosts showed it the new host's own answer mid-question.
 - **Join errors.** Failed joins are limited per address: past 30 in a minute every join
   from it answers `rate_limited` until the minute is out (§4.1). Joins that succeed are
   never counted, so a room reconnecting at once is not affected.
@@ -108,6 +112,11 @@ Both modes use a **WebSocket carrying the Phoenix Channels V2 JSON serializer**.
 |-------|-----------------------------------------|
 | Cloud | `wss://<host>/socket/websocket?vsn=2.0.0` |
 | LAN   | `ws://<host-lan-ip>:<port>/socket/websocket?vsn=2.0.0` |
+
+A LAN host refuses an upgrade that carries an `Origin` header (a browser's; the app and the
+CLI send none), offers no compression, closes a socket whose frame or message *declares*
+more than `max_frame_size` bytes before its payload is read, closes one that has not joined
+within 10 seconds, and holds at most 48 sockets, 4 from any one address.
 
 The LAN server implements only the subset needed here: `phx_join`, `phx_leave`, `phx_reply`,
 `phx_error`, `phx_close`, `heartbeat` (topic `phoenix`, 30 s interval; the server closes a socket
@@ -198,6 +207,9 @@ The body, the answers and the reasons are QUIZ_FORMAT.md §5.9.
   previous one is refused with `invalid_token`, so a former host cannot take the room back.
 - `player_token` — issued on a player's first join; lets that player reclaim the same
   `player_id` and score after a disconnect. Unaffected by host changes.
+- A **host that was not playing** and hands the role over is left with a connection and
+  nothing else: every intent from it is refused with `not_host`, and its snapshots carry no
+  `player_id` and no `submission`.
 - A **promoted or transferred-to player** who joins with the `host_token` they were given
   joins as themselves — their own `player_id`, holding the role — never in the place of
   the host who handed it over.

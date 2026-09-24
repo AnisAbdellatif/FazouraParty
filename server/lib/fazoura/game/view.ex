@@ -122,7 +122,12 @@ defmodule Fazoura.Game.View do
   end
 
   defp recipient_id(game, :host), do: game.host_player_id
-  defp recipient_id(game, {:host, _holder?}), do: game.host_player_id
+  # A host connection that handed the role away has no player of its own (one that
+  # was playing is `{:player, id}` by now), so it is nobody's view. `host_player_id`
+  # names whoever holds the role now, and showing it here would show that player's
+  # answer to the old host before the question ended.
+  defp recipient_id(game, {:host, true}), do: game.host_player_id
+  defp recipient_id(_game, {:host, false}), do: nil
   defp recipient_id(_game, {:player, id}), do: id
 
   # `role` reports who holds the host role *now*, not how this connection
@@ -138,9 +143,9 @@ defmodule Fazoura.Game.View do
   # role has moved to someone else".
   defp you_view(game, :host, question), do: you_view(game, {:host, true}, question)
 
-  defp you_view(game, {:host, holder?}, question) do
+  defp you_view(game, {:host, holder?} = recipient, question) do
     %{
-      do_you_view(game, game.host_player_id, question)
+      do_you_view(game, recipient_id(game, recipient), question)
       | role: if(holder?, do: "host", else: "player")
     }
   end

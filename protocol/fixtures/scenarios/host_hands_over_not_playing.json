@@ -1,0 +1,50 @@
+{
+  "name": "a host who was not playing hands the role over and keeps nothing: no powers, no seat, no view of the new host's answer",
+  "pack": {
+    "title": "Fixture Pack",
+    "questions": [
+      {
+        "id": "q1",
+        "type": "text",
+        "prompt": "2 + 2?",
+        "accepted_answers": ["4"],
+        "time_limit_ms": 30000
+      }
+    ]
+  },
+  "steps": [
+    {"actor": "host", "join": {"protocol_version": 9, "host_token": "$host_token"}, "expect": {"status": "ok"}},
+    {"actor": "sam", "join": {"protocol_version": 9, "display_name": "Sam"}, "expect": {"status": "ok"}},
+    {"actor": "kim", "join": {"protocol_version": 9, "display_name": "Kim"}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_transfer", "payload": {"player_id": "$player_id:sam"}, "expect": {"status": "ok"}},
+    {
+      "_comment": "The old host's connection is nobody now. Its intents used to reach the game as the host's.",
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {"status": "error", "response": {"code": "not_host"}}
+    },
+    {"actor": "sam", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {
+      "_comment": "And it has no seat: a submit from it used to be recorded as Sam's answer.",
+      "actor": "host",
+      "push": "submit",
+      "payload": {"answer": "5"},
+      "expect": {"status": "error", "response": {"code": "not_host"}}
+    },
+    {"actor": "sam", "push": "submit", "payload": {"answer": "4"}, "expect": {"status": "ok"}},
+    {
+      "_comment": "Its view is nobody's: Sam's answer is not shown to it before the question ends.",
+      "actor": "host",
+      "expect_state": {"phase": "question", "you": {"role": "player", "player_id": null, "submission": null}}
+    },
+    {"actor": "kim", "push": "submit", "payload": {"answer": "4"}, "expect": {"status": "ok"}},
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "scoring",
+        "players": [{"name": "Kim", "score": 10}, {"name": "Sam", "score": 10}]
+      }
+    }
+  ]
+}

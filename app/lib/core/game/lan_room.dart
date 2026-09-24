@@ -324,6 +324,14 @@ class LanRoom {
 
     final now = _now();
 
+    // A host connection that handed the role away while not playing is nobody
+    // now: no role, no seat. Every intent is refused, as Cloud refuses them
+    // (`RoomServer`'s demoted-host clause). Letting them through to the game
+    // kept every host power, and a submit landed as the new host's answer.
+    if (_recipient(actor) case HostActor(holder: false)) {
+      throw const GameRuleError('not_host');
+    }
+
     // Ending the room is the shell's business: no state to advance, only
     // sockets to tell (PROTOCOL.md §3.4).
     if (event == 'host_close') {

@@ -132,7 +132,12 @@ Map<String, dynamic> _you(Game game, Actor recipient, PackQuestion? question) {
   // client has to be told the truth (PROTOCOL.md §3.4). `HostActor.holder`
   // is the room's record of whether the host connection is still the holder.
   final (role, id) = switch (recipient) {
-    HostActor(:final holder) => (holder ? 'host' : 'player', game.hostPlayerId),
+    // A host connection that handed the role away has no player of its own —
+    // one that was playing is a PlayerActor by now — so it is nobody's view.
+    // `hostPlayerId` names whoever holds the role now, and showing it here
+    // would show that player's answer to the old host mid-question.
+    HostActor(holder: true) => ('host', game.hostPlayerId),
+    HostActor(holder: false) => ('player', null),
     PlayerActor(:final id) => (id == game.hostPlayerId ? 'host' : 'player', id),
   };
 
