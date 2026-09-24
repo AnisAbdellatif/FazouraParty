@@ -594,6 +594,51 @@ defmodule FazouraWeb.AdminLiveTest do
     end
   end
 
+  describe "room size codes" do
+    alias Fazoura.RoomSizeCodes
+
+    test "makes a code, shows it once, and revokes it", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/admin/codes")
+      assert html =~ "No codes yet"
+
+      html =
+        view
+        |> form("#create-code", %{
+          label: "Sunny School",
+          room_size: "60",
+          max_rooms: "3",
+          expires_on: "2099-12-31"
+        })
+        |> render_submit()
+
+      [plain] = Regex.run(~r/[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}/, html)
+      assert {:ok, code} = RoomSizeCodes.find(plain)
+      assert {code.label, code.room_size, code.max_rooms} == {"Sunny School", 60, 3}
+      assert code.expires_at == ~U[2099-12-31 23:59:59Z]
+
+      # Once: gone when dismissed, and the list only knows its last four characters.
+      html = view |> element("#new-code button") |> render_click()
+      refute html =~ plain
+      assert html =~ "…" <> String.slice(plain, -4, 4)
+
+      view |> element("#code-#{code.id} button[phx-click=revoke]") |> render_click()
+      assert RoomSizeCodes.find(plain) == {:error, :invalid_code}
+      assert render(view) =~ "revoked"
+    end
+
+    test "refuses a size a code cannot grant", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/admin/codes")
+
+      html =
+        view
+        |> form("#create-code", %{label: "Too big", room_size: "500", max_rooms: "1"})
+        |> render_submit()
+
+      assert html =~ "Room size must be less than or equal to 200"
+      assert RoomSizeCodes.list() == []
+    end
+  end
+
   describe "reported quizzes" do
     alias Fazoura.Quizzes.Reports
 
@@ -815,6 +860,48 @@ defmodule FazouraWeb.AdminLiveTest do
       # reading it before it is public.
       assert html =~ "Who directed Jurassic Park?"
       assert html =~ "Steven Spielberg"
+    end
+  end
+
+  describe "reported players" do
+    @reporter "reporter-key-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+    defp report!(overrides \\ %{}) do
+      reported =
+        Map.merge(
+          %{room_code: "ROOM42", player_name: "Troll", answer: "rude", ip_hash: "hash-1"},
+          overrides
+        )
+
+      {:ok, report} = Fazoura.Moderation.report_player(reported, @reporter, %{"reason" => "hate"})
+      report
+    end
+
+    test "are listed, and a ban answers them", %{conn: conn} do
+      report = report!()
+      {:ok, view, html} = live(conn, ~p"/admin/reports")
+      assert html =~ "Troll"
+
+      view
+      |> element(~s(#player-report-#{report.id} button[phx-value-days="7"]))
+      |> render_click()
+
+      assert Fazoura.Moderation.banned?("hash-1")
+      refute render(view) =~ "player-report-#{report.id}"
+    end
+
+    test "a live room can be ended from its report", %{conn: conn} do
+      {:ok, code, _} = Rooms.create(QuizFixtures.pack())
+      report = report!(%{room_code: code})
+      [{pid, _}] = Registry.lookup(Fazoura.Rooms.Registry, code)
+      ref = Process.monitor(pid)
+      {:ok, view, _html} = live(conn, ~p"/admin/reports")
+
+      view
+      |> element(~s(#player-report-#{report.id} button[phx-click="end_room"]))
+      |> render_click()
+
+      assert_receive {:DOWN, ^ref, _, _, _}
     end
   end
 end

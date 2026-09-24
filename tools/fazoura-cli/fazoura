@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Runs the Fazoura CLI from anywhere: tools/fazoura-cli/fazoura <command> ...
+#
+# The first run compiles a kernel snapshot, and so does any run after the CLI's
+# or the app's sources change. Plain `dart bin/fazoura.dart` recompiles the
+# app's core on every start, about 2 s; the snapshot starts in about 0.1 s,
+# which matters once a script is starting ten of these at a time. It is
+# written aside and renamed into place, so instances started together never
+# read a half-written one.
+set -euo pipefail
+
+here="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+app="$here/../../app"
+snapshot="$here/.dart_tool/fazoura.dill"
+
+if [ ! -f "$here/.dart_tool/package_config.json" ]; then
+  (cd "$here" && dart pub get >&2)
+fi
+
+stale() {
+  [ ! -f "$snapshot" ] ||
+    [ -n "$(find "$here/bin" "$here/lib" "$here/pubspec.lock" "$app/lib/core" \
+      "$app/pubspec.lock" -newer "$snapshot" -print -quit 2>/dev/null)" ]
+}
+
+if stale; then
+  scratch="$snapshot.$$"
+  dart compile kernel --output "$scratch" "$here/bin/fazoura.dart" >/dev/null
+  mv -f "$scratch" "$snapshot"
+fi
+
+exec dart "$snapshot" "$@"

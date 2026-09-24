@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The frame around every phone screenshot, 1080x1920. store_listing/render.sh
+     fills in the three placeholders from captions.txt. -->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     width="1080" height="1920" viewBox="0 0 1080 1920">
+  <defs>
+    <radialGradient id="glow" cx="0.5" cy="0.1" r="0.9">
+      <stop offset="0" stop-color="#0E2E2B"/>
+      <stop offset="1" stop-color="#061917"/>
+    </radialGradient>
+    <pattern id="lattice" width="34" height="34" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect x="0" y="0" width="2" height="34" fill="#FFB000" fill-opacity="0.07"/>
+      <rect x="0" y="0" width="34" height="2" fill="#FFB000" fill-opacity="0.07"/>
+    </pattern>
+    <clipPath id="screen">
+      <rect x="140" y="452" width="800" height="1422" rx="44"/>
+    </clipPath>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="28"/>
+      <feOffset dy="22" result="blur"/>
+      <feFlood flood-color="#000000" flood-opacity="0.6"/>
+      <feComposite in2="blur" operator="in"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#glow)"/>
+  <rect width="1080" height="1920" fill="url(#lattice)"/>
+
+  <rect x="470" y="96" width="140" height="10" rx="2" fill="#FF2D6F"/>
+  <g text-anchor="middle" font-family="Figtree" font-weight="800" font-size="76">
+    <text x="540" y="230" fill="#FBF6EC">{{LINE1}}</text>
+    <text x="540" y="330" fill="#FFB000">{{LINE2}}</text>
+  </g>
+
+  <rect x="140" y="452" width="800" height="1422" rx="44" fill="#061917" filter="url(#shadow)"/>
+  <image x="140" y="452" width="800" height="1422" clip-path="url(#screen)"
+         preserveAspectRatio="xMidYMid slice" xlink:href="{{IMAGE}}"/>
+  <rect x="140" y="452" width="800" height="1422" rx="44" fill="none"
+        stroke="#FBF6EC" stroke-opacity="0.18" stroke-width="3"/>
+</svg>

@@ -18,6 +18,8 @@ import 'package:fazoura_party/core/models/quiz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
+import '../../support/matchers.dart';
+
 Uint8List pngBytes({int width = 8, int height = 8}) =>
     Uint8List.fromList(img.encodePng(img.Image(width: width, height: height)));
 
@@ -42,9 +44,6 @@ Map<String, dynamic> quizWithPhotos(List<Uint8List?> photos) => {
       },
   ],
 };
-
-Matcher throwsCode(String code) =>
-    throwsA(isA<GameRuleError>().having((error) => error.code, 'code', code));
 
 void main() {
   group('LanImages', () {
@@ -108,7 +107,7 @@ void main() {
         for (var i = 0; i < 3; i++) {
           spent = images.prepare(quiz, spent: spent).spent;
         }
-      }, throwsCode('invalid_quiz'));
+      }, throwsCode('quiz_too_large'));
     });
 
     test('a committed selection replaces the last one', () {
@@ -159,7 +158,7 @@ void main() {
             ]),
           ),
         ),
-        throwsCode('invalid_quiz'),
+        throwsCode('unsupported_image'),
       );
     });
 
@@ -184,7 +183,7 @@ void main() {
       ]);
       expect(
         () => images.prepare(QuizDocument.fromJson(quizWithPhotos([huge]))),
-        throwsCode('invalid_quiz'),
+        throwsCode('image_too_large'),
       );
     });
 
@@ -200,7 +199,7 @@ void main() {
         () => images.prepare(
           QuizDocument.fromJson(quizWithPhotos(List.filled(8, photo))),
         ),
-        throwsCode('invalid_quiz'),
+        throwsCode('quiz_too_large'),
       );
     });
   });
@@ -214,6 +213,7 @@ void main() {
         pack: const Pack.empty(),
         imageBaseUrl: 'http://192.168.1.20:4040',
         shuffleQuestions: false,
+        broadcastGap: Duration.zero,
       );
       host = _Client();
       room.join(host, {
@@ -285,7 +285,7 @@ void main() {
         () => selectQuiz([
           Uint8List.fromList([1, 2, 3, 4]),
         ]),
-        throwsCode('invalid_quiz'),
+        throwsCode('unsupported_image'),
       );
       expect(
         () => room.handle(host, 'host_select_quiz', {}),

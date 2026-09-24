@@ -101,6 +101,43 @@ void main() {
     });
   });
 
+  group('FzFlash', () {
+    Finder glow() => find.descendant(
+      of: find.byType(FzFlash),
+      matching: find.byType(DecoratedBox),
+    );
+
+    Widget flash(Object? t) => FzFlash(
+      trigger: t,
+      color: const Color(0xFFFF0000),
+      child: const SizedBox(width: 50, height: 5),
+    );
+
+    testWidgets('flares on a trigger, then fades away', (tester) async {
+      final key = GlobalKey<_HarnessState>();
+      await tester.pumpWidget(_Harness(key: key, build: flash));
+      expect(glow(), findsNothing, reason: 'nothing glows at rest');
+
+      key.currentState!.fire(3);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(glow(), findsOneWidget);
+
+      await tester.pumpAndSettle();
+      expect(glow(), findsNothing);
+    });
+
+    testWidgets('never flares when less motion was asked for', (tester) async {
+      final key = GlobalKey<_HarnessState>();
+      await tester.pumpWidget(_Harness(key: key, reduce: true, build: flash));
+
+      key.currentState!.fire(3);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(glow(), findsNothing);
+    });
+  });
+
   group('FzCountUp', () {
     testWidgets('runs from one score to the next', (tester) async {
       await tester.pumpWidget(const _Harness(build: _countUp));

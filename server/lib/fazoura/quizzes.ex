@@ -713,7 +713,7 @@ defmodule Fazoura.Quizzes do
   (QUIZ_FORMAT.md §6).
 
   The drop folder beside `priv/quizzes`: a package is one file, so a quiz written
-  somewhere else — by `tools/fazoura_pack.py`, or downloaded from another server — can be
+  somewhere else — by `tools/fazoura-cli/fazoura quiz pack`, or downloaded from another server — can be
   put on a server by copying it in, with no JSON to unpack and no photos to publish
   first. The filename is the slug, so re-running updates the quiz it already made rather
   than adding a second one.

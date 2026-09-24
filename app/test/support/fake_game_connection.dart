@@ -146,6 +146,38 @@ class FakeGameConnection implements GameConnection {
     closeCalls += 1;
   }
 
+  final removedPlayers = <String>[];
+
+  @override
+  Future<void> hostRemovePlayer(String playerId) async {
+    if (intentError != null) throw intentError!;
+    removedPlayers.add(playerId);
+  }
+
+  final listedCalls = <bool>[];
+
+  @override
+  Future<void> hostSetListed(bool listed) async {
+    if (intentError != null) throw intentError!;
+    listedCalls.add(listed);
+  }
+
+  final roomSizeCalls = <int>[];
+
+  @override
+  Future<void> hostSetRoomSize(int roomSize) async {
+    if (intentError != null) throw intentError!;
+    roomSizeCalls.add(roomSize);
+  }
+
+  final redeemedCodes = <String>[];
+
+  @override
+  Future<void> hostRedeemSizeCode(String code) async {
+    if (intentError != null) throw intentError!;
+    redeemedCodes.add(code);
+  }
+
   @override
   Future<void> leave() async => leaveCalls++;
 }

@@ -61,13 +61,20 @@ jobs:
       - run: scripts/ci.sh server
 
   tools:
-    name: Tools (Python)
+    name: Tools (fazoura CLI)
+    needs: versions
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # No setup-python: the utility is standard library only, and every runner
-      # already has a python3 new enough for it.
+      # The CLI depends on the app package, which declares Flutter, so it needs
+      # the same pinned SDK the app job installs.
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ needs.versions.outputs.flutter }}
+          channel: stable
+          cache: true
+
       - run: scripts/ci.sh tools
 
   app:

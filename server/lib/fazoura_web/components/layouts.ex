@@ -42,6 +42,7 @@ defmodule FazouraWeb.Layouts do
           <.link navigate={~p"/admin/reports"} class={nav_class(@page, :reports)}>Reports</.link>
           <.link navigate={~p"/admin/quizzes"} class={nav_class(@page, :quizzes)}>Quizzes</.link>
           <.link navigate={~p"/admin/tags"} class={nav_class(@page, :tags)}>Tags</.link>
+          <.link navigate={~p"/admin/codes"} class={nav_class(@page, :codes)}>Codes</.link>
         </nav>
       </header>
 
@@ -179,10 +180,12 @@ defmodule FazouraWeb.Layouts do
                        font-size: 13px; margin-top: 22px; }
     form label.check input { width: auto; margin: 0; }
     .fields { display: grid; gap: 0 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-    input[type=number], select {
+    input[type=number], input[type=date], select {
       font: inherit; width: 100%; background: #121110; color: var(--ink);
       border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
     }
+    /* The browser's own date picker and spinners, drawn for a dark page. */
+    input[type=date], input[type=number] { color-scheme: dark; }
     textarea.answers { min-height: 92px; }
     .photo { display: flex; gap: 14px; align-items: flex-start; }
     .photo img {

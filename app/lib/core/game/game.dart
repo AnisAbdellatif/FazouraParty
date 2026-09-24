@@ -15,6 +15,10 @@ import 'dart:math';
 import 'answer.dart';
 import 'pack.dart';
 
+// Each constant below that the server also defines is held to
+// protocol/fixtures/constants.json by test/core/protocol_constants_test.dart;
+// "must equal" in their comments is that test, not a promise.
+
 /// The compatibility boundary, and the only part of the version on the wire:
 /// a host accepts any client sharing its major and refuses the rest with
 /// `unsupported_protocol_version` (PROTOCOL.md §1.1, §4.1). Must equal
@@ -25,7 +29,7 @@ const protocolMajor = 9;
 /// snapshot and ignored by clients; it exists so a LAN host built from an
 /// older tag can be told apart from the cloud. Must equal
 /// `Fazoura.Game.protocol_minor/0`.
-const protocolMinor = 3;
+const protocolMinor = 9;
 
 /// How long a question keeps waiting for a player whose connection has gone.
 /// A locked screen or a walk past a thick wall drops the socket for a few
@@ -34,10 +38,17 @@ const protocolMinor = 3;
 /// the game's fault, not theirs. Must equal `Fazoura.Game`'s
 /// `@waiting_grace_ms` (PROTOCOL.md §6).
 const waitingGraceMs = 5000;
+
+/// How long a question stays open after the host ends it. A player who has
+/// typed an answer but not locked it in has it sent for them just before the
+/// deadline, so ending a question pulls the deadline in rather than scoring on
+/// the spot — otherwise the host's button throws away every answer still being
+/// typed. Must equal `Fazoura.Game.closing_window_ms/0` (PROTOCOL.md §6).
+const closingWindowMs = 3000;
 const minTimeLimitMs = 10000;
 const maxTimeLimitMs = 120000;
 const defaultTimeLimitMs = 30000;
-const maxPlayers = 100;
+const maxPlayers = 32;
 const maxNameLength = 20;
 const maxAnswerLength = 100;
 const supportedDifficulties = ['easy', 'medium', 'hard'];
@@ -216,6 +227,11 @@ class Game {
   String? hostPlayerId;
   int gameNumber = 1;
 
+  /// How many players the room lets in, which the host may lower (§6.5). A LAN
+  /// host has no room size codes, so the limit is always [maxPlayers].
+  int roomSize = maxPlayers;
+  int get roomSizeLimit => maxPlayers;
+
   /// Offset into the shuffled order for the current game.
   int questionOffset = 0;
   List<int> questionOrder;
@@ -288,7 +304,7 @@ class Game {
     if (length < 1 || length > maxNameLength) {
       throw const GameRuleError('invalid_name');
     }
-    if (players.length >= maxPlayers) throw const GameRuleError('room_full');
+    if (players.length >= roomSize) throw const GameRuleError('room_full');
     if (_nameTaken(trimmed)) throw const GameRuleError('name_taken');
 
     players[id] = GamePlayer(id: id, name: trimmed, avatarHue: avatarHue);
@@ -380,10 +396,29 @@ class Game {
             _rematch();
           case 'host_transfer':
             _transfer(payload);
+          case 'host_remove_player':
+            _removePlayer(payload, now);
+          case 'host_set_room_size':
+            _setRoomSize(payload);
+          // A LAN host has no public list to be on (PROTOCOL.md §3.5), and no
+          // room size codes, which the server keeps (§6.5).
+          case 'host_set_listed' || 'host_redeem_size_code':
+            throw const GameRuleError('cloud_only');
           default:
             throw const GameRuleError('invalid_payload');
         }
     }
+  }
+
+  /// Any phase; never below the players already here (§6.5).
+  void _setRoomSize(Map<String, dynamic> payload) {
+    final size = payload['room_size'];
+    if (size is! int) throw const GameRuleError('invalid_payload');
+    final smallest = players.isEmpty ? 1 : players.length;
+    if (size < smallest || size > roomSizeLimit) {
+      throw const GameRuleError('invalid_room_size');
+    }
+    roomSize = size;
   }
 
   void _submit(String id, Map<String, dynamic> payload, int now) {
@@ -408,6 +443,21 @@ class Game {
     );
 
     _endQuestionIfNobodyLeft(now);
+  }
+
+  /// The host ends the question (PROTOCOL.md §6): anyone still due an answer
+  /// gets [closingWindowMs] for what they have typed to arrive, and a question
+  /// already closing is left alone, so a second tap cannot cut the window
+  /// short. A paused question resumes into the window — nobody can submit
+  /// while it is paused.
+  void _closeQuestion(int now) {
+    if (asked.every((id) => _answeredOrGone(id, now))) {
+      _scoreQuestion();
+      return;
+    }
+    final remaining = pausedRemainingMs ?? deadline! - now;
+    deadline = now + min(remaining, closingWindowMs);
+    pausedRemainingMs = null;
   }
 
   /// Nobody left to wait for: everyone the question was asked of has either
@@ -459,7 +509,7 @@ class Game {
         if (_packSize == 0) throw const GameRuleError('quiz_required');
         _startQuestion(0, now);
       case GamePhase.question:
-        _scoreQuestion();
+        _closeQuestion(now);
       case GamePhase.scoring:
         phase = GamePhase.leaderboard;
       case GamePhase.leaderboard:
@@ -583,6 +633,21 @@ class Game {
     hostPlayerId = id;
   }
 
+  /// Takes a player out of the room (PROTOCOL.md §4.2): gone from the players,
+  /// from this question's answers and from the people it was asked of, so it
+  /// costs nobody a penalty and holds nobody up. The host's own seat is not the
+  /// host's to remove — handing the role over is how a host leaves.
+  void _removePlayer(Map<String, dynamic> payload, int now) {
+    final id = payload['player_id'];
+    if (id is! String) throw const GameRuleError('invalid_payload');
+    if (!hasPlayer(id)) throw const GameRuleError('unknown_player');
+    if (id == hostPlayerId) throw const GameRuleError('invalid_payload');
+    players.remove(id);
+    submissions.remove(id);
+    asked.remove(id);
+    _endQuestionIfNobodyLeft(now);
+  }
+
   void _rematch() {
     _requirePhase(const [GamePhase.finished]);
     for (final entry in players.entries) {
@@ -702,148 +767,6 @@ class Game {
 
   List<int> _eligibleIndices(List<Object?> difficulties) =>
       _eligibleIndicesFor(pack, difficulties);
-
-  // --- Views (§5.1, §7) ----------------------------------------------------
-
-  /// The complete `RoomState` snapshot as seen by [recipient]. Built per
-  /// recipient, never broadcast identically, because `you` differs and the
-  /// visibility rules are the same for everyone including the host (§7).
-  Map<String, dynamic> view(Actor recipient, int now) {
-    final question = currentQuestion;
-    // Same for every role: the host may be playing, so nobody gets an early
-    // look at the answers or anyone else's guess (§7).
-    final revealed =
-        phase == GamePhase.scoring || phase == GamePhase.leaderboard;
-
-    return {
-      'protocol_version': protocolMajor,
-      'protocol_minor': protocolMinor,
-      'room_code': roomCode,
-      'mode': mode,
-      'phase': phase.wire,
-      'server_time': now,
-      'pack_titles': pack.questions.isEmpty ? const <String>[] : pack.titles,
-      'question_index': questionIndex,
-      'question_count': settings.questionCount,
-      'game_number': gameNumber,
-      'settings': {
-        'question_count': settings.questionCount,
-        'time_limit_ms': settings.timeLimitMs,
-        'difficulty_multiplier': settings.difficultyMultiplier,
-        'max_question_count': maxAllowedQuestionCount,
-        'difficulties': settings.difficulties,
-        'available_difficulties': settings.availableDifficulties,
-        'min_time_limit_ms': minTimeLimitMs,
-        'max_time_limit_ms': maxTimeLimitMs,
-      },
-      'question': question == null ? null : _questionView(question),
-      'deadline': deadline,
-      'paused_remaining_ms': pausedRemainingMs,
-      'accepted_answers': question != null && revealed
-          ? question.acceptedAnswers
-          : null,
-      'players': _playersView(),
-      'you': _youView(recipient, question),
-      'submissions': question != null && revealed ? _submissionsView() : null,
-    };
-  }
-
-  Map<String, dynamic> _questionView(PackQuestion question) => {
-    'id': question.id,
-    'type': question.type,
-    'prompt': question.prompt,
-    'image_url': question.imageUrl,
-    'time_limit_ms': question.timeLimitMs,
-    'difficulty': question.difficulty,
-    'points': {
-      'right': pointsFor(question).right,
-      'wrong': pointsFor(question).wrong,
-      'skipped': skipPoints,
-    },
-  };
-
-  List<Map<String, dynamic>> _playersView() {
-    final tracksSubmissions =
-        phase == GamePhase.question ||
-        phase == GamePhase.scoring ||
-        phase == GamePhase.leaderboard;
-
-    return [
-      for (final player in _sortedPlayers())
-        {
-          'id': player.id,
-          'name': player.name,
-          'score': player.score,
-          'connected': player.connected,
-          'has_submitted':
-              tracksSubmissions && submissions.containsKey(player.id),
-          'is_host': player.id == hostPlayerId,
-          'avatar_hue': player.avatarHue,
-        },
-    ];
-  }
-
-  /// Score descending, then name ascending case-insensitively (§5.1).
-  List<GamePlayer> _sortedPlayers() {
-    final sorted = players.values.toList()
-      ..sort((a, b) {
-        final byScore = b.score.compareTo(a.score);
-        if (byScore != 0) return byScore;
-        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-      });
-    return sorted;
-  }
-
-  List<Map<String, dynamic>> _submissionsView() => [
-    for (final player in _sortedPlayers())
-      if (questionDelta(player.id) case final change?)
-        {
-          'player_id': player.id,
-          'answer': submissions[player.id]?.answer,
-          'auto_correct': submissions[player.id]?.autoCorrect ?? false,
-          'override': submissions[player.id]?.overrideVerdict,
-          'correct': submissions[player.id]?.correct ?? false,
-          'delta': change,
-        },
-  ];
-
-  Map<String, dynamic> _youView(Actor recipient, PackQuestion? question) {
-    // `role` reports who holds the role *now*, not how this connection
-    // authenticated: after a transfer or promotion the two differ, and the
-    // client has to be told the truth (PROTOCOL.md §3.4). `HostActor.holder`
-    // is the room's record of whether the host connection is still the holder.
-    final (role, id) = switch (recipient) {
-      HostActor(:final holder) => (holder ? 'host' : 'player', hostPlayerId),
-      PlayerActor(:final id) => (id == hostPlayerId ? 'host' : 'player', id),
-    };
-
-    final submission = question == null || id == null ? null : submissions[id];
-    final scored = phase == GamePhase.scoring || phase == GamePhase.leaderboard;
-    // From scoring on, a player who said nothing is told what that cost them.
-    final skipped =
-        scored && submission == null && id != null && asked.contains(id);
-
-    return {
-      'role': role,
-      'player_id': id,
-      // Filled in by the room shell for the one recipient who was just given
-      // the role; the game itself has no tokens.
-      'host_token': null,
-      'submission': switch (submission) {
-        final s? => {
-          'answer': s.answer,
-          'correct': scored ? s.correct : null,
-          'delta': scored ? s.delta : null,
-        },
-        _ when skipped => {
-          'answer': null,
-          'correct': false,
-          'delta': skipPoints,
-        },
-        _ => null,
-      },
-    };
-  }
 }
 
 /// Grapheme-cluster length, the unit PROTOCOL.md §4.1 specifies for names and

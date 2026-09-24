@@ -28,15 +28,6 @@ defmodule FazouraWeb.SelectQuizTest do
     %{code: code, socket: socket}
   end
 
-  defp join_room(code, payload) do
-    socket(FazouraWeb.UserSocket, nil, %{})
-    |> join(
-      FazouraWeb.RoomChannel,
-      "room:" <> code,
-      Map.put(payload, "protocol_version", Fazoura.Game.protocol_major())
-    )
-  end
-
   defp select(socket, quizzes) do
     ref = push(socket, "host_select_quiz", %{"quizzes" => quizzes})
     ref
@@ -199,8 +190,6 @@ defmodule FazouraWeb.SelectQuizTest do
   describe "photo budget" do
     # A photo every per-image check accepts, and how many it takes to pass the
     # per-room total.
-    defp under_image_cap, do: div(Fazoura.Uploads.max_bytes(), 2)
-    defp photo(bytes), do: Base.encode64(QuizFixtures.png_of_size(bytes))
 
     defp photo_quiz(title, count, bytes) do
       %{
@@ -213,7 +202,7 @@ defmodule FazouraWeb.SelectQuizTest do
                   "type" => "text_photo",
                   "prompt" => "Question #{i}?",
                   "accepted_answers" => ["a"],
-                  "image" => %{"data" => photo(bytes)}
+                  "image" => %{"data" => QuizFixtures.photo_data(bytes)}
                 }
               end
           })
@@ -224,16 +213,20 @@ defmodule FazouraWeb.SelectQuizTest do
       # Each quiz is comfortably inside the room cap on its own; together they
       # are over it. Counting per quiz would let a selection hold ten times what
       # one room is allowed (QUIZ_FORMAT.md §5.7).
-      per_quiz = photo_quiz("Heavy", 2, under_image_cap())
+      per_quiz = photo_quiz("Heavy", 2, QuizFixtures.under_image_cap())
 
       quizzes =
-        List.duplicate(per_quiz, ceil(Quizzes.max_inline_bytes() / (2 * under_image_cap())) + 1)
+        List.duplicate(
+          per_quiz,
+          ceil(Quizzes.max_inline_bytes() / (2 * QuizFixtures.under_image_cap())) + 1
+        )
 
       ref = select(socket, [per_quiz])
       assert_reply ref, :ok, %{}
 
+      # Said as what it is, since it is something the host can do something about.
       ref = select(socket, quizzes)
-      assert_reply ref, :error, %{code: "invalid_quiz"}, 2_000
+      assert_reply ref, :error, %{code: "quiz_too_large"}, 2_000
     end
 
     test "a selection that fails part way leaves no photos behind", %{socket: socket} do
@@ -281,5 +274,36 @@ defmodule FazouraWeb.SelectQuizTest do
   defp room_question_ids(socket) do
     [{pid, _}] = Registry.lookup(Fazoura.Rooms.Registry, socket.assigns.room_code)
     :sys.get_state(pid).game.pack.questions |> Enum.map(& &1.id)
+  end
+
+  describe "a listed room (PROTOCOL.md §3.5)" do
+    defp listed_codes, do: Enum.map(Rooms.listed(), & &1.room_code)
+
+    test "the host puts it on the list and takes it off again", %{code: code, socket: host} do
+      refute code in listed_codes()
+
+      ref = push(host, "host_set_listed", %{"listed" => true})
+      assert_reply ref, :ok
+      assert_push "state", %{listed: true}
+      assert code in listed_codes()
+
+      {:ok, _, _} = join_room(code, %{"display_name" => "Sam"})
+      assert %{player_count: 1} = Enum.find(Rooms.listed(), &(&1.room_code == code))
+
+      ref = push(host, "host_set_listed", %{"listed" => false})
+      assert_reply ref, :ok
+      refute code in listed_codes()
+    end
+
+    test "turns away a quiz from somebody's device, and takes a published one", %{socket: host} do
+      ref = push(host, "host_set_listed", %{"listed" => true})
+      assert_reply ref, :ok
+
+      ref = select(host, [%{"quiz" => QuizFixtures.quiz_params()}])
+      assert_reply ref, :error, %{code: "quiz_not_public"}
+
+      ref = select(host, [%{"quiz_id" => stored!("Library", ["One?"]).id}])
+      assert_reply ref, :ok
+    end
   end
 end

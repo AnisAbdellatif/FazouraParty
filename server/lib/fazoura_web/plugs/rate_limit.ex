@@ -54,28 +54,7 @@ defmodule FazouraWeb.Plugs.RateLimit do
 
   defp enabled?, do: Application.get_env(:fazoura, :rate_limit_enabled, true)
 
-  @doc "The caller's IP, as a string."
+  @doc "The caller's IP, as a string (`FazouraWeb.ClientIp`)."
   @spec client_key(Plug.Conn.t()) :: String.t()
-  def client_key(conn) do
-    if trust_forwarded?() do
-      forwarded_for(conn) || peer(conn)
-    else
-      peer(conn)
-    end
-  end
-
-  defp trust_forwarded?, do: Application.get_env(:fazoura, :trust_forwarded_for, false)
-
-  # X-Forwarded-For is a chain the client can prepend to; only the entry our own proxy
-  # appended — the last one — is trustworthy.
-  defp forwarded_for(conn) do
-    conn
-    |> Plug.Conn.get_req_header("x-forwarded-for")
-    |> Enum.flat_map(&String.split(&1, ","))
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
-    |> List.last()
-  end
-
-  defp peer(conn), do: conn.remote_ip |> :inet.ntoa() |> to_string()
+  def client_key(conn), do: FazouraWeb.ClientIp.from_conn(conn)
 end

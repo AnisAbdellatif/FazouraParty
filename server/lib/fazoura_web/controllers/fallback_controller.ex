@@ -67,6 +67,9 @@ defmodule FazouraWeb.FallbackController do
         "That question isn't in this room."
       )
 
+  def call(conn, {:error, :unknown_player}),
+    do: error(conn, :not_found, "unknown_player", "That player isn't in this room.")
+
   def call(conn, {:error, :unknown_image}),
     do:
       error(

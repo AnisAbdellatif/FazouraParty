@@ -5,7 +5,7 @@
 #   scripts/ci.sh              # server + app + image (what a pull request runs)
 #   scripts/ci.sh server       # Elixir: compile, format, credo, test, dialyzer
 #   scripts/ci.sh app          # Flutter: format, analyze, test, web build, worker
-#   scripts/ci.sh tools        # Python: the .fazoura packaging utility
+#   scripts/ci.sh tools        # Dart: tools/fazoura-cli (format, analyze, test)
 #   scripts/ci.sh image        # build the production Docker image
 #   scripts/ci.sh apk          # signed Android APK + the release manifest
 #   scripts/ci.sh aab          # Android App Bundle, for uploading to Play
@@ -135,14 +135,17 @@ app() {
   cd "$ROOT"
 }
 
-# The packaging utility is standard-library Python, so there is nothing to pin and
-# nothing to install: any python3 a developer or a runner already has will do.
+# tools/fazoura-cli is plain Dart, but it is built on the app's own client code
+# (app/lib/core), and that package declares Flutter — so resolving it needs the
+# same pinned Flutter SDK the app does, and its `dart`.
 tools() {
-  step "Tools (Python)"
-  cd "$ROOT/tools"
+  step "Tools (fazoura CLI)"
+  cd "$ROOT/tools/fazoura-cli"
 
-  have python3 || fail "python3 not found"
-  python3 -m unittest discover --start-directory . --pattern 'test_*.py'
+  dart pub get
+  dart format --set-exit-if-changed bin lib test
+  dart analyze --fatal-infos
+  dart test
 
   cd "$ROOT"
 }
@@ -281,7 +284,7 @@ apk() {
   # at a party. x86_64 is left out anyway — only emulators run it, and it was a
   # third of the download for people on phone data. An emulator gets its APK
   # from `flutter run`, which does not come through here.
-  flutter build apk --release \
+  FAZOURA_RELEASE_BUILD=1 flutter build apk --release \
     --target-platform android-arm,android-arm64 \
     --dart-define="SERVER_URL=$server" \
     --dart-define="APP_VERSION=$version" \
@@ -348,7 +351,7 @@ aab() {
   # x86 jniLibs exclusion in build.gradle.kts drops the plugin libraries, so a
   # bundle that still carried Flutter's x86_64 engine would let Play serve an
   # x86_64 device a build that crashes looking for the rest.
-  flutter build appbundle --release \
+  FAZOURA_RELEASE_BUILD=1 flutter build appbundle --release \
     --target-platform android-arm,android-arm64 \
     --dart-define="SERVER_URL=$server" \
     --dart-define="APP_VERSION=$version" \
@@ -393,6 +396,26 @@ compose() {
     "$@"
 }
 
+# This machine's address on the local network, or nothing. A private (RFC 1918)
+# address wins over whatever the default route uses, because that is what a
+# phone on home Wi-Fi is on — a laptop plugged into another network as well
+# routes through that one. Docker bridges and VPN tunnels are never it. macOS
+# has no `ip`, so it asks the usual Wi-Fi/Ethernet ports. Set PUBLIC_URL to
+# skip the guess.
+lan_address() {
+  local address=""
+  if have ip; then
+    address="$(ip -4 -o addr show scope global 2>/dev/null |
+      awk '$2 !~ /^(docker|br-|veth|virbr|tailscale|wg|tun)/ { sub("/.*", "", $4); print $4 }' |
+      grep -E '^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[01])\.)' | head -n 1)"
+    [ -n "$address" ] ||
+      address="$(ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p')"
+  elif have ipconfig; then
+    address="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"
+  fi
+  printf '%s' "$address"
+}
+
 up() {
   step "Local stack"
 
@@ -402,7 +425,14 @@ up() {
     fail "app/build/web is missing — run 'scripts/ci.sh app' first"
   fi
 
-  compose up --build --wait
+  # Photo links are absolute, so they have to name an address the device
+  # showing them can reach — a phone on the Wi-Fi cannot reach localhost.
+  local lan public_url="${PUBLIC_URL:-}"
+  if [ -z "$public_url" ]; then
+    lan="$(lan_address)"
+    public_url="http://${lan:-localhost}:4000"
+  fi
+  PUBLIC_URL="$public_url" compose up --build --wait
   # Migrations and the built-in quizzes, exactly as a deploy runs them.
   compose run --rm --no-TTY app bin/fazoura eval 'Fazoura.Release.setup()'
 
@@ -411,14 +441,16 @@ up() {
     http://localhost:4000/health >/dev/null
   ok "healthy"
 
-  cat <<'EOF'
+  cat <<EOF
 
   The app, the API and the WebSocket are all on http://localhost:4000
   Admin dashboard:  http://localhost:4000/admin  (admin / admin)
   Postgres:         localhost:5433  (user fazoura, password local-development-only)
+  Photo links:      $public_url
 
   To point a client you are developing at it:
     cd app && flutter run -d chrome --dart-define=SERVER_URL=http://localhost:4000
+  From a phone on the same Wi-Fi, set the server to $public_url
 
   Logs:   docker compose --env-file deploy/local.env -f deploy/compose.yaml -f deploy/compose.local.yaml logs -f app
   Stop:   scripts/ci.sh down
@@ -441,8 +473,8 @@ main() {
     versions) versions "${2:-all}" ;;
     server)   versions server; server ;;
     app)      versions app; app ;;
-    # No toolchain check: this one needs nothing the other two pin.
-    tools)    tools ;;
+    # The CLI resolves against the app package, so the app's Flutter pin is its.
+    tools)    versions app; tools ;;
     image)    image ;;
     # Neither: building a release needs an Android SDK and the signing key, so
     # it is never part of a check run.

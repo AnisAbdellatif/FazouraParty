@@ -15,6 +15,8 @@ import 'package:fazoura_party/core/game/lan_room.dart';
 import 'package:fazoura_party/core/game/pack.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../support/matchers.dart';
+
 const _t0 = 1000000;
 
 Pack _pack([int questions = 2]) => Pack.fromMap({
@@ -29,9 +31,6 @@ Pack _pack([int questions = 2]) => Pack.fromMap({
       },
   ],
 });
-
-Matcher _throwsCode(String code) =>
-    throwsA(isA<GameRuleError>().having((error) => error.code, 'code', code));
 
 /// One client, and everything the room pushed to it.
 class _Client implements LanConnection {
@@ -59,6 +58,7 @@ void main() {
       now: () => clock,
       random: Random(42),
       shuffleQuestions: false,
+      broadcastGap: Duration.zero,
     );
   });
 
@@ -92,7 +92,7 @@ void main() {
           'protocol_version': protocolMajor - 1,
           'display_name': 'Sam',
         }),
-        _throwsCode('unsupported_protocol_version'),
+        throwsCode('unsupported_protocol_version'),
       );
       // A refused join leaves no trace: the name is still free.
       expect(room.game.players, isEmpty);
@@ -101,11 +101,11 @@ void main() {
     test('a forged or stale token is refused, never silently re-issued', () {
       expect(
         () => room.join(_Client(), joinParams({'player_token': 'forged'})),
-        _throwsCode('invalid_token'),
+        throwsCode('invalid_token'),
       );
       expect(
         () => room.join(_Client(), joinParams({'host_token': 'forged'})),
-        _throwsCode('invalid_token'),
+        throwsCode('invalid_token'),
       );
       expect(room.game.players, isEmpty);
     });
@@ -114,13 +114,13 @@ void main() {
       final sam = join({'display_name': 'Sam'});
       expect(
         () => room.join(_Client(), joinParams({'display_name': 'sam'})),
-        _throwsCode('name_taken'),
+        throwsCode('name_taken'),
       );
 
       room.leave(sam.client);
       expect(
         () => room.join(_Client(), joinParams({'display_name': 'SAM'})),
-        _throwsCode('name_taken'),
+        throwsCode('name_taken'),
       );
     });
 
@@ -172,7 +172,7 @@ void main() {
           _Client(),
           joinParams({'host_token': room.hostToken, 'display_name': 'hana'}),
         ),
-        _throwsCode('name_taken'),
+        throwsCode('name_taken'),
       );
       expect(room.connectionCount, 1);
       expect(
@@ -233,7 +233,7 @@ void main() {
       // The old token is dead; the new one works.
       expect(
         () => room.join(_Client(), joinParams({'host_token': room.hostToken})),
-        _throwsCode('invalid_token'),
+        throwsCode('invalid_token'),
       );
       expect(
         room.join(_Client(), joinParams({'host_token': token})).role,
@@ -253,11 +253,11 @@ void main() {
       expect(host.client.you['player_id'], isNotNull);
       expect(
         () => room.handle(host.client, 'host_next', {}),
-        _throwsCode('not_host'),
+        throwsCode('not_host'),
       );
       expect(
         () => room.handle(host.client, 'host_close', {}),
-        _throwsCode('not_host'),
+        throwsCode('not_host'),
       );
       // Still a player, and still able to play.
       room.handle(sam.client, 'host_next', {});
@@ -274,15 +274,15 @@ void main() {
         () => room.handle(host.client, 'host_transfer', {
           'player_id': sam.reply.playerId,
         }),
-        _throwsCode('not_connected'),
+        throwsCode('not_connected'),
       );
       expect(
         () => room.handle(host.client, 'host_transfer', {'player_id': 'ghost'}),
-        _throwsCode('not_connected'),
+        throwsCode('not_connected'),
       );
       expect(
         () => room.handle(host.client, 'host_transfer', {'player_id': 42}),
-        _throwsCode('invalid_payload'),
+        throwsCode('invalid_payload'),
       );
     });
 
@@ -317,7 +317,7 @@ void main() {
 
       expect(
         () => room.handle(sam.client, 'host_close', {}),
-        _throwsCode('not_host'),
+        throwsCode('not_host'),
       );
       expect(room.isClosed, isFalse);
 
@@ -333,13 +333,73 @@ void main() {
 
       expect(
         () => room.join(_Client(), joinParams({'display_name': 'Late'})),
-        _throwsCode('room_not_found'),
+        throwsCode('room_not_found'),
       );
       expect(
         () => room.handle(host.client, 'host_next', {}),
-        _throwsCode('room_not_found'),
+        throwsCode('room_not_found'),
       );
     });
+  });
+
+  group('pacing', () {
+    // Real time, not the injected clock: pacing is delivery, not game time.
+    test(
+      'changes inside the gap share one snapshot, sent once it has passed',
+      () async {
+        final paced = LanRoom.create(
+          pack: _pack(),
+          now: () => clock,
+          random: Random(7),
+          broadcastGap: const Duration(milliseconds: 80),
+        );
+        addTearDown(() => paced.close(LanCloseReason.shutdown));
+        final host = _Client();
+        paced.join(host, {
+          'protocol_version': protocolMajor,
+          'host_token': paced.hostToken,
+        });
+        expect(host.states, hasLength(1), reason: 'a quiet room sends at once');
+
+        for (final name in ['Sam', 'Kim', 'Lee']) {
+          paced.join(_Client(), {
+            'protocol_version': protocolMajor,
+            'display_name': name,
+          });
+        }
+        expect(host.states, hasLength(1), reason: 'inside the gap: held back');
+
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        expect(host.states, hasLength(2));
+        expect(host.latest['players'], hasLength(3));
+      },
+    );
+
+    test(
+      'a room that closes with a snapshot pending sends nothing more',
+      () async {
+        final paced = LanRoom.create(
+          pack: _pack(),
+          now: () => clock,
+          random: Random(7),
+          broadcastGap: const Duration(milliseconds: 50),
+        );
+        final host = _Client();
+        paced.join(host, {
+          'protocol_version': protocolMajor,
+          'host_token': paced.hostToken,
+        });
+        paced.join(_Client(), {
+          'protocol_version': protocolMajor,
+          'display_name': 'Sam',
+        });
+        paced.close(LanCloseReason.closed);
+
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        expect(host.states, hasLength(1));
+        expect(host.closedReason, 'closed');
+      },
+    );
   });
 
   group('lifetime', () {

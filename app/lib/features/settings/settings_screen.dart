@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/config_providers.dart';
 import '../../core/providers/update_providers.dart';
 import '../../core/update/app_release.dart';
+import '../../shared/community_rules.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/theme/fz_theme.dart';
 import '../../shared/widgets/fz.dart';
@@ -171,14 +172,23 @@ class _PrivacySection extends ConsumerWidget {
           style: fz.m(11.5, color: FzColors.dim, height: 1.4),
         ),
         const SizedBox(height: 12),
-        Align(
-          alignment: AlignmentDirectional.centerStart,
-          child: FzPill(
-            key: const Key('privacyPolicyButton'),
-            label: 'Privacy policy',
-            icon: Icons.open_in_new,
-            onPressed: () => _open(context, ref),
-          ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            FzPill(
+              key: const Key('privacyPolicyButton'),
+              label: 'Privacy policy',
+              icon: Icons.open_in_new,
+              onPressed: () => _open(context, ref),
+            ),
+            FzPill(
+              key: const Key('communityRulesButton'),
+              label: 'Community rules',
+              icon: Icons.open_in_new,
+              onPressed: () => openCommunityRules(context, ref),
+            ),
+          ],
         ),
       ],
     );

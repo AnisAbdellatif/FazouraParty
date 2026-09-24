@@ -6,7 +6,7 @@ defmodule Fazoura.Rooms do
 
   alias Fazoura.Game.Pack
   alias Fazoura.Metrics
-  alias Fazoura.Rooms.{Images, RoomServer}
+  alias Fazoura.Rooms.{Images, Listing, RoomServer, Tokens}
 
   @code_alphabet ~c"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
   @code_length 6
@@ -19,7 +19,8 @@ defmodule Fazoura.Rooms do
   @doc """
   Starts a room for `pack`. Options: `:now` (0-arity fun returning epoch ms, for tests),
   `:mode` (`:cloud` | `:lan`), `:image_keys` (private-quiz photos in
-  `Fazoura.Rooms.Images`, freed when the room exits).
+  `Fazoura.Rooms.Images`, freed when the room exits), `:broadcast_interval_ms` (the
+  shortest gap between two snapshots, `Fazoura.Rooms.RoomServer`).
   """
   @spec create(Pack.t(), keyword()) ::
           {:ok, String.t(), String.t()} | {:error, :empty_pack | :too_many_rooms}
@@ -36,6 +37,11 @@ defmodule Fazoura.Rooms do
       start_room(pack, opts)
     end
   end
+
+  @doc "This module's part of `protocol/fixtures/constants.json` (see `Fazoura.Game.constants/0`)."
+  @spec constants() :: %{String.t() => term()}
+  def constants,
+    do: %{"room_code_alphabet" => to_string(@code_alphabet), "room_code_length" => @code_length}
 
   @doc "How many rooms are live on this node."
   @spec count() :: non_neg_integer()
@@ -54,7 +60,7 @@ defmodule Fazoura.Rooms do
       {:ok, pid} ->
         :ok = Images.attach(image_keys, pid)
         Metrics.increment(:rooms_created)
-        {:ok, code, RoomServer.host_token(code)}
+        {:ok, code, Tokens.host_token(code)}
 
       # A code collision, not a capacity problem: retry without re-checking the cap.
       {:error, {:already_started, _pid}} ->
@@ -64,9 +70,20 @@ defmodule Fazoura.Rooms do
 
   @doc "Registers `pid` (a channel) in the room. Returns the join reply and the room pid."
   @spec join(String.t(), pid(), map()) :: {:ok, map(), pid()} | {:error, atom()}
-  def join(code, pid, params), do: call(code, {:join, pid, params})
+  def join(code, pid, params, meta \\ %{}), do: call(code, {:join, pid, params, meta})
 
-  @spec intent(String.t(), pid(), Fazoura.Game.intent()) :: :ok | {:error, atom()}
+  @doc """
+  Applies an intent from the connection `pid`. Two are the channel's half of redeeming a
+  room size code (`FazouraWeb.RoomChannel`): `{:check_size_code, code}` answers `:new`,
+  or `:already` when this room took that code before; `{:redeem_size_code, code}` applies
+  one the caller has counted, and anything but `:ok` means the use should be given back.
+  """
+  @spec intent(
+          String.t(),
+          pid(),
+          Fazoura.Game.intent()
+          | {:check_size_code | :redeem_size_code, Fazoura.RoomSizeCodes.Code.t()}
+        ) :: :ok | :new | :already | {:error, atom()}
   def intent(code, pid, intent), do: call(code, {:intent, pid, intent})
 
   @doc """
@@ -86,6 +103,10 @@ defmodule Fazoura.Rooms do
     end)
     |> Enum.sort_by(& &1.code)
   end
+
+  @doc "Every room its host chose to list (PROTOCOL.md §3.5); see `Fazoura.Rooms.Listing`."
+  @spec listed() :: [map()]
+  defdelegate listed, to: Listing, as: :all
 
   @doc """
   Tells every live room to close with `shutdown` (PROTOCOL.md §5.2). Called by
@@ -123,6 +144,28 @@ defmodule Fazoura.Rooms do
           | {:error, :room_not_found | :question_not_found | :quiz_not_public}
   def source_quiz(code, question_id, token),
     do: call(code, {:source_quiz, question_id, token})
+
+  @doc """
+  What a report about `player_id` keeps (PROTOCOL.md §3.5), for somebody in the room
+  holding either token it issued.
+  """
+  @spec player_report(String.t(), String.t(), String.t() | nil) ::
+          {:ok, Fazoura.Moderation.reported()} | {:error, atom()}
+  def player_report(code, player_id, token),
+    do: call(code, {:player_report, player_id, token})
+
+  @doc "Ends a live room, as its host closing it would. For an admin answering a report."
+  @spec close(String.t()) :: :ok | {:error, :room_not_found}
+  def close(code) do
+    case Registry.lookup(Fazoura.Rooms.Registry, code) do
+      [{pid, _value}] ->
+        send(pid, :admin_close)
+        :ok
+
+      [] ->
+        {:error, :room_not_found}
+    end
+  end
 
   @doc "Forces timer/expiry evaluation now. Used by tests with an injected clock."
   @spec tick(String.t()) :: :ok | {:error, :room_not_found}

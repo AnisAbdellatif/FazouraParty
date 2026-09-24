@@ -2,7 +2,7 @@ defmodule Fazoura.Bench.Fixtures do
   @moduledoc """
   Rooms and packs for the benchmarks in `bench/`.
 
-  Deliberately not in `test/support`: these build *large* states (100 players, 200
+  Deliberately not in `test/support`: these build *large* states (full rooms, 200
   questions) that no test wants, and they are shaped to be realistic rather than
   minimal — varied scores so the leaderboard sort has work to do, mixed scripts so
   `String.downcase/1` and NFD are not measured on ASCII alone.
@@ -40,7 +40,8 @@ defmodule Fazoura.Bench.Fixtures do
   end
 
   @doc """
-  A room of `players` people, in `phase`, with every player's answer already in.
+  A room of `players` people, in `phase`, with every player's answer already in —
+  except, mid-question, the answer of "p1".
 
   Scores are spread (and deliberately tied in places) so `players_view/1` sorts on
   the name tiebreak as often as on the score.
@@ -66,22 +67,20 @@ defmodule Fazoura.Bench.Fixtures do
 
   defp advance_to(game, :lobby), do: game
 
-  defp advance_to(game, phase) do
+  # A question ends by itself once everybody has answered, so a room left in
+  # `:question` is one where "p1" has not: the answer a benchmark then submits.
+  defp advance_to(game, :question) do
     {:ok, game} = Game.handle(game, :host, :next, @t0)
-    game = Enum.reduce(Map.keys(game.players), game, &submit(&2, &1))
-    advance_from_question(game, phase)
+    Enum.reduce(Map.keys(game.players) -- ["p1"], game, &submit(&2, &1))
   end
 
-  defp advance_from_question(game, :question), do: game
-
-  defp advance_from_question(game, :scoring) do
+  defp advance_to(game, :scoring) do
     {:ok, game} = Game.handle(game, :host, :next, @t0)
-    game
+    Enum.reduce(Map.keys(game.players), game, &submit(&2, &1))
   end
 
-  defp advance_from_question(game, :leaderboard) do
-    game = advance_from_question(game, :scoring)
-    {:ok, game} = Game.handle(game, :host, :next, @t0)
+  defp advance_to(game, :leaderboard) do
+    {:ok, game} = Game.handle(advance_to(game, :scoring), :host, :next, @t0)
     game
   end
 

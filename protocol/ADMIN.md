@@ -9,7 +9,7 @@ Companion to [PROTOCOL.md](PROTOCOL.md) (live rooms) and [QUIZ_FORMAT.md](QUIZ_F
 
 The key indicators are live data: running games and connected players are BEAM processes in
 the room registry, not rows in a table. The Phoenix server can read them directly, so the
-dashboard is five LiveViews in the same application — no second service to deploy, no
+dashboard is seven LiveViews in the same application — no second service to deploy, no
 extra API to expose the room state, no second set of credentials or CORS rules. The quiz
 database is already here too.
 
@@ -91,6 +91,20 @@ this is a queue with a clock on it rather than a mailbox.
 Like approving a submission, both answers exist only once a report is open: there is no
 answering one from the list without having read it.
 
+**Players.** Below the quizzes, reports about players in rooms (PROTOCOL.md §3.5): the room,
+the name, the answer they gave if any, and the reason and note. Players have no accounts,
+so the answers are about the connection and the room, not a person:
+
+- **Ban 7d / 30d / 90d** keeps that connection out of public rooms for that long, by the
+  keyed hash of its address the report kept. Rooms joined by code are untouched. A report
+  with no address — made about a player whose address hash has already been erased after 90
+  days — can only be answered with the others.
+- **End room** closes the room for everyone in it, shown while the room is still running.
+- **It's fine** answers the report and nothing else.
+
+A report, answered or not, never keeps its address hash beyond 90 days, and an answered
+one is forgotten after that too (`Fazoura.Moderation.sweep/1`).
+
 ### 3.4 Quizzes (`/admin/quizzes`)
 
 - Search by title or tag.
@@ -108,7 +122,7 @@ answering one from the list without having read it.
 - **Add a preset** either by uploading that package or by pasting a quiz document (§2) — the same JSON as `server/priv/quizzes/*.json`. No publisher key
   is involved and photo keys are trusted. A package carries its photos, so they arrive with the
   quiz and become ordinary uploads owned by a key no device holds (§6); a pasted document does
-  not, so its photos must already be uploaded. `tools/fazoura_pack.py` builds a package from a
+  not, so its photos must already be uploaded. `tools/fazoura-cli/fazoura quiz pack` builds a package from a
   folder of JSON and images.
 - **Edit** any quiz — its metadata and every question — in the editor (§3.5). A quiz added
   from a package or a pasted document opens there straight away, since a new quiz is the one
@@ -162,6 +176,21 @@ reorder, and reset to the built-in list. Each tag shows how many public quizzes 
 Saving is immediate; the apps pick changes up the next time they call `GET /api/tags`.
 
 People can still type any tag they like — this list is a convenience, not a whitelist.
+
+### 3.7 Room size codes (`/admin/codes`)
+
+A room holds `max_players` (32). A **room size code** lets a host raise that from the lobby
+(PROTOCOL.md §6.5). The admin fills in who it is for, the size (33–200), how many rooms it may
+unlock, and optionally a last day, and gets a code like `K7QX-2MPA-9RTE` to pass on.
+
+**The code is shown once**, right after it is made. Only its SHA-256 is stored, so a leaked
+database gives away no working code, and the list tells codes apart by their last four
+characters. The list shows each code's size, rooms used out of rooms allowed, expiry and
+status (active, used up, expired, revoked). **Revoke** stops a code working; rooms it already
+unlocked keep their size until they close.
+
+A use is counted when a room takes the code, not when a host types it: a wrong attempt, a
+player trying it, or the same room entering it twice costs nothing.
 
 ## 4. Storage
 

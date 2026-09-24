@@ -17,11 +17,25 @@ class LobbyView extends StatelessWidget {
     this.footer,
     this.settingsEditor,
     this.lanAddress,
+    this.listingControl,
+    this.roomSizeControl,
+    this.onPlayerTap,
   });
 
   final RoomState state;
   final Widget? footer;
   final Widget? settingsEditor;
+
+  /// The host's switch for the public room list (PROTOCOL.md §3.5). Everyone
+  /// else is only told whether the room is on it.
+  final Widget? listingControl;
+
+  /// The host's room size, and a room size code to raise it (§6.5).
+  final Widget? roomSizeControl;
+
+  /// What tapping a player does: removing or reporting them, where this device
+  /// may (`features/players/player_actions.dart`).
+  final void Function(PlayerSummary player)? onPlayerTap;
 
   /// `<ip>:<port>` of this device when hosting over LAN. Guests need it as well
   /// as the code, because there is no server for them to look the room up on.
@@ -71,6 +85,17 @@ class LobbyView extends StatelessWidget {
               ),
             ],
           ),
+          if (listingControl case final control?) ...[
+            const SizedBox(height: 10),
+            control,
+          ] else if (state.listed) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Public room — anyone can find it and join.',
+              key: const Key('lobbyListedNote'),
+              style: fz.m(11.5, color: FzColors.ac),
+            ),
+          ],
           if (lanAddress case final address?) ...[
             const SizedBox(height: 14),
             const FzEyebrow('On this Wi-Fi'),
@@ -92,13 +117,25 @@ class LobbyView extends StatelessWidget {
             children: [
               Expanded(child: Text('In the room', style: fz.h(19))),
               Text(
-                '$count ${count == 1 ? 'player' : 'players'}',
+                switch (state.roomSize) {
+                  final size? => '$count / $size players',
+                  null => '$count ${count == 1 ? 'player' : 'players'}',
+                },
+                key: const Key('lobbyPlayerCount'),
                 style: fz.m(11.5, color: FzColors.dim),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          PlayerGrid(players: state.players, youId: state.you.playerId),
+          PlayerGrid(
+            players: state.players,
+            youId: state.you.playerId,
+            onTap: onPlayerTap,
+          ),
+          if (roomSizeControl case final control?) ...[
+            const SizedBox(height: 20),
+            control,
+          ],
           const SizedBox(height: 20),
           settingsEditor ??
               FzPanel(
@@ -153,10 +190,11 @@ class _WaitingForHost extends StatelessWidget {
 
 /// Three-column grid of player cards with YOU / HOST / READY tags.
 class PlayerGrid extends StatelessWidget {
-  const PlayerGrid({super.key, required this.players, this.youId});
+  const PlayerGrid({super.key, required this.players, this.youId, this.onTap});
 
   final List<PlayerSummary> players;
   final String? youId;
+  final void Function(PlayerSummary player)? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -188,7 +226,13 @@ class PlayerGrid extends StatelessWidget {
                 // each time somebody joined.
                 child: FzEnter(
                   key: ValueKey('lobby-${player.id}'),
-                  child: _PlayerCard(player: player, isYou: player.id == youId),
+                  child: GestureDetector(
+                    onTap: onTap == null ? null : () => onTap!(player),
+                    child: _PlayerCard(
+                      player: player,
+                      isYou: player.id == youId,
+                    ),
+                  ),
                 ),
               ),
           ],

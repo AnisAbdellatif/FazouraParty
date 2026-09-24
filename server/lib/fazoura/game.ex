@@ -8,6 +8,7 @@ defmodule Fazoura.Game do
   """
 
   alias Fazoura.Game.{Answer, Pack}
+  alias Fazoura.Moderation.Profanity
 
   # The protocol is versioned major.minor (PROTOCOL.md §1). The major is the
   # compatibility boundary and the only part on the wire: a client may play
@@ -16,7 +17,7 @@ defmodule Fazoura.Game do
   # the minor and leaves every installed app working. Changing or removing
   # anything a client already relies on moves the major, and that is a cutover.
   @protocol_major 9
-  @protocol_minor 3
+  @protocol_minor 9
   # Points per question by difficulty (PROTOCOL.md §9). A wrong answer costs more on an
   # easy question than on a hard one: you are expected to know the easy ones, and a hard
   # one is worth a guess. Letting the question go by costs @skip_points whatever its
@@ -37,10 +38,17 @@ defmodule Fazoura.Game do
   # the game's fault, not theirs. Longer than a reconnect, far shorter than the
   # shortest question.
   @waiting_grace_ms 5_000
+  # How long a question stays open after the host ends it. A player who has typed
+  # an answer but not locked it in has it sent for them just before the deadline,
+  # so ending a question pulls the deadline in rather than scoring on the spot —
+  # otherwise the host's button throws away every answer still being typed. Has
+  # to clear the client's 700 ms lead plus a round trip, and be short enough that
+  # the host is not left waiting.
+  @closing_window_ms 3_000
   @min_time_limit_ms 10_000
   @max_time_limit_ms 120_000
   @default_time_limit_ms 30_000
-  @max_players 100
+  @max_players 32
   @max_name_length 20
   @max_answer_length 100
   @difficulties ~w(easy medium hard)
@@ -57,6 +65,10 @@ defmodule Fazoura.Game do
           | {:configure, map()}
           | :rematch
           | {:transfer, map()}
+          | {:set_listed, map()}
+          | {:remove_player, map()}
+          | {:set_room_size, map()}
+          | {:unlock_room_size, pos_integer()}
   @type error :: {:error, atom()}
 
   @type player :: %{
@@ -97,6 +109,8 @@ defmodule Fazoura.Game do
           question_offset: non_neg_integer(),
           question_order: [non_neg_integer()],
           shuffle_questions?: boolean(),
+          room_size: pos_integer(),
+          room_size_limit: pos_integer(),
           players: %{String.t() => player()},
           submissions: %{String.t() => submission()},
           asked: MapSet.t(String.t())
@@ -113,11 +127,21 @@ defmodule Fazoura.Game do
     question_order: [],
     shuffle_questions?: true,
     mode: :cloud,
+    # Whether the room shows in the public room list (PROTOCOL.md §3.5). A listed
+    # room plays published quizzes only, so everything a stranger browsing the
+    # list can see has been read by a person first.
+    listed: false,
     phase: :lobby,
     question_index: nil,
     deadline: nil,
     paused_remaining_ms: nil,
     host_player_id: nil,
+    # How many players the room lets in, which the host may lower, up to
+    # `room_size_limit`: `@max_players` unless a room size code raised it
+    # (PROTOCOL.md §6.5). A room's own, so choosing another quiz or a rematch
+    # leaves both alone.
+    room_size: @max_players,
+    room_size_limit: @max_players,
     players: %{},
     submissions: %{},
     # Who was in the room when the current question started. Only they can be
@@ -133,12 +157,56 @@ defmodule Fazoura.Game do
   @spec protocol_minor() :: non_neg_integer()
   def protocol_minor, do: @protocol_minor
 
+  @doc """
+  The fixed numbers this module owns, named as `protocol/fixtures/constants.json` names
+  them. The LAN host defines the same ones in Dart; both test suites hold their own to
+  that file, so the two cannot drift apart unnoticed.
+  """
+  @spec constants() :: %{String.t() => term()}
+  def constants do
+    %{
+      "protocol_major" => @protocol_major,
+      "protocol_minor" => @protocol_minor,
+      "waiting_grace_ms" => @waiting_grace_ms,
+      "closing_window_ms" => @closing_window_ms,
+      "skip_points" => @skip_points,
+      "min_time_limit_ms" => @min_time_limit_ms,
+      "max_time_limit_ms" => @max_time_limit_ms,
+      "default_time_limit_ms" => @default_time_limit_ms,
+      "max_players" => @max_players,
+      "max_name_length" => @max_name_length,
+      "max_answer_length" => @max_answer_length,
+      "difficulties" => @difficulties
+    }
+  end
+
+  @doc "Most players a room holds unless a room size code raised its limit."
+  @spec max_players() :: pos_integer()
+  def max_players, do: @max_players
+
+  @doc """
+  Whether `actor` may raise the room's limit with a room size code (PROTOCOL.md §6.5):
+  the rule `{:unlock_room_size, size}` applies, asked before a code's use is counted.
+  """
+  @spec check_unlock(t(), actor()) :: :ok | error()
+  def check_unlock(%__MODULE__{} = game, {:player, id}) when id != game.host_player_id,
+    do: {:error, :not_host}
+
+  def check_unlock(%__MODULE__{mode: :lan}, _actor), do: {:error, :cloud_only}
+  def check_unlock(%__MODULE__{}, _actor), do: :ok
+
+  @doc "How long a question stays open once the host has ended it."
+  @spec closing_window_ms() :: pos_integer()
+  def closing_window_ms, do: @closing_window_ms
+
   @spec new(String.t(), Pack.t(), keyword()) :: t()
   def new(room_code, %Pack{} = pack, opts \\ []) do
     %__MODULE__{
       room_code: room_code,
       pack: pack,
       mode: Keyword.get(opts, :mode, :cloud),
+      # A LAN host has no list to be on.
+      listed: Keyword.get(opts, :listed, false) and Keyword.get(opts, :mode, :cloud) == :cloud,
       settings: default_settings(pack),
       question_order:
         shuffled_order(
@@ -151,23 +219,30 @@ defmodule Fazoura.Game do
 
   @doc "Selects the quiz for a lobby, replacing any previous selection."
   @spec select_quiz(t(), Pack.t()) :: {:ok, t()} | error()
-  def select_quiz(%__MODULE__{phase: :lobby} = game, %Pack{questions: questions} = pack)
-      when questions != [] do
-    {:ok,
-     %{
-       game
-       | pack: pack,
-         settings: default_settings(pack),
-         question_offset: 0,
-         question_order:
-           shuffled_order(
-             question_indices(pack, default_settings(pack).difficulties),
-             game.shuffle_questions?
-           )
-     }}
-  end
+  def select_quiz(%__MODULE__{phase: :lobby} = game, %Pack{} = pack) do
+    cond do
+      pack.questions == [] ->
+        {:error, :empty_pack}
 
-  def select_quiz(%__MODULE__{phase: :lobby}, _pack), do: {:error, :empty_pack}
+      # A listed room plays published quizzes only (PROTOCOL.md §3.5).
+      game.listed and not published?(pack) ->
+        {:error, :quiz_not_public}
+
+      true ->
+        {:ok,
+         %{
+           game
+           | pack: pack,
+             settings: default_settings(pack),
+             question_offset: 0,
+             question_order:
+               shuffled_order(
+                 question_indices(pack, default_settings(pack).difficulties),
+                 game.shuffle_questions?
+               )
+         }}
+    end
+  end
 
   # Choosing what to play is a lobby-only thing; mid-game it is the phase that
   # is wrong, not the selection (PROTOCOL.md §4.2, §6.4).
@@ -201,8 +276,10 @@ defmodule Fazoura.Game do
 
     cond do
       String.length(name) not in 1..@max_name_length -> {:error, :invalid_name}
-      map_size(game.players) >= @max_players -> {:error, :room_full}
+      map_size(game.players) >= game.room_size -> {:error, :room_full}
       name_taken?(game, name) -> {:error, :name_taken}
+      # Strangers read a public room's names (PROTOCOL.md §3.5).
+      game.listed and not Profanity.clean?(name) -> {:error, :name_not_allowed}
       true -> {:ok, put_in(game.players[id], new_player(id, name, avatar_hue))}
     end
   end
@@ -322,7 +399,7 @@ defmodule Fazoura.Game do
           else: {:ok, start_question(game, 0, now)}
 
       :question ->
-        {:ok, score_question(game)}
+        {:ok, close_question(game, now)}
 
       :scoring ->
         {:ok, %{game | phase: :leaderboard}}
@@ -412,6 +489,63 @@ defmodule Fazoura.Game do
   def handle(game, :host, {:select_quiz, %Pack{} = pack}, _now),
     do: select_quiz(game, pack)
 
+  # Listing is decided in the lobby, where nothing is being played yet, and only
+  # for what is already selected: a room with a quiz from somebody's device on it
+  # cannot go on the list until that quiz is swapped for published ones.
+  def handle(%{mode: :lan}, :host, {:set_listed, _payload}, _now), do: {:error, :cloud_only}
+
+  def handle(game, :host, {:set_listed, payload}, _now) do
+    with :ok <- require_phase(game, [:lobby]),
+         {:ok, listed} <- validate_listed(payload),
+         :ok <-
+           if(listed and not published?(game.pack), do: {:error, :quiz_not_public}, else: :ok),
+         :ok <- if(listed and not names_clean?(game), do: {:error, :name_not_allowed}, else: :ok) do
+      {:ok, %{game | listed: listed}}
+    end
+  end
+
+  # The host may make the room smaller than its limit, in any phase — never smaller
+  # than the players already in it, who would otherwise be over a size nobody can
+  # meet (PROTOCOL.md §6.5).
+  def handle(game, :host, {:set_room_size, %{"room_size" => size}}, _now)
+      when is_integer(size) do
+    if size in max(map_size(game.players), 1)..game.room_size_limit//1,
+      do: {:ok, %{game | room_size: size}},
+      else: {:error, :invalid_room_size}
+  end
+
+  def handle(_game, :host, {:set_room_size, _payload}, _now), do: {:error, :invalid_payload}
+
+  # A room size code, already checked and counted by whoever redeemed it: the limit
+  # only ever goes up, and the room grows to it at once, since raising the limit is
+  # what the host asked for (§6.5). Codes are the server's; a LAN host has none.
+  def handle(%{mode: :lan}, :host, {:unlock_room_size, _size}, _now), do: {:error, :cloud_only}
+
+  def handle(game, :host, {:unlock_room_size, size}, _now) when is_integer(size) do
+    limit = max(game.room_size_limit, size)
+    {:ok, %{game | room_size_limit: limit, room_size: limit}}
+  end
+
+  # Taking a player out of the room (PROTOCOL.md §4.2): gone from the players, from
+  # this question's answers and from the people it was asked of, so it costs nobody a
+  # penalty and holds nobody up. Their token names a player the room no longer has, so
+  # it no longer lets them back in. The host's own seat is not the host's to remove —
+  # handing the role over is how a host leaves.
+  def handle(game, :host, {:remove_player, payload}, now) do
+    with {:ok, id} <- validate_transfer(payload),
+         :ok <- require_player(game, id),
+         :ok <- if(id == game.host_player_id, do: {:error, :invalid_payload}, else: :ok) do
+      removed = %{
+        game
+        | players: Map.delete(game.players, id),
+          submissions: Map.delete(game.submissions, id),
+          asked: MapSet.delete(game.asked, id)
+      }
+
+      {:ok, maybe_end_question(removed, now)}
+    end
+  end
+
   # Handing the role over is allowed in any phase: a host who has to leave
   # mid-question should not have to end the game to do it (PROTOCOL.md §3.4).
   # The room shell owns tokens and connections, so it decides who is eligible;
@@ -478,8 +612,10 @@ defmodule Fazoura.Game do
   @spec skip_points() :: integer()
   def skip_points, do: @skip_points
 
-  defp correct?(%{override: nil, auto_correct: auto}), do: auto
-  defp correct?(%{override: override}), do: override
+  @doc "Whether a submission counts as right: the host's override if there is one, else the match."
+  @spec correct?(submission()) :: boolean()
+  def correct?(%{override: nil, auto_correct: auto}), do: auto
+  def correct?(%{override: override}), do: override
 
   defp start_question(game, index, now) do
     %{
@@ -491,6 +627,19 @@ defmodule Fazoura.Game do
         submissions: %{},
         asked: MapSet.new(Map.keys(game.players))
     }
+  end
+
+  # The host ends the question (PROTOCOL.md §6): anyone still due an answer gets
+  # @closing_window_ms for what they have typed to arrive, and a question already
+  # closing is left alone, so a second tap cannot cut the window short. A paused
+  # question resumes into the window — nobody can submit while it is paused.
+  defp close_question(game, now) do
+    if Enum.all?(game.asked, &answered_or_gone?(game, &1, now)) do
+      score_question(game)
+    else
+      remaining = game.paused_remaining_ms || game.deadline - now
+      %{game | deadline: now + min(remaining, @closing_window_ms), paused_remaining_ms: nil}
+    end
   end
 
   # Nobody left to wait for: everyone the question was asked of has either
@@ -546,9 +695,23 @@ defmodule Fazoura.Game do
     %{game | phase: :scoring, players: players, deadline: nil, paused_remaining_ms: nil}
   end
 
-  # What this question did to `id`: their submission's delta, the skip penalty if they
-  # were asked and said nothing, or nothing at all for someone who joined mid-question.
-  defp question_delta(game, id) do
+  @doc """
+  The question being asked, or last asked: the pack is played from `question_offset`,
+  wrapping around, at the host's time limit.
+  """
+  @spec current_question(t()) :: Pack.Question.t()
+  def current_question(game) do
+    order_index = rem(game.question_offset + game.question_index, length(game.question_order))
+    index = Enum.at(game.question_order, order_index)
+    %{Enum.at(game.pack.questions, index) | time_limit_ms: game.settings.time_limit_ms}
+  end
+
+  @doc """
+  What the current question did to `id`: their submission's delta, the skip penalty if
+  they were asked and said nothing, or nil for someone who joined mid-question.
+  """
+  @spec question_delta(t(), String.t()) :: integer() | nil
+  def question_delta(game, id) do
     case game.submissions[id] do
       nil -> if MapSet.member?(game.asked, id), do: @skip_points
       submission -> delta(submission)
@@ -567,6 +730,17 @@ defmodule Fazoura.Game do
 
   defp require_player(game, id),
     do: if(player?(game, id), do: :ok, else: {:error, :unknown_player})
+
+  # Every question came from a stored quiz. Only those carry a `quiz_id`; an inline
+  # quiz was never published, so its questions have none. An empty lobby pack
+  # passes — there is nothing on it yet.
+  defp published?(%Pack{questions: questions}), do: Enum.all?(questions, & &1.quiz_id)
+
+  defp names_clean?(game),
+    do: Enum.all?(game.players, fn {_id, p} -> Profanity.clean?(p.name) end)
+
+  defp validate_listed(%{"listed" => listed}) when is_boolean(listed), do: {:ok, listed}
+  defp validate_listed(_payload), do: {:error, :invalid_payload}
 
   defp require_phase(game, phases),
     do: if(game.phase in phases, do: :ok, else: {:error, :invalid_phase})
@@ -669,7 +843,9 @@ defmodule Fazoura.Game do
       (count <= eligible_count or selected != game.settings.difficulties)
   end
 
-  defp max_question_count(game), do: max_question_count(game, game.settings.difficulties)
+  @doc "How many questions a game may ask, given the difficulties selected."
+  @spec max_question_count(t()) :: non_neg_integer()
+  def max_question_count(game), do: max_question_count(game, game.settings.difficulties)
 
   defp max_question_count(game, difficulties),
     do: length(question_indices(game.pack, difficulties))
@@ -692,164 +868,5 @@ defmodule Fazoura.Game do
     |> Enum.with_index()
     |> Enum.filter(fn {question, _index} -> question.difficulty in difficulties end)
     |> Enum.map(fn {_question, index} -> index end)
-  end
-
-  ## Views (PROTOCOL.md §5.1, §7)
-
-  @doc "The complete `RoomState` snapshot as seen by `recipient`."
-  @spec view(t(), actor(), integer()) :: map()
-  def view(game, recipient, now) do
-    question = if game.phase in [:lobby, :finished], do: nil, else: current_question(game)
-    # Same for every role: the host may be playing, so nobody gets an early look (§7).
-    revealed? = game.phase in [:scoring, :leaderboard]
-
-    %{
-      protocol_version: @protocol_major,
-      protocol_minor: @protocol_minor,
-      room_code: game.room_code,
-      mode: Atom.to_string(game.mode),
-      phase: Atom.to_string(game.phase),
-      server_time: now,
-      pack_titles: if(game.pack.questions == [], do: [], else: game.pack.titles),
-      question_index: game.question_index,
-      question_count: game.settings.question_count,
-      game_number: game.game_number,
-      settings: %{
-        question_count: game.settings.question_count,
-        time_limit_ms: game.settings.time_limit_ms,
-        difficulty_multiplier: game.settings.difficulty_multiplier,
-        max_question_count: max_question_count(game),
-        difficulties: game.settings.difficulties,
-        available_difficulties: game.settings.available_difficulties,
-        min_time_limit_ms: @min_time_limit_ms,
-        max_time_limit_ms: @max_time_limit_ms
-      },
-      question: question && question_view(game, question),
-      deadline: game.deadline,
-      paused_remaining_ms: game.paused_remaining_ms,
-      accepted_answers: if(question && revealed?, do: question.accepted_answers),
-      players: players_view(game),
-      you: you_view(game, recipient, question),
-      submissions: if(question && revealed?, do: submissions_view(game))
-    }
-  end
-
-  # The pack is played from `question_offset`, wrapping around, at the host's time limit.
-  defp current_question(game) do
-    order_index = rem(game.question_offset + game.question_index, length(game.question_order))
-    index = Enum.at(game.question_order, order_index)
-    %{Enum.at(game.pack.questions, index) | time_limit_ms: game.settings.time_limit_ms}
-  end
-
-  defp question_view(game, question) do
-    points = points(game, question)
-
-    question
-    |> Map.take([:id, :type, :prompt, :image_url, :time_limit_ms, :difficulty])
-    |> Map.put(:points, Map.put(points, :skipped, @skip_points))
-  end
-
-  defp players_view(game) do
-    tracks_submissions? = game.phase in [:question, :scoring, :leaderboard]
-
-    game
-    |> sorted_players()
-    |> Enum.map(fn p ->
-      # Listed field by field rather than merged over the player, so anything
-      # the server keeps for its own bookkeeping — `disconnected_at` — cannot
-      # reach a broadcast just by existing on the struct (PROTOCOL.md §5.1).
-      %{
-        id: p.id,
-        name: p.name,
-        score: p.score,
-        connected: p.connected,
-        avatar_hue: p.avatar_hue,
-        has_submitted: tracks_submissions? and Map.has_key?(game.submissions, p.id),
-        is_host: p.id == game.host_player_id
-      }
-    end)
-  end
-
-  defp sorted_players(game) do
-    game.players
-    |> Map.values()
-    |> Enum.sort_by(&{-&1.score, String.downcase(&1.name)})
-  end
-
-  # Everyone the question was put to gets a row, so the scoring screen never has to know
-  # what saying nothing costs: `answer: nil` is the player who let it go by.
-  defp submissions_view(game) do
-    for player <- sorted_players(game),
-        change = question_delta(game, player.id) do
-      submission = game.submissions[player.id]
-
-      %{
-        player_id: player.id,
-        answer: submission[:answer],
-        auto_correct: submission[:auto_correct] || false,
-        override: submission[:override],
-        correct: submission != nil and correct?(submission),
-        delta: change
-      }
-    end
-  end
-
-  # `role` reports who holds the host role *now*, not how this connection
-  # authenticated. The two differ after a transfer or promotion (PROTOCOL.md
-  # §3.4): a promoted player is still connected as a player, and a demoted host
-  # is still connected as the host. Either way the client has to be told the
-  # truth, or the new host never learns it is in charge and the old one keeps
-  # showing controls it can no longer use.
-  #
-  # `{:host, holder?}` is how the room shell says whether the connection that
-  # authenticated as host still holds the role; the game state alone cannot tell,
-  # because `host_player_id: nil` means both "the host isn't playing" and "the
-  # role has moved to someone else".
-  defp you_view(game, :host, question), do: you_view(game, {:host, true}, question)
-
-  defp you_view(game, {:host, holder?}, question) do
-    %{
-      do_you_view(game, game.host_player_id, question)
-      | role: if(holder?, do: "host", else: "player")
-    }
-  end
-
-  defp you_view(game, {:player, id}, question) do
-    %{
-      do_you_view(game, id, question)
-      | role: if(game.host_player_id == id, do: "host", else: "player")
-    }
-  end
-
-  defp do_you_view(game, id, question) do
-    %{
-      role: "player",
-      player_id: id,
-      # Filled in by the room shell for the one recipient who has just been given
-      # the role (PROTOCOL.md §5.1); the game itself has no tokens.
-      host_token: nil,
-      submission: own_submission_view(game, id, question)
-    }
-  end
-
-  # The recipient's own submission, or — from scoring on — the row that tells a player
-  # who said nothing what that cost them.
-  defp own_submission_view(_game, nil, _question), do: nil
-
-  defp own_submission_view(game, id, question) do
-    scored? = game.phase in [:scoring, :leaderboard]
-
-    case question && game.submissions[id] do
-      nil ->
-        if scored? and MapSet.member?(game.asked, id),
-          do: %{answer: nil, correct: false, delta: @skip_points}
-
-      submission ->
-        %{
-          answer: submission.answer,
-          correct: if(scored?, do: correct?(submission)),
-          delta: if(scored?, do: delta(submission))
-        }
-    end
   end
 end

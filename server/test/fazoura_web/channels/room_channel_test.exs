@@ -10,15 +10,6 @@ defmodule FazouraWeb.RoomChannelTest do
     %{code: code, host_token: host_token}
   end
 
-  defp join_room(code, payload) do
-    socket(FazouraWeb.UserSocket, nil, %{})
-    |> join(
-      FazouraWeb.RoomChannel,
-      "room:" <> code,
-      Map.put(payload, "protocol_version", Fazoura.Game.protocol_major())
-    )
-  end
-
   test "joining pushes a full state snapshot", %{code: code} do
     assert {:ok, %{role: "player", player_id: id}, _socket} =
              join_room(code, %{"display_name" => "Sam"})

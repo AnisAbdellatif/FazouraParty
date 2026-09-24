@@ -168,7 +168,7 @@ A package brings its photos with it, so nothing has to be published first. Every
 runs the same seed, so packages left in the folder are re-applied and stay in step with
 whatever is in them.
 
-Build one with `tools/fazoura_pack.py`, or download one from `/admin`.
+Build one with `tools/fazoura-cli/fazoura quiz pack`, or download one from `/admin`.
 
 ## Rolling back
 

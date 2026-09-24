@@ -94,6 +94,12 @@ if config_env() == :prod do
 
   host = System.get_env("PHX_HOST") || "example.com"
 
+  # Only the local stack sets this (deploy/compose.local.yaml): photo links there must
+  # name an address a phone can reach, not https://localhost. See Fazoura.Uploads.public_url/0.
+  if public_url = System.get_env("PUBLIC_URL") do
+    config :fazoura, :public_url, String.trim_trailing(public_url, "/")
+  end
+
   config :fazoura, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :fazoura, FazouraWeb.Endpoint,

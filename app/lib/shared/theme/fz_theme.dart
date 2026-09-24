@@ -30,6 +30,11 @@ abstract final class FzColors {
   static const line = Color(0x24FBF6EC);
   static const ok = Color(0xFF4FD39A);
 
+  /// Red, for a clock that is running out and nothing else. Not in the design's
+  /// palette: its pink already means "wrong", and time running out needed to
+  /// read as a different, louder thing than a wrong answer does.
+  static const alarm = Color(0xFFFF3B30);
+
   /// The amber hairlines woven across every screen.
   static const lattice = Color(0x0EFFB000);
 }

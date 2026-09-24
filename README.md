@@ -21,8 +21,10 @@ comparison will ever agree.
 | [`protocol/`](protocol/) | The wire protocol, quiz format and admin spec, plus shared JSON fixtures both sides are tested against. **This is the contract.** |
 | [`server/`](server/) | Elixir/Phoenix: rooms, channels, scoring, the quiz library and the admin dashboard. |
 | [`app/`](app/) | Flutter client — Android and Web (installable as a PWA). |
+| [`tools/fazoura-cli/`](tools/fazoura-cli/) | `fazoura`, the game from a terminal: host, join, bots, the quiz library, publishing and packing — on the app's own client code. |
 | [`deploy/`](deploy/) | Dockerfile, compose stack and the VPS deployment, driven from CI. |
 | [`design/`](design/) | Visual source: the design prototype and the icon artwork everything is generated from. |
+| [`store_listing/`](store_listing/) | The Google Play listing: descriptions, feature graphic and phone screenshots. |
 | [`AGENTS.md`](AGENTS.md) | The rules of the repo. Read it before changing anything. |
 
 A game lives entirely in memory as one process per room, and the server is authoritative:
@@ -58,6 +60,7 @@ Everything CI runs, runnable locally — literally, since CI calls this script t
 scripts/ci.sh                 # server + app + Docker image
 scripts/ci.sh server          # compile, format, credo, test, dialyzer
 scripts/ci.sh app             # format, analyze, test, web build, service worker
+scripts/ci.sh tools           # the fazoura CLI: format, analyze, test
 scripts/ci.sh image           # build the production image
 scripts/ci.sh apk             # signed Android APK (needs a key — see below)
 
@@ -76,6 +79,18 @@ scripts/ci.sh up      # everything on http://localhost:4000
 scripts/ci.sh down
 ```
 
+### Playing from a terminal
+
+`tools/fazoura-cli/fazoura` does what the app does, so a game can be run and checked without
+driving a browser or a phone — and many instances at once can fill a room:
+
+```bash
+tools/fazoura-cli/fazoura host --auto --quiz world-capitals --start-when 4 &
+tools/fazoura-cli/fazoura join K7QX2M --count 4 --answers-from world-capitals --accuracy 0.7
+```
+
+See [its README](tools/fazoura-cli/README.md).
+
 ## Quizzes
 
 A quiz is a JSON document ([`protocol/QUIZ_FORMAT.md`](protocol/QUIZ_FORMAT.md)) with
@@ -92,6 +107,46 @@ shuffled together into one pool, so a few small quizzes make one evening.
 Saving a public quiz for offline use downloads one `.fazoura` archive containing its manifest,
 accepted answers and question images. The app keeps that compressed archive as the local source
 and expands its contents only when it needs the quiz document for hosting.
+
+## Capacity
+
+Measured with `tools/fazoura-cli` bots — the app's own connection code, thousands of players
+from one machine — against a production build of the server, on a Ryzen 9 7940HS. Every answer
+in every run below was counted. The numbers are for this machine, not targets; rerun them
+before relying on them for different hardware.
+
+**One room.** Every change sends a complete snapshot to every player, so a room's cost grows
+with the square of its size. Snapshots are paced — at most one broadcast every 100 ms — and
+compressed (permessage-deflate). Three questions, answers spread over 20 s:
+
+| Players in one room | Worst snapshot delay | Server CPU, peak | Sent for the game |
+|---|---|---|---|
+| 100 | 20 ms | 0.7 cores | 7 MB |
+| 200 | 92 ms | 2.4 cores | 41 MB |
+| 400 | 295 ms | 6.2 cores | 627 MB |
+
+Before pacing and compression, 400 players fell seconds behind and 336 of their answers
+missed the deadline. A room holds **32 players** (`max_players`); a room size code from the
+admin dashboard raises one to at most 200.
+
+**Many rooms.** Rooms of 16, the server limited to 4 cores and 8 GB — the VPS it runs on:
+
+| Rooms × 16 | Players | Worst snapshot delay | Server CPU, average / peak | Memory, peak |
+|---|---|---|---|---|
+| 250 | 4,000 | 25 ms | 0.9 / 1.6 cores | 1.5 GB |
+| 500 | 8,000 | 44 ms | 1.4 / 2.2 cores | 2.7 GB |
+
+A connected player costs about **340 KB** of server memory (it was ~800 KB before channels
+hibernated between snapshots). The VPS's vCPUs are roughly half as fast as these cores, so
+there CPU is the limit, at about the server's own ceiling of 500 rooms.
+
+**Photos** are the largest thing a player downloads: everyone fetches a question's photo the
+moment it starts. Every photo is at most 1280 px, and the shipped car-logos quiz is 3.7 MB for
+44 photos (median 68 KB). Games themselves are small once compressed: 4,000 players over a
+three-question game sent 48 MB, against 767 MB uncompressed.
+
+What one broadcast costs inside the server, without sockets, is measured by the scripts in
+[`server/bench/`](server/bench/) (`mix bench`).
 
 ## Deploying
 
@@ -168,9 +223,14 @@ To build one locally, put the same values in `app/android/key.properties`
 SERVER_URL=https://your.host scripts/ci.sh apk
 ```
 
-Without a keystore, Gradle falls back to the debug key so `flutter run --release` keeps
-working. Such a build is fine to try out and useless to hand anybody: it cannot be
-installed over a real release, and `scripts/ci.sh apk` will not produce one.
+Anything built outside `scripts/ci.sh apk` / `aab` — `flutter run`, a hand-run
+`flutter build apk` — is a development build: it installs as **Fazoura Dev**
+(`com.fazouraparty.fazoura_party.dev`), next to the Play or GitHub release rather than in
+place of it, with its own quizzes and settings. Only those two targets set
+`FAZOURA_RELEASE_BUILD=1`, which is what gives a build the real id. Without a keystore,
+Gradle also falls back to the debug key so `flutter run --release` keeps working. Such a
+build is fine to try out and useless to hand anybody, and `scripts/ci.sh apk` will not
+produce one.
 
 ## Status
 

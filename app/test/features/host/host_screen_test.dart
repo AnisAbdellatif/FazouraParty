@@ -5,11 +5,20 @@ import 'package:fazoura_party/features/host/host_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/fake_game_connection.dart';
 import '../../support/fixtures.dart';
 
 void main() {
+  // These are about what happens once the community rules are agreed to;
+  // community_rules_test.dart is about the agreeing.
+  setUp(
+    () => SharedPreferences.setMockInitialValues({
+      'fazoura.community_rules_accepted': 1,
+    }),
+  );
+
   late FakeGameConnection fake;
 
   Future<void> pumpHost(WidgetTester tester, RoomState state) async {
@@ -122,6 +131,64 @@ void main() {
       expect(
         find.text("Pick tonight's quizzes", skipOffstage: false),
         findsOneWidget,
+      );
+    });
+  });
+
+  group('public room list (PROTOCOL.md §3.5)', () {
+    testWidgets('the lobby switch lists and unlists the room', (tester) async {
+      await pumpHost(tester, lobbyStateWithQuiz());
+
+      final toggle = find.byKey(const Key('lobbyListedSwitch'));
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await tester.pump();
+      expect(fake.listedCalls, [true]);
+
+      await pumpHost(tester, lobbyStateWithQuiz().copyWith(listed: true));
+      expect(
+        tester.widget<SwitchListTile>(toggle).value,
+        isTrue,
+        reason: 'the switch shows what the server says, not what was tapped',
+      );
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await tester.pump();
+      expect(fake.listedCalls, [false]);
+    });
+
+    testWidgets('a refusal is explained', (tester) async {
+      await pumpHost(tester, lobbyStateWithQuiz());
+      fake.intentError = const GameError(
+        code: 'quiz_not_public',
+        message: 'A public room plays quizzes from the library only.',
+      );
+
+      final toggle = find.byKey(const Key('lobbyListedSwitch'));
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await tester.pump();
+      expect(
+        find.text('A public room plays quizzes from the library only.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a listed room offers library quizzes only', (tester) async {
+      await pumpHost(tester, lobbyStateWithQuiz().copyWith(listed: true));
+
+      final button = find.byKey(const Key('reselectQuizButton'));
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(
+        find.byKey(const Key('libraryOnlyNote'), skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('quizScopeMine'), skipOffstage: false),
+        findsNothing,
       );
     });
   });

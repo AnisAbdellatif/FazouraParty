@@ -17,7 +17,7 @@ way `priv/quizzes/*.json` does.
 server, so a quiz can be added or corrected without rebuilding the image. A package there
 with the same slug as one here wins, which is what makes it a correction.
 
-Build one from a folder of JSON and images with `tools/fazoura_pack.py`, or download one
+Build one from a folder of JSON and images with `tools/fazoura-cli/fazoura quiz pack`, or download one
 from the admin dashboard.
 
 Keep an eye on size: everything here is in the image and in git history for good. A large

@@ -12,6 +12,7 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/fake_game_connection.dart';
+import '../../support/pump.dart';
 
 void main() {
   late FakeGameConnection fake;
@@ -47,12 +48,6 @@ void main() {
         child: const MaterialApp(home: HomeScreen()),
       ),
     );
-  }
-
-  Future<void> settle(WidgetTester tester) async {
-    for (var i = 0; i < 5; i++) {
-      await tester.pump(const Duration(milliseconds: 200));
-    }
   }
 
   testWidgets('the host token outlives the screen and leads back in', (
@@ -165,5 +160,42 @@ void main() {
 
     expect(roomRequests, [<String, dynamic>{}]);
     expect(fake.hostJoins.single.displayName, isNull);
+  });
+
+  testWidgets('can put the room on the public list', (tester) async {
+    await pumpHome(tester);
+    await tester.tap(find.byKey(const Key('hostGameButton')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('playAlongSwitch')));
+    await tester.tap(find.byKey(const Key('listedSwitch')));
+    await tester.tap(find.byKey(const Key('createRoomButton')));
+    await settle(tester);
+
+    // Strangers will see this room, so the rules come first — once.
+    expect(roomRequests, isEmpty);
+    await tester.tap(find.byKey(const Key('acceptRulesButton')));
+    await settle(tester);
+
+    expect(roomRequests, [
+      {'listed': true},
+    ]);
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getInt('fazoura.community_rules_accepted'), 1);
+  });
+
+  testWidgets('declining the rules opens no public room', (tester) async {
+    await pumpHome(tester);
+    await tester.tap(find.byKey(const Key('hostGameButton')));
+    await settle(tester);
+    await tester.tap(find.byKey(const Key('playAlongSwitch')));
+    await tester.tap(find.byKey(const Key('listedSwitch')));
+    await tester.tap(find.byKey(const Key('createRoomButton')));
+    await settle(tester);
+
+    await tester.tap(find.text('Not now'));
+    await settle(tester);
+
+    expect(roomRequests, isEmpty);
+    expect(find.text('HOSTING'), findsNothing);
   });
 }

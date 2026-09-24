@@ -87,6 +87,31 @@ defmodule Fazoura.Game.Pack do
     }
   end
 
+  @doc """
+  Which stored quiz a question came from (QUIZ_FORMAT.md §5.9): `{:ok, nil}` when it came
+  from an inline quiz, which was never published.
+
+  A named question is exact, and it is what a client showing one sends. Without one — in
+  the lobby, or once the game has finished — the answer is the quiz the pack holds, as
+  long as there is only one for that to mean: a pack may merge up to ten, and guessing
+  which of them somebody meant would be worse than asking them to name it.
+  """
+  @spec source_quiz(t(), String.t() | nil) ::
+          {:ok, String.t() | nil} | {:error, :question_not_found}
+  def source_quiz(%__MODULE__{questions: questions}, question_id) when is_binary(question_id) do
+    case Enum.find(questions, &(&1.id == question_id)) do
+      nil -> {:error, :question_not_found}
+      question -> {:ok, question.quiz_id}
+    end
+  end
+
+  def source_quiz(%__MODULE__{questions: questions}, _question_id) do
+    case questions |> Enum.map(& &1.quiz_id) |> Enum.uniq() do
+      [quiz_id] -> {:ok, quiz_id}
+      _several_or_none -> {:error, :question_not_found}
+    end
+  end
+
   @spec from_map(map()) :: t()
   def from_map(%{"title" => title, "questions" => questions}) do
     %__MODULE__{

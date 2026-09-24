@@ -19,15 +19,6 @@ defmodule FazouraWeb.RoomReportTest do
   @endpoint FazouraWeb.Endpoint
   @reporter "reporter-key-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
-  defp join_room(code, payload) do
-    socket(FazouraWeb.UserSocket, nil, %{})
-    |> subscribe_and_join(
-      FazouraWeb.RoomChannel,
-      "room:" <> code,
-      Map.put(payload, "protocol_version", Fazoura.Game.protocol_major())
-    )
-  end
-
   # A room playing a published quiz, with one player in it.
   defp public_room(_context) do
     quiz = QuizFixtures.published!(%{"title" => "Public Night"})

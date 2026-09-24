@@ -2,7 +2,8 @@
 ///
 /// Dart counterpart of `server/lib/fazoura/rooms/room_server.ex`: it owns the
 /// state, supplies the clock, tracks connections, issues tokens and pushes a
-/// per-recipient snapshot to every client after each change.
+/// per-recipient snapshot to every client after each change — paced, so changes
+/// that come close together share one (PROTOCOL.md §5.1).
 ///
 /// Transport-agnostic on purpose — it knows nothing about WebSockets. The
 /// server ([LanHost]) adapts sockets onto [LanConnection], which keeps the game
@@ -14,6 +15,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'game.dart';
+import 'game_view.dart';
 import 'lan_images.dart';
 import 'pack.dart';
 import '../models/quiz.dart';
@@ -31,12 +33,20 @@ const maxQuizzes = 10;
 const emptyTtl = Duration(seconds: 30);
 const finishedTtl = Duration(minutes: 10);
 
+/// The shortest gap between two broadcasts (PROTOCOL.md §5.1). A broadcast is
+/// one snapshot per player, each listing every player, so one per answer costs
+/// the square of the room's size — on the phone that is hosting.
+const broadcastInterval = Duration(milliseconds: 100);
+
 /// Why a room ended (§5.2).
 enum LanCloseReason {
   empty,
   closed,
   finished,
-  shutdown;
+  shutdown,
+
+  /// Not the room ending: one player taken out of it by the host (§4.2).
+  removed;
 
   String get wire => name;
 }
@@ -60,6 +70,7 @@ class LanRoom {
     Random? random,
     this.imageBaseUrl,
     bool shuffleQuestions = true,
+    this.broadcastGap = broadcastInterval,
   }) : _now = now ?? (() => DateTime.now().millisecondsSinceEpoch),
        _random = random ?? Random.secure(),
        images = LanImages(random: random),
@@ -79,6 +90,7 @@ class LanRoom {
     Random? random,
     String? imageBaseUrl,
     bool shuffleQuestions = true,
+    Duration broadcastGap = broadcastInterval,
   }) {
     final rng = random ?? Random.secure();
     return LanRoom(
@@ -89,12 +101,19 @@ class LanRoom {
       random: rng,
       imageBaseUrl: imageBaseUrl,
       shuffleQuestions: shuffleQuestions,
+      broadcastGap: broadcastGap,
     );
   }
 
   final String code;
   final String hostToken;
   final Game game;
+
+  /// The shortest gap between two broadcasts ([broadcastInterval] in a real
+  /// room). Zero sends every change the
+  /// moment it happens, which is what a test driving the room step by step
+  /// wants.
+  final Duration broadcastGap;
 
   /// The selected quiz's photos, served by the transport (§5.7).
   final LanImages images;
@@ -125,6 +144,12 @@ class LanRoom {
   int? _finishedAt;
   Timer? _timer;
   bool _closed = false;
+
+  // Snapshot pacing, on a stopwatch rather than [_now]: this is delivery, not
+  // game time, and a test's frozen game clock must not hold snapshots back.
+  final Stopwatch _sinceStart = Stopwatch()..start();
+  int? _lastBroadcastMs;
+  Timer? _flush;
 
   /// Completes when the room ends, with the reason clients were told.
   Future<LanCloseReason> get closed => _closedCompleter.future;
@@ -319,6 +344,11 @@ class LanRoom {
       return;
     }
 
+    if (event == 'host_remove_player') {
+      _handleRemove(actor, payload, now);
+      return;
+    }
+
     // Expire the question first, so a submit can't land after time is up even
     // if the timer callback hasn't run yet.
     game.tick(now);
@@ -413,6 +443,27 @@ class LanRoom {
     _afterChange(now);
   }
 
+  /// The game forgets the player; the room tells their connections so and lets
+  /// go of them — a demoted host still playing as them among those (§4.2).
+  void _handleRemove(Actor actor, Map<String, dynamic> payload, int now) {
+    game.tick(now);
+    game.handle(_recipient(actor), 'host_remove_player', payload, now);
+    final removed = payload['player_id'] as String;
+    final gone = [
+      for (final entry in _connections.entries)
+        if (_recipient(entry.value) case PlayerActor(:final id)
+            when id == removed)
+          entry.key,
+    ];
+    for (final connection in gone) {
+      _connections.remove(connection);
+      connection.pushClosed(LanCloseReason.removed.wire);
+    }
+    if (_demotedPlayerId == removed) _demotedPlayerId = null;
+    if (_connections.isEmpty) _emptySince = now;
+    _afterChange(now);
+  }
+
   void _afterChange(int now) {
     // A rematch leaves `finished`, which cancels the finished-room expiry.
     if (game.phase != GamePhase.finished) {
@@ -469,11 +520,27 @@ class LanRoom {
 
   // --- Broadcast and shutdown ---------------------------------------------
 
-  /// A complete snapshot to every client, built per recipient (§5.1, §7).
+  /// Sends the change out: at once after a quiet spell, otherwise once the
+  /// interval since the last broadcast has passed, together with everything
+  /// else that changed meanwhile (§5.1). The snapshot is built when it is sent.
   void _broadcast() {
+    if (_flush != null) return;
+    final last = _lastBroadcastMs;
+    final wait = last == null
+        ? 0
+        : last + broadcastGap.inMilliseconds - _sinceStart.elapsedMilliseconds;
+    if (wait <= 0) return _pushSnapshots();
+    _flush = Timer(Duration(milliseconds: wait), () {
+      _flush = null;
+      if (!_closed) _pushSnapshots();
+    });
+  }
+
+  /// A complete snapshot to every client, built per recipient (§5.1, §7).
+  void _pushSnapshots() {
     final now = _now();
     for (final entry in _connections.entries) {
-      final view = game.view(_recipient(entry.value), now);
+      final view = roomState(game, _recipient(entry.value), now);
       // A new host token reaches exactly one recipient, in the snapshot right
       // after they were given the role (PROTOCOL.md §5.1).
       final id = switch (entry.value) {
@@ -487,6 +554,7 @@ class LanRoom {
     }
     // Delivered once: the token is only news to the client that just got it.
     _pendingTokens.clear();
+    _lastBroadcastMs = _sinceStart.elapsedMilliseconds;
   }
 
   /// A connection that authenticated as host may no longer hold the role: after
@@ -506,6 +574,8 @@ class LanRoom {
     _closed = true;
     _timer?.cancel();
     _timer = null;
+    _flush?.cancel();
+    _flush = null;
 
     for (final connection in _connections.keys.toList()) {
       connection.pushClosed(reason.wire);

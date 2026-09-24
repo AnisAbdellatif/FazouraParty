@@ -47,7 +47,12 @@ config :fazoura, FazouraWeb.Endpoint,
     layout: false
   ],
   pubsub_server: Fazoura.PubSub,
-  live_view: [signing_salt: "hYu2QOKT"]
+  live_view: [signing_salt: "hYu2QOKT"],
+  # Each compressed socket keeps its own deflate state. Memory level 4 (zlib's
+  # default is 8) measured ~60 KB less per connected player with the same bytes on
+  # the wire, since a snapshot is small enough for the smaller state (decisions.md,
+  # Connection Memory). Merged into every environment's `http` options.
+  http: [websocket_options: [deflate_options: [mem_level: 4]]]
 
 # Configure Elixir's Logger
 config :logger, :default_formatter,

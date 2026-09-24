@@ -1,0 +1,128 @@
+{
+  "name": "host ends a question: it stays open for the closing window, and an answer that lands inside it counts",
+  "pack": {
+    "title": "Fixture Pack",
+    "questions": [
+      {
+        "id": "q1",
+        "type": "text",
+        "prompt": "2 + 2?",
+        "accepted_answers": [
+          "4"
+        ],
+        "time_limit_ms": 30000
+      }
+    ]
+  },
+  "steps": [
+    {
+      "actor": "host",
+      "join": {
+        "protocol_version": 9,
+        "host_token": "$host_token"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "join": {
+        "protocol_version": 9,
+        "display_name": "Sam"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "_comment": "Kim never answers, so the question cannot end early on its own.",
+      "actor": "kim",
+      "join": {
+        "protocol_version": 9,
+        "display_name": "Kim"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "advance_clock_ms": 10000
+    },
+    {
+      "_comment": "Ending the question pulls the deadline in to now + 3 s rather than scoring on the spot (§6).",
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "question",
+        "deadline": 1789502413000,
+        "paused_remaining_ms": null
+      }
+    },
+    {
+      "advance_clock_ms": 2300
+    },
+    {
+      "_comment": "What Sam had typed, sent by the client just before the new deadline.",
+      "actor": "sam",
+      "push": "submit",
+      "payload": {
+        "answer": "4"
+      },
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "_comment": "A second tap on a closing question does not cut the window short.",
+      "actor": "host",
+      "push": "host_next",
+      "payload": {},
+      "expect": {
+        "status": "ok"
+      }
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "question",
+        "deadline": 1789502413000
+      }
+    },
+    {
+      "advance_clock_ms": 700
+    },
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "scoring",
+        "deadline": null,
+        "players": [
+          {
+            "name": "Sam",
+            "score": 10
+          },
+          {
+            "name": "Kim",
+            "score": -10
+          }
+        ]
+      }
+    }
+  ]
+}

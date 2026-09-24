@@ -1,0 +1,50 @@
+{
+  "name": "host removes a player: they are told, not charged, and their token no longer opens the room",
+  "pack": {
+    "title": "Fixture Pack",
+    "questions": [
+      {
+        "id": "q1",
+        "type": "text",
+        "prompt": "2 + 2?",
+        "accepted_answers": ["4"],
+        "time_limit_ms": 30000
+      }
+    ]
+  },
+  "steps": [
+    {"actor": "host", "join": {"protocol_version": 9, "host_token": "$host_token"}, "expect": {"status": "ok"}},
+    {"actor": "sam", "join": {"protocol_version": 9, "display_name": "Sam"}, "expect": {"status": "ok"}},
+    {"actor": "kim", "join": {"protocol_version": 9, "display_name": "Kim"}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {"actor": "sam", "push": "submit", "payload": {"answer": "4"}, "expect": {"status": "ok"}},
+    {
+      "_comment": "Only the host removes players.",
+      "actor": "sam",
+      "push": "host_remove_player",
+      "payload": {"player_id": "$player_id:kim"},
+      "expect": {"status": "error", "response": {"code": "not_host"}}
+    },
+    {"actor": "host", "push": "host_remove_player", "payload": {"player_id": "$player_id:kim"}, "expect": {"status": "ok"}},
+    {"actor": "kim", "expect_closed": "removed"},
+    {
+      "_comment": "Kim was the last one Sam was waiting on, and costs nothing now that Kim is gone.",
+      "actor": "sam",
+      "expect_state": {
+        "phase": "scoring",
+        "players": [{"name": "Sam", "score": 10}]
+      }
+    },
+    {
+      "actor": "kim2",
+      "join": {"protocol_version": 9, "player_token": "$player_token:kim"},
+      "expect": {"status": "error", "response": {"code": "invalid_token"}}
+    },
+    {
+      "actor": "host",
+      "push": "host_remove_player",
+      "payload": {"player_id": "$player_id:kim"},
+      "expect": {"status": "error", "response": {"code": "unknown_player"}}
+    }
+  ]
+}

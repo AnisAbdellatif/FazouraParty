@@ -119,6 +119,24 @@ defmodule Fazoura.QuizFixtures do
   end
 
   @doc """
+  A photo as an inline quiz carries one: base64 of a real PNG of `bytes`.
+
+  Uploads are validated structurally, so a magic-byte stub would be rejected by that
+  check rather than by whatever limit a test is actually about.
+  """
+  @spec photo_data(pos_integer()) :: String.t()
+  def photo_data(bytes), do: Base.encode64(png_of_size(bytes))
+
+  @doc """
+  A photo size every per-image check accepts, for tests about the per-room total.
+
+  Half the per-image cap, so no single photo is ever what fails — which is the whole
+  point of the tests that use it (QUIZ_FORMAT.md §5.7).
+  """
+  @spec under_image_cap() :: pos_integer()
+  def under_image_cap, do: div(Fazoura.Uploads.max_bytes(), 2)
+
+  @doc """
   A valid PNG carrying `text` in an ancillary chunk.
 
   Structural validation cannot reject this — it is a conformant image — which is what

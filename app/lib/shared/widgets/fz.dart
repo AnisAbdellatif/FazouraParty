@@ -4,6 +4,12 @@ import '../theme/fz_theme.dart';
 import 'fz_motion.dart';
 
 /// Deep teal radial glow with the design's amber lattice woven over it.
+///
+/// The lattice is a sibling of [child] behind its own [RepaintBoundary], not
+/// its parent, and that is the whole point: as a parent it shared one layer
+/// with the page, so every tick of the question clock re-recorded ~170
+/// full-height hairlines along with it. On its own layer it is painted once
+/// and composited after that, whatever the page in front of it is doing.
 class FzBackground extends StatelessWidget {
   const FzBackground({super.key, required this.child});
 
@@ -11,21 +17,34 @@ class FzBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment.topCenter,
-          radius: 1.3,
-          colors: [FzColors.bgGlow, FzColors.bgDeep],
-          stops: [0, 0.68],
+    return Stack(
+      // Tight constraints for [child], as it had when it was the painter's
+      // child: a Stack loosens its non-positioned children by default, and a
+      // loose width would stop every `stretch` Column filling the screen.
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(
+          child: RepaintBoundary(
+            child: DecoratedBox(
+              decoration: const BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.topCenter,
+                  radius: 1.3,
+                  colors: [FzColors.bgGlow, FzColors.bgDeep],
+                  stops: [0, 0.68],
+                ),
+              ),
+              child: const CustomPaint(
+                painter: _LatticePainter(),
+                isComplex: true,
+                willChange: false,
+                size: Size.infinite,
+              ),
+            ),
+          ),
         ),
-      ),
-      child: CustomPaint(
-        painter: const _LatticePainter(),
-        isComplex: true,
-        willChange: false,
-        child: child,
-      ),
+        child,
+      ],
     );
   }
 }

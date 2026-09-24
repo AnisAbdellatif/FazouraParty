@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:image_picker/image_picker.dart';
@@ -17,13 +15,6 @@ import 'config_providers.dart';
 part 'quiz_providers.g.dart';
 
 const _ownerKeyPref = 'fazoura.owner_key';
-
-/// 32 random bytes, base64url without padding (43 chars, QUIZ_FORMAT.md §4).
-String generateOwnerKey([Random? random]) {
-  final source = random ?? Random.secure();
-  final bytes = List<int>.generate(32, (_) => source.nextInt(256));
-  return base64Url.encode(bytes).replaceAll('=', '');
-}
 
 /// This device's secret publisher key, created once and kept in local
 /// storage. Not an account: it only lets this device update or unpublish the

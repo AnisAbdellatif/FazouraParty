@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../shared/community_rules.dart';
 import '../../shared/navigation.dart';
 
 import '../../core/models/models.dart';
@@ -30,10 +31,17 @@ const maxSelectedQuizzes = 10;
 
 /// Opens the quiz browser; returns the quizzes picked to host in the order
 /// they were picked, or null if the host backed out. Never empty.
-Future<List<QuizChoice>?> showQuizBrowser(BuildContext context) {
+///
+/// [libraryOnly] is for a room on the public list, which plays published
+/// quizzes only (PROTOCOL.md §3.5): the quizzes on this device are not offered.
+Future<List<QuizChoice>?> showQuizBrowser(
+  BuildContext context, {
+  bool libraryOnly = false,
+}) {
   return Navigator.of(context).push<List<QuizChoice>>(
     FzPageRoute(
       builder: (_) => QuizBrowserScreen(
+        libraryOnly: libraryOnly,
         onEdit: (context, quiz) async {
           await editor.loadLibrary();
           if (!context.mounted) return null;
@@ -55,9 +63,13 @@ class QuizBrowserScreen extends ConsumerStatefulWidget {
     this.searchDebounce = const Duration(milliseconds: 300),
     this.onCreate,
     this.onEdit,
+    this.libraryOnly = false,
   });
 
   final Duration searchDebounce;
+
+  /// Public quizzes only, for a room on the public list (PROTOCOL.md §3.5).
+  final bool libraryOnly;
 
   /// Opens the quiz editor; returns the saved quiz (or null if cancelled).
   final Future<LocalQuiz?> Function(BuildContext context)? onCreate;
@@ -302,11 +314,12 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
 
   /// Public, or waiting to be, both go back to private. Anything else asks for
   /// review: a rejected quiz is private again, so its button offers another go.
-  Future<void> _togglePublished(LocalQuiz quiz) => _run(
-    () => ref
-        .read(quizLibraryProvider)
-        .setPublic(quiz, !(quiz.isPublished || quiz.inReview)),
-  );
+  Future<void> _togglePublished(LocalQuiz quiz) async {
+    final publish = !(quiz.isPublished || quiz.inReview);
+    // Publishing is creating content strangers will see: the rules first.
+    if (publish && !await ensureRulesAccepted(context, ref)) return;
+    await _run(() => ref.read(quizLibraryProvider).setPublic(quiz, publish));
+  }
 
   /// The line under a local card, when there is something to say about where
   /// the quiz stands with the server.
@@ -465,23 +478,30 @@ class _QuizBrowserScreenState extends ConsumerState<QuizBrowserScreen> {
               ),
             ),
             const SizedBox(height: 18),
-            Row(
-              children: [
-                FzChoice(
-                  key: const Key('quizScopePublic'),
-                  label: 'Public',
-                  selected: !_mine,
-                  onTap: () => _setMine(false),
-                ),
-                const SizedBox(width: 8),
-                FzChoice(
-                  key: const Key('quizScopeMine'),
-                  label: 'My quizzes',
-                  selected: _mine,
-                  onTap: () => _setMine(true),
-                ),
-              ],
-            ),
+            if (widget.libraryOnly)
+              Text(
+                'A public room plays quizzes from the library only.',
+                key: const Key('libraryOnlyNote'),
+                style: fz.m(12, color: FzColors.dim),
+              )
+            else
+              Row(
+                children: [
+                  FzChoice(
+                    key: const Key('quizScopePublic'),
+                    label: 'Public',
+                    selected: !_mine,
+                    onTap: () => _setMine(false),
+                  ),
+                  const SizedBox(width: 8),
+                  FzChoice(
+                    key: const Key('quizScopeMine'),
+                    label: 'My quizzes',
+                    selected: _mine,
+                    onTap: () => _setMine(true),
+                  ),
+                ],
+              ),
             const SizedBox(height: 12),
             TextField(
               key: const Key('quizSearchField'),

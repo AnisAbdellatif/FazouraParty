@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/fake_game_connection.dart';
 import '../../support/fixtures.dart';
+import '../../support/pump.dart';
 
 void main() {
   late List<http.Request> reports;
@@ -22,12 +23,6 @@ void main() {
 
   // The lobby animates while it waits for players, so it never settles. Pump
   // a fixed run of frames instead of waiting for quiet.
-  Future<void> settle(WidgetTester tester) async {
-    for (var i = 0; i < 8; i++) {
-      await tester.pump(const Duration(milliseconds: 150));
-    }
-  }
-
   Future<void> pumpGame(WidgetTester tester, RoomState state) async {
     tester.view.physicalSize = const Size(800, 1600);
     tester.view.devicePixelRatio = 1;
@@ -68,12 +63,6 @@ void main() {
         child: const MaterialApp(home: PlayerGameScreen(roomCode: 'K7QX2M')),
       ),
     );
-    await settle(tester);
-  }
-
-  Future<void> tapKey(WidgetTester tester, Key key) async {
-    await tester.ensureVisible(find.byKey(key));
-    await tester.tap(find.byKey(key));
     await settle(tester);
   }
 

@@ -12,6 +12,9 @@ import 'fz_motion.dart';
 /// Question timer from the absolute server [deadline] corrected by the server
 /// clock offset, or the frozen [pausedRemainingMs]. With [timeLimitMs] it
 /// draws the design's progress bar next to the seconds.
+///
+/// The last [warningSeconds] turn red; the last [finalSeconds] get louder
+/// still. Paused, it is dim and still.
 class Countdown extends ConsumerStatefulWidget {
   const Countdown({
     super.key,
@@ -24,11 +27,16 @@ class Countdown extends ConsumerStatefulWidget {
   final int? pausedRemainingMs;
   final int? timeLimitMs;
 
+  static const warningSeconds = 10;
+  static const finalSeconds = 3;
+
   @override
   ConsumerState<Countdown> createState() => _CountdownState();
 }
 
 class _CountdownState extends ConsumerState<Countdown> {
+  static const _settle = Duration(milliseconds: 300);
+
   Timer? _ticker;
 
   @override
@@ -77,47 +85,87 @@ class _CountdownState extends ConsumerState<Countdown> {
 
     final fz = FzTheme.of(context);
     final seconds = (ms / 1000).ceil();
-    final color = paused
+    // The last ten seconds warm to red and each one lands with a kick; the
+    // last three are the loud part — a bigger number, a harder kick and a
+    // heartbeat on the bar. Triggers are null the rest of the time, which is
+    // what keeps the clock still until it matters.
+    final warning = !paused && seconds <= Countdown.warningSeconds;
+    final finale = !paused && seconds <= Countdown.finalSeconds;
+    final quick = reduceMotion(context) ? Duration.zero : _settle;
+    final target = paused
         ? FzColors.dim
-        : seconds <= 5
-        ? FzColors.ac2
+        : warning
+        ? FzColors.alarm
         : FzColors.ac;
-    final urgent = !paused && seconds <= 5;
-    // Each of the last five seconds lands with a kick. Trigger is null the rest
-    // of the time, which is what keeps the clock still until it matters.
-    final label = FzPop(
-      trigger: urgent ? seconds : null,
-      scale: 1.3,
-      child: Text(
-        paused ? 'PAUSED · ${seconds}s' : '$seconds',
-        key: const Key('countdown'),
-        style: fz.m(15, color: color),
-      ),
-    );
 
-    final limit = widget.timeLimitMs;
-    if (limit == null || limit <= 0) return label;
-    return Row(
-      children: [
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: Container(
-              height: 5,
-              color: const Color(0x1AFBF6EC),
-              alignment: Alignment.centerLeft,
-              child: AnimatedFractionallySizedBox(
-                duration: const Duration(milliseconds: 250),
-                widthFactor: (ms / limit).clamp(0.0, 1.0),
-                heightFactor: 1,
-                child: ColoredBox(color: color),
+    // Its own layer: this rebuilds four times a second all question long, and
+    // every frame for the last three. Without a boundary each of those ticks
+    // dirties the whole page's display list.
+    return RepaintBoundary(
+      child: FzTint(
+        color: target,
+        builder: (context, color) {
+          final label = AnimatedScale(
+            // Grows toward the bar, never off the edge of the screen.
+            alignment: Alignment.centerRight,
+            scale: finale ? 2 : 1,
+            duration: quick,
+            curve: Curves.easeOutBack,
+            child: FzPop(
+              trigger: warning ? seconds : null,
+              scale: finale ? 1.4 : 1.25,
+              duration: Duration(milliseconds: finale ? 340 : 260),
+              child: Text(
+                paused ? 'PAUSED · ${seconds}s' : '$seconds',
+                key: const Key('countdown'),
+                style: fz
+                    .m(15, color: color)
+                    .copyWith(
+                      shadows: finale
+                          ? [
+                              Shadow(
+                                color: color.withValues(alpha: .7),
+                                blurRadius: 12,
+                              ),
+                            ]
+                          : null,
+                    ),
               ),
             ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        label,
-      ],
+          );
+
+          final limit = widget.timeLimitMs;
+          if (limit == null || limit <= 0) return label;
+          return Row(
+            children: [
+              Expanded(
+                child: FzFlash(
+                  key: const Key('countdownBar'),
+                  trigger: finale ? seconds : null,
+                  color: color,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: AnimatedContainer(
+                      duration: quick,
+                      height: finale ? 8 : 5,
+                      color: const Color(0x1AFBF6EC),
+                      alignment: Alignment.centerLeft,
+                      child: AnimatedFractionallySizedBox(
+                        duration: const Duration(milliseconds: 250),
+                        widthFactor: (ms / limit).clamp(0.0, 1.0),
+                        heightFactor: 1,
+                        child: ColoredBox(color: color),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 20),
+              label,
+            ],
+          );
+        },
+      ),
     );
   }
 }

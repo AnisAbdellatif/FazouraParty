@@ -15,8 +15,36 @@ defmodule FazouraWeb.Endpoint do
     http_only: true
   ]
 
+  # A private quiz reaches its room inline, photos and all, in one frame
+  # (QUIZ_FORMAT.md §5.7). Photos travel as base64, a third bigger, so the 8 MiB
+  # `Fazoura.Quizzes.max_inline_bytes/0` needs ~11.2 MB of frame before the document
+  # around it. Without this the adapter's own 10 MB limit applies, and a frame over it
+  # drops the connection without a word; with it, the server's cap — which answers
+  # with a proper error — is the one a user meets. A test holds the two together.
+  @max_frame_size 14_000_000
+
+  @doc "The largest websocket frame the room socket accepts."
+  def max_frame_size, do: @max_frame_size
+
+  # Snapshots are compressed (permessage-deflate) for every client that offers it — a
+  # browser and the app's dart:io socket both do. A snapshot is mostly the player
+  # list, the same keys over and over, and the server sends one per player per change,
+  # so bandwidth is what a big room runs out of first. A LAN host's dart:io server
+  # already compresses by default. What a client sends may be compressed too; Bandit
+  # closes a connection whose frame inflates to more than 25 times its size.
   socket "/socket", FazouraWeb.UserSocket,
-    websocket: true,
+    # The address is what a ban from public rooms holds on to (FazouraWeb.ClientIp).
+    websocket: [
+      connect_info: [:peer_data, :x_headers],
+      max_frame_size: @max_frame_size,
+      compress: true,
+      # Every client speaks V2; the V1 entry is Phoenix's default, kept so nothing
+      # that worked stops working.
+      serializer: [
+        {Phoenix.Socket.V1.JSONSerializer, "~> 1.0.0"},
+        {FazouraWeb.RoomSerializer, "~> 2.0.0"}
+      ]
+    ],
     longpoll: false
 
   # Admin dashboard LiveViews; the session carries the admin flag (Plugs.AdminAuth).

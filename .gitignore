@@ -65,15 +65,8 @@ app/*.keystore
 # `.g.dart` and `.freezed.dart` are committed on purpose: the build runner is not part
 # of `scripts/ci.sh`, so a checkout has to compile without running it.
 
-# Python (tools/)
-__pycache__/
-*.py[cod]
-*.egg-info/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.venv/
-venv/
+# Dart (tools/fazoura-cli/) — .dart_tool/ also holds the wrapper's snapshot
+tools/fazoura-cli/.dart_tool/
 
 # Node (app/tool/*.mjs — standard library today, but a dependency would land here)
 node_modules/

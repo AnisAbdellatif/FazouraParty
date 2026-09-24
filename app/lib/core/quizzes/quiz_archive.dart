@@ -40,11 +40,15 @@ class QuizArchive {
           }),
         ),
       );
-    // Sorted, so packing the same quiz twice gives the same bytes.
+    // Sorted, and every entry stamped with one fixed time, so packing the same
+    // quiz twice gives the same bytes. The clock would otherwise make every
+    // package unique. ZIP cannot store a year before 1980.
     for (final path in media.keys.toList()..sort()) {
       archive.addFile(ArchiveFile.bytes(path, media[path]!));
     }
-    return Uint8List.fromList(ZipEncoder().encodeBytes(archive));
+    return Uint8List.fromList(
+      ZipEncoder().encodeBytes(archive, modified: packageTimestamp),
+    );
   }
 
   static Map<String, dynamic> _packQuestion(
@@ -62,7 +66,7 @@ class QuizArchive {
       throw FormatException('No photo to pack for "${question.prompt}".');
     }
     final bytes = base64Decode(data);
-    final path = _mediaPath(bytes);
+    final path = mediaPath(bytes);
     media[path] = bytes;
     // `path` replaces `key` and `url`: inside a package a photo is a file, and
     // there is no upload of it for the server to point at yet.
@@ -73,14 +77,20 @@ class QuizArchive {
   /// A photo is named by a digest of its own bytes, so the same picture on two
   /// questions is carried once. The shape matches a key the server would
   /// generate — 24 hex characters and an extension — because on approval the
-  /// photo is stored through exactly that path.
-  static String _mediaPath(Uint8List bytes) =>
+  /// photo is stored through exactly that path. Public so that
+  /// `tools/fazoura-cli` names photos exactly as the app does.
+  ///
+  /// An unrecognised format is called `jpg`: everything the editor produces is
+  /// JPEG or PNG (`preparePhoto`), and an extension that turns out wrong costs
+  /// nothing, since the server reads the bytes, not the name.
+  static String mediaPath(List<int> bytes) =>
       'media/${sha256.convert(bytes).toString().substring(0, 24)}'
-      '.${_extension(bytes)}';
+      '.${photoExtension(bytes) ?? 'jpg'}';
 
-  /// By magic bytes, never by a filename: the server sniffs the same three
-  /// formats and refuses everything else (`Fazoura.Uploads.detect/1`).
-  static String _extension(Uint8List bytes) {
+  /// `jpg`, `png` or `webp` by magic bytes, or null for anything else. Never by
+  /// a filename: the server sniffs the same three formats and refuses
+  /// everything else (`Fazoura.Uploads.detect/1`).
+  static String? photoExtension(List<int> bytes) {
     bool starts(List<int> magic, [int offset = 0]) {
       if (bytes.length < offset + magic.length) return false;
       for (var index = 0; index < magic.length; index++) {
@@ -95,11 +105,11 @@ class QuizArchive {
         starts(const [0x57, 0x45, 0x42, 0x50], 8)) {
       return 'webp';
     }
-    // Everything the editor produces is JPEG (`preparePhoto`), and an extension
-    // that turns out wrong costs nothing: the server reads the bytes, not the
-    // name.
-    return 'jpg';
+    return null;
   }
+
+  /// The modification time every entry of a package carries.
+  static final packageTimestamp = DateTime(1980);
 
   static QuizArchive decode(List<int> bytes) {
     final archive = ZipDecoder().decodeBytes(bytes, verify: true);

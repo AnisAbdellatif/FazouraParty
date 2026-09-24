@@ -60,9 +60,16 @@ class LocalQuizStore {
     final archiveData = local.archiveData;
     if (archiveData == null) return local;
 
+    // The archive is kept for its photos, which `put` strips from the stored
+    // document. Only the questions come back from it: the rest of the document
+    // is this device's copy — private, not ours to publish — and the archive's
+    // manifest says what the quiz was on the server, "public" included.
+    // Taking all of it made every offline copy read back as a quiz this device
+    // had failed to submit.
     try {
+      final archived = QuizArchive.decode(base64Decode(archiveData)).quiz;
       return local.copyWith(
-        quiz: QuizArchive.decode(base64Decode(archiveData)).quiz,
+        quiz: local.quiz.copyWith(questions: archived.questions),
       );
     } on Object {
       // A truncated or corrupt archive costs that quiz its photos, not the

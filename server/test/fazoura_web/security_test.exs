@@ -17,10 +17,6 @@ defmodule FazouraWeb.SecurityTest do
     :ok
   end
 
-  # Real PNGs: uploads are validated structurally, so a magic-byte stub would be
-  # rejected by that check rather than by the limit under test.
-  defp photo(bytes), do: Base.encode64(QuizFixtures.png_of_size(bytes))
-
   defp inline_quiz(questions) do
     %{
       "quiz" => %{
@@ -37,7 +33,7 @@ defmodule FazouraWeb.SecurityTest do
       "type" => "text_photo",
       "prompt" => "Question #{index}?",
       "accepted_answers" => ["a"],
-      "image" => %{"data" => photo(bytes)}
+      "image" => %{"data" => QuizFixtures.photo_data(bytes)}
     }
   end
 
@@ -46,7 +42,8 @@ defmodule FazouraWeb.SecurityTest do
       # Each photo is comfortably under the 2 MB per-image cap; together they are over
       # the room cap. This is the case that used to be accepted and pin the memory for
       # ten minutes, and it must fail on the total rather than on any single image.
-      questions = for i <- 1..count_over_cap(), do: photo_question(i, under_image_cap())
+      questions =
+        for i <- 1..count_over_cap(), do: photo_question(i, QuizFixtures.under_image_cap())
 
       conn = post(conn, ~p"/api/rooms", inline_quiz(questions))
 
@@ -62,7 +59,9 @@ defmodule FazouraWeb.SecurityTest do
 
     test "refusing one leaves no photos behind in memory", %{conn: conn} do
       before = :ets.info(Fazoura.Rooms.Images, :size)
-      questions = for i <- 1..count_over_cap(), do: photo_question(i, under_image_cap())
+
+      questions =
+        for i <- 1..count_over_cap(), do: photo_question(i, QuizFixtures.under_image_cap())
 
       post(conn, ~p"/api/rooms", inline_quiz(questions))
 
@@ -70,10 +69,9 @@ defmodule FazouraWeb.SecurityTest do
     end
   end
 
-  # A photo size that every per-image check accepts, and how many of them it takes to
-  # pass the per-room total.
-  defp under_image_cap, do: div(Fazoura.Uploads.max_bytes(), 2)
-  defp count_over_cap, do: ceil(Quizzes.max_inline_bytes() / under_image_cap()) + 1
+  # How many photos it takes to pass the per-room total, at a size no per-image check
+  # objects to.
+  defp count_over_cap, do: ceil(Quizzes.max_inline_bytes() / QuizFixtures.under_image_cap()) + 1
 
   describe "room capacity" do
     test "creating a room past the cap is refused rather than accepted forever", %{conn: conn} do

@@ -274,12 +274,12 @@ Clients should verify and unpack it in memory or in their local cache before hos
 download endpoint remains available for compatibility.
 
 The same format goes the other way. An admin uploads one from the dashboard (ADMIN.md §3.4) to
-add a quiz with its photos in a single step, and `tools/fazoura_pack.py` builds one from a folder
+add a quiz with its photos in a single step, and `tools/fazoura-cli/fazoura quiz pack` builds one from a folder
 of JSON and images — so a quiz can be written offline, or moved from one server to another,
 without publishing every photo by hand first:
 
 ```text
-film-night/                          $ tools/fazoura_pack.py film-night
+film-night/                          $ tools/fazoura-cli/fazoura quiz pack film-night
   film-night.json                    film-night.fazoura · 12 questions · 2 photos · 1409 KB
   media/matrix.jpg
 ```
@@ -342,8 +342,10 @@ Publisher only. `204`.
 ### 5.7 `POST /api/images`
 
 Publisher key required. `multipart/form-data` with one `file` part: JPEG, PNG or WebP
-(checked by content, not by filename), ≤ 2 MB. Clients downscale to at most 1280 px on
-the longest side.
+(checked by content, not by filename), ≤ 2 MB. Clients prepare a photo before sending it —
+the app's editor and `fazoura quiz pack` alike (`preparePhoto` in `app/lib/core/quizzes/`):
+at most 1280 px on the longest side, metadata stripped, a PNG kept for a picture with
+transparent pixels, and otherwise whichever of JPEG or PNG is smaller.
 
 ```json
 201 {"key": "5b0e4f1c9a2d7e3f.jpg", "url": "https://…/uploads/5b0e4f1c9a2d7e3f.jpg"}
@@ -466,7 +468,7 @@ and are synced on every deploy by `Fazoura.Quizzes.sync_builtin!/1`:
 - **`version` is not bumped for you.** Change the questions and change `"1.0"` to `"1.1"`,
   or devices holding an offline copy will not know it is stale.
 
-A folder in this layout is also exactly what `tools/fazoura_pack.py` packs, so a preset can be
+A folder in this layout is also exactly what `tools/fazoura-cli/fazoura quiz pack` packs, so a preset can be
 handed to another server as one `.fazoura` file without going through the repository (§5.3b).
 
 ### Packages dropped in
@@ -497,7 +499,7 @@ Pointing `PACKAGES_DIR` at a mounted directory is what makes the second one a dr
 copy a package onto the server, run the seed, and the quiz is there — no image to rebuild.
 
 A package is one file with its photos inside, so it is the easier of the two to move between
-servers, to hand to someone, or to produce from a folder (`tools/fazoura_pack.py`). A JSON
+servers, to hand to someone, or to produce from a folder (`tools/fazoura-cli/fazoura quiz pack`). A JSON
 document with a `media/` directory beside it stays readable in a diff, which a ZIP is not.
 
 Preset photos are owned by a key no device holds, so nobody can edit or unpublish a preset

@@ -17,6 +17,8 @@ import 'package:fazoura_party/core/game/pack.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
+import '../../support/matchers.dart';
+
 Uint8List pngBytes() =>
     Uint8List.fromList(img.encodePng(img.Image(width: 8, height: 8)));
 
@@ -62,9 +64,6 @@ Pack packOf(String title, List<String> ids) => Pack.fromMap({
       },
   ],
 });
-
-Matcher throwsCode(String code) =>
-    throwsA(isA<GameRuleError>().having((error) => error.code, 'code', code));
 
 class _Client implements LanConnection {
   Map<String, dynamic>? _latest;
@@ -132,7 +131,11 @@ void main() {
     late _Client host;
 
     setUp(() {
-      room = LanRoom.create(pack: const Pack.empty(), shuffleQuestions: false);
+      room = LanRoom.create(
+        pack: const Pack.empty(),
+        shuffleQuestions: false,
+        broadcastGap: Duration.zero,
+      );
       host = _Client();
       room.join(host, {
         'protocol_version': protocolMajor,
@@ -291,7 +294,7 @@ void main() {
 
       expect(
         () => select([for (var i = 0; i < 4; i++) heavy('Quiz $i')]),
-        throwsCode('invalid_quiz'),
+        throwsCode('quiz_too_large'),
       );
       // The refusal left the accepted selection alone.
       expect(room.images.length, 2);

@@ -243,7 +243,7 @@ defmodule FazouraWeb.Admin.QuizzesLive do
         <p class="muted">
           A <code>.fazoura</code> package (QUIZ_FORMAT.md §5.3b): one ZIP holding the quiz
           and its photos, as <code>GET /api/quizzes/:id/archive</code> sends it and
-          <code>tools/fazoura_pack.py</code> builds it from a folder. The photos become
+          <code>tools/fazoura-cli/fazoura quiz pack</code> builds it from a folder. The photos become
           ordinary uploads, so nothing has to be uploaded first.
         </p>
       </form>

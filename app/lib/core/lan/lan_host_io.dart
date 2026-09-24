@@ -17,6 +17,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../game/game.dart';
+import '../game/game_view.dart';
 import '../game/lan_room.dart';
 import '../game/pack.dart';
 
@@ -313,7 +314,8 @@ class _LanSocket implements LanConnection {
       // The room pushed a snapshot during join, before _topic was set, so send
       // this client its own view now that it can be addressed (§4.1).
       pushState(
-        _host.room.game.view(
+        roomState(
+          _host.room.game,
           reply.role == 'host'
               ? const HostActor()
               : PlayerActor(reply.playerId!),
@@ -450,5 +452,8 @@ String lanErrorMessage(String code) => switch (code) {
   'invalid_quiz' => 'That quiz could not be loaded.',
   'quiz_not_found' => 'That quiz is gone or no longer shared with you.',
   'not_connected' => "That player isn't connected right now.",
+  'invalid_room_size' =>
+    "Choose a room size from the players already here up to the room's limit.",
+  'cloud_only' => 'Only an online room can do that.',
   _ => 'Malformed request.',
 };

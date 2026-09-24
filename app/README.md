@@ -66,9 +66,10 @@ SERVER_URL=https://your.host ../scripts/ci.sh apk   # → build/release/
 
 That is the only supported way to build an APK for somebody else: it signs with the
 release key, bakes in the server and the version, and writes the `android.json` the
-installed app reads to find out it is out of date. Without a keystore Gradle falls back
-to the debug key so `flutter run --release` keeps working — such a build cannot be
-installed over a real release. See [Releasing the Android app](../README.md#releasing-the-android-app).
+installed app reads to find out it is out of date. Any other build — `flutter run`,
+a hand-run `flutter build apk` — installs as a separate **Fazoura Dev** app
+(`com.fazouraparty.fazoura_party.dev`) beside the released one, and without a keystore
+it is signed with the debug key. See [Releasing the Android app](../README.md#releasing-the-android-app).
 
 ## Icons
 

@@ -5,11 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/api/quiz_api.dart';
 import '../../core/connection/game_connection.dart';
+import '../../core/quizzes/quiz_selection.dart';
 import '../../core/models/models.dart';
 import '../../core/providers/connection_providers.dart';
 import '../../core/providers/lan_providers.dart';
 import '../../core/providers/quiz_providers.dart';
 import '../../core/providers/room_tokens.dart';
+import '../../shared/community_rules.dart';
+import '../players/player_actions.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/format.dart';
 import '../../shared/quiz_titles.dart';
@@ -26,6 +29,7 @@ import '../leaderboard/leaderboard_view.dart'
 import '../lobby/game_settings_editor.dart';
 import 'host_exit_dialog.dart';
 import '../lobby/lobby_view.dart';
+import '../lobby/room_size_control.dart';
 import '../player_question/player_question_view.dart';
 import '../quizzes/quiz_choice.dart';
 // The browser drags in the editor, the photo pipeline and `package:image`
@@ -111,10 +115,27 @@ class HostScreen extends ConsumerWidget {
                 GameTopBar(
                   label: 'Hosting',
                   onLeave: () => unawaited(leave()),
-                  trailing: SelectableText(
-                    roomCode,
-                    key: const Key('hostRoomCode'),
-                    style: fz.m(15, color: FzColors.ac2, tracking: .14),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (snapshot.value case final state?
+                          when closedReason == null &&
+                              anyPlayerActions(state)) ...[
+                        FzCircleButton(
+                          key: const Key('playersButton'),
+                          icon: Icons.people_outline,
+                          tooltip: 'Players',
+                          onPressed: () =>
+                              showPlayersSheet(context, roomCode: roomCode),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      SelectableText(
+                        roomCode,
+                        key: const Key('hostRoomCode'),
+                        style: fz.m(15, color: FzColors.ac2, tracking: .14),
+                      ),
+                    ],
                   ),
                 ),
                 const ConnectionBanner(),
@@ -148,6 +169,7 @@ class _HostPhase extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final fz = FzTheme.of(context);
     final connection = ref.watch(gameConnectionProvider);
 
     Future<void> run(Future<void> Function() intent) async {
@@ -167,7 +189,42 @@ class _HostPhase extends ConsumerWidget {
     return switch (state.phase) {
       Phase.lobby => LobbyView(
         state: state,
+        onPlayerTap: (player) => showPlayerActions(
+          context,
+          roomCode: state.roomCode,
+          state: state,
+          player: player,
+        ),
         lanAddress: lanAddress,
+        // A room on this Wi-Fi has no public list to be on (§3.5).
+        listingControl: state.mode == Mode.lan
+            ? null
+            : SwitchListTile(
+                key: const Key('lobbyListedSwitch'),
+                contentPadding: EdgeInsets.zero,
+                title: Text('Show in public rooms', style: fz.h(15)),
+                subtitle: Text(
+                  state.listed
+                      ? 'Anyone can find it and join. Library quizzes only.'
+                      : 'Only people with the code can join.',
+                  style: fz.m(11, color: FzColors.dim),
+                ),
+                value: state.listed,
+                onChanged: (value) async {
+                  // Going public puts this room in front of strangers, so it
+                  // is one of the places the rules are agreed to first.
+                  if (value && !await ensureRulesAccepted(context, ref)) return;
+                  await run(() => connection.hostSetListed(value));
+                },
+              ),
+        roomSizeControl: RoomSizeControl(
+          state: state,
+          onSetSize: connection.hostSetRoomSize,
+          // Codes are the server's; a room on this Wi-Fi has none (§6.5).
+          onRedeem: state.mode == Mode.lan
+              ? null
+              : connection.hostRedeemSizeCode,
+        ),
         settingsEditor: state.packTitles.isEmpty || state.settings == null
             ? null
             : GameSettingsEditor(
@@ -229,7 +286,8 @@ class _HostPhase extends ConsumerWidget {
   ) async {
     await browser.loadLibrary();
     if (!context.mounted) return;
-    final choices = await browser.showQuizBrowser(context);
+    final listed = ref.read(roomStateProvider).value?.listed ?? false;
+    final choices = await browser.showQuizBrowser(context, libraryOnly: listed);
     if (!context.mounted || choices == null || choices.isEmpty) return;
     final isLan = ref.read(hostedLanRoomProvider) != null;
 
@@ -249,26 +307,19 @@ class _HostPhase extends ConsumerWidget {
   }
 }
 
-/// A browser choice as the intent carries it (PROTOCOL.md §6.4).
-///
-/// A LAN host has no quiz database, so a public quiz has to be fetched whole and
-/// sent inline. Whole means `download`, not `get`: an ordinary read answers
-/// without questions, because accepted answers are never handed to anyone but
-/// the publisher (QUIZ_FORMAT.md §5.3 and §5.3a). Sent from `get`, every public
-/// quiz reached the room with nothing in it and came back `empty_pack`.
-///
-/// Cloud already has the quiz and takes the id. Either way the wire shape is the
-/// same, which is why one selection can hold both.
+/// A browser choice as the intent carries it (PROTOCOL.md §6.4), as
+/// [selectLocalQuiz] and [selectPublishedQuiz] decide.
 Future<QuizSelection> quizSelectionFor(
   QuizApi api,
   QuizChoice choice, {
   required bool isLan,
 }) async => switch (choice) {
-  LocalQuizChoice(:final quiz) => InlineQuizSelection(quiz.quiz),
-  PublicQuizChoice(:final quiz) when isLan => InlineQuizSelection(
-    await api.download(quiz.hostId),
+  LocalQuizChoice(:final quiz) => selectLocalQuiz(quiz, lan: isLan),
+  PublicQuizChoice(:final quiz) => await selectPublishedQuiz(
+    api,
+    quiz.hostId,
+    lan: isLan,
   ),
-  PublicQuizChoice(:final quiz) => StoredQuizSelection(quiz.hostId),
 };
 
 class _QuestionControls extends StatelessWidget {

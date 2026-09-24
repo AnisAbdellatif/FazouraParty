@@ -94,6 +94,8 @@ void main() {
         'host_configure',
         'host_select_quiz',
         'host_rematch',
+        'host_remove_player',
+        'host_set_room_size',
       });
     });
 
@@ -267,6 +269,7 @@ Map<String, dynamic> _completeSnapshot(Object? partial) {
     'protocol_minor': protocolMinor,
     'room_code': 'K7QX2M',
     'mode': 'cloud',
+    'listed': false,
     'phase': 'lobby',
     'server_time': 1789502400000,
     'pack_titles': ['Fixture Pack'],
@@ -392,6 +395,14 @@ Map<String, dynamic>? _encodeIntent(
         difficultyMultiplier: multiplier,
         difficulties: (payload['difficulties'] as List).cast<String>(),
       );
+    case 'host_remove_player':
+      return PhoenixGameConnection.removePlayerPayload(
+        payload['player_id'] as String,
+      );
+    case 'host_set_room_size':
+      final size = payload['room_size'];
+      if (size is! int) return null;
+      return PhoenixGameConnection.roomSizePayload(size);
     case 'host_select_quiz':
       final entries = payload['quizzes'] as List;
       // A fixture entry naming a stored quiz is rebuilt exactly; one carrying

@@ -11,10 +11,12 @@ library;
 import 'dart:math';
 
 import 'package:fazoura_party/core/game/game.dart';
+import 'package:fazoura_party/core/game/game_view.dart';
 import 'package:fazoura_party/core/game/pack.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../support/protocol_fixtures.dart';
+import '../../support/matchers.dart';
 
 const t0 = 1000000;
 
@@ -43,8 +45,17 @@ Game gameWithPlayers(List<String> names, [int questionCount = 2]) {
   return game;
 }
 
-void host(Game game, String event, [Map<String, dynamic> payload = const {}]) =>
-    game.handle(const HostActor(), event, payload, t0);
+/// Ending a question leaves it open for the closing window (PROTOCOL.md §6);
+/// most tests only care that it ended, so this lets the window run out.
+/// [close] stops short of it.
+void host(Game game, String event, [Map<String, dynamic> payload = const {}]) {
+  final ending = event == 'host_next' && game.phase == GamePhase.question;
+  game.handle(const HostActor(), event, payload, t0);
+  if (ending) game.tick(t0 + closingWindowMs);
+}
+
+void close(Game game, [int now = t0]) =>
+    game.handle(const HostActor(), 'host_next', const {}, now);
 
 void hostAt(Game game, String event, int now) =>
     game.handle(const HostActor(), event, const {}, now);
@@ -89,9 +100,6 @@ void configure(
 });
 
 /// The code of the [GameRuleError] the callback throws.
-Matcher throwsCode(String code) =>
-    throwsA(isA<GameRuleError>().having((error) => error.code, 'code', code));
-
 void main() {
   final scoring = ProtocolFixtures.load('scoring.json');
 
@@ -100,7 +108,7 @@ void main() {
       final c = entry as Map<String, dynamic>;
       test('${c['difficulty']}, difficulty scoring ${c['bonus']}', () {
         final game = gradedGame(c['difficulty'] as String, c['bonus'] as bool);
-        final view = game.view(const HostActor(), t0);
+        final view = roomState(game, const HostActor(), t0);
 
         expect((view['question'] as Map)['points'], c['points']);
       });
@@ -115,7 +123,8 @@ void main() {
         host(game, 'host_next');
 
         expect(game.players['sam']!.score, c['delta']);
-        final rows = game.view(const HostActor(), t0)['submissions'] as List;
+        final rows =
+            roomState(game, const HostActor(), t0)['submissions'] as List;
         expect((rows.single as Map)['delta'], c['delta']);
       });
     }
@@ -132,7 +141,7 @@ void main() {
         expect(game.players['sam']!.score, c['score_after_scoring']);
 
         // A player who said nothing still gets a row, with no answer to show.
-        final view = game.view(const PlayerActor('sam'), t0);
+        final view = roomState(game, const PlayerActor('sam'), t0);
         expect(view['submissions'], [
           {
             'player_id': 'sam',
@@ -182,9 +191,10 @@ void main() {
       expect(game.players['late']!.score, 0);
 
       // ...and has no row at all, rather than an empty one.
-      final rows = game.view(const HostActor(), t0)['submissions'] as List;
+      final rows =
+          roomState(game, const HostActor(), t0)['submissions'] as List;
       expect(rows.map((r) => (r as Map)['player_id']), ['sam']);
-      final late = game.view(const PlayerActor('late'), t0);
+      final late = roomState(game, const PlayerActor('late'), t0);
       expect((late['you'] as Map)['submission'], isNull);
     });
 
@@ -218,8 +228,10 @@ void main() {
       expect(() => game.addPlayer('p2', '🎉' * 21), throwsCode('invalid_name'));
     });
 
-    test('room is capped at 100 players', () {
-      final game = gameWithPlayers([for (var i = 1; i <= 100; i++) 'player$i']);
+    test('room is capped at maxPlayers', () {
+      final game = gameWithPlayers([
+        for (var i = 1; i <= maxPlayers; i++) 'player$i',
+      ]);
       expect(() => game.addPlayer('extra', 'Extra'), throwsCode('room_full'));
     });
   });
@@ -368,6 +380,84 @@ void main() {
       );
     });
 
+    test('ending a question gives what is still being typed the closing '
+        'window to arrive', () {
+      final game = gameWithPlayers(['sam', 'kim']);
+      host(game, 'host_next');
+
+      close(game, t0 + 1000);
+      expect(game.phase, GamePhase.question);
+      expect(game.deadline, t0 + 1000 + closingWindowMs);
+
+      // Sam's typed answer is sent for them just before the new deadline, and
+      // counts.
+      final deadline = game.deadline!;
+      submit(game, 'sam', 'Right', deadline - 700);
+      expect(game.phase, GamePhase.question, reason: 'still waiting on kim');
+
+      game.tick(deadline);
+      expect(game.phase, GamePhase.scoring);
+      expect(
+        (game.players['sam']!.score, game.players['kim']!.score),
+        (10, -10),
+      );
+    });
+
+    test('the closing window still ends the moment nobody is left to wait '
+        'for', () {
+      final game = gameWithPlayers(['sam']);
+      host(game, 'host_next');
+      close(game);
+      submit(game, 'sam', 'Right', t0 + 500);
+      expect(game.phase, GamePhase.scoring);
+    });
+
+    test('ending a closing question again does not cut the window short', () {
+      final game = gameWithPlayers(['sam']);
+      host(game, 'host_next');
+      close(game);
+      final deadline = game.deadline;
+      close(game, t0 + 1500);
+      expect(game.deadline, deadline);
+    });
+
+    test('ending a question with less time left than the window keeps the '
+        'deadline', () {
+      final game = gameWithPlayers(['sam']);
+      host(game, 'host_next');
+      close(game, t0 + 9000);
+      expect(game.deadline, t0 + 10000);
+    });
+
+    test('ending a paused question resumes it into the closing window', () {
+      final game = gameWithPlayers(['sam']);
+      host(game, 'host_next');
+      host(game, 'host_pause');
+
+      close(game, t0 + 60000);
+      expect(
+        (game.deadline, game.pausedRemainingMs),
+        (t0 + 60000 + closingWindowMs, null),
+      );
+      submit(game, 'sam', 'Right', t0 + 60500);
+      expect(game.phase, GamePhase.scoring);
+    });
+
+    test('ending a question nobody can still answer scores it at once', () {
+      final game = gameWithPlayers(['kim']);
+      host(game, 'host_next');
+      game.setConnected('kim', false, t0);
+
+      close(game, t0 + 1000);
+      expect(
+        game.phase,
+        GamePhase.question,
+        reason: 'kim is inside the grace and may be back',
+      );
+      close(game, t0 + 5000);
+      expect(game.phase, GamePhase.scoring);
+    });
+
     test('pause freezes the timer and resume restores the remaining time', () {
       final game = gameWithPlayers(['sam']);
       host(game, 'host_next');
@@ -470,7 +560,7 @@ void main() {
       expect(game.settings.difficulties, ['easy']);
       expect(game.settings.availableDifficulties, ['easy']);
 
-      final view = game.view(const HostActor(), t0);
+      final view = roomState(game, const HostActor(), t0);
       expect(view['question_count'], 3);
       expect(view['settings'], {
         'question_count': 3,
@@ -525,7 +615,7 @@ void main() {
       host(game, 'host_next');
       expect(game.deadline, t0 + 15000);
       expect(
-        (game.view(const HostActor(), t0)['question']
+        (roomState(game, const HostActor(), t0)['question']
             as Map<String, dynamic>)['time_limit_ms'],
         15000,
       );
@@ -615,7 +705,8 @@ void main() {
       // only hard question is the one asked.
       host(game, 'host_next');
       final question =
-          game.view(const HostActor(), t0)['question'] as Map<String, dynamic>;
+          roomState(game, const HostActor(), t0)['question']
+              as Map<String, dynamic>;
       expect(question['id'], 'q3');
       expect(question['difficulty'], 'hard');
     });
@@ -626,7 +717,7 @@ void main() {
       final game = gameWithPlayers(['sam'], 25);
       expect(game.settings.questionCount, 25);
       expect(
-        (game.view(const HostActor(), t0)['settings']
+        (roomState(game, const HostActor(), t0)['settings']
             as Map<String, dynamic>)['max_question_count'],
         25,
       );
@@ -672,7 +763,8 @@ void main() {
         for (var i = 0; i < 50; i++) {
           expect(game.pickAvatarHue(), inInclusiveRange(0, 359));
         }
-        final players = game.view(const HostActor(), t0)['players'] as List;
+        final players =
+            roomState(game, const HostActor(), t0)['players'] as List;
         expect((players.first as Map<String, dynamic>)['avatar_hue'], 100);
       },
     );
@@ -711,7 +803,7 @@ void main() {
 
       game.selectQuiz(pack(3));
       host(game, 'host_next');
-      final view = game.view(const HostActor(), t0);
+      final view = roomState(game, const HostActor(), t0);
       expect(
         (view['question'] as Map<String, dynamic>)['id'],
         isIn(['q1', 'q2', 'q3']),
@@ -736,7 +828,7 @@ void main() {
       host(game, 'host_next');
       submit(game, 'sam', 'Right');
 
-      final player = game.view(const PlayerActor('alex'), t0);
+      final player = roomState(game, const PlayerActor('alex'), t0);
       expect(player['accepted_answers'], isNull);
       expect(player['submissions'], isNull);
       expect((player['you'] as Map<String, dynamic>)['submission'], isNull);
@@ -747,14 +839,14 @@ void main() {
         isTrue,
       );
 
-      final own = game.view(const PlayerActor('sam'), t0);
+      final own = roomState(game, const PlayerActor('sam'), t0);
       expect((own['you'] as Map<String, dynamic>)['submission'], {
         'answer': 'Right',
         'correct': null,
         'delta': null,
       });
 
-      final hostView = game.view(const HostActor(), t0);
+      final hostView = roomState(game, const HostActor(), t0);
       expect(hostView['accepted_answers'], isNull);
       expect(hostView['submissions'], isNull);
       expect(hostView['you'], {
@@ -765,7 +857,7 @@ void main() {
       });
 
       host(game, 'host_next');
-      final scored = game.view(const PlayerActor('alex'), t0);
+      final scored = roomState(game, const PlayerActor('alex'), t0);
       expect(scored['accepted_answers'], ['Right']);
       final submissions = (scored['submissions'] as List)
           .cast<Map<String, dynamic>>();
@@ -796,7 +888,7 @@ void main() {
           throwsCode('already_submitted'),
         );
 
-        final during = game.view(const HostActor(), t0);
+        final during = roomState(game, const HostActor(), t0);
         expect(
           (during['accepted_answers'], during['submissions']),
           (null, null),
@@ -816,7 +908,9 @@ void main() {
 
         host(game, 'host_next');
         expect(game.players['hana']!.score, -10);
-        expect(game.view(const HostActor(), t0)['accepted_answers'], ['Right']);
+        expect(roomState(game, const HostActor(), t0)['accepted_answers'], [
+          'Right',
+        ]);
 
         host(game, 'host_override', {'player_id': 'hana', 'correct': true});
         expect(game.players['hana']!.score, 10);
@@ -824,7 +918,7 @@ void main() {
         // Sam let the question go by, and is told what that cost rather than
         // nothing.
         expect(
-          (game.view(const PlayerActor('sam'), t0)['you']
+          (roomState(game, const PlayerActor('sam'), t0)['you']
               as Map<String, dynamic>)['submission'],
           {'answer': null, 'correct': false, 'delta': -10},
         );
@@ -835,7 +929,7 @@ void main() {
       final game = gameWithPlayers(['bob', 'Alice', 'carl']);
       game.players['carl'] = game.players['carl']!.copyWith(score: 5);
 
-      final names = (game.view(const HostActor(), t0)['players'] as List)
+      final names = (roomState(game, const HostActor(), t0)['players'] as List)
           .cast<Map<String, dynamic>>()
           .map((p) => p['name']);
       expect(names, ['carl', 'Alice', 'bob']);
@@ -848,7 +942,7 @@ void main() {
       }
       expect(game.phase, GamePhase.finished);
 
-      final view = game.view(const HostActor(), t0);
+      final view = roomState(game, const HostActor(), t0);
       expect(
         (view['question'], view['accepted_answers'], view['submissions']),
         (null, null, null),
@@ -860,29 +954,69 @@ void main() {
       host(game, 'host_transfer', {'player_id': 'sam'});
 
       expect(
-        (game.view(const PlayerActor('sam'), t0)['you']
+        (roomState(game, const PlayerActor('sam'), t0)['you']
             as Map<String, dynamic>)['role'],
         'host',
       );
       // The connection that handed the role away is an ordinary client now,
       // and the snapshot has to say so (§3.4).
       expect(
-        (game.view(const HostActor(holder: false), t0)['you']
+        (roomState(game, const HostActor(holder: false), t0)['you']
             as Map<String, dynamic>)['role'],
         'player',
+      );
+    });
+
+    test('the host sizes the room, never below who is in it (§6.5)', () {
+      final game = gameWithPlayers(['sam', 'kim']);
+      expect((game.roomSize, game.roomSizeLimit), (maxPlayers, maxPlayers));
+
+      host(game, 'host_set_room_size', {'room_size': 2});
+      expect(game.roomSize, 2);
+      expect(() => game.addPlayer('lee', 'Lee'), throwsCode('room_full'));
+      expect(
+        () => host(game, 'host_set_room_size', {'room_size': 1}),
+        throwsCode('invalid_room_size'),
+      );
+      expect(
+        () => host(game, 'host_set_room_size', {'room_size': maxPlayers + 1}),
+        throwsCode('invalid_room_size'),
+      );
+      expect(
+        () => host(game, 'host_set_room_size', {'room_size': '3'}),
+        throwsCode('invalid_payload'),
+      );
+    });
+
+    test('a LAN host has no room size codes to redeem (§6.5)', () {
+      final game = gameWithPlayers(['sam']);
+      expect(
+        () => host(game, 'host_redeem_size_code', {'code': 'ABCD-EFGH-JKLM'}),
+        throwsCode('cloud_only'),
+      );
+    });
+
+    test('a LAN host has no public list to put a room on', () {
+      final game = gameWithPlayers(['sam']);
+      expect(
+        () => host(game, 'host_set_listed', {'listed': true}),
+        throwsCode('cloud_only'),
       );
     });
 
     test('the snapshot carries every field PROTOCOL.md §5.1 names', () {
       final game = gameWithPlayers(['sam']);
       host(game, 'host_next');
-      final view = game.view(const HostActor(), t0);
+      final view = roomState(game, const HostActor(), t0);
 
       expect(view.keys.toSet(), {
         'protocol_version',
         'protocol_minor',
         'room_code',
         'mode',
+        'listed',
+        'room_size',
+        'room_size_limit',
         'phase',
         'server_time',
         'pack_titles',
@@ -933,6 +1067,7 @@ void main() {
         'submission',
       });
       expect(view['mode'], 'lan');
+      expect(view['listed'], false);
       expect(view['protocol_version'], protocolMajor);
       expect(view['server_time'], t0);
     });

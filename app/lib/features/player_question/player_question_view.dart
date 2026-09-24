@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/models.dart';
 import '../../core/providers/config_providers.dart';
 import '../../core/providers/connection_providers.dart';
-import '../../core/time/server_clock.dart';
+import '../../core/time/lock_in_timer.dart';
 import '../../shared/describe_error.dart';
 import '../../shared/format.dart';
 import '../../shared/theme/fz_theme.dart';
@@ -20,18 +19,16 @@ import '../../shared/widgets/submitted_dots.dart';
 
 const maxAnswerLength = 100;
 
-/// How far before the deadline a typed-but-unsent answer is locked in on its
-/// own. The server refuses a submission that reaches it at or after the
-/// deadline (PROTOCOL.md §6), so the send needs room for one round trip.
-const autoSubmitLeadMs = 700;
-
 /// Question stage: prompt, server-clock timer and, for anyone playing, the
 /// answer field, what the question is worth and "Lock it in". Inputs are
 /// replaced by a locked-in card once a submission is sent or the snapshot
 /// shows one.
 ///
 /// An answer that has been typed but not locked in is sent automatically just
-/// before the timer runs out, so nobody loses an answer to the clock.
+/// before the timer runs out, so nobody loses an answer to the clock. That
+/// includes the host ending the question: the host pulls the deadline in to a
+/// short closing window rather than scoring on the spot (PROTOCOL.md §6), and
+/// the new deadline reschedules the send like any other snapshot.
 ///
 /// The host uses it too: [canAnswer] is false for a host who is not playing,
 /// and [hostControls] is pinned to the bottom.
@@ -61,7 +58,13 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
   /// running still shakes. Being told "too long" once and silently the second
   /// time reads as the app having stopped listening.
   int _refusals = 0;
-  Timer? _autoSubmit;
+
+  /// Sends what was typed just before time runs out ([LockInTimer], the same
+  /// timing the CLI's bots answer with).
+  late final LockInTimer _lockIn = LockInTimer(
+    onDue: _lockInBeforeDeadline,
+    localNowMs: () => ref.read(clockProvider)().millisecondsSinceEpoch,
+  );
 
   @override
   void initState() {
@@ -86,43 +89,28 @@ class _PlayerQuestionViewState extends ConsumerState<PlayerQuestionView> {
 
   @override
   void dispose() {
-    _autoSubmit?.cancel();
+    _lockIn.disarm();
     _answerController.dispose();
     super.dispose();
   }
 
-  /// (Re)schedules the automatic lock-in for [autoSubmitLeadMs] before the
-  /// server deadline. Every snapshot goes through here, so a pause (no
-  /// deadline) cancels it and the resume, carrying a fresh deadline, sets it
-  /// again.
+  /// (Re)schedules the automatic lock-in. Every snapshot goes through here,
+  /// so a pause (no deadline) cancels it, the resume sets it again, and the
+  /// host ending the question early brings it forward.
   void _syncAutoSubmit() {
-    _autoSubmit?.cancel();
-    _autoSubmit = null;
-    final deadline = widget.state.deadline;
-    if (!widget.canAnswer || deadline == null) return;
-    if (widget.state.you.submission != null || _sent != null) return;
-    final left = _remainingMs(deadline);
-    if (left <= 0) return;
-    _autoSubmit = Timer(
-      Duration(milliseconds: math.max(0, left - autoSubmitLeadMs)),
-      _lockInBeforeDeadline,
+    final submitted = widget.state.you.submission != null || _sent != null;
+    if (!widget.canAnswer || submitted) return _lockIn.disarm();
+    _lockIn.arm(
+      deadline: widget.state.deadline,
+      offsetMs: ref.read(serverClockOffsetProvider),
     );
   }
-
-  int _remainingMs(int deadline) => remainingMs(
-    deadline: deadline,
-    offsetMs: ref.read(serverClockOffsetProvider),
-    localNowMs: ref.read(clockProvider)().millisecondsSinceEpoch,
-  );
 
   /// Time is nearly up: send what was typed rather than let it go to waste. An
   /// empty field is left alone — typing nothing is not an answer.
   void _lockInBeforeDeadline() {
-    _autoSubmit = null;
     if (!mounted || _sending || _sent != null) return;
     if (widget.state.you.submission != null) return;
-    final deadline = widget.state.deadline;
-    if (deadline == null || _remainingMs(deadline) <= 0) return;
     if (_answerController.text.trim().isEmpty) return;
     _submit();
   }

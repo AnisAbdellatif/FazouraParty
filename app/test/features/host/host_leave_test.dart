@@ -15,6 +15,7 @@ import 'package:fazoura_party/core/connection/game_connection.dart';
 import 'package:fazoura_party/core/providers/connection_providers.dart';
 import 'package:fazoura_party/core/providers/room_tokens.dart';
 import 'package:fazoura_party/features/host/host_screen.dart';
+import 'package:fazoura_party/shared/navigation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -110,9 +111,7 @@ void main() {
     expect(await remembered(), isEmpty);
   });
 
-  testWidgets('PROBE: leaving with the back gesture forgets it', (
-    tester,
-  ) async {
+  testWidgets('leaving with the back gesture forgets it', (tester) async {
     tester.view.physicalSize = const Size(1200, 3000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -135,9 +134,9 @@ void main() {
     );
     unawaited(
       navigator.currentState!.push(
-        MaterialPageRoute<void>(
-          builder: (_) => const HostScreen(roomCode: 'K7QX2M'),
-        ),
+        // The route the app really pushes this screen with (AGENTS.md §7), so
+        // popping it here pops what a back gesture pops in the app.
+        FzPageRoute<void>(builder: (_) => const HostScreen(roomCode: 'K7QX2M')),
       ),
     );
     await tester.pumpAndSettle();

@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `9.2`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
+**Protocol version: `9.9`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -34,6 +34,33 @@ so nothing a client does needed to change, and it was a minor.
 A cloud-only HTTP route is a minor too, for the same reason: a client that has never heard
 of it simply does not call it. `GET /api/rooms/:code` (§3.1) was 9.2 and
 `POST /api/rooms/:code/report` is 9.3.
+
+9.4 changed what `host_next` does to a running question: rather than scoring it on the spot,
+the host pulls its `deadline` in to a short closing window (§6). A client already renders
+whatever deadline the latest snapshot carries, so nothing had to change there either.
+
+9.5 added public rooms (§3.5): an optional `listed` key on room creation, `GET /api/rooms`,
+the `host_set_listed` intent, a `listed` field in every `RoomState` and the `quiz_not_public`
+and `cloud_only` error codes. A client that has never heard of them ignores the field and
+never sends the rest.
+
+9.6 added moderation for playing with strangers (§3.5): the `host_remove_player` intent
+and the `removed` close reason, reporting a player through `POST /api/rooms/:code/report`,
+the `name_not_allowed` and `banned` join errors, and blocked words in a public room's
+answers reaching other players as `***`. An older client shows an unknown close reason
+as the room ending and an unknown error by its message — both of which are true.
+
+9.7 lets a host send one snapshot for several changes (§5.1): at most one broadcast every
+`broadcast_interval_ms`, each carrying the latest state. A client never learned anything
+from how many snapshots arrived, only from what the last one said, so none had to change.
+
+9.8 lowered `max_players` from 100 to 32. A client already had to handle `room_full`.
+
+9.9 added room size (§6.5): `room_size` and `room_size_limit` in every `RoomState` and in the
+public list, the `host_set_room_size` and `host_redeem_size_code` intents, and the
+`invalid_room_size`, `invalid_code`, `code_expired` and `code_used_up` error codes. A client
+that has never heard of them shows no control for them, and a room it hosts stays at
+`max_players`.
 
 **This is semver's major and minor, and there is deliberately no patch.** The number
 exists to answer one question — does this host behave exactly like that one? — and the
@@ -86,6 +113,8 @@ Pushes from the host (§5) have `ref = null`.
 
 **Cloud:** `POST /api/rooms` with an empty body to create the room before choosing anything.
 The host then selects the quizzes to play in the lobby with `host_select_quiz` (§6.4).
+`{"listed": true}` creates it on the public room list instead (§3.5); `listed` may accompany
+any of the bodies below and must be a boolean (`422 invalid_payload` otherwise).
 
 For backwards compatibility the endpoint also accepts a **single** quiz body and snapshots it
 immediately: `{"quiz_id": "<uuid or built-in slug>"}` for a stored (public) quiz (`pack_id` is
@@ -100,7 +129,8 @@ possible through `host_select_quiz`.
 
 Errors: `404 {"code": "quiz_not_found"}` (unknown quiz id), `422 {"code": "invalid_quiz"}`
 (inline quiz fails validation), `413 image_too_large` / `415 unsupported_image` (inline
-photos), `422 {"code": "empty_pack"}`. HTTP error bodies carry `code` and `message`; clients branch on
+photos), `422 {"code": "empty_pack"}`, `422 {"code": "quiz_not_public"}` (`listed` with an
+inline `quiz`). HTTP error bodies carry `code` and `message`; clients branch on
 `code` only.
 
 **LAN:** the host app creates the room in-process; no HTTP call. The resulting `room_code` and
@@ -179,6 +209,70 @@ still there:
 A host that is also playing keeps its `player_id`, score and submissions when it loses the
 role; it simply becomes an ordinary player.
 
+### 3.5 Public rooms
+
+A room is joined by its code unless its host **lists** it, which puts it on a public list
+anyone can join from. The host chooses when creating the room (`listed` in §3.1) and may
+change it in the lobby with `host_set_listed` (§4.2); every `RoomState` says which it is.
+Cloud only — a LAN host has no list to be on, and refuses `host_set_listed` with
+`cloud_only`.
+
+**A listed room plays published quizzes only**: stored ones, selected by `quiz_id`. Strangers
+choose a room by what it is playing, so everything the list shows has been read by a person
+before it was published. Selecting an inline quiz in a listed room is refused with
+`quiz_not_public`, and so is listing a room that already has one selected — the host swaps
+it for published quizzes first.
+
+#### `GET /api/rooms` — rooms anyone can join
+
+```json
+200 {"rooms": [
+  {"room_code": "K7QX2M", "phase": "lobby", "pack_titles": ["Capitals"],
+   "player_count": 3, "room_size": 32, "question_index": null, "question_count": 10}
+]}
+```
+
+Listed rooms only, in any phase: a player can join a game in progress and plays from the
+next question (§9). Rooms waiting to start come first, then the busiest; full rooms —
+`player_count` at the room's own `room_size` (§6.5) — are left out, and the list holds at most 50. `pack_titles` is empty while the host is still
+choosing. **No names**, the host's included: the list is read by strangers, and a quiz
+title is the only text on it a person has reviewed. No token is needed, and a room joined
+by code never appears, so this says nothing about rooms nobody chose to list.
+
+#### Playing with strangers
+
+What a public room shows comes from its players as well as its quizzes, so it has
+safeguards a room among friends does not need. All are cloud-only; a LAN host is never
+listed.
+
+- **Names.** A display name containing a blocked word cannot join a public room
+  (`name_not_allowed`), and a room with such a name in it cannot go public
+  (`host_set_listed` → `name_not_allowed`). The word list is the server's
+  (`server/priv/moderation/blocked_words.txt`); matching ignores case, accents, leetspeak
+  and repeated letters.
+- **Answers.** From scoring on, a wrong answer containing a blocked word reaches every
+  recipient but its author as `"***"` in `submissions[].answer`. An answer the game marked
+  correct is shown as written — it is one of the reviewed quiz's own accepted answers.
+  Scoring is unaffected: the host still judges the real answer.
+- **Removing.** The host may take any player but itself out of any room, listed or not,
+  with `host_remove_player` (§4.2).
+- **Reporting.** Anybody in a room may report a player by `player_id` (below).
+- **Bans.** An admin answering a report may keep that connection out of public rooms for
+  7, 30 or 90 days. A banned connection's join to a listed room is refused with `banned`,
+  and so is a banned host's `host_set_listed` to `true`. Rooms joined by code are
+  untouched. A ban is held against a keyed hash of the connection's address, never the
+  address itself.
+
+#### `POST /api/rooms/:code/report` with `player_id` — this player is not okay
+
+The same route as reporting a question (§3.1), with `player_id` instead of `question_id`
+and the same token, `x-owner-key`, reasons and note. There is no account to point at, so
+the server keeps what was on the screen — the player's name, and their answer to the
+current question if they gave one — and the keyed hash of their connection's address,
+which is what a ban acts on. `204` on success; `404 unknown_player` for a player not in
+the room; `404 room_not_found` without a token this room issued. Every record of it is
+gone within 90 days, the address hash included, whether or not anybody answered it.
+
 ## 4. Client → host
 
 ### 4.1 `phx_join` on `room:<CODE>`
@@ -234,14 +328,15 @@ Immediately after a successful join the host pushes a `state` event (§5.1) to t
 Players may join in **any phase** (late join starts at score `0`).
 
 Join error codes: `unsupported_protocol_version`, `room_not_found`, `invalid_token`,
-`invalid_name`, `name_taken`, `room_full`.
+`invalid_name`, `name_taken`, `room_full`, `name_not_allowed` (a blocked word in a public
+room, §3.5), `banned` (a public room, from a connection kept out of them, §3.5).
 
 ### 4.2 Intents
 
 | Event | Sender | Payload | Allowed phase | Effect |
 |---|---|---|---|---|
 | `submit` | player, or playing host | `{"answer": string}` | `question` (not paused) | Records the player's one submission for the current question |
-| `host_next` | host | `{}` | any except `finished` | Advances the phase (§6) |
+| `host_next` | host | `{}` | any except `finished` | Advances the phase (§6). During `question`, closes the question rather than ending it outright |
 | `host_pause` | host | `{}` | `question` (not paused) | Freezes the timer |
 | `host_resume` | host | `{}` | `question` (paused) | Restarts the timer |
 | `host_override` | host | `{"player_id": string, "correct": bool}` | `scoring`, `leaderboard` | Sets the verdict on that player's submission for the **current** question, including the host's own |
@@ -250,6 +345,10 @@ Join error codes: `unsupported_protocol_version`, `room_not_found`, `invalid_tok
 | `host_rematch` | host | `{}` | `finished` | Starts a new game in the same room (§6.3) |
 | `host_transfer` | host | `{"player_id": string}` | any | Hands the host role to a connected player (§3.4) |
 | `host_close` | host | `{}` | any | Ends the room now: every client gets `room_closed: closed` |
+| `host_set_listed` | host | `{"listed": bool}` | `lobby` | Puts the room on the public list, or takes it off (§3.5). Cloud only |
+| `host_set_room_size` | host | `{"room_size": int}` | any | Sets how many players the room lets in (§6.5) |
+| `host_redeem_size_code` | host | `{"code": string}` | any | Raises the room's limit with a room size code, and the room to it (§6.5). Cloud only |
+| `host_remove_player` | host | `{"player_id": string}` | any | Takes that player out of the room: gone from the players, from this question's answers and from the people it was asked of — no skip penalty, and the question stops waiting for them. Their connections get `room_closed: removed` and their token no longer lets them back in. Not the host's own seat (`invalid_payload`) |
 
 Successful intents reply `{"status": "ok", "response": {}}` and — if state changed — trigger a
 `state` push to every connected client.
@@ -261,10 +360,15 @@ Successful intents reply `{"status": "ok", "response": {}}` and — if state cha
 
 Intent error codes: `invalid_phase`, `not_host`, `not_player`, `invalid_answer`,
 `already_submitted`, `unknown_player`, `no_submission`, `paused`, `not_paused`,
-`invalid_settings` (question count outside 1..`max_question_count`, time limit outside
+`quiz_too_large` / `image_too_large` / `unsupported_image` (a `host_select_quiz` whose
+inline photos are over the room's total, one photo is over 2 MB, or one is not a JPEG, PNG or
+WebP — QUIZ_FORMAT.md §5.7), `invalid_settings` (question count outside 1..`max_question_count`, time limit outside
 `min_time_limit_ms`..`max_time_limit_ms`, or any field missing or of the wrong type),
 `not_connected` (`host_transfer` naming a player who is not currently connected, or the
-host itself), `invalid_payload` (unknown event, or a payload with missing/mistyped fields
+host itself), `quiz_not_public` (an inline quiz in a listed room, §3.5), `cloud_only`
+(`host_set_listed` or `host_redeem_size_code` on a LAN host), `invalid_room_size`,
+`invalid_code`, `code_expired` and `code_used_up` (§6.5), `name_not_allowed` and `banned` (`host_set_listed` to
+`true`, §3.5), `invalid_payload` (unknown event, or a payload with missing/mistyped fields
 not covered by a more specific code).
 
 Every error `response` is `{"code": string, "message": string}`. `message` is human-readable
@@ -283,15 +387,29 @@ pushed:
 - to a client right after it joins,
 - to all clients after any state change (intent, timer expiry, connect/disconnect).
 
+**Changes that come close together share a snapshot.** A host sends a broadcast at most once
+every `broadcast_interval_ms` (100 ms). The first change after a quiet spell goes out at once;
+one inside the interval waits for it to pass and goes out together with everything else that
+changed meanwhile, built from the state as it is when it is sent. The cloud host also folds
+in whatever is already queued behind a change — forty answers landing at once are one
+broadcast, not forty. A client is owed the latest state, never one snapshot per change: every
+snapshot is complete, so a skipped intermediate one carried nothing the next does not.
+`you.host_token` waits for the snapshot that is actually sent. This is what keeps a large
+room affordable — a broadcast is one snapshot per player, each listing every player, so
+sending one per answer costs the square of the room's size, per answer.
+
 The payload is **tailored per recipient** (see §7 visibility rules), so implementations must build
 it per socket rather than broadcasting one identical payload.
 
 ```json
 {
   "protocol_version": 9,
-  "protocol_minor": 3,
+  "protocol_minor": 9,
   "room_code": "K7QX2M",
   "mode": "cloud",
+  "listed": false,
+  "room_size": 32,
+  "room_size_limit": 32,
   "phase": "question",
   "server_time": 1789502400000,
 
@@ -342,6 +460,9 @@ it per socket rather than broadcasting one identical payload.
 | `protocol_version` | int | The host's major — `9` (§1.1) |
 | `protocol_minor` | int | Which revision of that major the host implements. A client may ignore it |
 | `mode` | `"cloud"` \| `"lan"` | |
+| `listed` | bool | On the public room list (§3.5). Always `false` from a LAN host |
+| `room_size` | int | How many players the room lets in; a join beyond it is `room_full` (§6.5) |
+| `room_size_limit` | int | The most the host may set `room_size` to: `max_players`, or what a room size code raised it to (§6.5) |
 | `phase` | `"lobby"` \| `"question"` \| `"scoring"` \| `"leaderboard"` \| `"finished"` | §6 |
 | `server_time` | timestamp | Host clock when the snapshot was built. Clients compute `offset = server_time - local_now` and render timers from `deadline - (local_now + offset)` |
 | `pack_titles` | string[] | Titles of the selected quizzes, in the order the host chose them. Empty while none are selected (§6.4) |
@@ -386,7 +507,7 @@ mid-question has no entry. All fields are always present and non-null except `ov
 
 ### 5.2 `room_closed`
 
-Payload `{"reason": "empty" | "closed" | "finished" | "shutdown"}`. Sent before the host
+Payload `{"reason": "empty" | "closed" | "finished" | "shutdown" | "removed"}`. Sent before the host
 terminates the room; the client must then drop its tokens for that room. A client that reconnects
 to a room that no longer exists gets `room_not_found` on join — it must handle that identically.
 
@@ -396,6 +517,7 @@ to a room that no longer exists gets `room_not_found` on join — it must handle
 | `closed` | The host ended the room with `host_close` |
 | `finished` | 10 minutes passed after the game finished |
 | `shutdown` | The host implementation is stopping (a deploy) |
+| `removed` | Sent to one player, not the room: the host took them out with `host_remove_player` (§4.2). The room goes on |
 
 `host_timeout` was removed in v5: a room whose host leaves now promotes someone rather than
 waiting to die (§3.4).
@@ -421,8 +543,17 @@ lobby ──host_next──► question ──host_next / deadline / all answere
 | `finished → lobby` | `host_rematch` (§6.3) |
 | pause / resume | `paused_remaining_ms = deadline - now`, `deadline = null` / `deadline = now + paused_remaining_ms`, `paused_remaining_ms = null` |
 
-`host_next` while `question` is active ends the question early. Starting a room with a pack of
-zero questions is rejected at creation.
+`host_next` while `question` is active ends the question early, but not on the spot: the
+question is **closed**. `deadline` becomes `now + 3000` (the **closing window**), or stays
+where it is if that is sooner, and a paused question resumes into it. Submissions are accepted
+until the new deadline as before, and the question still ends the moment nobody is left to
+wait for. The window exists because a client sends a typed-but-unlocked answer on its own
+shortly before the deadline — ending a question outright would throw away every answer still
+being typed. `host_next` on a question already closing changes nothing, so a second tap cannot
+cut the window short. If everyone asked has already answered or is gone past the grace below,
+there is nobody to wait for and the question is scored at once.
+
+Starting a room with a pack of zero questions is rejected at creation.
 
 **A question also ends as soon as there is nobody left to wait for**: every player it was
 asked of has either submitted or been disconnected for longer than a **5 s grace**. The grace
@@ -482,6 +613,27 @@ a host can play a published quiz alongside one that never leaves their device.
   tell one question from the next.
 - `pack_titles` (§5.1) lists the selected titles in order, so clients can name the round.
 
+### 6.5 Room size
+
+A room lets in `room_size` players, the host counted when playing; one more join is
+`room_full`. It starts at `max_players` (32, `fixtures/constants.json`), which is also its
+first `room_size_limit`.
+
+- **The host makes it smaller** with `host_set_room_size`, in any phase — a game under way
+  can make room for a late friend. Never below the players already in the room, and never
+  above `room_size_limit`; either is `invalid_room_size`. Nobody is removed by it.
+- **A room size code raises the limit.** An admin makes one on the cloud server (ADMIN.md
+  §3.7) for a size above `max_players`, up to 200, good for a set number of rooms and
+  optionally until a date. The host sends it with `host_redeem_size_code`; the room's
+  `room_size_limit` becomes the code's size, and `room_size` grows to it. Codes are 12
+  characters from the room-code alphabet, shown as `XXXX-XXXX-XXXX`; case, spaces and dashes
+  in what the host types do not matter. Refused as `invalid_code` (unknown or revoked),
+  `code_expired`, or `code_used_up` (it has unlocked every room it was made for). Redeeming the
+  same code again in the same room succeeds and uses nothing; a use is only counted for a
+  room that takes it. A LAN host has no codes and answers `cloud_only`.
+- **A room keeps its size and limit** through choosing other quizzes and rematches; they are
+  the room's, not the game's.
+
 ## 7. Visibility rules
 
 Nothing that could be used to cheat reaches anyone before the question ends — **the host
@@ -494,7 +646,8 @@ included**, since the host may be playing. Visibility depends only on phase, not
 | `players[].has_submitted` | yes | yes | `false` |
 | `you.submission` | own only | own, with `correct`/`delta` | `null` |
 
-The question ends when its deadline passes or the host sends `host_next`; from `scoring` on,
+The question ends when its deadline passes, including the closing window after the host sends
+`host_next` (§6); from `scoring` on,
 the host sees the accepted answers and every submission and may correct any of them,
 including their own (§6.1).
 
@@ -551,6 +704,7 @@ all players then see that same shuffled order for the round (§6.4).
 |---|---|
 | `fixtures/normalize.json` | `normalize` input/output pairs + match cases |
 | `fixtures/scoring.json` | Delta and override recomputation cases |
+| `fixtures/constants.json` | Every fixed number both hosts must define identically — protocol version, grace, closing window, limits, room-code shape, room lifetimes, snapshot pacing. Each implementation's constants must equal it exactly |
 | `fixtures/scenarios/*.json` | Ordered intent → expected reply/state scripts, replayed against every host implementation |
 
 Scenario format:
@@ -573,6 +727,8 @@ Scenario format:
 - `expect_state` is a **partial match**: every key present must equal; absent keys are unchecked.
   It checks the latest `state` received by that actor.
 - `advance_clock_ms` requires implementations to accept an injectable clock in tests.
+- `{"actor": "kim", "expect_closed": "removed"}` asserts the `room_closed` reason that actor
+  last received (§5.2).
 
 ## 12. Decisions log
 

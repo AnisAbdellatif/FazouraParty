@@ -23,6 +23,11 @@ config :fazoura, image_sweeper: [enabled: false]
 config :fazoura, moderation_sweeper: [enabled: false]
 config :fazoura, drain_ms: 0
 
+# Snapshots are still coalesced — queued behind the mailbox — but not paced: a test
+# acts faster than any person, and waiting out the gap would only make
+# `assert_receive` race it. The pacing has its own test.
+config :fazoura, broadcast_interval_ms: 0
+
 # Off by default: counters are per-IP and every test shares 127.0.0.1, so a suite that
 # grows would start tripping the limit rather than testing what it meant to. The
 # rate-limit tests turn it on for themselves.
@@ -36,6 +41,14 @@ config :fazoura, FazouraWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "k5SUwu1ij5bJE6SE8bvDYEvD/QzbkH+KkX3vDO4VlS7udhu4/OuehxD2RmMZ8zeH",
   server: false
+
+# Channel and room tests wait on messages, and 84 of them used ExUnit's 100 ms default.
+# The suite runs up to 32 cases at once, so a room that is merely slow to be scheduled
+# looked exactly like one that never replied: `mix test` failed on maybe one seed in six,
+# always somewhere different. A second is still instant when the message is coming and
+# only costs that second on a real failure. `refute_receive` keeps the short default —
+# proving a message never arrives is the one case where waiting is the whole cost.
+config :ex_unit, assert_receive_timeout: 1_000
 
 # Print only warnings and errors during test
 config :logger, level: :warning

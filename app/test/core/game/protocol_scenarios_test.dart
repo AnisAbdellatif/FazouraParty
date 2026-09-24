@@ -49,6 +49,7 @@ class _ScenarioRun {
     // The scripts name the question they expect next, so the pack has to be
     // played in its written order — `shuffle_questions?: false` on the server.
     shuffleQuestions: false,
+    broadcastGap: Duration.zero,
   );
 
   void run() {
@@ -99,6 +100,10 @@ class _ScenarioRun {
         _actor(name, label).latestState,
         label,
       );
+      return;
+    }
+    if (step['expect_closed'] case final String reason) {
+      expect(_actor(name, label).closedReason, reason, reason: label);
       return;
     }
     if (step['disconnect'] == true) {

@@ -304,6 +304,27 @@ void main() {
     expect((await store.list()).single.localId, saved.localId);
   });
 
+  test('an offline copy reads back private, not as a failed publish', () async {
+    // The archive it came in says "public" — it is somebody else's published
+    // quiz. Read back, the copy must still be this device's private one, or the
+    // browser offers to "try submitting again" something that is not ours.
+    final community = quiz('community-2', 'Community Night', count: 1).copyWith(
+      visibility: 'public',
+      questions: const [
+        QuizQuestion(prompt: 'First?', acceptedAnswers: ['1']),
+      ],
+    );
+    server.quizzes.add(community);
+
+    await library.saveCommunityQuiz(community);
+
+    final stored = (await store.list()).single;
+    expect(stored.quiz.visibility, 'private');
+    expect(stored.quiz.isOwner, isFalse);
+    expect(stored.inSync, isTrue);
+    expect(stored.quiz.questions!.single.acceptedAnswers, ['1']);
+  });
+
   test('downloads community quiz photos into the offline copy', () async {
     final community = quiz('community-photo', 'Picture Night').copyWith(
       questions: const [

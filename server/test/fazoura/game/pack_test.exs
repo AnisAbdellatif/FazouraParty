@@ -59,4 +59,38 @@ defmodule Fazoura.Game.PackTest do
     assert merged.default_time_limit_ms == 90_000
     assert merged.default_difficulty_multiplier
   end
+
+  describe "source_quiz/2" do
+    defp sourced(quiz_id, ids) do
+      %Pack{
+        titles: ["T"],
+        questions:
+          for id <- ids do
+            %Pack.Question{
+              id: id,
+              type: "text",
+              prompt: "?",
+              accepted_answers: ["a"],
+              time_limit_ms: 10_000,
+              quiz_id: quiz_id
+            }
+          end
+      }
+    end
+
+    test "a named question answers exactly, inline ones with nil" do
+      merged = Pack.merge([sourced("quiz-a", ["q1"]), sourced(nil, ["q1"])])
+
+      assert Pack.source_quiz(merged, "0-q1") == {:ok, "quiz-a"}
+      assert Pack.source_quiz(merged, "1-q1") == {:ok, nil}
+      assert Pack.source_quiz(merged, "nope") == {:error, :question_not_found}
+    end
+
+    test "without a question, only a pack of one quiz has an answer" do
+      assert Pack.source_quiz(sourced("quiz-a", ["q1", "q2"]), nil) == {:ok, "quiz-a"}
+
+      merged = Pack.merge([sourced("quiz-a", ["q1"]), sourced("quiz-b", ["q1"])])
+      assert Pack.source_quiz(merged, nil) == {:error, :question_not_found}
+    end
+  end
 end
