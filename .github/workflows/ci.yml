@@ -265,10 +265,14 @@ jobs:
       contents: write
     steps:
       # Full history so the tag object — and the message that becomes the release
-      # notes — is actually present.
+      # notes — is actually present. No token left in .git/config: this job's token
+      # can write releases, and the build below runs Gradle plugins and pub packages
+      # that have no business reading it. `gh` gets it from GH_TOKEN, and nothing
+      # here pushes with git.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
