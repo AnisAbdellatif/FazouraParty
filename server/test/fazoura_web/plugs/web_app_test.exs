@@ -75,6 +75,8 @@ defmodule FazouraWeb.Plugs.WebAppTest do
       assert response(served, 200)
       assert get_resp_header(served, "content-security-policy") == ["frame-ancestors 'none'"]
       assert get_resp_header(served, "x-frame-options") == ["DENY"]
+      assert get_resp_header(served, "x-content-type-options") == ["nosniff"]
+      assert get_resp_header(served, "referrer-policy") == ["no-referrer"]
     end
   end
 

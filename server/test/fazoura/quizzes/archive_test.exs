@@ -76,6 +76,42 @@ defmodule Fazoura.Quizzes.ArchiveTest do
         0::16>>
   end
 
+  defp deflate_zeros(bytes, chunk_bytes \\ 1024 * 1024) do
+    z = :zlib.open()
+    :zlib.deflateInit(z, :best_compression, :deflated, -15, 8, :default)
+    chunk = :binary.copy(<<0>>, chunk_bytes)
+
+    body =
+      Enum.reduce(1..div(bytes, chunk_bytes), [], fn _, acc -> [acc, :zlib.deflate(z, chunk)] end)
+
+    finish = :zlib.deflate(z, <<>>, :finish)
+    :zlib.deflateEnd(z)
+    :zlib.close(z)
+    IO.iodata_to_binary([body, finish])
+  end
+
+  defp handmade_zip(name, compressed, uncompressed) do
+    name_len = byte_size(name)
+    comp_size = byte_size(compressed)
+
+    local =
+      <<0x50, 0x4B, 0x03, 0x04, 20::little-16, 0::little-16, 8::little-16, 0::little-16,
+        0::little-16, 0::little-32, comp_size::little-32, uncompressed::little-32,
+        name_len::little-16, 0::little-16>> <> name <> compressed
+
+    central =
+      <<0x50, 0x4B, 0x01, 0x02, 20::little-16, 20::little-16, 0::little-16, 8::little-16,
+        0::little-16, 0::little-16, 0::little-32, comp_size::little-32, uncompressed::little-32,
+        name_len::little-16, 0::little-16, 0::little-16, 0::little-16, 0::little-16, 0::little-32,
+        0::little-32>> <> name
+
+    eocd =
+      <<0x50, 0x4B, 0x05, 0x06, 0::little-16, 0::little-16, 1::little-16, 1::little-16,
+        byte_size(central)::little-32, byte_size(local)::little-32, 0::little-16>>
+
+    local <> central <> eocd
+  end
+
   describe "round trip" do
     test "a package reads back as the document and photos it was built from" do
       photos = %{"media/still.png" => "not really a png, but bytes are bytes"}
@@ -197,6 +233,31 @@ defmodule Fazoura.Quizzes.ArchiveTest do
 
     test "a package of stored (uncompressed) entries reads too" do
       assert {:ok, %{photos: %{"media/a.png" => "abc"}}} = Archive.read(stored_zip())
+    end
+
+    test "a member that lies about its uncompressed size over a deflate bomb is refused" do
+      # `:zip.create` writes honest sizes, so we build the ZIP ourselves: a member that
+      # declares 64 uncompressed bytes in both its headers over a stream that really
+      # expands to 128 MB of zeros. The declared size is what a total-declared-size gate
+      # would trust; the reader ignores it and counts what it actually inflates, so the
+      # bomb is stopped at the ceiling. It never materialises: the whole file we hold is
+      # under a megabyte, and inflation is aborted once the output passes 48 MB — which is
+      # why reading a 128 MB expansion returns cleanly instead of exhausting memory.
+      compressed = deflate_zeros(128 * 1024 * 1024)
+      bomb = handmade_zip("media/bomb.png", compressed, 64)
+
+      assert byte_size(bomb) < 1024 * 1024
+      assert Archive.read(bomb) == {:error, :archive_too_large}
+    end
+
+    test "a package with a flood of tiny entries is refused" do
+      # Walking a member list is itself work, so a package that carries more entries than
+      # any honest quiz could is turned away before any of them is read.
+      entries =
+        [{"manifest.json", Jason.encode!(%{quiz: document()})}] ++
+          for(i <- 1..3000, do: {"media/#{i}.png", "x"})
+
+      assert entries |> zip() |> Archive.read() == {:error, :archive_too_large}
     end
   end
 end
