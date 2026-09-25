@@ -60,7 +60,7 @@ defmodule FazouraWeb.Plugs.WebApp do
 
   defp serve(conn, dir) do
     Plug.Static.call(
-      conn,
+      secure_headers(conn),
       Plug.Static.init(
         at: "/",
         from: dir,
@@ -79,6 +79,7 @@ defmodule FazouraWeb.Plugs.WebApp do
 
     if File.regular?(index) do
       conn
+      |> secure_headers()
       |> Plug.Conn.put_resp_content_type("text/html")
       |> Plug.Conn.put_resp_header("cache-control", @cache_control)
       |> Plug.Conn.send_file(200, index)
@@ -86,5 +87,19 @@ defmodule FazouraWeb.Plugs.WebApp do
     else
       conn
     end
+  end
+
+  # The app is never meant to be embedded, so it declares itself unframeable
+  # (`X-Frame-Options` and the CSP `frame-ancestors`, together, for old and new
+  # browsers) — otherwise any page could iframe a live host's screen and trick them
+  # into an overlaid tap (clickjacking). `nosniff` keeps a browser from second-guessing
+  # a content type. The CSP carries *only* `frame-ancestors`: a stricter policy would
+  # need `wasm-unsafe-eval` and more for Flutter's CanvasKit/wasm and is a separate job.
+  defp secure_headers(conn) do
+    conn
+    |> Plug.Conn.put_resp_header("x-frame-options", "DENY")
+    |> Plug.Conn.put_resp_header("content-security-policy", "frame-ancestors 'none'")
+    |> Plug.Conn.put_resp_header("x-content-type-options", "nosniff")
+    |> Plug.Conn.put_resp_header("referrer-policy", "strict-origin-when-cross-origin")
   end
 end
