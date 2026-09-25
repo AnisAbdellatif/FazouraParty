@@ -59,7 +59,7 @@ ENV MIX_ENV=prod \
     UPLOADS_DIR=/data/uploads \
     PACKAGES_DIR=/data/packages
 
-# Question photos outlive the image: compose.yaml mounts a volume here, and a
+# Question photos outlive the image: deploy/deploy.yml mounts a volume here, and a
 # fresh volume inherits this ownership, so `nobody` can still write to it.
 RUN mkdir -p /data/uploads && chown -R nobody:root /data
 
@@ -72,5 +72,8 @@ COPY --chown=nobody:root app/build/web ./web
 
 USER nobody
 EXPOSE 4000
+
+# Kamal refuses to deploy an image without its service's label (deploy/deploy.yml).
+LABEL service="fazoura"
 
 CMD ["/app/bin/fazoura", "start"]

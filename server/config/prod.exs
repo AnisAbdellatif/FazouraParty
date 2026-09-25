@@ -11,7 +11,10 @@ if System.get_env("FORCE_SSL", "true") == "true" do
     force_ssl: [
       rewrite_on: [:x_forwarded_proto],
       exclude: [
-        # paths: ["/health"],
+        # kamal-proxy's health check is plain HTTP to the container's own address
+        # (deploy/deploy.yml), and a new container only takes traffic once it answers
+        # 200 — a redirect would fail every deploy.
+        paths: ["/health"],
         hosts: ["localhost", "127.0.0.1"]
       ]
     ]

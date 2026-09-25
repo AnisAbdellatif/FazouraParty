@@ -4,7 +4,8 @@ defmodule Fazoura.Release do
 
       bin/fazoura eval "Fazoura.Release.setup()"
 
-  The deploy job runs this with the new image before the old container stops.
+  A deploy runs this from the new image before any of its containers starts
+  (`.kamal/steps/migrate`), while the old one is still serving.
   """
 
   @app :fazoura

@@ -22,7 +22,7 @@ comparison will ever agree.
 | [`server/`](server/) | Elixir/Phoenix: rooms, channels, scoring, the quiz library and the admin dashboard. |
 | [`app/`](app/) | Flutter client — Android and Web (installable as a PWA). |
 | [`tools/fazoura-cli/`](tools/fazoura-cli/) | `fazoura`, the game from a terminal: host, join, bots, the quiz library, publishing and packing — on the app's own client code. |
-| [`deploy/`](deploy/) | Dockerfile, compose stack and the VPS deployment, driven from CI. |
+| [`deploy/`](deploy/) | Dockerfile, the Kamal config for the VPS, the site the host's Caddy imports, the deploy rehearsal and the local stack. |
 | [`design/`](design/) | Visual source: the design prototype and the icon artwork everything is generated from. |
 | [`store_listing/`](store_listing/) | The Google Play listing: descriptions, feature graphic and phone screenshots. |
 | [`AGENTS.md`](AGENTS.md) | The rules of the repo. Read it before changing anything. |
@@ -150,8 +150,18 @@ What one broadcast costs inside the server, without sockets, is measured by the 
 
 ## Deploying
 
-A push to `main` runs both suites, builds an image, pushes it to GitHub Container
-Registry and restarts the VPS over SSH. See [`deploy/README.md`](deploy/README.md).
+A push to `main` runs every suite, builds the image, pushes it to GitHub Container
+Registry and signs where it came from. Deploying it is a person's job, with
+[deploy-kit](https://github.com/AnisAbdellatif/deploy-kit) and Kamal, from a checkout of
+`main`:
+
+```bash
+.kamal/kit/bin/kit deploy
+```
+
+which refuses unless CI passed for that commit and the image carries CI's attestation,
+migrates, swaps the container with no downtime, and rolls back if the site does not
+answer afterwards. See [`deploy/README.md`](deploy/README.md).
 
 ## Releasing the Android app
 
@@ -209,8 +219,8 @@ other password you typed fails at signing time with `UnrecoverableKeyException`.
 deprecated `-storetype JKS` keeps the two genuinely separate.)
 
 The APK also needs to know which server to talk to — Android has no origin to infer one
-from — so the `PUBLIC_HOST` repository variable must be set; it is the same one the deploy
-job smoke-checks against.
+from — so the `PUBLIC_HOST` repository variable must be set to the domain the server is
+deployed at.
 
 The release job runs in the `production` environment, so that a signing key is not a
 repository-wide secret. If that environment restricts deployment branches, allow tags too

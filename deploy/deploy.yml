@@ -1,0 +1,120 @@
+# The production stack as Kamal runs it (deploy/README.md), from deploy-kit's
+# "behind-caddy" preset: the host's own Caddy keeps 80/443 and TLS, and
+# kamal-proxy, on loopback behind it, swaps the app's container with no downtime.
+#
+#   Internet ─443─► Caddy (the host's) ─► 127.0.0.1:8080 kamal-proxy ─► web (:4000)
+#                                                                        └─► fazoura-db
+#
+# Deployed with deploy-kit (.kamal/, `.kamal/kit/bin/kit deploy`), whose gates run
+# for a plain `kamal` command too. The image is built by CI on main, labelled and
+# attested (.github/workflows/ci.yml), and only ever pulled here: the web app inside
+# it comes from a Flutter build, which Kamal's own builder has no way to produce.
+#
+# The server, its user and the public domain come from the environment
+# (.kamal/kit.local.env, git-ignored; the kit exports it). The app's secrets never
+# leave the server: both containers read the .env there with --env-file, so the
+# machine that deploys holds nothing but the registry token. Docker reads that file
+# literally — no quotes around values.
+<%
+  host = ENV.fetch("FAZOURA_HOST") { raise "FAZOURA_HOST isn't set: put the server in .kamal/kit.local.env" }
+  public_host = ENV.fetch("FAZOURA_PUBLIC_HOST") { raise "FAZOURA_PUBLIC_HOST isn't set: put the domain in .kamal/kit.local.env" }
+  dir = ENV.fetch("FAZOURA_DEPLOY_DIR", "/srv/fazoura")
+  # The volumes the compose stack created (fazoura_pgdata, fazoura_uploads): they
+  # hold everything that cannot be rebuilt, so they carry over under their names.
+  vol = ENV.fetch("FAZOURA_VOLUME_PREFIX", "fazoura")
+%>
+service: fazoura
+image: anisabdellatif/fazouraparty
+
+servers:
+  web:
+    hosts: [<%= host %>]
+    options:
+      env-file: <%= dir %>/.env
+      # The same for every other stop: Docker's own on a restart or a reboot.
+      stop-timeout: 30
+    # Rooms.Drain tells every live game the server is going away before it stops;
+    # Docker's default of 10s for a proxied role can cut that short. This is how long
+    # Kamal's stop waits, when a deploy replaces the container.
+    stop_timeout: 30
+
+env:
+  clear:
+    # Two proxies append to X-Forwarded-For before the app reads it — Caddy (the
+    # visitor) and kamal-proxy (Caddy) — so the visitor is the second entry from
+    # the right (FazouraWeb.ClientIp). Honest only because kamal-proxy listens on
+    # loopback and the app publishes nothing.
+    TRUST_PROXY: "2"
+
+volumes:
+  # Published question photos. Losing this loses every photo on every public quiz.
+  - <%= vol %>_uploads:/data/uploads
+  # Copy a `.fazoura` package in here and the next seed adds it (QUIZ_FORMAT.md §6).
+  # Read-only: seeding reads them and nothing writes back.
+  - <%= dir %>/packages:/data/packages:ro
+
+proxy:
+  # kamal-proxy routes on the Host header Caddy passes on.
+  host: <%= public_host %>
+  app_port: 4000
+  # Caddy terminates TLS; kamal-proxy speaks plain HTTP to it and keeps Caddy's
+  # X-Forwarded-For and X-Forwarded-Proto (Phoenix's force_ssl reads the latter).
+  ssl: false
+  forward_headers: true
+  # kamal-proxy moves traffic to a new container once this answers 200. force_ssl
+  # leaves the path alone (config/prod.exs): the check is plain HTTP by container IP.
+  healthcheck:
+    path: /health
+    interval: 3
+    timeout: 3
+  # Responses go straight through, as they did from Caddy alone: the web build's
+  # largest files would otherwise wait in the proxy until the last byte.
+  buffering:
+    responses: false
+  # One kamal-proxy per server, shared by every Kamal app deployed there: every
+  # project on this server must use this same `run` block.
+  run:
+    http_port: 8080
+    https_port: 8443
+    # Reachable only from this machine, i.e. only through Caddy.
+    bind_ips: [127.0.0.1]
+    # kamal-proxy logs every request with the visitor's address, and the privacy
+    # policy promises an IP address is never stored. There is no switch for that
+    # log, so it goes nowhere; the app's own logs carry no addresses.
+    log_max_size: ""
+    options:
+      log-driver: none
+
+accessories:
+  # The container is fazoura-db on Kamal's network, which DATABASE_URL names.
+  db:
+    image: postgres:18-trixie
+    host: <%= host %>
+    options:
+      # POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, from the same file as the app.
+      env-file: <%= dir %>/.env
+    volumes:
+      # The parent, not .../data: Postgres 18 keeps its cluster in a versioned
+      # subdirectory, and mounting the parent works either way.
+      - <%= vol %>_pgdata:/var/lib/postgresql
+
+# The token is read-only (read:packages): CI pushes, a deploy only pulls.
+registry:
+  server: ghcr.io
+  username: anisabdellatif
+  password: [KAMAL_REGISTRY_PASSWORD]
+
+builder:
+  arch: amd64
+
+ssh:
+  user: <%= ENV.fetch("FAZOURA_SSH_USER", "deploy") %>
+  port: <%= ENV.fetch("FAZOURA_SSH_PORT", 22) %>
+
+# Migrations and the quiz seed run before any container starts (.kamal/steps/migrate),
+# so a new container only has to boot.
+deploy_timeout: 60
+retain_containers: 5
+
+# Show what each of the kit's gates and steps decided, not only when one fails.
+hooks_output: verbose

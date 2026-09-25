@@ -1,7 +1,11 @@
 name: CI
 
 # Every push and pull request runs both suites and builds the image. Only a push to
-# main pushes that image to ghcr.io and deploys it to the VPS over SSH.
+# main pushes that image to ghcr.io, labelled for Kamal and with a signed build
+# attestation. CI deploys nothing and holds no server key or app secret: a person
+# deploys with deploy-kit (`.kamal/kit/bin/kit deploy`), which checks that this
+# workflow passed for the exact commit and that the image carries its attestation
+# (deploy/README.md).
 #
 # A `v*` tag is the other thing that happens here: the same suites run, and then the
 # signed Android APK is built and published as a GitHub release (README, "Releasing
@@ -111,9 +115,10 @@ jobs:
     permissions:
       contents: read
       packages: write
-    outputs:
-      image: ${{ steps.name.outputs.image }}
-      tag: ${{ steps.name.outputs.tag }}
+      # The build attestation: signed (Sigstore, keyless) by this workflow, and
+      # checked by the kit's attestation step before a deploy.
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -123,8 +128,8 @@ jobs:
           path: app/build/web
 
       - id: name
-        # The commit sha is what gets deployed; `latest` is a convenience alias so
-        # manual compose commands on the VPS find the same image.
+        # The full commit sha is the version Kamal deploys (deploy/deploy.yml), and
+        # the only tag: nothing on the server asks for `latest`.
         run: |
           echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
           echo "tag=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
@@ -146,6 +151,7 @@ jobs:
         run: echo "$TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
 
       - name: Build the image
+        id: build
         env:
           IMAGE: ${{ steps.name.outputs.image }}
           TAG: ${{ steps.name.outputs.tag }}
@@ -156,101 +162,33 @@ jobs:
         #
         # A pull request reads the registry cache but does not write it, so it cannot
         # poison the cache main builds from.
+        #
+        # The digest is what the attestation below signs, so it is read from what was
+        # pushed rather than trusted from the tag.
         run: |
           args=(--file deploy/Dockerfile --cache-from "type=registry,ref=$IMAGE:buildcache")
           if [ "$PUSH" = true ]; then
             args+=(--cache-to "type=registry,ref=$IMAGE:buildcache,mode=max")
-            args+=(--push --tag "$IMAGE:$TAG" --tag "$IMAGE:latest")
+            args+=(--push --tag "$IMAGE:$TAG" --metadata-file "$RUNNER_TEMP/build.json")
           else
             args+=(--output type=cacheonly)
           fi
           docker buildx create --use
           docker buildx build "${args[@]}" .
-
-  deploy:
-    name: Deploy
-    needs: image
-    if: github.event_name == 'push' && github.ref_name == 'main' && vars.DEPLOY_HOST != ''
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    environment: production
-    # Deploys queue rather than race; cancelling one halfway would leave the stack
-    # between two images.
-    concurrency:
-      group: deploy-main
-      cancel-in-progress: false
-    permissions:
-      contents: read
-      packages: read
-    env:
-      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
-      DEPLOY_USER: ${{ vars.DEPLOY_USER || 'fazoura' }}
-      DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
-      DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/srv/fazoura' }}
-      # Fail rather than wait for a password or a host key confirmation nobody can type.
-      SSH_OPTIONS: -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up SSH
-        env:
-          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
-        # A secret stored only in another environment arrives empty here, which would
-        # otherwise fail later with an unhelpful ssh error.
-        run: |
-          if [ -z "$SSH_KEY" ] || [ -z "$KNOWN_HOSTS" ]; then
-            echo "::error::DEPLOY_SSH_KEY or DEPLOY_KNOWN_HOSTS is empty in the 'production' environment. See deploy/README.md."
-            exit 1
+          if [ "$PUSH" = true ]; then
+            digest=$(jq -r '."containerimage.digest"' "$RUNNER_TEMP/build.json")
+            case "$digest" in sha256:*) ;; *) echo "::error::no digest for the pushed image"; exit 1 ;; esac
+            echo "digest=$digest" >> "$GITHUB_OUTPUT"
           fi
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
-          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
 
-      - name: Copy the stack definition
-        # Only this one. deploy/.env belongs to the VPS and is never shipped,
-        # packages/ holds what someone put there, and Caddy runs on the host with a
-        # configuration this repository does not own.
-        run: |
-          scp -i ~/.ssh/deploy_key $SSH_OPTIONS -P "$DEPLOY_PORT" \
-            deploy/compose.yaml \
-            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
-
-      - name: Make sure the packages drop folder exists
-        # compose bind-mounts it, so without this Docker creates it as root and nobody
-        # can copy a quiz in without sudo.
-        run: |
-          ssh -i ~/.ssh/deploy_key $SSH_OPTIONS -p "$DEPLOY_PORT" \
-            "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DEPLOY_PATH/packages'"
-
-      - name: Pull, migrate and restart
-        env:
-          IMAGE: ${{ needs.image.outputs.image }}
-          TAG: ${{ needs.image.outputs.tag }}
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # The registry token goes in through stdin, never on a command line, and the
-        # session logs out again as soon as the image is local. Migrations run with the
-        # new image before the old container stops; Release.setup/0 is idempotent, so a
-        # re-run of a failed deploy is safe.
-        run: |
-          echo "$TOKEN" | ssh -i ~/.ssh/deploy_key $SSH_OPTIONS -p "$DEPLOY_PORT" \
-            "$DEPLOY_USER@$DEPLOY_HOST" \
-            "set -eu
-             cd '$DEPLOY_PATH'
-             docker login ghcr.io --username '$GITHUB_ACTOR' --password-stdin
-             docker pull '$IMAGE:$TAG'
-             docker logout ghcr.io
-             docker tag '$IMAGE:$TAG' '$IMAGE:latest'
-             export APP_IMAGE='$IMAGE' APP_TAG='$TAG'
-             docker compose run --rm --no-TTY app bin/fazoura eval 'Fazoura.Release.setup()'
-             docker compose up --detach --wait --remove-orphans
-             docker image prune --all --force --filter until=336h"
-
-      - name: Smoke check
-        env:
-          URL: https://${{ vars.PUBLIC_HOST || vars.DEPLOY_HOST }}/health
-        run: curl --fail --silent --show-error --retry 5 --retry-delay 5 --retry-connrefused "$URL"
+      # Where the image came from, signed. `kit deploy` refuses an image without this
+      # workflow's attestation, so a leaked registry token cannot put one in production.
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: steps.publish.outputs.push == 'true'
+        with:
+          subject-name: ${{ steps.name.outputs.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
 
   release:
     name: Release (Android)
@@ -306,8 +244,8 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           # Android is not served from anywhere, so the server it talks to is baked
-          # in. PUBLIC_HOST is the same variable the deploy job smoke-checks against.
-          PUBLIC_HOST: ${{ vars.PUBLIC_HOST || vars.DEPLOY_HOST }}
+          # in: the domain the server is deployed at (FAZOURA_PUBLIC_HOST to the kit).
+          PUBLIC_HOST: ${{ vars.PUBLIC_HOST }}
           # scripts/ci.sh refuses to build if this disagrees with app/pubspec.yaml.
           RELEASE_TAG: ${{ github.ref_name }}
         run: |

@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# pre-deploy: migrations and the quiz seed (Fazoura.Release.setup/0) from the image
+# being deployed, before any of its containers starts — so a new container only has
+# to boot, and a failed migration stops the deploy with the old one still serving.
+#
+# A container of its own on the server, with the app's env file and volumes (the seed
+# writes photos to the uploads volume and reads the packages dropped there). Not
+# `kamal app exec`: that also hands the container the env file Kamal uploads when it
+# boots a role, which the first deploy has not done yet.
+#
+# Not on a rollback: that goes back to a build whose migrations already ran, and
+# re-seeding from it would put the older copies of the shipped quizzes back.
+# shellcheck source=/dev/null
+. "$KIT_HOME/steps/_preamble.sh"
+# shellcheck source=/dev/null
+. "$KIT_HOME/lib/kamal.sh"
+
+if [ "${KAMAL_COMMAND:-}" = rollback ]; then
+  kit_info "rollback: no migrations or seed (they ran when this build was deployed)"
+  exit 0
+fi
+
+# The image and the volumes as Kamal has them, so this never drifts from deploy.yml.
+config=$(kit_kamal config)
+repository=$(printf '%s\n' "$config" | sed -n 's/^:repository: //p')
+volumes=$(printf '%s\n' "$config" | awk '
+  /^:volume_args:/ { inside = 1; next }
+  inside && /^- / { sub(/^- /, ""); gsub(/^"|"$/, ""); printf "%s ", $0; next }
+  inside { exit }')
+[ -n "$repository" ] || kit_die "could not read the image from \`kamal config\`"
+# The same default as deploy.yml's.
+env_file=${FAZOURA_DEPLOY_DIR:-/srv/fazoura}/.env
+
+kit_kamal server exec -H -q -p \
+  "docker run --rm --network kamal --env-file $env_file $volumes$repository:${KAMAL_VERSION:?} bin/fazoura eval 'Fazoura.Release.setup()'"
+kit_ok "migrated and seeded with ${KAMAL_VERSION}"
