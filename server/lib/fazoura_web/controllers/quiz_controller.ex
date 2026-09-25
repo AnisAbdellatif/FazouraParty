@@ -3,10 +3,11 @@ defmodule FazouraWeb.QuizController do
 
   use FazouraWeb, :controller
 
-  import FazouraWeb.ApiHelpers, only: [owner_key: 1, int_param: 2, error: 4]
+  import FazouraWeb.ApiHelpers, only: [owner_key: 1, int_param: 2, error: 4, report_counts?: 1]
 
-  alias Fazoura.Quizzes
+  alias Fazoura.{Quizzes, RateLimit}
   alias Fazoura.Quizzes.{Reports, Review}
+  alias Fazoura.Rooms.Listing
 
   action_fallback FazouraWeb.FallbackController
 
@@ -51,13 +52,20 @@ defmodule FazouraWeb.QuizController do
   # An explicit download is the opt-in answer leak required to play a
   # community quiz offline. Normal browsing remains summary-only.
   def download(conn, %{"id" => id}) do
-    with {:ok, quiz} <- Quizzes.fetch(id) do
-      json(conn, Quizzes.to_document(quiz, owner?: true))
+    key = owner_key(conn)
+
+    with {:ok, quiz} <- Quizzes.fetch(id),
+         :ok <- not_in_play(quiz) do
+      json(
+        conn,
+        Quizzes.to_document(quiz, owner?: Quizzes.owner?(quiz, key), with_answers: true)
+      )
     end
   end
 
   def archive(conn, %{"id" => id}) do
     with {:ok, quiz} <- Quizzes.fetch(id),
+         :ok <- not_in_play(quiz),
          {:ok, binary} <- Quizzes.archive(quiz) do
       conn
       |> put_resp_content_type("application/zip")
@@ -74,6 +82,7 @@ defmodule FazouraWeb.QuizController do
   # read it.
   def create(conn, %{"file" => %Plug.Upload{path: path}}) do
     with {:ok, package} <- File.read(path),
+         :ok <- meter_submission(conn, package),
          {:ok, submission} <- Review.submit(package, owner_key(conn)) do
       conn |> put_status(:created) |> json(Review.to_document(submission))
     end
@@ -85,6 +94,7 @@ defmodule FazouraWeb.QuizController do
   # means nothing: publish something harmless, then swap its contents.
   def update(conn, %{"id" => id, "file" => %Plug.Upload{path: path}}) do
     with {:ok, package} <- File.read(path),
+         :ok <- meter_submission(conn, package),
          {:ok, submission} <- Review.submit(package, owner_key(conn), replaces: id) do
       json(conn, Review.to_document(submission))
     end
@@ -132,8 +142,45 @@ defmodule FazouraWeb.QuizController do
   # already dismissed one. That is moderation state, and handing it back would
   # let anybody probe it.
   def report(conn, %{"id" => id} = params) do
-    with {:ok, _report} <- Reports.submit(id, owner_key(conn), params) do
+    if report_counts?(conn) do
+      with {:ok, _report} <- Reports.submit(id, owner_key(conn), params) do
+        send_resp(conn, :no_content, "")
+      end
+    else
       send_resp(conn, :no_content, "")
+    end
+  end
+
+  # Both carry every accepted answer (§5.3a, §5.3b); see `Rooms.Listing.in_play?/1`.
+  defp not_in_play(quiz),
+    do: if(Listing.in_play?(quiz.id), do: {:error, :quiz_in_play}, else: :ok)
+
+  # What one address may put in the review queue in a day, by count and by bytes. The
+  # queue's per-key cap cannot do this: a publisher key is whatever the caller sends,
+  # so a caller with several could fill the queue for everybody within minutes.
+  @submissions_per_day 10
+  @submission_bytes_per_day 128 * 1024 * 1024
+  @day_ms 86_400_000
+
+  defp meter_submission(conn, package) do
+    address = FazouraWeb.ClientIp.from_conn(conn)
+
+    if Application.get_env(:fazoura, :rate_limit_enabled, true) do
+      with :ok <- RateLimit.check(:submissions, address, @submissions_per_day, @day_ms),
+           :ok <-
+             RateLimit.check(
+               :submission_bytes,
+               address,
+               @submission_bytes_per_day,
+               @day_ms,
+               max(byte_size(package), 1)
+             ) do
+        :ok
+      else
+        {:error, :rate_limited} -> {:error, :daily_submissions}
+      end
+    else
+      :ok
     end
   end
 end

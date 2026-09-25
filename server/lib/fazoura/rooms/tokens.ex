@@ -1,18 +1,31 @@
 defmodule Fazoura.Rooms.Tokens do
   @moduledoc """
   The two signed tokens a room issues (PROTOCOL.md §3.3), and the checks made on them.
+  Each is signed for the room's `scope/1`, not merely its code.
 
   A **host token** names a room and a *generation*: the room bumps the generation every
   time the role changes hands (§3.4), so a token minted for an earlier holder stops
   verifying and a demoted host cannot take the room back. A **player token** names a
   room and a player id, and is what lets a player rejoin as themselves.
 
-  Pure: no process, no room state. `Fazoura.Rooms.RoomServer` supplies the room code,
+  Pure: no process, no room state. `Fazoura.Rooms.RoomServer` supplies the room's scope,
   the generation in force and whether a player id belongs to the room.
   """
 
   @endpoint FazouraWeb.Endpoint
   @max_age_s 86_400
+
+  @doc """
+  What a room's tokens are signed for: its code and a random value of its own.
+
+  The code alone is not enough. Codes are reused once a room closes, and a token lives
+  for a day, so a token from a room that has ended would otherwise open whichever room
+  drew its code next — as host, at generation 0, for anybody who had created and
+  abandoned rooms to collect them.
+  """
+  @spec scope(String.t()) :: String.t()
+  def scope(code),
+    do: code <> "/" <> Base.url_encode64(:crypto.strong_rand_bytes(12), padding: false)
 
   @spec host_token(String.t(), non_neg_integer()) :: String.t()
   def host_token(code, generation \\ 0),

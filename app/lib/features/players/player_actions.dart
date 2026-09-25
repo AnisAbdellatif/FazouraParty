@@ -113,7 +113,6 @@ class _PlayerRow extends ConsumerWidget {
     final sure = await showDialog<bool>(
       context: context,
       builder: (dialog) => AlertDialog(
-        backgroundColor: FzColors.bg,
         title: Text('Remove ${player.name}?'),
         content: const Text(
           'They leave the room now and cannot come back as themselves. '
@@ -121,11 +120,13 @@ class _PlayerRow extends ConsumerWidget {
         ),
         actions: [
           TextButton(
+            style: TextButton.styleFrom(foregroundColor: FzColors.dim),
             onPressed: () => Navigator.of(dialog).pop(false),
             child: const Text('Cancel'),
           ),
           TextButton(
             key: const Key('confirmRemovePlayer'),
+            style: TextButton.styleFrom(foregroundColor: FzColors.ac2),
             onPressed: () => Navigator.of(dialog).pop(true),
             child: const Text('Remove'),
           ),

@@ -5,7 +5,7 @@ defmodule FazouraWeb.FallbackController do
 
   import FazouraWeb.ApiHelpers, only: [error: 4, error: 5]
 
-  alias Fazoura.Quizzes.Report
+  alias Fazoura.Quizzes.{Report, Review}
 
   # A submission that is not this device's, or is gone (QUIZ_FORMAT.md §4).
   def call(conn, {:error, :not_found}),
@@ -18,6 +18,60 @@ defmodule FazouraWeb.FallbackController do
         :unprocessable_entity,
         "invalid_quiz",
         "That package is not a quiz with a title and at least one question."
+      )
+
+  # A package that cannot be read, each by its own code (QUIZ_FORMAT.md §5.4). These
+  # used to have no clause here, so a file that was not a ZIP answered 500.
+  def call(conn, {:error, reason})
+      when reason in [:archive_too_large, :invalid_archive, :manifest_missing, :manifest_invalid],
+      do:
+        error(
+          conn,
+          :unprocessable_entity,
+          Atom.to_string(reason),
+          if(reason == :archive_too_large,
+            do: "That package is too large, or unpacks into far more than a quiz needs.",
+            else: "That file isn't a readable .fazoura package."
+          )
+        )
+
+  def call(conn, {:error, :too_many_submissions}),
+    do:
+      error(
+        conn,
+        :too_many_requests,
+        "too_many_submissions",
+        "You already have #{Review.max_pending_per_owner()} quizzes " <>
+          "waiting for review. Try again once some have been read."
+      )
+
+  # The same code as the per-key cap: to the author it is the same thing, "not now".
+  def call(conn, {:error, :daily_submissions}),
+    do:
+      error(
+        conn,
+        :too_many_requests,
+        "too_many_submissions",
+        "That is as many quizzes as can be sent for review from here today. " <>
+          "Try again tomorrow."
+      )
+
+  def call(conn, {:error, :review_queue_full}),
+    do:
+      error(
+        conn,
+        :service_unavailable,
+        "review_queue_full",
+        "The review queue is full right now. Try again later."
+      )
+
+  def call(conn, {:error, :quiz_in_play}),
+    do:
+      error(
+        conn,
+        :conflict,
+        "quiz_in_play",
+        "A public room is playing this quiz right now. Try again once its game is over."
       )
 
   def call(conn, {:error, :quiz_not_found}),

@@ -7,6 +7,7 @@ defmodule FazouraWeb.AdminLiveTest do
 
   alias Fazoura.{QuizFixtures, Quizzes, Repo, Rooms, Settings, Uploads}
   alias Fazoura.Quizzes.{Archive, Quiz, Tag}
+  alias FazouraWeb.Plugs.AdminAuth
 
   @username "admin"
   @password "test-admin-password"
@@ -53,6 +54,43 @@ defmodule FazouraWeb.AdminLiveTest do
 
       assert build_conn() |> get(~p"/admin") |> response(404)
       assert build_conn() |> as_admin() |> get(~p"/admin/quizzes") |> response(404)
+    end
+  end
+
+  describe "sessions and guessing" do
+    test "a session ends when the password it was let in with changes", %{conn: conn} do
+      session = conn |> get(~p"/admin") |> get_session()
+      assert AdminAuth.admin_session?(session)
+
+      Application.put_env(:fazoura, :admin, username: @username, password: "a-new-password")
+
+      on_exit(fn ->
+        Application.put_env(:fazoura, :admin, username: @username, password: @password)
+      end)
+
+      # What an open LiveView reconnects with; it no longer lets anybody in.
+      refute AdminAuth.admin_session?(session)
+
+      Application.put_env(:fazoura, :admin, username: nil, password: nil)
+      refute AdminAuth.admin_session?(session)
+    end
+
+    test "wrong passwords are cut off, the right one included, for a while" do
+      Application.put_env(:fazoura, :rate_limit_enabled, true)
+      Fazoura.RateLimit.reset()
+
+      on_exit(fn ->
+        Application.put_env(:fazoura, :rate_limit_enabled, false)
+        Fazoura.RateLimit.reset()
+      end)
+
+      # A browser's first, credential-less request is not a failure.
+      for _ <- 1..20, do: assert(build_conn() |> get(~p"/admin") |> response(401))
+
+      for _ <- 1..10,
+          do: assert(build_conn() |> as_admin("wrong") |> get(~p"/admin") |> response(401))
+
+      assert build_conn() |> as_admin() |> get(~p"/admin") |> response(429)
     end
   end
 
@@ -751,6 +789,38 @@ defmodule FazouraWeb.AdminLiveTest do
       assert html =~ "1 waiting"
       # The quiz from the setup is already public, so it is not in the queue.
       refute html =~ "Movie Night"
+    end
+
+    test "a submission shows everything approving it would publish", %{conn: conn} do
+      # An explanation and a photo description are published with the quiz, so the
+      # person approving it has to have seen them.
+      package =
+        QuizFixtures.package(
+          %{
+            "title" => "Read me",
+            "questions" => [
+              %{
+                "type" => "text_photo",
+                "prompt" => "What is this?",
+                "accepted_answers" => ["a"],
+                "explanation" => "Said in the explanation",
+                "image" => %{"path" => "media/still.png", "alt" => "Said in the alt text"}
+              }
+            ]
+          },
+          %{"media/still.png" => QuizFixtures.png()}
+        )
+
+      {:ok, submission} = Review.submit(package, "k-" <> String.duplicate("e", 40))
+      {:ok, live, _html} = live(conn, ~p"/admin/review")
+
+      html =
+        live
+        |> element(~s(button[phx-click="open"][phx-value-id="#{submission.id}"]))
+        |> render_click()
+
+      assert html =~ "Said in the explanation"
+      assert html =~ "Said in the alt text"
     end
 
     test "approving publishes the quiz, and only then", %{conn: conn} do

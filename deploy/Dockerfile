@@ -46,14 +46,20 @@ RUN apt-get update -y \
 RUN sed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen
 ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8
 
+# No Erlang distribution. `bin/fazoura start` would otherwise open EPMD and a
+# distribution port on every interface of the container, guarded only by the cookie
+# `mix release` wrote into this image — readable by anyone who can pull it. Nothing
+# here needs a second node, and `bin/fazoura eval` (migrations, Release.setup) works
+# without one; `bin/fazoura remote` does not, by design.
 ENV MIX_ENV=prod \
+    RELEASE_DISTRIBUTION=none \
     PHX_SERVER=true \
     PORT=4000 \
     WEB_DIR=/app/web \
     UPLOADS_DIR=/data/uploads \
     PACKAGES_DIR=/data/packages
 
-# Question photos outlive the image: compose.yaml mounts a volume here, and a
+# Question photos outlive the image: deploy/deploy.yml mounts a volume here, and a
 # fresh volume inherits this ownership, so `nobody` can still write to it.
 RUN mkdir -p /data/uploads && chown -R nobody:root /data
 
@@ -66,5 +72,8 @@ COPY --chown=nobody:root app/build/web ./web
 
 USER nobody
 EXPOSE 4000
+
+# Kamal refuses to deploy an image without its service's label (deploy/deploy.yml).
+LABEL service="fazoura"
 
 CMD ["/app/bin/fazoura", "start"]

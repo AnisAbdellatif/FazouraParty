@@ -51,6 +51,10 @@ void main() {
     expect(first, hasLength(43));
     expect(await context().ownerKey(), first);
     expect(File('${tmp.path}/owner_key').readAsStringSync().trim(), first);
+    if (!Platform.isWindows) {
+      // Only this user may read it: the key unpublishes this machine's quizzes.
+      expect(File('${tmp.path}/owner_key').statSync().mode & 0x1FF, 0x180);
+    }
 
     final other = Context(
       server: 'http://localhost:4000',

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -119,6 +120,9 @@ class FakeQuizServer {
   List<String> suggestedTags = defaultQuizTags;
 
   bool failLists = false;
+
+  /// While set, `GET /api/quizzes` waits for it: a list still on its way.
+  Completer<void>? holdLists;
   bool failWrites = false;
   bool failArchives = false;
   int _ids = 0;
@@ -201,6 +205,7 @@ class FakeQuizServer {
     final query = request.url.queryParameters;
 
     if (request.method == 'GET' && path == '/api/quizzes') {
+      await holdLists?.future;
       if (failLists) return _json({'code': 'boom'}, 500);
       final search = query['q']?.toLowerCase();
       final tag = query['tag'];

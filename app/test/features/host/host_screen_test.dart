@@ -92,9 +92,9 @@ void main() {
       expect(find.text('PAUSED · 12s'), findsOneWidget);
       expect(find.byType(Switch), findsNothing);
 
-      // Paused question: Resume enabled, Pause disabled.
+      // Paused question: the one control offers Resume, not Pause.
+      expect(find.byKey(const Key('hostPauseButton')), findsNothing);
       await tester.tap(find.byKey(const Key('hostResumeButton')));
-      await tester.tap(find.byKey(const Key('hostPauseButton')));
       await tester.pump();
       expect(fake.resumeCalls, 1);
       expect(fake.pauseCalls, 0);

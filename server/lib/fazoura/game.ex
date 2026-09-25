@@ -17,7 +17,7 @@ defmodule Fazoura.Game do
   # the minor and leaves every installed app working. Changing or removing
   # anything a client already relies on moves the major, and that is a cutover.
   @protocol_major 9
-  @protocol_minor 9
+  @protocol_minor 10
   # Points per question by difficulty (PROTOCOL.md §9). A wrong answer costs more on an
   # easy question than on a hard one: you are expected to know the easy ones, and a hard
   # one is worth a guess. Letting the question go by costs @skip_points whatever its
@@ -83,10 +83,12 @@ defmodule Fazoura.Game do
         }
   @type points :: %{right: integer(), wrong: integer()}
   @type submission :: %{
-          answer: String.t(),
-          auto_correct: boolean(),
-          override: boolean() | nil,
-          points: points()
+          required(:answer) => String.t(),
+          required(:auto_correct) => boolean(),
+          required(:override) => boolean() | nil,
+          required(:points) => points(),
+          # Whether the answer is free of blocked words, decided once when it arrives.
+          optional(:clean?) => boolean()
         }
 
   @type t :: %__MODULE__{
@@ -276,6 +278,8 @@ defmodule Fazoura.Game do
 
     cond do
       String.length(name) not in 1..@max_name_length -> {:error, :invalid_name}
+      # Nothing but invisible characters is no name at all.
+      name |> visible() |> String.trim() == "" -> {:error, :invalid_name}
       map_size(game.players) >= game.room_size -> {:error, :room_full}
       name_taken?(game, name) -> {:error, :name_taken}
       # Strangers read a public room's names (PROTOCOL.md §3.5).
@@ -349,10 +353,16 @@ defmodule Fazoura.Game do
     end
   end
 
+  # Compared without format characters (zero-width spaces and joiners, direction
+  # marks): they draw nothing, so "Sam" with one tucked inside is "Sam" to everybody
+  # reading the room. The name is kept as typed — Arabic and Persian need a joiner
+  # now and then to be spelled right — only the comparison ignores them.
   defp name_taken?(game, name) do
-    key = String.downcase(name)
-    Enum.any?(game.players, fn {_id, p} -> String.downcase(p.name) == key end)
+    key = name |> visible() |> String.downcase()
+    Enum.any?(game.players, fn {_id, p} -> p.name |> visible() |> String.downcase() == key end)
   end
+
+  defp visible(text), do: String.replace(text, ~r/\p{Cf}/u, "")
 
   ## Intents
 
@@ -370,7 +380,11 @@ defmodule Fazoura.Game do
         answer: answer,
         auto_correct: Answer.correct?(answer, question.accepted_answers),
         override: nil,
-        points: points(game, question)
+        points: points(game, question),
+        # Decided once, here. Every snapshot shows every answer to every player, so
+        # asking at view time checked each answer once per recipient per snapshot —
+        # a cost that grew with the square of the room.
+        clean?: Profanity.clean?(answer)
       }
 
       answered = put_in(game.submissions[id], submission)

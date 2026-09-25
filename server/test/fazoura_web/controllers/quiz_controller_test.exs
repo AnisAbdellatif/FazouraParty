@@ -4,6 +4,7 @@ defmodule FazouraWeb.QuizControllerTest do
   alias Fazoura.QuizFixtures
   alias Fazoura.Quizzes.Reports
   alias Fazoura.Quizzes.Review
+  alias Fazoura.Rooms.Listing
 
   @owner QuizFixtures.owner_key()
   @other QuizFixtures.other_key()
@@ -16,19 +17,31 @@ defmodule FazouraWeb.QuizControllerTest do
   defp as(conn, key), do: put_req_header(conn, "x-owner-key", key)
 
   # What the API takes: a `.fazoura` package, which goes into the queue (§4).
-  defp submit!(conn, attrs \\ %{}) do
+  defp submit!(conn, attrs \\ %{}, photos \\ %{}) do
     conn
     |> as(@owner)
-    |> post(~p"/api/quizzes", %{"file" => QuizFixtures.package_upload(attrs)})
+    |> post(~p"/api/quizzes", %{"file" => QuizFixtures.package_upload(attrs, photos)})
     |> json_response(201)
   end
 
   # A quiz that is actually live: submitted, then approved. Anything expecting
   # a quiz other people can find has to come through the queue first.
-  defp create!(conn, attrs \\ %{}) do
-    submission = submit!(conn, attrs)
+  defp create!(conn, attrs \\ %{}, photos \\ %{}) do
+    submission = submit!(conn, attrs, photos)
     {:ok, quiz} = Review.approve(submission["id"])
     conn |> get(~p"/api/quizzes/#{quiz.id}") |> json_response(200)
+  end
+
+  test "a file that is not a package is refused, not a crash", %{conn: conn} do
+    path = Plug.Upload.random_file!("fazoura-test")
+    File.write!(path, "not a zip")
+    upload = %Plug.Upload{path: path, filename: "q.fazoura", content_type: "application/zip"}
+
+    assert %{"code" => "invalid_archive"} =
+             conn
+             |> as(@owner)
+             |> post(~p"/api/quizzes", %{"file" => upload})
+             |> json_response(422)
   end
 
   test "publishing queues the package rather than publishing it", %{conn: conn} do
@@ -200,11 +213,17 @@ defmodule FazouraWeb.QuizControllerTest do
   test "explicit offline download returns answers to any client", %{conn: conn} do
     %{"id" => id} = create!(conn)
 
-    assert %{"questions" => [%{"accepted_answers" => ["Steven Spielberg", "Spielberg"]}]} =
+    assert %{
+             "is_owner" => false,
+             "questions" => [%{"accepted_answers" => ["Steven Spielberg", "Spielberg"]}]
+           } =
              conn
              |> as(@other)
              |> get(~p"/api/quizzes/#{id}/download")
              |> json_response(200)
+
+    assert %{"is_owner" => true} =
+             conn |> as(@owner) |> get(~p"/api/quizzes/#{id}/download") |> json_response(200)
 
     assert %{"questions" => questions} =
              conn
@@ -212,6 +231,59 @@ defmodule FazouraWeb.QuizControllerTest do
              |> json_response(200)
 
     assert length(questions) == 1
+  end
+
+  describe "a quiz a public room is playing" do
+    # Everyone in a public room sees its quiz's title, and a title finds the quiz:
+    # while the room has it, the answers are not to be had for the asking.
+    setup %{conn: conn} do
+      %{"id" => id} = create!(conn)
+      {:ok, quiz} = Fazoura.Quizzes.fetch(id)
+      %{id: id, pack: Fazoura.Quizzes.to_pack(quiz)}
+    end
+
+    test "cannot be downloaded or archived while it is", %{conn: conn, id: id, pack: pack} do
+      {:ok, code, _token} = Fazoura.Rooms.create(pack, listed: true)
+
+      assert %{"code" => "quiz_in_play"} =
+               conn |> get(~p"/api/quizzes/#{id}/download") |> json_response(409)
+
+      assert %{"code" => "quiz_in_play"} =
+               conn |> get(~p"/api/quizzes/#{id}/archive") |> json_response(409)
+
+      # And the public list says nothing about which quiz it is.
+      # Other tests' rooms may be listed too; this one is the one that matters.
+      assert %{"rooms" => rooms} = conn |> get(~p"/api/rooms") |> json_response(200)
+      assert room = Enum.find(rooms, &(&1["room_code"] == code))
+      refute Map.has_key?(room, "quiz_ids")
+      refute inspect(room) =~ id
+    end
+
+    test "a private room holds it back just the same", %{conn: conn, id: id, pack: pack} do
+      # The players in a private room see the title too, and need not know each other.
+      {:ok, code, _token} = Fazoura.Rooms.create(pack, listed: false)
+
+      assert %{"code" => "quiz_in_play"} =
+               conn |> get(~p"/api/quizzes/#{id}/download") |> json_response(409)
+
+      # And it is still on no list.
+      assert %{"rooms" => rooms} = conn |> get(~p"/api/rooms") |> json_response(200)
+      refute Enum.any?(rooms, &(&1["room_code"] == code))
+    end
+
+    test "once the room has gone, the quiz can be saved again", %{conn: conn, id: id, pack: pack} do
+      {:ok, code, _token} = Fazoura.Rooms.create(pack, listed: false)
+      [{pid, _}] = Registry.lookup(Fazoura.Rooms.Registry, code)
+      ref = Process.monitor(pid)
+      DynamicSupervisor.terminate_child(Fazoura.Rooms.Supervisor, pid)
+      assert_receive {:DOWN, ^ref, _, _, _}
+
+      Enum.find_value(1..100, fn _ ->
+        not Listing.in_play?(id) || Process.sleep(10)
+      end)
+
+      assert conn |> get(~p"/api/quizzes/#{id}/download") |> json_response(200)
+    end
   end
 
   test "offline archive is a ZIP download", %{conn: conn} do
@@ -238,19 +310,8 @@ defmodule FazouraWeb.QuizControllerTest do
   end
 
   test "an archive carries the manifest and every photo", %{conn: conn} do
-    key = upload_photo!(conn)
-
-    %{"id" => id} =
-      create!(conn, %{
-        "questions" => [
-          %{
-            "type" => "text_photo",
-            "prompt" => "What is this?",
-            "accepted_answers" => ["a"],
-            "image" => %{"key" => key, "alt" => "a photo"}
-          }
-        ]
-      })
+    %{"id" => id} = create_with_photo!(conn, %{"alt" => "a photo"})
+    key = photo_key!(id)
 
     response = conn |> as(@other) |> get(~p"/api/quizzes/#{id}/archive")
     assert response.status == 200
@@ -272,19 +333,8 @@ defmodule FazouraWeb.QuizControllerTest do
   end
 
   test "a quiz whose photo is gone is refused, not a crash", %{conn: conn} do
-    key = upload_photo!(conn)
-
-    %{"id" => id} =
-      create!(conn, %{
-        "questions" => [
-          %{
-            "type" => "text_photo",
-            "prompt" => "What is this?",
-            "accepted_answers" => ["a"],
-            "image" => %{"key" => key}
-          }
-        ]
-      })
+    %{"id" => id} = create_with_photo!(conn)
+    key = photo_key!(id)
 
     # The uploads volume lost the file — a restore that missed it, or a sweep
     # that ran early. The quiz still references it.
@@ -294,19 +344,32 @@ defmodule FazouraWeb.QuizControllerTest do
              conn |> as(@other) |> get(~p"/api/quizzes/#{id}/archive") |> json_response(404)
   end
 
-  defp upload_photo!(conn) do
-    path = Path.join(System.tmp_dir!(), "fazoura-#{System.unique_integer([:positive])}.png")
-    File.write!(path, QuizFixtures.png())
+  # A live quiz with one photo question, the photo carried in its package as a
+  # device sends it.
+  defp create_with_photo!(conn, image \\ %{}) do
+    create!(
+      conn,
+      %{
+        "questions" => [
+          %{
+            "type" => "text_photo",
+            "prompt" => "What is this?",
+            "accepted_answers" => ["a"],
+            "image" => Map.put(image, "path", "media/still.png")
+          }
+        ]
+      },
+      %{"media/still.png" => QuizFixtures.png()}
+    )
+  end
 
-    %{"key" => key} =
-      conn
-      |> as(@owner)
-      |> post(~p"/api/images", %{
-        file: %Plug.Upload{path: path, filename: "a.png", content_type: "image/png"}
-      })
-      |> json_response(201)
+  # Where approval stored that photo.
+  defp photo_key!(quiz_id) do
+    import Ecto.Query
 
-    key
+    Fazoura.Repo.one!(
+      from q in Fazoura.Quizzes.Question, where: q.quiz_id == ^quiz_id, select: q.image_key
+    )
   end
 
   test "publisher updates and unpublishes", %{conn: conn} do

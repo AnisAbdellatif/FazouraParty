@@ -93,3 +93,9 @@ deploy/packages/
 
 # Local decision log for AI agents (AGENTS.md): never committed
 decisions.md
+
+# deploy-kit: personal overrides
+.kamal/kit.local.env
+
+# The deploy rehearsal's scratch (deploy/rehearsal/rehearse.sh)
+deploy/rehearsal/.work/

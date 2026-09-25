@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# pre-app-boot: tell the running app to close its rooms with `shutdown` before the new
+# container starts (SIGUSR2, Fazoura.Rooms.Drain). kamal-proxy cuts the old container's
+# WebSockets the moment the new one is healthy, and Kamal only stops the old one after
+# that, so the drain SIGTERM starts would reach nobody: players would reconnect into
+# "this room no longer exists" instead of being told the server closed it.
+#
+# Games are in memory and end on a deploy either way (a v1 non-goal); this is only
+# about ending them out loud. The old container keeps serving everything else until
+# the switch. An image from before the handler ignores the signal.
+# shellcheck source=/dev/null
+. "$KIT_HOME/steps/_preamble.sh"
+# shellcheck source=/dev/null
+. "$KIT_HOME/lib/kamal.sh"
+
+kit_kamal server exec -H -q \
+  "docker ps -q --filter label=service=${KAMAL_SERVICE:-fazoura} --filter label=role=web --filter label=destination=${KAMAL_DESTINATION:-} --filter status=running | xargs -r docker kill --signal USR2"
+kit_ok "asked the running app to close its rooms"

@@ -114,7 +114,7 @@ relational database through Ecto (SQLite on developer machines, Postgres on the 
 | `accepted_answers` | string[] | Required, 1–10 answers, each 1–100 characters. Matching is PROTOCOL.md §8 |
 | `difficulty` | `"easy"` \| `"medium"` \| `"hard"` | Default `"easy"`; drives the difficulty bonus (PROTOCOL.md §9) |
 | `time_limit_ms` | int \| null | Reserved for per-question overrides; ignored by rooms today |
-| `image` | object \| null | Required for `text_photo`, must be `null` for `text`. Fields: `key` (an upload, §5.7 — what a published quiz carries); `data` (base64 JPEG/PNG/WebP ≤ 2 MB, for private quizzes sent inline, §5.8, and how the app keeps photos on the device); `path` (a file beside the document — inside a `.fazoura` package, §5.3b, which is how a photo reaches the server when publishing, or beside a preset's JSON, §6); optional `alt` (≤ 140 chars); `url` is output only |
+| `image` | object \| null | Required for `text_photo`, must be `null` for `text`. Fields: `key` (a stored photo, assigned by the server when a package is approved — what a published quiz carries, and never accepted in a package, §5.7); `data` (base64 JPEG/PNG/WebP ≤ 2 MB, for private quizzes sent inline, §5.8, and how the app keeps photos on the device); `path` (a file beside the document — inside a `.fazoura` package, §5.3b, which is how a photo reaches the server when publishing, or beside a preset's JSON, §6); optional `alt` (≤ 140 chars); `url` is output only |
 | `explanation` | string \| null | ≤ 280 chars, shown after the reveal in a later release |
 
 ### 2.3 Tags
@@ -220,6 +220,11 @@ images
 
 JSON bodies; errors are `{"code": string, "message": string, "errors"?: {field: [msg]}}`.
 
+A request with a body must say how long it is: one sent without `Content-Length`
+(chunked) is refused with `411 length_required` before any of it is read, and one declaring
+more than its route takes with `413 payload_too_large` (1 MB, or 32 MB for creating a room
+and submitting a package).
+
 ### 5.1 `GET /api/quizzes`
 
 Query: `q` (case-insensitive, matches the title **or** any tag), `tag` (exact tag, after
@@ -257,6 +262,13 @@ Explicitly downloads a public quiz for offline use. Returns the full document, i
 accepted answers and remote image URLs. The client should download those images too and
 store the resulting document privately on the device. This endpoint is intentionally an
 opt-in answer disclosure: without the answers, the device could not host the quiz offline.
+`is_owner` is true only for the publisher's own `x-owner-key`, as everywhere else.
+
+`409 quiz_in_play` while any room — public or private — has the quiz chosen or under way.
+Everybody in a room sees its quiz's title, and a title finds the quiz — so without this
+anybody in the room could look the answers up mid-game. It does not make the
+answers secret: they can be saved before a room picks the quiz. What it stops is the
+lookup at the one moment it is a cheat. The same applies to §5.3b.
 
 ### 5.3b `GET /api/quizzes/:id/archive`
 
@@ -285,8 +297,9 @@ film-night/                          $ tools/fazoura-cli/fazoura quiz pack film-
 ```
 
 A reader treats a package as hostile: it is capped in size, what it claims to expand to is
-checked before anything is decompressed, entries outside `media/` are ignored, and its photos
-are validated like any upload (§5.7) before they are stored. A photo is named inside the
+checked before anything is decompressed and each entry is inflated no further than it claims,
+entries outside `media/` are ignored, a question whose `image` names a `key` instead of a
+`path` is refused, and its photos are validated like any upload (§5.7) before they are stored. A photo is named inside the
 package by a digest of its own bytes, so the same picture used twice is carried once.
 
 ### 5.4 `POST /api/quizzes` (submit for review)
@@ -309,7 +322,14 @@ until an admin approves it (§4, ADMIN.md §3.2).
 published quiz. Errors: `401 owner_key_required` without a valid key;
 `422 invalid_quiz` when the package carries no title or no questions;
 `422 archive_too_large`, `422 invalid_archive`, `422 manifest_missing`,
-`422 manifest_invalid` for a package that cannot be read.
+`422 manifest_invalid` for a package that cannot be read, and `archive_too_large` too for a
+package with no photos over 4 MB (a manifest alone never needs that);
+`429 too_many_submissions` when this key already has 10 submissions waiting, or this
+address has sent 10 packages (or 128 MB) for review today — the key is the caller's to
+choose, so the address is what really bounds the queue;
+`503 review_queue_full` when everything waiting adds up to more than the server will hold
+(1 GB). A submission is kept whole until somebody reads it, so these are what stop the
+queue filling the disk; either clears as soon as submissions are approved or rejected.
 
 A JSON document is refused with `422 package_required`. Rebuilding one server-side would
 mean its photos had been uploaded first and were already on disk unreviewed, which is the
@@ -339,23 +359,20 @@ or a room that has it selected, is looking at the same quiz rather than a second
 
 Publisher only. `204`.
 
-### 5.7 `POST /api/images`
+### 5.7 `POST /api/images` (removed)
 
-Publisher key required. `multipart/form-data` with one `file` part: JPEG, PNG or WebP
-(checked by content, not by filename), ≤ 2 MB. Clients prepare a photo before sending it —
-the app's editor and `fazoura quiz pack` alike (`preparePhoto` in `app/lib/core/quizzes/`):
-at most 1280 px on the longest side, metadata stripped, a PNG kept for a picture with
-transparent pixels, and otherwise whichever of JPEG or PNG is smaller.
+There is no photo upload. It stored a photo straight into the public uploads volume, ahead
+of any review, and nothing had called it since publishing became a submission: a photo
+travels inside the package (§5.3b) and is stored only when an admin approves it. The route
+now answers `404`, and a package whose question names an image by `key` rather than
+carrying it at a `path` is refused (`not_in_the_package`), since nobody reviewing the
+package would have seen it.
 
-```json
-201 {"key": "5b0e4f1c9a2d7e3f.jpg", "url": "https://…/uploads/5b0e4f1c9a2d7e3f.jpg"}
-```
-
-Errors: `413 image_too_large`, `415 unsupported_image`.
-
-**No longer part of publishing.** A submission carries its photos inside the package, so
-nothing is uploaded ahead of review. The endpoint remains for clients that predate the
-queue and has no current caller.
+Clients prepare a photo before packing it — the app's editor and `fazoura quiz pack`
+alike (`preparePhoto` in `app/lib/core/quizzes/`): at most 1280 px on the longest side,
+metadata stripped, a PNG kept for a picture with transparent pixels, and otherwise
+whichever of JPEG or PNG is smaller. JPEG, PNG or WebP (checked by content, not by
+filename), ≤ 2 MB each.
 
 ### 5.8 Rooms
 
@@ -386,7 +403,10 @@ Clients cannot tell the two apart: both send an ordinary `image_url`.
 Header `x-owner-key` required. Reports a public quiz as something that should not be
 public. `204`, always — the answer says nothing about what happened to the report, not
 whether it is the first, not how many others there are, and not whether an admin has
-already decided. That is moderation state, and a caller does not get to probe it.
+already decided. That is moderation state, and a caller does not get to probe it. One
+address's reports (quiz and player reports together) are kept up to 20 a day; past that
+they are answered the same and dropped, so one caller with many publisher keys cannot make
+one complaint read as many.
 
 ```json
 {"reason": "sexual" | "hate" | "violence" | "illegal" | "spam" | "other",

@@ -265,6 +265,25 @@ void main() {
       expect(room.game.submissions, hasLength(1));
     });
 
+    test('the new host rejoining with their token comes back as themselves', () {
+      final host = join({'host_token': room.hostToken, 'display_name': 'Hana'});
+      final sam = join({'display_name': 'Sam'});
+      room.handle(host.client, 'host_transfer', {
+        'player_id': sam.reply.playerId,
+      });
+      final token = sam.client.you['host_token'] as String;
+
+      // Sam's own seat, with the role — not Hana's, where it used to land him.
+      final again = join({'host_token': token});
+      expect(again.reply.role, 'host');
+      expect(again.reply.playerId, sam.reply.playerId);
+
+      room.handle(again.client, 'host_next', {});
+      room.handle(again.client, 'submit', {'answer': "Sam's"});
+      room.handle(host.client, 'submit', {'answer': "Hana's"});
+      expect(room.game.submissions, hasLength(2));
+    });
+
     test('the role can only go to someone who is connected', () {
       final host = join({'host_token': room.hostToken});
       final sam = join({'display_name': 'Sam'});

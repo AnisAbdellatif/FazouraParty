@@ -44,7 +44,7 @@ void main() {
         jsonEncode({
           'version': '0.2.0',
           'version_code': 2,
-          'url': 'https://github.com/o/r/releases/download/v0.2.0/a.apk',
+          'url': 'https://github.com/AnisAbdellatif/FazouraParty/releases/download/v0.2.0/a.apk',
         }),
         200,
       ),
@@ -114,9 +114,42 @@ void main() {
 
   test('isTrustedDownload matches the host case-insensitively', () {
     final manifest = Uri.parse(_manifestUrl);
-    expect(isTrustedDownload('https://GitHub.com/o/r/a.apk', manifest), isTrue);
+    expect(
+      isTrustedDownload(
+        'https://GitHub.com/AnisAbdellatif/FazouraParty/releases/download/v1/a.apk',
+        manifest,
+      ),
+      isTrue,
+    );
     expect(isTrustedDownload('not a url at all ::::', manifest), isFalse);
     expect(isTrustedDownload('https:///nohost.apk', manifest), isFalse);
+  });
+
+  test('isTrustedDownload keeps to this repository\'s own releases', () {
+    // Anybody can publish a release on github.com; a tampered manifest must not
+    // be able to point at one of theirs.
+    final manifest = Uri.parse(_manifestUrl);
+    expect(
+      isTrustedDownload(
+        'https://github.com/attacker/x/releases/download/v9/a.apk',
+        manifest,
+      ),
+      isFalse,
+    );
+    expect(
+      isTrustedDownload(
+        'https://github.com/AnisAbdellatif/FazouraParty/../x/releases/a.apk',
+        manifest,
+      ),
+      isFalse,
+    );
+    expect(
+      isTrustedDownload(
+        'https://github.com/AnisAbdellatif/FazouraParty',
+        manifest,
+      ),
+      isFalse,
+    );
   });
 
   group('which builds look for their own updates', () {

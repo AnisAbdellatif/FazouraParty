@@ -129,7 +129,7 @@
 
 <h2>Technical data</h2>
 <ul>
-  <li><strong>IP addresses.</strong> To protect the service from abuse, the server counts requests per IP address over short windows (about a minute). These counters live in memory only and are never written to disk. When you join a room, the server also makes the keyed hash of your address described under <a href="#reporting-a-player">Reporting a player</a>; it stays in memory with the room and is written down only if someone reports you.</li>
+  <li><strong>IP addresses.</strong> To protect the service from abuse, the server counts requests per IP address over windows of a minute (for most things) up to a day (for quizzes sent for review), and counts how many rooms each address has open. These counters live in memory only, are never written to disk, and are forgotten when their window ends or the room closes. When you join a room, the server also makes the keyed hash of your address described under <a href="#reporting-a-player">Reporting a player</a>; it stays in memory with the room and is written down only if someone reports you. If the host removes somebody, the room keeps that person's hash until it closes so they can't rejoin under a new name, and a public room uses it to let in only a handful of new players from any one address.</li>
   <li><strong>Server logs.</strong> Like any web server, ours keeps logs of requests (time, address requested, and whether it succeeded) to diagnose problems and keep the service secure. We use them only for that, and don't combine them with anything else to identify people.</li>
   <li><strong>Cookies.</strong> The service sets no cookies for players or visitors. The only cookie is a session cookie for our own administration dashboard.</li>
 </ul>

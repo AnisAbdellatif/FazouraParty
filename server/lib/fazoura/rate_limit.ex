@@ -27,28 +27,41 @@ defmodule Fazoura.RateLimit do
   @doc """
   Counts one request from `key` against `bucket`.
 
-  Returns `:ok` while at or under `limit` requests per `window_ms`, and
+  `amount` is how much this one counts for — one request, or a request's bytes for a
+  bucket that meters volume. Returns `:ok` while at or under `limit` per `window_ms`, and
   `{:error, :rate_limited}` once over. Missing table (not started, as in some unit
   tests) means no limiting rather than a crash.
   """
-  @spec check(bucket(), String.t(), pos_integer(), pos_integer()) ::
+  @spec check(bucket(), String.t(), pos_integer(), pos_integer(), pos_integer()) ::
           :ok | {:error, :rate_limited}
-  def check(bucket, key, limit, window_ms) do
+  def check(bucket, key, limit, window_ms, amount \\ 1) do
     # The window's start in ms, so a sweep can compare it to wall-clock time without
     # knowing which window length any particular bucket used.
     window_start = div(now_ms(), window_ms) * window_ms
 
-    count =
-      :ets.update_counter(
-        @table,
-        {bucket, key, window_start},
-        {2, 1},
-        {{bucket, key, window_start}, 0}
-      )
+    counter = {bucket, key, window_start, window_ms}
+    count = :ets.update_counter(@table, counter, {2, amount}, {counter, 0})
 
     if count > limit, do: {:error, :rate_limited}, else: :ok
   rescue
     ArgumentError -> :ok
+  end
+
+  @doc """
+  Whether `key` is already over `limit` in `bucket`'s current window, without counting
+  anything. For meters that count failures: the attempt is let through or not by this,
+  and only one that fails is counted with `check/4`.
+  """
+  @spec exceeded?(bucket(), String.t(), pos_integer(), pos_integer()) :: boolean()
+  def exceeded?(bucket, key, limit, window_ms) do
+    window_start = div(now_ms(), window_ms) * window_ms
+
+    case :ets.lookup(@table, {bucket, key, window_start, window_ms}) do
+      [{_key, count}] -> count >= limit
+      [] -> false
+    end
+  rescue
+    ArgumentError -> false
   end
 
   @doc "Forgets every counter. Tests only."
@@ -71,16 +84,22 @@ defmodule Fazoura.RateLimit do
 
   @impl true
   def handle_info(:sweep, state) do
-    sweep()
+    _swept = sweep()
     schedule_sweep()
     {:noreply, state}
   end
 
-  # A window that started before the last sweep interval can no longer be current for
-  # any bucket this module uses, so its counter is spent.
-  defp sweep do
-    cutoff = now_ms() - @sweep_every
-    :ets.select_delete(@table, [{{{:_, :_, :"$1"}, :_}, [{:<, :"$1", cutoff}], [true]}])
+  # A counter whose window has ended is spent. Each counter carries its own window's
+  # length, so a bucket counted per day keeps its count all day rather than losing it
+  # at the next sweep.
+  @doc "Drops every counter whose window has ended. Run on a timer; public for tests."
+  @spec sweep() :: non_neg_integer()
+  def sweep do
+    now = now_ms()
+
+    :ets.select_delete(@table, [
+      {{{:_, :_, :"$1", :"$2"}, :_}, [{:<, {:+, :"$1", :"$2"}, now}], [true]}
+    ])
   rescue
     ArgumentError -> 0
   end

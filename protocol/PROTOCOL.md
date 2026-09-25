@@ -1,6 +1,6 @@
 # Fazoura Party — Wire Protocol
 
-**Protocol version: `9.9`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
+**Protocol version: `9.10`** · Status: **FROZEN** (see AGENTS.md §3 and §1 below)
 
 This document is the contract between the Flutter client and every game host implementation
 (Phoenix in Cloud mode, the `dart:io` server in LAN mode). Both hosts must behave identically for
@@ -62,6 +62,29 @@ public list, the `host_set_room_size` and `host_redeem_size_code` intents, and t
 that has never heard of them shows no control for them, and a room it hosts stays at
 `max_players`.
 
+9.10 came out of a security audit, and changes nothing a correct client does:
+
+- **Hand-over.** A player who was handed the host role (§3.4) and rejoins with the
+  `host_token` they were given now comes back as themselves, holding the role. Both hosts
+  used to seat that connection in the *former* host's place — answering as them — which is
+  a fix bringing the hosts in line with §3.3, so a minor.
+- **A host who was not playing hands over and keeps nothing.** Its connection is nobody
+  now: every intent from it is refused with `not_host`, and its `you` names no player. The
+  LAN host let its intents through as the host's — including a `submit` recorded as the new
+  host's answer — and both hosts showed it the new host's own answer mid-question.
+- **Join errors.** Failed joins are limited per address: past 30 in a minute every join
+  from it answers `rate_limited` until the minute is out (§4.1). Joins that succeed are
+  never counted, so a room reconnecting at once is not affected.
+- **Tokens.** Tokens are scoped to one room *instance*, not only its code (§3.3), so a token
+  from a room that has ended opens nothing, even a later room that draws the same code.
+- **Names** are compared without format characters and cannot be made of them alone (§4.1),
+  on both hosts: a zero-width space made "Sam" and `S\u200Bam` two players who look alike.
+- **Cloud limits** (§4.1): a player the host removed is kept out under a new name
+  (`removed`); a public room takes 6 new players from one address (`address_full`); one
+  connection is in at most 3 rooms and one address holds at most 10 (40 for an IPv6 /48);
+  channel events are metered; photos of private quizzes have a server-wide budget
+  (`too_many_rooms`). An older client shows these by their message.
+
 **This is semver's major and minor, and there is deliberately no patch.** The number
 exists to answer one question — does this host behave exactly like that one? — and the
 minor already answers it. A patch would mean "behaviour changed but nothing was added",
@@ -97,6 +120,11 @@ Both modes use a **WebSocket carrying the Phoenix Channels V2 JSON serializer**.
 | Cloud | `wss://<host>/socket/websocket?vsn=2.0.0` |
 | LAN   | `ws://<host-lan-ip>:<port>/socket/websocket?vsn=2.0.0` |
 
+A LAN host refuses an upgrade that carries an `Origin` header (a browser's; the app and the
+CLI send none), offers no compression, closes a socket whose frame or message *declares*
+more than `max_frame_size` bytes before its payload is read, closes one that has not joined
+within 10 seconds, and holds at most 48 sockets, 4 from any one address.
+
 The LAN server implements only the subset needed here: `phx_join`, `phx_leave`, `phx_reply`,
 `phx_error`, `phx_close`, `heartbeat` (topic `phoenix`, 30 s interval; the server closes a socket
 after 60 s of silence), plus the events in §4–§5.
@@ -115,6 +143,8 @@ Pushes from the host (§5) have `ref = null`.
 The host then selects the quizzes to play in the lobby with `host_select_quiz` (§6.4).
 `{"listed": true}` creates it on the public room list instead (§3.5); `listed` may accompany
 any of the bodies below and must be a boolean (`422 invalid_payload` otherwise).
+One address may hold 10 rooms at once (an IPv6 /48, 40); past that, `429 rate_limited` until
+one of them ends.
 
 For backwards compatibility the endpoint also accepts a **single** quiz body and snapshots it
 immediately: `{"quiz_id": "<uuid or built-in slug>"}` for a stored (public) quiz (`pack_id` is
@@ -186,8 +216,15 @@ The body, the answers and the reasons are QUIZ_FORMAT.md §5.9.
   previous one is refused with `invalid_token`, so a former host cannot take the room back.
 - `player_token` — issued on a player's first join; lets that player reclaim the same
   `player_id` and score after a disconnect. Unaffected by host changes.
-- Tokens are opaque, signed by the host implementation, and scoped to one room.
-  Clients store them per room code and must discard them when the room is gone.
+- A **host that was not playing** and hands the role over is left with a connection and
+  nothing else: every intent from it is refused with `not_host`, and its snapshots carry no
+  `player_id` and no `submission`.
+- A **promoted or transferred-to player** who joins with the `host_token` they were given
+  joins as themselves — their own `player_id`, holding the role — never in the place of
+  the host who handed it over.
+- Tokens are opaque, signed by the host implementation, and scoped to one room: that room,
+  not merely its code, since codes are reused once a room ends. Clients store them per
+  room code and must discard them when the room is gone.
 
 ### 3.4 The host role
 
@@ -307,7 +344,9 @@ whole join fails and the host is **not** connected; the `host_token` stays valid
 should let the host retry with another name (or without one).
 
 `display_name`: trimmed, 1–20 characters after trimming (Unicode grapheme clusters), unique
-(case-insensitive) within the room. The same length unit applies to `answer` (§4.2).
+(case-insensitive, and ignoring format characters — `\p{Cf}`, such as zero-width spaces and
+joiners and direction marks — which draw nothing) within the room, and not made of format
+characters alone (`invalid_name`). The name is kept as typed; only the comparison drops them. The same length unit applies to `answer` (§4.2).
 
 **Reconnects:** after its first successful join a player client must always rejoin (including
 automatic transport reconnects) with `player_token` only. If a rejoin fails with
@@ -329,7 +368,19 @@ Players may join in **any phase** (late join starts at score `0`).
 
 Join error codes: `unsupported_protocol_version`, `room_not_found`, `invalid_token`,
 `invalid_name`, `name_taken`, `room_full`, `name_not_allowed` (a blocked word in a public
-room, §3.5), `banned` (a public room, from a connection kept out of them, §3.5).
+room, §3.5), `banned` (a public room, from a connection kept out of them, §3.5),
+`rate_limited` (this address has failed to join 30 times in the last minute; failures are
+`room_not_found` and `invalid_token`, and a join that succeeds is never counted — so this
+only ever meets somebody guessing codes, who then learns nothing from the answer; the cloud
+host also answers it to a connection already in 3 rooms). Cloud only, for a join that would
+add a new player — a rejoin by token is never refused by these: `removed` (the host removed a
+player from this address, and the room keeps it out under any name until the room ends) and
+`address_full` (a public room already has 6 players from this address).
+
+On the cloud host every event a channel sends is metered: at most 60 in 10 seconds, and
+`host_select_quiz` and `host_redeem_size_code` at most 10 a minute; past either the reply is
+`rate_limited`. `host_select_quiz` can also answer `too_many_rooms` when the server holds as
+many private-quiz photos as it will.
 
 ### 4.2 Intents
 
@@ -404,7 +455,7 @@ it per socket rather than broadcasting one identical payload.
 ```json
 {
   "protocol_version": 9,
-  "protocol_minor": 9,
+  "protocol_minor": 10,
   "room_code": "K7QX2M",
   "mode": "cloud",
   "listed": false,
@@ -723,7 +774,9 @@ Scenario format:
 ```
 
 - `actor` names are local labels; the runner maps them to sockets and substitutes
-  `"$player_id:<actor>"` placeholders with real IDs.
+  `"$player_id:<actor>"` placeholders with real IDs. `"$host_token"` is the token the room
+  was created with, and `"$host_token:<actor>"` the host token that actor was last handed
+  in a `state` (`you.host_token`, §3.4).
 - `expect_state` is a **partial match**: every key present must equal; absent keys are unchecked.
   It checks the latest `state` received by that actor.
 - `advance_clock_ms` requires implementations to accept an injectable clock in tests.

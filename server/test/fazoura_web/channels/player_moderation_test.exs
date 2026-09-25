@@ -50,6 +50,96 @@ defmodule FazouraWeb.PlayerModerationTest do
     assert {:ok, _, _} = join_room(code, %{"display_name" => "Somebody"})
   end
 
+  # A stand-in connection that stays joined, and can act, from a given address.
+  defp member(code, payload, address) do
+    test = self()
+
+    pid =
+      spawn_link(fn ->
+        send(test, {:joined, self(), Rooms.join(code, self(), payload, %{ip_hash: address})})
+
+        receive_loop = fn loop ->
+          receive do
+            {:intent, from, intent} ->
+              send(from, {:done, Rooms.intent(code, self(), intent)})
+              loop.(loop)
+          end
+        end
+
+        receive_loop.(receive_loop)
+      end)
+
+    assert_receive {:joined, ^pid, result}
+    {pid, result}
+  end
+
+  defp act(pid, intent) do
+    send(pid, {:intent, self(), intent})
+    assert_receive {:done, result}
+    result
+  end
+
+  test "a player the host removed cannot come back as somebody new" do
+    {:ok, code, host_token} = Rooms.create(QuizFixtures.pack())
+    {host, {:ok, _, _}} = member(code, %{"host_token" => host_token}, "home")
+    {_troll, {:ok, %{player_id: troll}, _}} = member(code, %{"display_name" => "Troll"}, "troll")
+
+    {_sam, {:ok, %{player_token: sam_token}, _}} =
+      member(code, %{"display_name" => "Sam"}, "troll")
+
+    assert act(host, {:remove_player, %{"player_id" => troll}}) == :ok
+
+    # A new name from the same address is refused...
+    assert {_, {:error, :removed}} = member(code, %{"display_name" => "Troll2"}, "troll")
+    # ...but somebody already here from it keeps their place, and the host still gets
+    # back in from theirs.
+    assert {_, {:ok, _, _}} = member(code, %{"player_token" => sam_token}, "troll")
+    assert {_, {:ok, _, _}} = member(code, %{"host_token" => host_token}, "home")
+  end
+
+  test "a public room takes only so many new players from one address" do
+    {code, _host_token} = listed_room()
+
+    for n <- 1..6 do
+      assert {_, {:ok, _, _}} = member(code, %{"display_name" => "Bot #{n}"}, "one-address")
+    end
+
+    assert {_, {:error, :address_full}} =
+             member(code, %{"display_name" => "Bot 7"}, "one-address")
+
+    assert {_, {:ok, _, _}} = member(code, %{"display_name" => "Stranger"}, "elsewhere")
+
+    # A private room is joined by people the host gave the code to: a class on the
+    # school Wi-Fi is one address and a whole room.
+    {:ok, private, _} = Rooms.create(QuizFixtures.pack())
+
+    for n <- 1..10 do
+      assert {_, {:ok, _, _}} = member(private, %{"display_name" => "Pupil #{n}"}, "school")
+    end
+  end
+
+  test "a banned player who got into a private room is let go when it goes public" do
+    {:ok, code, host_token} = Rooms.create(%Fazoura.Game.Pack{titles: [], questions: []})
+    {host, {:ok, _, _}} = member(code, %{"host_token" => host_token}, "home")
+
+    test = self()
+
+    spawn_link(fn ->
+      {:ok, _, _} =
+        Rooms.join(code, self(), %{"display_name" => "Troll"}, %{ip_hash: "t", banned?: true})
+
+      send(test, :troll_in)
+
+      receive do
+        {:room_closed, reason} -> send(test, {:troll_closed, reason})
+      end
+    end)
+
+    assert_receive :troll_in
+    assert act(host, {:set_listed, %{"listed" => true}}) == :ok
+    assert_receive {:troll_closed, :removed}
+  end
+
   test "a banned connection is kept out of public rooms, not rooms joined by code" do
     {code, _host_token} = listed_room()
     {:ok, private, _} = Rooms.create(QuizFixtures.pack())

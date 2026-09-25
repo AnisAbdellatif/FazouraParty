@@ -108,16 +108,80 @@ class QuizArchive {
     return null;
   }
 
+  /// A `media/` entry we will actually read back. A prefix check alone is not
+  /// enough: `media/../..` still starts with `media/`, so an entry whose name
+  /// climbs out of the package — an absolute path, or a `..` segment — is dropped
+  /// rather than followed. The entries only ever live in memory as map keys here,
+  /// but the check mirrors the server's `climbs_out?/1` so both readers agree.
+  static bool _isSafeMediaPath(String name) {
+    if (!name.startsWith('media/')) return false;
+    if (name.startsWith('/')) return false;
+    return !name.split('/').contains('..');
+  }
+
   /// The modification time every entry of a package carries.
   static final packageTimestamp = DateTime(1980);
 
+  /// A quiz is at most 1024 questions (QUIZ_FORMAT.md §2.1), each carrying at
+  /// most one photo, so an honest package is a manifest plus up to ~1024 photos.
+  /// This leaves generous headroom for that and a stray readme while refusing a
+  /// member list so long that merely walking it is the attack.
+  static const int _maxEntries = 2048;
+
+  /// What a package is allowed to expand to. Photos are already-compressed
+  /// formats, so an honest package barely shrinks and stays well under this; one
+  /// that claims to expand many times over is a decompression bomb. Mirrors the
+  /// server's `@max_unpacked_bytes` (`Fazoura.Quizzes.Archive`).
+  static const int _maxUnpackedBytes = 48 * 1024 * 1024;
+
+  /// What a package may weigh before it is parsed at all. Mirrors the server's
+  /// `@max_bytes`.
+  static const int _maxBytes = 32 * 1024 * 1024;
+
   static QuizArchive decode(List<int> bytes) {
+    // A `.fazoura` read here is a local file the user chose (an offline
+    // community-quiz download, or `fazoura quiz`), not the remote-unauthenticated
+    // surface the server guards. These caps are defence-in-depth so a malformed
+    // or hostile package fails cleanly instead of OOM-ing the app or the CLI;
+    // they mirror the ceilings in `Fazoura.Quizzes.Archive`.
+    if (bytes.length > _maxBytes) {
+      throw const FormatException('Quiz archive is too large.');
+    }
     final archive = ZipDecoder().decodeBytes(bytes, verify: true);
+
+    if (archive.files.length > _maxEntries) {
+      throw const FormatException('Quiz archive has too many entries.');
+    }
+
+    // Bound both what an entry's header *claims* (cheap, caught before it is
+    // inflated) and what inflating actually produces (a "lying" entry that
+    // under-declares its size). The `archive` package inflates a member in one
+    // shot — it exposes no streaming inflate with a running counter the way the
+    // server's `:zlib.safeInflate` does — so a single under-declaring member is
+    // still materialised in full before its real length can be checked; the
+    // declared-size check keeps an honestly-sized bomb from getting even that
+    // far, and the running total bounds the package as a whole.
+    var unpacked = 0;
+    Uint8List readCapped(ArchiveFile file) {
+      if (file.size > _maxUnpackedBytes - unpacked) {
+        throw const FormatException('Quiz archive expands too far.');
+      }
+      final content = file.readBytes();
+      if (content == null) {
+        throw const FormatException('Quiz archive entry is unreadable.');
+      }
+      unpacked += content.length;
+      if (unpacked > _maxUnpackedBytes) {
+        throw const FormatException('Quiz archive expands too far.');
+      }
+      return content;
+    }
+
     final manifestFile = archive.findFile('manifest.json');
     if (manifestFile == null) {
       throw const FormatException('Quiz archive has no manifest.');
     }
-    final raw = jsonDecode(utf8.decode(manifestFile.readBytes()!));
+    final raw = jsonDecode(utf8.decode(readCapped(manifestFile)));
     if (raw is! Map<String, dynamic>) {
       throw const FormatException('Quiz archive manifest is invalid.');
     }
@@ -128,8 +192,8 @@ class QuizArchive {
 
     final media = <String, Uint8List>{
       for (final file in archive.files)
-        if (file.isFile && file.name.startsWith('media/'))
-          file.name: file.readBytes()!,
+        if (file.isFile && _isSafeMediaPath(file.name))
+          file.name: readCapped(file),
     };
     final questions = (document['questions'] as List<dynamic>? ?? const []).map(
       (item) {

@@ -1,0 +1,53 @@
+{
+  "name": "a player handed the host role rejoins with its token as themselves, not in the old host's seat",
+  "pack": {
+    "title": "Fixture Pack",
+    "questions": [
+      {
+        "id": "q1",
+        "type": "text",
+        "prompt": "2 + 2?",
+        "accepted_answers": ["4"],
+        "time_limit_ms": 30000
+      }
+    ]
+  },
+  "steps": [
+    {"actor": "host", "join": {"protocol_version": 9, "host_token": "$host_token", "display_name": "Hana"}, "expect": {"status": "ok"}},
+    {"actor": "sam", "join": {"protocol_version": 9, "display_name": "Sam"}, "expect": {"status": "ok"}},
+    {"actor": "host", "push": "host_transfer", "payload": {"player_id": "$player_id:sam"}, "expect": {"status": "ok"}},
+    {
+      "_comment": "The token reaches Sam, and only Sam (§3.4). $host_token:sam is the one he was handed.",
+      "actor": "sam",
+      "expect_state": {"you": {"role": "host", "player_id": "$player_id:sam"}}
+    },
+    {
+      "_comment": "The token Hana was given at the start is dead.",
+      "actor": "host2",
+      "join": {"protocol_version": 9, "host_token": "$host_token"},
+      "expect": {"status": "error", "response": {"code": "invalid_token"}}
+    },
+    {
+      "_comment": "Sam on a second device, with the token he was handed: himself, holding the role.",
+      "actor": "sam2",
+      "join": {"protocol_version": 9, "host_token": "$host_token:sam"},
+      "expect": {"status": "ok", "response": {"role": "host", "player_id": "$player_id:sam"}}
+    },
+    {"actor": "sam2", "push": "host_next", "payload": {}, "expect": {"status": "ok"}},
+    {
+      "_comment": "Sam's answer is Sam's. Seated as Hana, it was hers, and her own came back already_submitted.",
+      "actor": "sam2",
+      "push": "submit",
+      "payload": {"answer": "4"},
+      "expect": {"status": "ok"}
+    },
+    {"actor": "host", "push": "submit", "payload": {"answer": "5"}, "expect": {"status": "ok"}},
+    {
+      "actor": "sam",
+      "expect_state": {
+        "phase": "scoring",
+        "players": [{"name": "Sam", "score": 10}, {"name": "Hana", "score": -10}]
+      }
+    }
+  ]
+}

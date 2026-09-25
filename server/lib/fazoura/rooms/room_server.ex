@@ -14,7 +14,7 @@ defmodule Fazoura.Rooms.RoomServer do
 
   alias Fazoura.Game
   alias Fazoura.Game.{Pack, View}
-  alias Fazoura.Rooms.{Images, Listing, Selection, Tokens}
+  alias Fazoura.Rooms.{Images, Limits, Listing, Selection, Tokens}
 
   # A room with nobody in it is over; the delay only exists so a lone host who
   # blips doesn't lose it, and so a new room has time for its first join
@@ -50,6 +50,8 @@ defmodule Fazoura.Rooms.RoomServer do
   def init(opts) do
     now = Keyword.get(opts, :now, fn -> System.os_time(:millisecond) end)
     code = Keyword.fetch!(opts, :code)
+    # Counted against its creator's address for as long as this process lives.
+    :ok = Limits.created_by(opts[:creator])
 
     interval =
       Keyword.get_lazy(opts, :broadcast_interval_ms, fn ->
@@ -66,6 +68,9 @@ defmodule Fazoura.Rooms.RoomServer do
     state = %{
       game: game,
       now: now,
+      # What this room's tokens are signed for (`Tokens.scope/1`): its code and a
+      # value of its own, so a token outlives neither the room nor its code.
+      token_scope: Keyword.get_lazy(opts, :token_scope, fn -> Tokens.scope(code) end),
       conns: %{},
       # Which host_token is currently valid; bumped on every change of host.
       generation: 0,
@@ -84,6 +89,10 @@ defmodule Fazoura.Rooms.RoomServer do
       # takes the hash, and a room that goes public keeps banned hosts out.
       ip_hashes: %{},
       banned: MapSet.new(),
+      # The addresses of players the host removed. They may not come back as somebody
+      # new — the token of the player they were stopped working, but a new name took
+      # a second. Never broadcast.
+      removed_addresses: MapSet.new(),
       # The room size codes this room has taken, by id, so the same one twice counts once.
       size_codes: %{},
       empty_since: now.(),
@@ -104,8 +113,8 @@ defmodule Fazoura.Rooms.RoomServer do
 
   @impl true
   def handle_call({:join, pid, params, meta}, _from, state) do
-    with :ok <- admit(state.game, meta),
-         {:ok, actor, reply, game} <- authenticate(state.game, state.generation, params) do
+    with :ok <- admit(state, meta, params),
+         {:ok, actor, reply, game} <- authenticate(state, params) do
       state =
         state
         |> put_game(game)
@@ -255,7 +264,7 @@ defmodule Fazoura.Rooms.RoomServer do
   end
 
   defp current_player_token?(state, token) do
-    case Tokens.player_id(token, state.game.room_code) do
+    case Tokens.player_id(token, state.token_scope) do
       {:ok, id} -> Game.player?(state.game, id)
       :error -> false
     end
@@ -264,7 +273,7 @@ defmodule Fazoura.Rooms.RoomServer do
   # The same test `authenticate/3` makes, without joining anything: the token has
   # to verify, name this room, and belong to the generation currently in force.
   defp current_host_token?(state, token),
-    do: Tokens.host?(token, state.game.room_code, state.generation)
+    do: Tokens.host?(token, state.token_scope, state.generation)
 
   # The host connection that handed the role away keeps its socket, its player id
   # and its score, but loses its powers — so it acts as that player from now on,
@@ -297,18 +306,25 @@ defmodule Fazoura.Rooms.RoomServer do
     case Game.handle(state.game, :host, intent, state.now.()) do
       {:ok, game} ->
         removed = Enum.find(Map.keys(state.game.players), &(not Map.has_key?(game.players, &1)))
-        {:reply, :ok, state |> let_go(removed) |> update_game(game)}
+        {:reply, :ok, state |> keep_out(removed) |> let_go(removed) |> update_game(game)}
 
       {:error, _code} = error ->
         {:reply, error, state}
     end
   end
 
-  # A room going public keeps a banned host out, as joining one would (§3.5).
+  # A room going public keeps a banned host out, as joining one would (§3.5), and
+  # lets go of any banned player already in it: joining a room while it was private
+  # and waiting for it to be listed was a way into a public room past the ban.
   defp handle_intent(state, :host, {:set_listed, %{"listed" => true}} = intent) do
-    if MapSet.member?(state.banned, holder_key(state)),
-      do: {:reply, {:error, :banned}, state},
-      else: game_intent(state, :host, intent)
+    if MapSet.member?(state.banned, holder_key(state)) do
+      {:reply, {:error, :banned}, state}
+    else
+      case game_intent(state, :host, intent) do
+        {:reply, :ok, state} -> {:reply, :ok, drop_banned(state)}
+        other -> other
+      end
+    end
   end
 
   # Transfer needs both halves: the game moves the role, the shell mints the new
@@ -325,6 +341,10 @@ defmodule Fazoura.Rooms.RoomServer do
       {:error, _code} = error -> {:reply, error, state}
     end
   end
+
+  # Before the channel so much as looks a room size code up.
+  defp handle_intent(state, actor, :check_unlock),
+    do: {:reply, Game.check_unlock(state.game, actor), state}
 
   # Before the channel counts a use of a room size code (PROTOCOL.md §6.5): may this
   # connection unlock the room, and has the room had this code before, which costs no
@@ -375,7 +395,9 @@ defmodule Fazoura.Rooms.RoomServer do
   defp apply_selection(state, pack, image_keys) do
     case Game.handle(state.game, :host, {:select_quiz, pack}, state.now.()) do
       {:ok, game} ->
-        :ok = Images.attach(image_keys, self())
+        # The new selection's photos replace the old one's rather than joining them,
+        # so a room holds one selection's worth (≤ 8 MB) however often it chooses.
+        :ok = Images.replace(image_keys, self())
         {:reply, :ok, update_game(state, game)}
 
       # Nothing is holding these photos: without this they would sit in memory
@@ -399,8 +421,38 @@ defmodule Fazoura.Rooms.RoomServer do
 
   # A public room keeps banned connections out (PROTOCOL.md §3.5). The ban was looked
   # up by the channel, so the room never touches the database during play.
-  defp admit(%Game{listed: true}, %{banned?: true}), do: {:error, :banned}
-  defp admit(_game, _meta), do: :ok
+  # Players in the room from one address. A public room is joined by strangers, and
+  # one caller sitting in it under 32 names fills it and takes it off the list; a
+  # household or a table of friends on one Wi-Fi is a handful, not a room.
+  @players_per_address 6
+
+  # Only a join that would make somebody *new* is held to the address rules below: a
+  # rejoin by token is a player the room already has, and the host rejoining from the
+  # same Wi-Fi as a player they removed must still get back in.
+  defp admit(%{game: %Game{listed: true}}, %{banned?: true}, _params), do: {:error, :banned}
+
+  defp admit(state, meta, params) do
+    new? = not is_binary(params["host_token"]) and not is_binary(params["player_token"])
+    address = meta[:ip_hash]
+
+    cond do
+      not new? or is_nil(address) ->
+        :ok
+
+      MapSet.member?(state.removed_addresses, address) ->
+        {:error, :removed}
+
+      state.game.listed and from_address(state, address) >= @players_per_address ->
+        {:error, :address_full}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp from_address(state, address) do
+    Enum.count(state.game.players, fn {id, _player} -> state.ip_hashes[id] == address end)
+  end
 
   defp remember(state, actor, meta) do
     key = actor_key(state.game, actor)
@@ -422,6 +474,24 @@ defmodule Fazoura.Rooms.RoomServer do
 
   # Tells a removed player's connections they are out, and stops counting them. A
   # demoted host still playing is one of those connections.
+  defp keep_out(state, player_id) do
+    case state.ip_hashes[player_id] do
+      nil -> state
+      address -> %{state | removed_addresses: MapSet.put(state.removed_addresses, address)}
+    end
+  end
+
+  defp drop_banned(state) do
+    banned = for id <- state.banned, is_binary(id), Map.has_key?(state.game.players, id), do: id
+
+    Enum.reduce(banned, state, fn id, state ->
+      case Game.handle(state.game, :host, {:remove_player, %{"player_id" => id}}, state.now.()) do
+        {:ok, game} -> state |> let_go(id) |> update_game(game)
+        {:error, _code} -> state
+      end
+    end)
+  end
+
   defp let_go(state, player_id) do
     gone =
       for {pid, actor} <- state.conns,
@@ -441,21 +511,32 @@ defmodule Fazoura.Rooms.RoomServer do
     |> mark_empty_if_deserted()
   end
 
-  defp authenticate(game, generation, %{"host_token" => token} = params)
-       when is_binary(token) do
+  defp authenticate(state, %{"host_token" => token} = params) when is_binary(token) do
+    game = state.game
+
     # Only the current generation: a token from before a transfer is as good as
     # forged, or a demoted host could take the room back (§3.3).
-    if Tokens.host?(token, game.room_code, generation) do
-      with {:ok, game} <- maybe_add_host_player(game, params["display_name"]) do
-        {:ok, :host, %{role: "host", player_id: game.host_player_id, player_token: nil}, game}
-      end
-    else
-      {:error, :invalid_token}
+    cond do
+      not Tokens.host?(token, state.token_scope, state.generation) ->
+        {:error, :invalid_token}
+
+      # After a hand-over the token in force was minted for the player who now holds
+      # the role, so it joins as that player. As `:host` it would have been taken for
+      # the connection that handed the role away, and seated in that player's place.
+      not state.held_by_host_conn? ->
+        id = game.host_player_id
+        {:ok, {:player, id}, %{role: "host", player_id: id, player_token: nil}, game}
+
+      true ->
+        with {:ok, game} <- maybe_add_host_player(game, params["display_name"]) do
+          {:ok, :host, %{role: "host", player_id: game.host_player_id, player_token: nil}, game}
+        end
     end
   end
 
-  defp authenticate(game, _generation, %{"player_token" => token}) when is_binary(token) do
-    with {:ok, id} <- Tokens.player_id(token, game.room_code),
+  defp authenticate(%{game: game} = state, %{"player_token" => token})
+       when is_binary(token) do
+    with {:ok, id} <- Tokens.player_id(token, state.token_scope),
          true <- Game.player?(game, id) do
       {:ok, {:player, id}, player_reply(id, token), game}
     else
@@ -463,13 +544,13 @@ defmodule Fazoura.Rooms.RoomServer do
     end
   end
 
-  defp authenticate(game, _generation, params) do
+  defp authenticate(%{game: game} = state, params) do
     id = new_player_id()
 
     hue = Game.pick_avatar_hue(game)
 
     with {:ok, game} <- Game.add_player(game, id, params["display_name"], hue) do
-      token = Tokens.player_token(game.room_code, id)
+      token = Tokens.player_token(state.token_scope, id)
       {:ok, {:player, id}, player_reply(id, token), game}
     end
   end
@@ -550,7 +631,7 @@ defmodule Fazoura.Rooms.RoomServer do
           Map.put(
             state.pending_tokens,
             player_id,
-            Tokens.host_token(state.game.room_code, generation)
+            Tokens.host_token(state.token_scope, generation)
           )
     }
   end

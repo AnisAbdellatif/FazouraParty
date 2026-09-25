@@ -35,6 +35,22 @@ defmodule FazouraWeb.Plugs.BodyLimitTest do
       assert declaring(["api", "quizzes", "e5f1", "archive"], 2_000).halted
     end
 
+    test "a body with no length at all is refused rather than read" do
+      # Chunked: it used to count as empty here and be read up to the endpoint's
+      # 32 MB on any route at all.
+      conn =
+        :post
+        |> Plug.Test.conn("/api/tags")
+        |> Plug.Conn.put_req_header("transfer-encoding", "chunked")
+        |> BodyLimit.call(@opts)
+
+      assert conn.halted
+      assert conn.status == 411
+
+      # A request with no body is not asked for one.
+      refute (:get |> Plug.Test.conn("/api/tags") |> BodyLimit.call(@opts)).halted
+    end
+
     test "an exact route wins over a pattern that also matches" do
       assert declaring(["api", "quizzes", "special"], 500).halted
     end

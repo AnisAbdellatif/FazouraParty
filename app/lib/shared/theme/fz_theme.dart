@@ -8,8 +8,16 @@ abstract final class FzColors {
   /// Pink, secondary and alerts.
   static const ac2 = Color(0xFFFF2D6F);
   static const ink = Color(0xFFFBF6EC);
-  static const dim = Color(0x85FBF6EC);
-  static const faint = Color(0x4DFBF6EC);
+
+  /// Secondary text. 65% ink: at least 4.5:1 on every ground the app draws,
+  /// including a panel under the lift at the top of the screen, which is the
+  /// worst of them. The design's 52% measured 3.7:1 there.
+  static const dim = Color(0xA6FBF6EC);
+
+  /// Placeholders, disabled labels and other text nobody has to read to play.
+  /// 45% ink keeps it clearly below [dim] and still 3:1 on every ground; the
+  /// design's 30% was 2.5:1, which on a phone in a lit room is not there.
+  static const faint = Color(0x73FBF6EC);
 
   /// Deep teal: the card ground, and the text colour on amber or pink.
   static const bg = Color(0xFF0A2422);
@@ -27,7 +35,10 @@ abstract final class FzColors {
   /// on a white ground read as a hole with the subject floating in it. A light
   /// mat gives it an edge, the way a print has one.
   static const photoMat = Color(0xF7FBF6EC);
-  static const line = Color(0x24FBF6EC);
+
+  /// Hairline borders: fields, outlined buttons, cards. Heavier than the
+  /// design's 14% so a field or an outlined button still reads as one.
+  static const line = Color(0x33FBF6EC);
   static const ok = Color(0xFF4FD39A);
 
   /// Red, for a clock that is running out and nothing else. Not in the design's
@@ -239,6 +250,26 @@ ThemeData buildFzTheme({
       ),
       trackOutlineColor: WidgetStateProperty.resolveWith(
         (states) => selected(states) ? FzColors.ac : FzColors.line,
+      ),
+    ),
+    // One dialog shape for every dialog: the design's type rather than
+    // Material's, and never wider than the phone column it opens over — on a
+    // desktop the default stretched a short form across the whole window.
+    dialogTheme: DialogThemeData(
+      backgroundColor: const Color(0xFF0C2B28),
+      surfaceTintColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      constraints: const BoxConstraints(minWidth: 280, maxWidth: 480),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      titleTextStyle: fz.t(24),
+      contentTextStyle: fz.m(13, color: FzColors.dim, height: 1.5),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: FzColors.ac,
+        disabledForegroundColor: FzColors.faint,
+        textStyle: fz.h(15, weight: FontWeight.w700),
+        minimumSize: const Size(48, 44),
       ),
     ),
     snackBarTheme: SnackBarThemeData(

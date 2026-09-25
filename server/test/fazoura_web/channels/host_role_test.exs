@@ -90,6 +90,34 @@ defmodule FazouraWeb.HostRoleTest do
       assert_reply ref, :error, %{code: "not_host"}
     end
 
+    test "the new host rejoining with their token comes back as themselves", %{
+      code: code,
+      host_token: host_token
+    } do
+      {:ok, %{player_id: hana}, host} = join_host(code, host_token, "Hana")
+      {:ok, %{player_id: sam}, _} = join_room(code, %{"display_name" => "Sam"})
+
+      ref = push(host, "host_transfer", %{"player_id" => sam})
+      assert_reply ref, :ok, %{}
+
+      assert_push "state",
+                  %{you: %{player_id: ^sam, host_token: token}}
+                  when is_binary(token)
+
+      # The token Sam was handed puts him back in his own seat, with the role —
+      # not in Hana's, which is where it used to land him.
+      assert {:ok, %{role: "host", player_id: ^sam}, sam_again} = join_host(code, token)
+
+      # So an answer from this socket is Sam's, and Hana can still give her own.
+      ref = push(sam_again, "host_next", %{})
+      assert_reply ref, :ok, %{}
+      ref = push(sam_again, "submit", %{"answer" => "Sam's"})
+      assert_reply ref, :ok, %{}
+      ref = push(host, "submit", %{"answer" => "Hana's"})
+      assert_reply ref, :ok, %{}
+      refute hana == sam
+    end
+
     test "a player cannot transfer the role to themselves", %{code: code} do
       {:ok, %{player_id: sam}, sam_socket} = join_room(code, %{"display_name" => "Sam"})
 
@@ -160,6 +188,25 @@ defmodule FazouraWeb.HostRoleTest do
       # grace period, which is what lets a lone host survive a blip.
       assert Process.alive?(room)
       assert {:ok, %{role: "host"}, _} = join_host(code, host_token)
+    end
+  end
+
+  describe "tokens and reused codes" do
+    test "a host token from a room that has ended does not open the next room with its code",
+         %{code: code, host_token: old_token} do
+      [{pid, _}] = Registry.lookup(Fazoura.Rooms.Registry, code)
+      ref = Process.monitor(pid)
+      GenServer.stop(pid)
+      assert_receive {:DOWN, ^ref, _, _, _}
+
+      # A new room that happens to draw the same code.
+      {:ok, _pid} =
+        DynamicSupervisor.start_child(
+          Fazoura.Rooms.Supervisor,
+          {Fazoura.Rooms.RoomServer, code: code, pack: QuizFixtures.pack()}
+        )
+
+      assert {:error, %{code: "invalid_token"}} = join_host(code, old_token)
     end
   end
 

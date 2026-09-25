@@ -39,6 +39,21 @@ defmodule Fazoura.Rooms.DrainTest do
     assert {:error, %{code: "room_not_found"}} = join_room(code, %{"display_name" => "Late"})
   end
 
+  test "SIGUSR2 ends live games out loud and leaves the server running" do
+    # A deploy signals the running container before the new one starts: kamal-proxy
+    # cuts its WebSockets at the switch, before SIGTERM could be heard.
+    {:ok, code, _host_token} = Rooms.create(QuizFixtures.pack())
+    {:ok, _reply, socket} = join_room(code, %{"display_name" => "Sam"})
+    Process.unlink(socket.channel_pid)
+
+    # Where the runtime delivers the OS signal.
+    :gen_event.notify(:erl_signal_server, :sigusr2)
+
+    assert_push "room_closed", %{reason: "shutdown"}
+    assert Process.alive?(Process.whereis(Drain))
+    assert {:ok, _code, _token} = Rooms.create(QuizFixtures.pack())
+  end
+
   test "with nothing live it does nothing" do
     drain_leaked_rooms()
 

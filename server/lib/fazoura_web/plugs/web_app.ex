@@ -56,11 +56,11 @@ defmodule FazouraWeb.Plugs.WebApp do
     end
   end
 
-  defp serve(%{path_info: []} = conn, dir), do: send_index(conn, dir)
+  defp serve(%{path_info: []} = conn, dir), do: conn |> protect() |> send_index(dir)
 
   defp serve(conn, dir) do
     Plug.Static.call(
-      conn,
+      protect(conn),
       Plug.Static.init(
         at: "/",
         from: dir,
@@ -71,6 +71,19 @@ defmodule FazouraWeb.Plugs.WebApp do
         cache_control_for_vsn_requests: @cache_control
       )
     )
+  end
+
+  # No other site may frame the app: a host's controls under somebody else's page are
+  # a click away from ending a party or removing a player. A full CSP is left out on
+  # purpose — Flutter's renderer needs `wasm-unsafe-eval` and inline bootstrap, and a
+  # policy loose enough for that buys little — but framing is the one it can refuse.
+  defp protect(conn) do
+    Plug.Conn.merge_resp_headers(conn, [
+      {"content-security-policy", "frame-ancestors 'none'"},
+      {"x-frame-options", "DENY"},
+      {"x-content-type-options", "nosniff"},
+      {"referrer-policy", "no-referrer"}
+    ])
   end
 
   # The app is a single page: "/" is the shell.

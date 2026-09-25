@@ -190,6 +190,99 @@ void main() {
       await guest.close();
     });
 
+    test('guessing room codes is cut off, joining is not', () async {
+      final guest = await _Guest.connect(host.port);
+      for (var i = 0; i < maxFailedLanJoins; i++) {
+        final reply = await guest.join('NOPE$i', {'display_name': 'G'});
+        expect((reply['response'] as Map)['code'], 'room_not_found');
+      }
+
+      // Past the limit even the real room is refused, so an answer says nothing.
+      final late = await guest.join(host.roomCode, {'display_name': 'Sam'});
+      expect((late['response'] as Map)['code'], 'rate_limited');
+      await guest.close();
+    });
+
+    test('a browser cannot open a socket to the host', () async {
+      // Every real client is the app or the CLI, which send no Origin; a web
+      // page a guest happens to open always does.
+      await expectLater(
+        WebSocket.connect(
+          'ws://127.0.0.1:${host.port}/socket/websocket',
+          headers: {'origin': 'http://evil.example'},
+        ),
+        throwsA(isA<WebSocketException>()),
+      );
+    });
+
+    test('a frame too big is cut off from its header alone', () async {
+      // Over plain TCP, so the test can send the header of a 1 GB frame and
+      // nothing else. dart:io would wait for the whole gigabyte; the guard
+      // reads the length and closes the socket before any payload arrives.
+      final raw = await Socket.connect('127.0.0.1', host.port);
+      final closed = Completer<void>();
+      final received = <int>[];
+      raw.listen(received.addAll, onDone: closed.complete, onError: (_) {});
+
+      raw.write(
+        'GET /socket/websocket HTTP/1.1\r\n'
+        'Host: 127.0.0.1\r\n'
+        'Upgrade: websocket\r\n'
+        'Connection: Upgrade\r\n'
+        'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n'
+        'Sec-WebSocket-Version: 13\r\n\r\n',
+      );
+      await _until(
+        () => utf8.decode(received, allowMalformed: true).contains('\r\n\r\n'),
+      );
+      expect(
+        utf8.decode(received, allowMalformed: true),
+        startsWith('HTTP/1.1 101'),
+      );
+      expect(
+        utf8.decode(received, allowMalformed: true),
+        contains('s3pPLMBiTxaQ9kYGzzhZRbK+xOo='),
+        reason: 'the RFC 6455 example key and its accept value',
+      );
+
+      // FIN + text, masked, 64-bit length of 1 GiB, a mask, and no payload.
+      raw.add([0x81, 0xFF, 0, 0, 0, 0, 0x40, 0, 0, 0, 1, 2, 3, 4]);
+      await closed.future.timeout(const Duration(seconds: 5));
+      raw.destroy();
+    });
+
+    test('one address may hold only so many sockets', () async {
+      final open = [
+        for (var i = 0; i < maxLanSocketsPerAddress; i++)
+          await WebSocket.connect(
+            'ws://127.0.0.1:${host.port}/socket/websocket',
+          ),
+      ];
+      await expectLater(
+        WebSocket.connect('ws://127.0.0.1:${host.port}/socket/websocket'),
+        throwsA(isA<WebSocketException>()),
+      );
+      for (final socket in open) {
+        await socket.close();
+      }
+    });
+
+    test('a frame of the wrong shape is dropped, not a crash', () async {
+      final socket = await WebSocket.connect(
+        'ws://127.0.0.1:${host.port}/socket/websocket',
+      );
+      // Numbers where strings belong used to throw inside the listener.
+      socket.add(jsonEncode([1, 2, 3, 4, {}]));
+      socket.add(jsonEncode(['1', '2', 'room:${host.roomCode}', 7, {}]));
+      await socket.close();
+
+      // The host is still serving.
+      final guest = await _Guest.connect(host.port);
+      final reply = await guest.join(host.roomCode, {'display_name': 'Sam'});
+      expect(reply['status'], 'ok');
+      await guest.close();
+    });
+
     test('heartbeats are answered so the socket is kept alive', () async {
       final guest = await _Guest.connect(host.port);
       final reply = await guest.send('phoenix', 'heartbeat', {});

@@ -160,7 +160,6 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
   Widget build(BuildContext context) {
     final fz = FzTheme.of(context);
     return AlertDialog(
-      backgroundColor: FzColors.bg,
       title: const Text('Report this'),
       content: SingleChildScrollView(
         child: Column(
@@ -235,6 +234,7 @@ class _ReportDialogState extends ConsumerState<_ReportDialog> {
       ),
       actions: [
         TextButton(
+          style: TextButton.styleFrom(foregroundColor: FzColors.dim),
           onPressed: _sending ? null : () => Navigator.of(context).pop(false),
           child: const Text('Cancel'),
         ),

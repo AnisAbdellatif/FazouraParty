@@ -16,10 +16,6 @@ defmodule FazouraWeb.Router do
     plug FazouraWeb.Plugs.RateLimit, bucket: :room_status, limit: 60, window_ms: 60_000
   end
 
-  pipeline :upload do
-    plug FazouraWeb.Plugs.RateLimit, bucket: :images, limit: 60, window_ms: 60_000
-  end
-
   pipeline :publish do
     plug FazouraWeb.Plugs.RateLimit, bucket: :quizzes, limit: 30, window_ms: 60_000
   end
@@ -120,12 +116,6 @@ defmodule FazouraWeb.Router do
 
     post "/quizzes/:id/report", QuizController, :report
     post "/rooms/:code/report", RoomController, :report
-  end
-
-  scope "/api", FazouraWeb do
-    pipe_through [:api, :upload]
-
-    post "/images", ImageController, :create
   end
 
   scope "/api", FazouraWeb do

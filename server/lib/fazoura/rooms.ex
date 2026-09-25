@@ -6,24 +6,26 @@ defmodule Fazoura.Rooms do
 
   alias Fazoura.Game.Pack
   alias Fazoura.Metrics
-  alias Fazoura.Rooms.{Images, Listing, RoomServer, Tokens}
+  alias Fazoura.Rooms.{Images, Limits, Listing, RoomServer, Tokens}
 
   @code_alphabet ~c"ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
   @code_length 6
 
-  # Rooms are free to create and live in memory for up to ten minutes without anyone
-  # joining, so an unbounded count is a way to exhaust the node's memory. This is far
+  # Rooms are free to create and live in memory for 30 seconds without anyone joining
+  # (and as long as they like once somebody has), so an unbounded count is a way to
+  # exhaust the node's memory. This is far
   # above any real party's needs and only bites a flood.
   @max_rooms 500
 
   @doc """
   Starts a room for `pack`. Options: `:now` (0-arity fun returning epoch ms, for tests),
-  `:mode` (`:cloud` | `:lan`), `:image_keys` (private-quiz photos in
+  `:mode` (`:cloud` | `:lan`), `:creator` (the caller's address, `FazouraWeb.ClientIp`,
+  which may hold only so many rooms at once: `Fazoura.Rooms.Limits`), `:image_keys` (private-quiz photos in
   `Fazoura.Rooms.Images`, freed when the room exits), `:broadcast_interval_ms` (the
   shortest gap between two snapshots, `Fazoura.Rooms.RoomServer`).
   """
   @spec create(Pack.t(), keyword()) ::
-          {:ok, String.t(), String.t()} | {:error, :empty_pack | :too_many_rooms}
+          {:ok, String.t(), String.t()} | {:error, :empty_pack | :too_many_rooms | :rate_limited}
   def create(pack, opts \\ [])
 
   # A pack with no questions is only legal as the empty lobby a room is created
@@ -31,10 +33,10 @@ defmodule Fazoura.Rooms do
   def create(%Pack{questions: [], titles: [_ | _]}, _opts), do: {:error, :empty_pack}
 
   def create(%Pack{} = pack, opts) do
-    if count() >= max_rooms() do
-      {:error, :too_many_rooms}
-    else
-      start_room(pack, opts)
+    cond do
+      count() >= max_rooms() -> {:error, :too_many_rooms}
+      not Limits.may_create?(opts[:creator]) -> {:error, :rate_limited}
+      true -> start_room(pack, opts)
     end
   end
 
@@ -54,13 +56,14 @@ defmodule Fazoura.Rooms do
   defp start_room(%Pack{} = pack, opts) do
     {image_keys, server_opts} = Keyword.pop(opts, :image_keys, [])
     code = generate_code()
-    spec = {RoomServer, Keyword.merge(server_opts, code: code, pack: pack)}
+    scope = Tokens.scope(code)
+    spec = {RoomServer, Keyword.merge(server_opts, code: code, token_scope: scope, pack: pack)}
 
     case DynamicSupervisor.start_child(Fazoura.Rooms.Supervisor, spec) do
       {:ok, pid} ->
         :ok = Images.attach(image_keys, pid)
         Metrics.increment(:rooms_created)
-        {:ok, code, Tokens.host_token(code)}
+        {:ok, code, Tokens.host_token(scope)}
 
       # A code collision, not a capacity problem: retry without re-checking the cap.
       {:error, {:already_started, _pid}} ->
@@ -82,6 +85,7 @@ defmodule Fazoura.Rooms do
           String.t(),
           pid(),
           Fazoura.Game.intent()
+          | :check_unlock
           | {:check_size_code | :redeem_size_code, Fazoura.RoomSizeCodes.Code.t()}
         ) :: :ok | :new | :already | {:error, atom()}
   def intent(code, pid, intent), do: call(code, {:intent, pid, intent})
@@ -187,7 +191,13 @@ defmodule Fazoura.Rooms do
 
   defp call(_code, _message), do: {:error, :room_not_found}
 
+  # From the strong generator: a code is the only thing between a stranger and a
+  # private room, so it should not be predictable from codes seen before.
   defp generate_code do
-    for _ <- 1..@code_length, into: "", do: <<Enum.random(@code_alphabet)>>
+    size = length(@code_alphabet)
+
+    for byte <- :binary.bin_to_list(:crypto.strong_rand_bytes(@code_length)), into: "" do
+      <<Enum.at(@code_alphabet, rem(byte, size))>>
+    end
   end
 end

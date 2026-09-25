@@ -22,7 +22,7 @@ both — no Postgres-only SQL or types.
 | `GET /health` | liveness, used by the container healthcheck |
 | `POST /api/rooms` | `{"quiz_id": "..."}` or `{"quiz": {…}}` for a private quiz sent inline → `{room_code, host_token}` |
 | `GET/POST/PUT/DELETE /api/quizzes[/:id]` | the public library; writes need the publisher's `x-owner-key` |
-| `GET /api/tags`, `POST /api/images` | tag suggestions, photo upload |
+| `GET /api/tags` | tag suggestions |
 | `ws://…/socket/websocket?vsn=2.0.0` | topic `room:<CODE>` — the game itself |
 | `/admin` | LiveView dashboard: live stats, quiz moderation, suggested tags |
 

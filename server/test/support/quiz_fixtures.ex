@@ -41,17 +41,17 @@ defmodule Fazoura.QuizFixtures do
   Publishing is a submission of one of these now (QUIZ_FORMAT.md §4), so this
   is what a test sends where it used to post a JSON document.
   """
-  def package(attrs \\ %{}) do
-    {:ok, binary} = Archive.build(atomise(quiz_params(attrs)), %{})
+  def package(attrs \\ %{}, photos \\ %{}) do
+    {:ok, binary} = Archive.build(atomise(quiz_params(attrs)), photos)
     binary
   end
 
   @doc "The same, as the multipart file part the API takes."
-  def package_upload(attrs \\ %{}) do
+  def package_upload(attrs \\ %{}, photos \\ %{}) do
     path =
       Path.join(System.tmp_dir!(), "fazoura-#{System.unique_integer([:positive])}.fazoura")
 
-    File.write!(path, package(attrs))
+    File.write!(path, package(attrs, photos))
     %Plug.Upload{path: path, filename: "quiz.fazoura", content_type: "application/zip"}
   end
 

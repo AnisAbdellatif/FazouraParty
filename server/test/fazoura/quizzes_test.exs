@@ -672,6 +672,21 @@ defmodule Fazoura.QuizzesTest do
                {:error, {:not_in_the_package, "media/gone.png"}}
     end
 
+    test "a photo named by an upload key rather than carried in the package" do
+      # Something already in the uploads volume that nobody reviewing the package
+      # would ever see. Passing it through let an approved quiz show any stored
+      # photo at all.
+      {:ok, stored} = Quizzes.store_image(@png, @owner)
+
+      binary =
+        package(
+          [question(%{"type" => "text_photo", "image" => %{"key" => stored.key}})],
+          %{}
+        )
+
+      assert Quizzes.read_archive(binary) == {:error, {:not_in_the_package, stored.key}}
+    end
+
     test "a photo that is not an image the server accepts" do
       binary =
         package(
@@ -794,6 +809,27 @@ defmodule Fazoura.QuizzesTest do
       previous = Application.fetch_env!(:fazoura, :uploads_dir)
       Application.put_env(:fazoura, :uploads_dir, tmp_dir)
       on_exit(fn -> Application.put_env(:fazoura, :uploads_dir, previous) end)
+    end
+
+    @tag :tmp_dir
+    test "a photo an approval takes up again is not collected under it" do
+      # A photo's key is its bytes, so a package can bring back one that was left
+      # an orphan. Reading it in starts its grace again: otherwise the sweep could
+      # delete the file of a quiz that had just been approved.
+      photo_question = [
+        question(%{"type" => "text_photo", "image" => %{"path" => "media/still.png"}})
+      ]
+
+      binary = package(photo_question, %{"media/still.png" => @png})
+      {:ok, _params} = Quizzes.read_archive(binary)
+      two_days_ago = DateTime.add(DateTime.utc_now(:second), -2, :day)
+      Repo.update_all(Fazoura.Quizzes.Image, set: [inserted_at: two_days_ago])
+
+      {:ok, params} = Quizzes.read_archive(binary)
+      [%{"image" => %{"key" => key}}] = params["questions"]
+
+      assert %{images: 0} = Quizzes.sweep_images()
+      assert uploaded?(key)
     end
 
     @tag :tmp_dir

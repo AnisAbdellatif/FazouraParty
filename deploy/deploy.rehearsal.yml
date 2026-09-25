@@ -1,0 +1,4 @@
+# The deploy rehearsal (deploy/rehearsal/README.md), over deploy.yml: `-d rehearsal`.
+# Its images come from a registry on this machine, which rehearse.sh starts.
+registry:
+  server: 127.0.0.1:5557

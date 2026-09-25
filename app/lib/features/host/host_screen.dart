@@ -348,20 +348,18 @@ class _QuestionControls extends StatelessWidget {
             onPressed: onNext,
           ),
         ),
-        const SizedBox(width: 8),
-        FzPill(
-          key: const Key('hostPauseButton'),
-          label: 'Pause',
-          icon: Icons.pause,
-          onPressed: paused ? null : onPause,
-        ),
-        const SizedBox(width: 6),
-        FzPill(
-          key: const Key('hostResumeButton'),
-          label: 'Resume',
-          icon: Icons.play_arrow,
-          color: FzColors.ac,
-          onPressed: paused ? onResume : null,
+        const SizedBox(width: 10),
+        // One control that says what it will do, rather than Pause and Resume
+        // side by side with one of them always disabled: on a 360 px phone
+        // the pair left "End question" too narrow to read.
+        FzButton(
+          key: Key(paused ? 'hostResumeButton' : 'hostPauseButton'),
+          label: paused ? 'Resume' : 'Pause',
+          kind: FzButtonKind.outline,
+          expand: false,
+          height: 54,
+          fontSize: 16,
+          onPressed: paused ? onResume : onPause,
         ),
       ],
     );

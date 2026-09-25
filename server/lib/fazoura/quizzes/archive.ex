@@ -7,20 +7,16 @@ defmodule Fazoura.Quizzes.Archive do
   `GET /api/quizzes/:id/archive` sends and what `tools/fazoura-cli/fazoura quiz pack` writes from a
   folder; `read/1` is what an admin upload takes back apart.
 
-  `read/1` is the untrusted direction and treats the file as hostile. The package is
-  capped, what it *claims* to expand to is checked against the central directory before a
-  byte is inflated, and the entries only ever live in memory — so a name carrying `..` or
-  an absolute path is a map key and nothing more.
+  `read/1` is the untrusted direction and treats the file as hostile. It does not use
+  `:zip.unzip`, which inflates an entry until its compressed data runs out whatever size
+  the file declares — so a 32 MB package declaring a byte per entry became 32 GB in
+  memory. It walks the central directory itself instead, refuses a package whose declared
+  sizes add up to more than a quiz could need, and inflates each entry under a cap of its
+  own declared size, stopping the moment the output would pass it. The entries only ever
+  live in memory, and a name carrying `..` or an absolute path is dropped.
   """
 
-  require Record
-
-  Record.defrecordp(:zip_file, Record.extract(:zip_file, from_lib: "stdlib/include/zip.hrl"))
-
-  Record.defrecordp(
-    :file_info,
-    Record.extract(:file_info, from_lib: "kernel/include/file.hrl")
-  )
+  import Bitwise
 
   @manifest "manifest.json"
   @media "media/"
@@ -33,6 +29,11 @@ defmodule Fazoura.Quizzes.Archive do
   # honest package barely shrinks and stays well under this; one that claims to expand
   # many times over is a decompression bomb.
   @max_unpacked_bytes 48 * 1024 * 1024
+
+  # An honest package is a manifest and one photo per question; a quiz has at most a
+  # few hundred questions. Far more entries than that is a file built to make the
+  # directory walk itself expensive.
+  @max_entries 2_000
 
   @type reason ::
           :archive_too_large | :invalid_archive | :manifest_missing | :manifest_invalid
@@ -78,8 +79,9 @@ defmodule Fazoura.Quizzes.Archive do
     do: {:error, :archive_too_large}
 
   def read(binary) when is_binary(binary) do
-    with :ok <- check_unpacked_size(binary),
-         {:ok, entries} <- unzip(binary),
+    with {:ok, directory} <- central_directory(binary),
+         :ok <- check_unpacked_size(directory),
+         {:ok, entries} <- inflate_all(binary, directory),
          {:ok, document} <- manifest(entries) do
       {:ok, %{document: document, photos: media(entries)}}
     end
@@ -87,28 +89,166 @@ defmodule Fazoura.Quizzes.Archive do
 
   def read(_binary), do: {:error, :invalid_archive}
 
-  defp check_unpacked_size(binary) do
-    case safely(fn -> :zip.list_dir(binary) end) do
-      {:ok, listing} ->
-        total =
-          Enum.sum(
-            for zip_file(info: file_info(size: size)) <- listing, is_integer(size), do: size
-          )
+  ## Reading a ZIP (APPNOTE.TXT §4.3), with nothing trusted that is not checked
 
-        if total <= @max_unpacked_bytes, do: :ok, else: {:error, :archive_too_large}
+  @eocd_signature 0x06054B50
+  @central_signature 0x02014B50
+  @local_signature 0x04034B50
+  @eocd_size 22
+  # The end record is followed by a comment of at most 65,535 bytes.
+  @eocd_search @eocd_size + 0xFFFF
+
+  defp central_directory(binary) do
+    with {:ok, count, size, offset} <- end_record(binary),
+         true <- count <= @max_entries || {:error, :archive_too_large},
+         true <- offset + size <= byte_size(binary) || {:error, :invalid_archive} do
+      binary |> binary_part(offset, size) |> central_entries(count, [])
+    end
+  end
+
+  defp end_record(binary) do
+    window = min(byte_size(binary), @eocd_search)
+    tail = binary_part(binary, byte_size(binary) - window, window)
+
+    tail
+    |> :binary.matches(<<@eocd_signature::little-32>>)
+    |> List.last()
+    |> case do
+      {at, _length} when window - at >= @eocd_size ->
+        <<_signature::32, disk::little-16, cd_disk::little-16, _here::little-16, count::little-16,
+          size::little-32, offset::little-32, _comment::binary>> =
+          binary_part(tail, at, window - at)
+
+        # Split archives, and ZIP64's 0xFFFF / 0xFFFFFFFF markers: nothing this app
+        # writes is either, and a 32 MB package never needs to be.
+        if disk == 0 and cd_disk == 0 and count != 0xFFFF and offset != 0xFFFFFFFF,
+          do: {:ok, count, size, offset},
+          else: {:error, :invalid_archive}
 
       _other ->
         {:error, :invalid_archive}
     end
   end
 
-  defp unzip(binary) do
-    case safely(fn -> :zip.unzip(binary, [:memory]) end) do
-      {:ok, entries} ->
-        {:ok, Map.new(entries, fn {name, data} -> {List.to_string(name), data} end)}
+  defp central_entries(_rest, 0, acc), do: {:ok, Enum.reverse(acc)}
 
-      _other ->
+  defp central_entries(
+         <<@central_signature::little-32, _made_by::16, _needed::16, flags::little-16,
+           method::little-16, _time::16, _date::16, crc::little-32, compressed::little-32,
+           size::little-32, name_length::little-16, extra_length::little-16,
+           comment_length::little-16, _disk::16, _internal::16, _external::32, offset::little-32,
+           name::binary-size(name_length), _extra::binary-size(extra_length),
+           _comment::binary-size(comment_length), rest::binary>>,
+         count,
+         acc
+       ) do
+    entry = %{
+      name: name,
+      flags: flags,
+      method: method,
+      crc: crc,
+      compressed: compressed,
+      size: size,
+      offset: offset
+    }
+
+    central_entries(rest, count - 1, [entry | acc])
+  end
+
+  defp central_entries(_rest, _count, _acc), do: {:error, :invalid_archive}
+
+  defp check_unpacked_size(directory) do
+    total = directory |> Enum.map(& &1.size) |> Enum.sum()
+    if total <= @max_unpacked_bytes, do: :ok, else: {:error, :archive_too_large}
+  end
+
+  defp inflate_all(binary, directory) do
+    Enum.reduce_while(directory, {:ok, %{}}, fn entry, {:ok, entries} ->
+      case take_entry(binary, entry, entries) do
+        {:ok, entries} -> {:cont, {:ok, entries}}
+        {:error, _reason} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp take_entry(binary, entry, entries) do
+    cond do
+      not safe_name?(entry.name) ->
+        {:ok, entries}
+
+      Map.has_key?(entries, entry.name) ->
         {:error, :invalid_archive}
+
+      true ->
+        with {:ok, data} <- entry_data(binary, entry),
+             do: {:ok, Map.put(entries, entry.name, data)}
+    end
+  end
+
+  # Folders, and any name that could mean somewhere else were it ever written out.
+  defp safe_name?(name) do
+    String.valid?(name) and not String.ends_with?(name, "/") and
+      not String.starts_with?(name, ["/", "\\"]) and
+      not String.contains?(name, ["\\", <<0>>]) and
+      ".." not in String.split(name, "/")
+  end
+
+  # Bit 0 is encryption; nothing here could read an encrypted entry anyway.
+  defp entry_data(_binary, %{flags: flags}) when (flags &&& 1) == 1,
+    do: {:error, :invalid_archive}
+
+  defp entry_data(binary, entry) do
+    with {:ok, compressed} <- compressed_data(binary, entry),
+         {:ok, data} <- decompress(entry.method, compressed, entry.size),
+         true <- byte_size(data) == entry.size || {:error, :invalid_archive},
+         true <- :erlang.crc32(data) == entry.crc || {:error, :invalid_archive} do
+      {:ok, data}
+    end
+  end
+
+  # The local header repeats the name and carries its own extra field, so the data
+  # starts wherever that header says — but how much of it there is comes from the
+  # central directory, which is what was size-checked.
+  defp compressed_data(binary, %{offset: offset, compressed: compressed}) do
+    with true <- offset + 30 <= byte_size(binary) || {:error, :invalid_archive},
+         <<@local_signature::little-32, _rest::binary-size(22), name_length::little-16,
+           extra_length::little-16>> <- binary_part(binary, offset, 30),
+         start = offset + 30 + name_length + extra_length,
+         true <- start + compressed <= byte_size(binary) || {:error, :invalid_archive} do
+      {:ok, binary_part(binary, start, compressed)}
+    else
+      {:error, _reason} = error -> error
+      _other -> {:error, :invalid_archive}
+    end
+  end
+
+  # Stored.
+  defp decompress(0, data, _limit), do: {:ok, data}
+
+  # Deflated: raw deflate (no zlib header), inflated a chunk at a time and abandoned
+  # the moment it would come to more than the entry declared.
+  defp decompress(8, data, limit) do
+    z = :zlib.open()
+
+    try do
+      :ok = :zlib.inflateInit(z, -15)
+      inflate(z, :zlib.safeInflate(z, data), limit, [], 0)
+    catch
+      _kind, _value -> {:error, :invalid_archive}
+    after
+      :zlib.close(z)
+    end
+  end
+
+  defp decompress(_method, _data, _limit), do: {:error, :invalid_archive}
+
+  defp inflate(z, {status, output}, limit, acc, total) do
+    total = total + IO.iodata_length(output)
+
+    cond do
+      total > limit -> {:error, :archive_too_large}
+      status == :finished -> {:ok, IO.iodata_to_binary(Enum.reverse([output | acc]))}
+      true -> inflate(z, :zlib.safeInflate(z, []), limit, [output | acc], total)
     end
   end
 
@@ -132,13 +272,5 @@ defmodule Fazoura.Quizzes.Archive do
     for {name, binary} <- entries, String.starts_with?(name, @media), into: %{} do
       {name, binary}
     end
-  end
-
-  # `:zip` is an Erlang parser being handed a file from outside. It answers
-  # `{:error, _}` for the damage it recognises and exits for the rest.
-  defp safely(fun) do
-    fun.()
-  catch
-    _kind, _value -> {:error, :invalid_archive}
   end
 end

@@ -21,7 +21,10 @@ defmodule Fazoura.Quizzes.Submission do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "quiz_submissions" do
-    field :package, :binary
+    # Up to 32 MB. Left out of every query that selects the whole row, so listing the
+    # queue or a device's submissions never pulls packages into memory; the one read
+    # that needs it asks for it (`Review.fetch/1`).
+    field :package, :binary, load_in_query: false
     field :title, :string
     field :question_count, :integer, default: 0
     field :has_photos, :boolean, default: false

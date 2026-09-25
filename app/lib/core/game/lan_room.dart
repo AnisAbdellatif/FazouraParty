@@ -187,7 +187,11 @@ class LanRoom {
     }
 
     final reply = _authenticate(params);
-    final actor = reply.role == 'host'
+    // After a hand-over the host token in force belongs to the player who now
+    // holds the role, so it joins as that player. As a host connection it would
+    // have been taken for the one that handed the role away, and seated in that
+    // player's place (§3.4).
+    final Actor actor = reply.role == 'host' && _heldByHostConn
         ? const HostActor()
         : PlayerActor(reply.playerId!);
 
@@ -319,6 +323,14 @@ class LanRoom {
     if (actor == null) throw const GameRuleError('invalid_token');
 
     final now = _now();
+
+    // A host connection that handed the role away while not playing is nobody
+    // now: no role, no seat. Every intent is refused, as Cloud refuses them
+    // (`RoomServer`'s demoted-host clause). Letting them through to the game
+    // kept every host power, and a submit landed as the new host's answer.
+    if (_recipient(actor) case HostActor(holder: false)) {
+      throw const GameRuleError('not_host');
+    }
 
     // Ending the room is the shell's business: no state to advance, only
     // sockets to tell (PROTOCOL.md §3.4).
@@ -555,6 +567,14 @@ class LanRoom {
     // Delivered once: the token is only news to the client that just got it.
     _pendingTokens.clear();
     _lastBroadcastMs = _sinceStart.elapsedMilliseconds;
+  }
+
+  /// The snapshot [connection] is owed right now, exactly as the next
+  /// broadcast would build it — for the socket to send straight after a join.
+  Map<String, dynamic>? viewFor(LanConnection connection) {
+    final actor = _connections[connection];
+    if (actor == null) return null;
+    return roomState(game, _recipient(actor), _now());
   }
 
   /// A connection that authenticated as host may no longer hold the role: after

@@ -157,9 +157,12 @@ class _ScenarioRun {
   _FakeConnection _actor(String name, String label) =>
       actors[name] ?? (fail('$label: unknown actor $name'));
 
-  /// Substitutes the `$host_token`, `$player_id:<actor>` and
-  /// `$player_token:<actor>` placeholders (§11).
+  /// Substitutes the `$host_token`, `$player_id:<actor>`,
+  /// `$player_token:<actor>` and `$host_token:<actor>` placeholders (§11) —
+  /// the last being the host token that actor was last handed in a snapshot.
   Object? _substitute(Object? value) => switch (value) {
+    String() when value.startsWith(r'$host_token:') =>
+      actors[value.substring(r'$host_token:'.length)]?.handedHostToken ?? value,
     String() => vars.containsKey(value) ? vars[value] : value,
     Map() => {
       for (final entry in value.entries)
@@ -210,8 +213,16 @@ class _FakeConnection implements LanConnection {
   Map<String, dynamic>? latestState;
   String? closedReason;
 
+  /// The last `you.host_token` this client was handed (§3.4).
+  String? handedHostToken;
+
   @override
-  void pushState(Map<String, dynamic> state) => latestState = _wire(state);
+  void pushState(Map<String, dynamic> state) {
+    latestState = _wire(state);
+    if ((latestState!['you'] as Map)['host_token'] case final String token) {
+      handedHostToken = token;
+    }
+  }
 
   @override
   void pushClosed(String reason) => closedReason = reason;

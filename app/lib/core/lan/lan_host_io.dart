@@ -17,9 +17,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../game/game.dart';
-import '../game/game_view.dart';
 import '../game/lan_room.dart';
 import '../game/pack.dart';
+import 'websocket_guard_io.dart';
 
 /// Default port. 0 asks the OS for a free one, which is what tests use.
 const defaultLanPort = 4040;
@@ -27,6 +27,29 @@ const defaultLanPort = 4040;
 /// Heartbeat interval is 30 s and a socket is closed after 60 s of silence
 /// (§2), so a phone that sleeps is noticed rather than lingering forever.
 const heartbeatTimeout = Duration(seconds: 60);
+
+/// The largest message a guest may send, the cloud host's `max_frame_size`: a
+/// host selecting a private quiz sends its photos inline, and nothing else
+/// comes near it. Enforced on the raw bytes as frame headers arrive
+/// (`websocket_guard_io.dart`), so a bigger one is never buffered.
+const maxLanFrameBytes = 14000000;
+
+/// Sockets one host will hold at once, and from any one address. A full room
+/// is 32 players and the host; the margin is for phones reconnecting before
+/// their old socket has timed out. Each open socket costs the phone memory,
+/// and nobody needs a room code to open one.
+const maxLanSockets = 48;
+const maxLanSocketsPerAddress = 4;
+
+/// How long a socket may stay open without joining the room. A real client
+/// joins the moment it connects.
+const lanJoinDeadline = Duration(seconds: 10);
+
+/// Failed joins one address may make per minute before it is refused outright,
+/// as the cloud host does (`FazouraWeb.RoomChannel`): a join is how a room code
+/// is tested, and only failures count, so a room of phones reconnecting at
+/// once is never held back.
+const maxFailedLanJoins = 30;
 
 /// A room hosted on this device, reachable by other phones on the same Wi-Fi.
 class LanHost {
@@ -69,6 +92,28 @@ class LanHost {
 
   final Set<_LanSocket> _sockets = {};
   bool _stopped = false;
+
+  /// Failed joins per guest address in the current minute.
+  final Map<String, int> _failedJoins = {};
+  int _failedJoinsMinute = 0;
+
+  bool _joinsBlocked(String address) {
+    _rollFailedJoins();
+    return (_failedJoins[address] ?? 0) >= maxFailedLanJoins;
+  }
+
+  void _countFailedJoin(String address) {
+    _rollFailedJoins();
+    _failedJoins[address] = (_failedJoins[address] ?? 0) + 1;
+  }
+
+  void _rollFailedJoins() {
+    final minute = DateTime.now().millisecondsSinceEpoch ~/ 60000;
+    if (minute != _failedJoinsMinute) {
+      _failedJoinsMinute = minute;
+      _failedJoins.clear();
+    }
+  }
 
   String get roomCode => room.code;
   String get hostToken => room.hostToken;
@@ -152,8 +197,20 @@ class LanHost {
 
   Future<void> _upgrade(HttpRequest request) async {
     try {
-      final webSocket = await WebSocketTransformer.upgrade(request);
-      final socket = _LanSocket(this, webSocket);
+      final address = request.connectionInfo?.remoteAddress.address ?? '';
+      final fromAddress = _sockets.where((s) => s._address == address).length;
+      if (_sockets.length >= maxLanSockets ||
+          fromAddress >= maxLanSocketsPerAddress) {
+        request.response.statusCode = HttpStatus.serviceUnavailable;
+        await request.response.close();
+        return;
+      }
+      final webSocket = await upgradeGuarded(
+        request,
+        maxMessageBytes: maxLanFrameBytes,
+      );
+      if (webSocket == null) return;
+      final socket = _LanSocket(this, webSocket, address);
       _sockets.add(socket);
       socket.listen();
     } on Object {
@@ -213,10 +270,13 @@ class LanHost {
 /// One connected guest. Implements [LanConnection] so the room can push to it
 /// without knowing it is a socket.
 class _LanSocket implements LanConnection {
-  _LanSocket(this._host, this._webSocket);
+  _LanSocket(this._host, this._webSocket, this._address);
 
   final LanHost _host;
   final WebSocket _webSocket;
+
+  /// The guest's IP address, which failed joins are counted against.
+  final String _address;
 
   /// Set once the client joins the room topic; every later frame is checked
   /// against it, so a client cannot push on a topic it never joined.
@@ -225,8 +285,14 @@ class _LanSocket implements LanConnection {
   Timer? _idleTimer;
   bool _closing = false;
 
+  Timer? _joinTimer;
+
   void listen() {
     _resetIdleTimer();
+    // Open without joining is not a guest; it is a socket somebody is holding.
+    _joinTimer = Timer(lanJoinDeadline, () {
+      if (_topic == null) unawaited(close());
+    });
     _webSocket.listen(
       _onFrame,
       onDone: _onDone,
@@ -252,16 +318,13 @@ class _LanSocket implements LanConnection {
     } on FormatException {
       return; // Not our protocol; ignore rather than kill the socket.
     }
-    // V2 frames are [join_ref, ref, topic, event, payload] (§2).
+    // V2 frames are [join_ref, ref, topic, event, payload] (§2). Anything of
+    // another shape is dropped here: a cast further down would throw inside
+    // the socket's listener, where nothing catches it.
     if (decoded is! List || decoded.length < 5) return;
-
-    final joinRef = decoded[0] as String?;
-    final ref = decoded[1] as String?;
-    final topic = decoded[2] as String?;
-    final event = decoded[3] as String?;
-    final payload = decoded[4];
-
-    if (topic == null || event == null) return;
+    final [joinRef, ref, topic, event, payload, ...] = decoded;
+    if (joinRef is! String? || ref is! String?) return;
+    if (topic is! String || event is! String) return;
 
     if (topic == 'phoenix' && event == 'heartbeat') {
       _reply(null, ref, topic, ok: true, response: const {});
@@ -285,7 +348,12 @@ class _LanSocket implements LanConnection {
     String topic,
     Map<String, dynamic> payload,
   ) {
+    if (_host._joinsBlocked(_address)) {
+      _replyError(joinRef, ref, topic, 'rate_limited');
+      return;
+    }
     if (topic != 'room:${_host.roomCode}') {
+      _host._countFailedJoin(_address);
       _replyError(joinRef, ref, topic, 'room_not_found');
       return;
     }
@@ -312,17 +380,13 @@ class _LanSocket implements LanConnection {
         },
       );
       // The room pushed a snapshot during join, before _topic was set, so send
-      // this client its own view now that it can be addressed (§4.1).
-      pushState(
-        roomState(
-          _host.room.game,
-          reply.role == 'host'
-              ? const HostActor()
-              : PlayerActor(reply.playerId!),
-          DateTime.now().millisecondsSinceEpoch,
-        ),
-      );
+      // this client its own view now that it can be addressed (§4.1). The
+      // room's view, not one built from the reply: a promoted host's reply
+      // says "host" but the view is theirs as a player who holds the role.
+      final view = _host.room.viewFor(this);
+      if (view != null) pushState(view);
     } on GameRuleError catch (error) {
+      if (error.code == 'invalid_token') _host._countFailedJoin(_address);
       _replyError(joinRef, ref, topic, error.code);
     }
   }
@@ -405,6 +469,7 @@ class _LanSocket implements LanConnection {
   void _onDone() {
     _idleTimer?.cancel();
     _idleTimer = null;
+    _joinTimer?.cancel();
     _host._remove(this);
   }
 
@@ -413,6 +478,7 @@ class _LanSocket implements LanConnection {
     _closing = true;
     _idleTimer?.cancel();
     _idleTimer = null;
+    _joinTimer?.cancel();
     try {
       await _webSocket.close();
     } on Object {
@@ -455,5 +521,7 @@ String lanErrorMessage(String code) => switch (code) {
   'invalid_room_size' =>
     "Choose a room size from the players already here up to the room's limit.",
   'cloud_only' => 'Only an online room can do that.',
+  'rate_limited' =>
+    'Too many tries from this connection. Wait a minute and try again.',
   _ => 'Malformed request.',
 };

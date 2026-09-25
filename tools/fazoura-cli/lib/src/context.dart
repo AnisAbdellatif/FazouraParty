@@ -79,11 +79,19 @@ class Context {
     final key = generateOwnerKey();
     file.parent.createSync(recursive: true);
     // Written aside and renamed, so two instances starting together cannot
-    // leave a half-written key for either of them to read.
-    final temporary = File('${file.path}.$pid')..writeAsStringSync('$key\n');
+    // leave a half-written key for either of them to read. The file is made
+    // private *before* the key goes into it: chmod after writing left it
+    // readable by every user on the machine for as long as that took, and the
+    // key is what unpublishes or replaces this machine's quizzes.
+    final temporary = File('${file.path}.$pid')..createSync();
     if (!Platform.isWindows) {
-      await Process.run('chmod', ['600', temporary.path]);
+      final made = await Process.run('chmod', ['600', temporary.path]);
+      if (made.exitCode != 0) {
+        temporary.deleteSync();
+        throw StateError('could not make ${temporary.path} private');
+      }
     }
+    temporary.writeAsStringSync('$key\n');
     temporary.renameSync(file.path);
     return _ownerKey = file.readAsStringSync().trim();
   }

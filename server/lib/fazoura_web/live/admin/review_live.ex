@@ -94,6 +94,9 @@ defmodule FazouraWeb.Admin.ReviewLive do
   defp photo_path(%{"image" => %{"path" => path}}) when is_binary(path), do: path
   defp photo_path(_question), do: nil
 
+  defp photo_alt(%{"image" => %{"alt" => alt}}) when is_binary(alt) and alt != "", do: alt
+  defp photo_alt(_question), do: nil
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -146,6 +149,11 @@ defmodule FazouraWeb.Admin.ReviewLive do
       <p class="muted" dir="auto">
         Tags: {Enum.join(@contents.document["tags"] || [], ", ")}
       </p>
+      <%!-- Everything approving publishes is on this screen: what nobody reads here
+           is what somebody could slip past the review. --%>
+      <p :if={@contents.document["language"]} class="muted">
+        Language: {@contents.document["language"]}
+      </p>
 
       <ol>
         <li :for={question <- @contents.document["questions"] || []} style="margin-bottom:12px">
@@ -157,6 +165,12 @@ defmodule FazouraWeb.Admin.ReviewLive do
             alt=""
             style="max-width:260px;max-height:200px;border-radius:8px;margin-top:6px"
           />
+          <div :if={photo_alt(question)} class="muted" dir="auto">
+            Photo description: {photo_alt(question)}
+          </div>
+          <div :if={question["explanation"]} class="muted" dir="auto">
+            Explanation: {question["explanation"]}
+          </div>
         </li>
       </ol>
 

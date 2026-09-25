@@ -40,7 +40,12 @@ defmodule Fazoura.RoomSizeCodes do
   """
   @spec create(map()) :: {:ok, String.t(), Code.t()} | {:error, Ecto.Changeset.t()}
   def create(attrs) do
-    plain = for _ <- 1..@length, into: "", do: <<Enum.random(@alphabet)>>
+    # The strong generator: a code is a capability, and `:rand` output can be
+    # predicted from enough of it. 32 letters divide 256, so no letter is favoured.
+    plain =
+      for byte <- :binary.bin_to_list(:crypto.strong_rand_bytes(@length)), into: "" do
+        <<Enum.at(@alphabet, rem(byte, length(@alphabet)))>>
+      end
 
     changeset =
       %Code{code_hash: hash(plain), hint: String.slice(plain, -4, 4)}

@@ -20,6 +20,7 @@ defmodule Fazoura.Application do
         {Phoenix.PubSub, name: Fazoura.PubSub},
         Fazoura.RateLimit,
         {Registry, keys: :unique, name: Fazoura.Rooms.Registry},
+        Fazoura.Rooms.Limits,
         Fazoura.Rooms.Images,
         {DynamicSupervisor, name: Fazoura.Rooms.Supervisor, strategy: :one_for_one},
         if(Application.get_env(:fazoura, :start_repo, true),

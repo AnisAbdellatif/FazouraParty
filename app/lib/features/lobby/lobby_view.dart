@@ -142,11 +142,15 @@ class LobbyView extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const FzEyebrow('Tonight', size: 9.5),
+                    const FzEyebrow('Tonight', size: 10.5),
                     const SizedBox(height: 6),
                     Text(
                       state.packTitles.isEmpty
-                          ? 'The host is choosing a quiz…'
+                          // The host reads this card too, and is the one it
+                          // is waiting on.
+                          ? state.you.role == Role.host
+                                ? 'Nothing chosen yet. Choose quizzes to start.'
+                                : 'The host is choosing a quiz…'
                           : [
                               describeQuizzes(state.packTitles),
                               '${state.questionCount} '
@@ -173,17 +177,11 @@ class _WaitingForHost extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FzBlink(
-      child: FzPanel(
-        color: Colors.transparent,
-        borderColor: FzColors.line,
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-        child: Text(
-          'Waiting for the host to start…',
-          textAlign: TextAlign.center,
-          style: FzTheme.of(context).m(12, color: FzColors.dim),
-        ),
-      ),
+    return const FzPanel(
+      color: Colors.transparent,
+      borderColor: FzColors.line,
+      padding: EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+      child: Center(child: FzWaiting('Waiting for the host to start…')),
     );
   }
 }
@@ -261,7 +259,7 @@ class _PlayerCard extends StatelessWidget {
         ? FzColors.ac
         : player.isHost
         ? FzColors.ac2
-        : FzColors.faint;
+        : FzColors.dim;
     return Container(
       key: ValueKey('lobby-player-${player.id}'),
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),

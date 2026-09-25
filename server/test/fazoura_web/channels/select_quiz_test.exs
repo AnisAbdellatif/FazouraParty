@@ -12,6 +12,7 @@ defmodule FazouraWeb.SelectQuizTest do
   use FazouraWeb.ChannelCase, async: false
 
   alias Fazoura.{QuizFixtures, Quizzes, Rooms}
+  alias Fazoura.Rooms.Images
 
   # Resolving a `quiz_id` reads the database from the room's own process, so
   # the sandbox has to be shared with it (AGENTS.md §5: DB tests are
@@ -230,7 +231,7 @@ defmodule FazouraWeb.SelectQuizTest do
     end
 
     test "a selection that fails part way leaves no photos behind", %{socket: socket} do
-      before = :ets.info(Fazoura.Rooms.Images, :size)
+      before = Images.count()
 
       # The first quiz resolves and puts its photo in memory; the second names a
       # quiz that does not exist, so the whole selection is refused and nothing
@@ -242,16 +243,44 @@ defmodule FazouraWeb.SelectQuizTest do
         ])
 
       assert_reply ref, :error, %{code: "quiz_not_found"}, 2_000
-      assert :ets.info(Fazoura.Rooms.Images, :size) == before
+      assert Images.count() == before
     end
 
     test "photos of an accepted selection are kept", %{socket: socket} do
-      before = :ets.info(Fazoura.Rooms.Images, :size)
+      before = Images.count()
 
       ref = select(socket, [photo_quiz("One", 1, 1000), photo_quiz("Two", 1, 1000)])
       assert_reply ref, :ok, %{}
 
-      assert :ets.info(Fazoura.Rooms.Images, :size) == before + 2
+      assert Images.count() == before + 2
+    end
+  end
+
+  describe "choosing again" do
+    test "frees the photos of the selection it replaces", %{socket: socket} do
+      # Each re-selection used to add its photos to what the room already held,
+      # until the room ended: a host could grow the server's memory 8 MB a time.
+      before = Images.count()
+
+      for _ <- 1..5 do
+        ref = select(socket, [photo_quiz("Again", 2, 1000)])
+        assert_reply ref, :ok, %{}, 2_000
+      end
+
+      assert Images.count() == before + 2
+    end
+
+    test "a stored quiz after a private one leaves no photos in memory", %{socket: socket} do
+      before = Images.count()
+
+      ref = select(socket, [photo_quiz("Private", 2, 1000)])
+      assert_reply ref, :ok, %{}, 2_000
+      assert Images.count() == before + 2
+
+      stored = QuizFixtures.published!()
+      ref = select(socket, [%{"quiz_id" => stored.id}])
+      assert_reply ref, :ok, %{}, 2_000
+      assert Images.count() == before
     end
   end
 
