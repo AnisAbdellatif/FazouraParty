@@ -39,6 +39,10 @@ VOLUMES=fazoura-rehearsal # the Kamal containers' volume prefix
 DOMAIN=fazoura.test
 SITE=https://$DOMAIN:9443
 CURL=(curl -sk --resolve "$DOMAIN:9443:127.0.0.1" --max-time 10)
+# The same site where this machine counts as Cloudflare (a copy of deploy/fazoura.caddy
+# with loopback as its ranges), to check what Caddy does with a visitor Cloudflare names.
+CF_SITE=https://$DOMAIN:9445
+CF_CURL=(curl -sk -4 --resolve "$DOMAIN:9445:127.0.0.1" --max-time 10)
 # The same Caddy, in plain HTTP, for the CLI: Dart cannot be told to trust Caddy's CA.
 CLI_SITE=http://localhost:8088
 CLI=$REPO/tools/fazoura-cli/fazoura
@@ -55,10 +59,17 @@ rand() { od -An -N24 -tx1 /dev/urandom | tr -d ' \n'; }
 # The deployer: the kit and Kamal, as on the machine that deploys, pointed at the
 # stand-in server and registry (deploy/deploy.yml reads FAZOURA_*), destination
 # "rehearsal" (.kamal/kit.rehearsal.env, deploy/deploy.rehearsal.yml).
+#
+# The kit reads .kamal/kit.local.env last and lets it override every variable but its
+# own KIT_* ones, so a real one — the production server's — would win over the
+# FAZOURA_* passed below and aim this at production. The deployer sees the
+# rehearsal's own file in its place (local_env), and target_guard refuses to run until
+# the kit resolves the stand-in server.
 # --userns=host: Docker refuses the host's network to a container otherwise when user
 # namespaces are on.
 deployer() {
   docker run --rm --network host --userns=host --user "$(id -u):$(id -g)" \
+    -v "$WORK/kit.local.env:$REPO/.kamal/kit.local.env:ro" \
     -e HOME=/tmp/home -e NO_COLOR=1 \
     -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0='*' \
     -v "$REPO:$REPO" -w "$REPO" -v "$WORK/ssh:/tmp/home/.ssh" \
@@ -71,6 +82,36 @@ deployer() {
     "$TOOLS" "$@"
 }
 kit() { deployer .kamal/kit/bin/kit "$1" -d rehearsal "${@:2}"; }
+
+# The stand-in server's settings, mounted over .kamal/kit.local.env in the deployer.
+local_env() {
+  # Before anything mounts it: Docker would create a missing one as root.
+  mkdir -p "$WORK/ssh"
+  cat >"$WORK/kit.local.env" <<EOF
+# The deploy rehearsal's (rehearse.sh), in place of this machine's own kit.local.env.
+FAZOURA_HOST=127.0.0.1
+FAZOURA_SSH_PORT=$SSH_PORT
+FAZOURA_SSH_USER=root
+FAZOURA_PUBLIC_HOST=$DOMAIN
+FAZOURA_DEPLOY_DIR=$WORK/srv
+FAZOURA_VOLUME_PREFIX=$VOLUMES
+FAZOURA_REGISTRY_TOKEN=rehearsal
+KIT_SMOKE_URLS="$SITE/health|200|ok"
+KIT_SMOKE_CURL_ARGS="-k --resolve $DOMAIN:9443:127.0.0.1"
+EOF
+}
+
+# Refuses to go on unless the kit, loading its configuration the way a deploy does,
+# resolves the stand-in server and nothing else.
+target_guard() {
+  local resolved
+  # shellcheck disable=SC2016 # expanded by the deployer's shell, not this one
+  resolved=$(deployer bash -c 'KIT_HOME=$PWD/.kamal/kit; . .kamal/kit/lib/core.sh; kit_load_config rehearsal; printf "%s:%s" "$FAZOURA_HOST" "${FAZOURA_SSH_PORT:-22}"')
+  if [ "$resolved" != "127.0.0.1:$SSH_PORT" ]; then
+    echo "refusing to rehearse: the kit would deploy to $resolved, not the stand-in server" >&2
+    exit 1
+  fi
+}
 kamal() { deployer kamal "$1" "$2" -c deploy/deploy.yml -d rehearsal "${@:3}"; }
 
 web_container() {
@@ -157,10 +198,17 @@ EOF
 }
 
 # The host's Caddy: a Caddyfile that imports deploy/fazoura.caddy exactly as the server's
-# does, for the rehearsal's domain on :9443 with Caddy's own CA (`local_certs`), plus a
-# plain-HTTP door for the CLI that says what the HTTPS one would.
+# does, for the rehearsal's domain on :9443 with Caddy's own CA (`local_certs`); the same
+# site on :9445 as seen from Cloudflare; and a plain-HTTP door for the CLI that says what
+# the HTTPS one would.
 caddy() {
-  say "starting Caddy importing deploy/fazoura.caddy ($SITE, and $CLI_SITE for the CLI)"
+  say "starting Caddy importing deploy/fazoura.caddy ($SITE, as Cloudflare on $CF_SITE, and $CLI_SITE for the CLI)"
+  sed -E 's#^([[:space:]]*@cloudflare remote_ip ).*#\1127.0.0.1/32 ::1/128#' \
+    "$REPO/deploy/fazoura.caddy" >"$WORK/fazoura-as-cloudflare.caddy"
+  grep -q "remote_ip 127.0.0.1/32" "$WORK/fazoura-as-cloudflare.caddy" || {
+    echo "deploy/fazoura.caddy no longer has the @cloudflare matcher this rewrites" >&2
+    exit 1
+  }
   cat >"$WORK/Caddyfile" <<EOF
 {
 	admin off
@@ -172,6 +220,7 @@ caddy() {
 }
 
 import /etc/caddy/fazoura.caddy $DOMAIN:9443
+import /etc/caddy/fazoura-as-cloudflare.caddy $DOMAIN:9445
 
 $CLI_SITE {
 	reverse_proxy 127.0.0.1:8080 {
@@ -183,7 +232,8 @@ $CLI_SITE {
 EOF
   docker run -d --name "$CADDY" --network host --userns=host \
     -v "$WORK/Caddyfile:/etc/caddy/Caddyfile:ro" \
-    -v "$REPO/deploy/fazoura.caddy:/etc/caddy/fazoura.caddy:ro" caddy:2 >/dev/null
+    -v "$REPO/deploy/fazoura.caddy:/etc/caddy/fazoura.caddy:ro" \
+    -v "$WORK/fazoura-as-cloudflare.caddy:/etc/caddy/fazoura-as-cloudflare.caddy:ro" caddy:2 >/dev/null
 }
 
 # --- checks ------------------------------------------------------------------------
@@ -236,6 +286,27 @@ check_addresses() {
   else
     fail "addresses behind two proxies: flooder ${a[*]} / next ${b[*]}"
   fi
+}
+
+# Behind Cloudflare the visitor is the address Cloudflare names, and nobody else may name
+# one. GET /api/rooms takes 60 requests a minute per address, so: through the site as seen
+# from Cloudflare, 65 different visitors are never limited while one visitor 65 times is;
+# through the real site, 65 made-up CF-Connecting-IP values still share one limit.
+# Spends this machine's quota on /api/rooms, so it runs last.
+check_cloudflare() {
+  local mixed=() same=() spoofed=() i
+  for i in $(seq 1 65); do mixed+=("$("${CF_CURL[@]}" -o /dev/null -w '%{http_code}' -H "CF-Connecting-IP: 198.51.100.$i" "$CF_SITE/api/rooms")"); done
+  for i in $(seq 1 65); do same+=("$("${CF_CURL[@]}" -o /dev/null -w '%{http_code}' -H "CF-Connecting-IP: 203.0.113.9" "$CF_SITE/api/rooms")"); done
+  for i in $(seq 1 65); do spoofed+=("$("${CURL[@]}" -o /dev/null -w '%{http_code}' -H "CF-Connecting-IP: 192.0.2.$i" "$SITE/api/rooms")"); done
+  if [[ " ${mixed[*]} " != *" 429 "* ]] && [[ " ${mixed[*]} " == *" 200 "* ]]; then
+    pass "behind Cloudflare, each visitor Cloudflare names is counted apart"
+  else
+    fail "visitors named by Cloudflare: ${mixed[*]}"
+  fi
+  [[ " ${same[*]} " == *" 429 "* ]] && pass "behind Cloudflare, one visitor is still rate-limited" ||
+    fail "one visitor named by Cloudflare: ${same[*]}"
+  [[ " ${spoofed[*]} " == *" 429 "* ]] && pass "CF-Connecting-IP from outside Cloudflare's ranges is ignored" ||
+    fail "made-up CF-Connecting-IP values each got a fresh limit: ${spoofed[*]}"
 }
 
 check_no_request_log() {
@@ -295,7 +366,9 @@ up() {
   down >/dev/null 2>&1 || true
   mkdir -p "$LOG"
   : >"$LOG/steps.log"
+  local_env
   build
+  target_guard
   server
   caddy
 
@@ -378,6 +451,8 @@ up() {
     fail "the dropped package was not seeded: see $LOG/ops.log"
   fi
 
+  check_cloudflare
+
   echo
   if [ "$failures" = 0 ]; then
     say "all checks passed"
@@ -393,7 +468,7 @@ down() {
     $(docker ps -aq --filter label=service=fazoura --filter label=destination=rehearsal) >/dev/null 2>&1 || true
   docker volume rm "${VOLUMES}_pgdata" "${VOLUMES}_uploads" kamal-proxy-config >/dev/null 2>&1 || true
   # The server wrote some of these as root.
-  [ -d "$WORK" ] && docker run --rm --userns=host -v "$WORK:/w" alpine:3 rm -rf /w/home /w/srv
+  [ -d "$WORK" ] && docker run --rm --userns=host -v "$WORK:/w" alpine:3 rm -rf /w/home /w/srv /w/ssh
   rm -rf "$WORK"
 }
 
