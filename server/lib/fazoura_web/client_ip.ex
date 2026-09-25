@@ -15,7 +15,7 @@ defmodule FazouraWeb.ClientIp do
   @spec from_conn(Plug.Conn.t()) :: String.t()
   def from_conn(conn) do
     forwarded = conn |> Plug.Conn.get_req_header("x-forwarded-for") |> last_forwarded()
-    (trust_forwarded?() && forwarded) || ntoa(conn.remote_ip)
+    normalize((trust_forwarded?() && forwarded) || ntoa(conn.remote_ip))
   end
 
   @doc "From a socket's `connect_info` (`:peer_data` and `:x_headers`), or nil without it."
@@ -31,7 +31,23 @@ defmodule FazouraWeb.ClientIp do
         _ -> nil
       end
 
-    (trust_forwarded?() && forwarded) || peer
+    normalize((trust_forwarded?() && forwarded) || peer)
+  end
+
+  # One IPv6 host owns a whole /64 (often more), so keying a rate-limit bucket or a ban
+  # hash on the exact address lets it rotate through billions of addresses to mint fresh
+  # buckets and shed bans. Collapsing to the /64 prefix makes the aggregate — a home, a
+  # phone — the unit, which is the unit an abuser actually controls. IPv4 (one address
+  # per host) and a v4-mapped v6 address are left whole; anything unparsable is left as
+  # it came, so behaviour is unchanged for the addresses we saw before.
+  defp normalize(nil), do: nil
+
+  defp normalize(address) when is_binary(address) do
+    case :inet.parse_address(String.to_charlist(address)) do
+      {:ok, {0, 0, 0, 0, 0, 0xFFFF, _, _}} -> address
+      {:ok, {a, b, c, d, _, _, _, _}} -> ntoa({a, b, c, d, 0, 0, 0, 0})
+      _ -> address
+    end
   end
 
   defp last_forwarded(values) do

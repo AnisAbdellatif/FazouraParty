@@ -23,4 +23,16 @@ defmodule FazouraWeb.ClientIpTest do
     assert ClientIp.from_connect_info(@info) == "127.0.0.1"
     assert ClientIp.from_connect_info(%{}) == nil
   end
+
+  test "an IPv6 address is collapsed to its /64, so one host can't rotate addresses" do
+    Application.put_env(:fazoura, :trust_forwarded_for, false)
+
+    peer = fn address -> ClientIp.from_connect_info(%{peer_data: %{address: address}}) end
+
+    # Two addresses in the same /64 key to the same prefix; a v4-mapped address stays whole.
+    assert peer.({0x2001, 0xDB8, 0, 0, 1, 2, 3, 4}) == "2001:db8::"
+    assert peer.({0x2001, 0xDB8, 0, 0, 0xAAAA, 0xBBBB, 0xCCCC, 0xDDDD}) == "2001:db8::"
+    assert peer.({0x2001, 0xDB8, 0, 1, 0, 0, 0, 0}) == "2001:db8:0:1::"
+    assert peer.({0, 0, 0, 0, 0, 0xFFFF, 0x0102, 0x0304}) == "::ffff:1.2.3.4"
+  end
 end
