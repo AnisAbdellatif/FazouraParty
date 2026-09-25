@@ -49,8 +49,8 @@ end
 
 if config_env() == :prod do
   # The quiz library needs a database. It stays optional here only so the release can be
-  # started for a one-off `eval` without one; compose.yaml always sets it, and without it
-  # every /api/quizzes request will fail.
+  # started for a one-off `eval` without one; the server's .env always sets it, and
+  # without it every /api/quizzes request will fail.
   if database_url = System.get_env("DATABASE_URL") do
     maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
@@ -71,14 +71,21 @@ if config_env() == :prod do
   config :fazoura,
     cors_origins: if(cors == "*", do: :all, else: String.split(cors, ",", trim: true))
 
-  # In production the app only ever sees Caddy's address, so per-IP rate limiting would
-  # put every player in one bucket and let one flood lock out the whole party. Caddy sets
-  # X-Forwarded-For itself (deploy/Caddyfile), and only its last entry — the one the proxy
-  # appended — is trusted, so a client cannot spoof its way into a fresh bucket.
-  #
-  # TRUST_PROXY=false turns this off for a deployment that exposes Phoenix directly,
-  # where the header would be entirely client-written.
-  config :fazoura, trust_forwarded_for: System.get_env("TRUST_PROXY", "true") != "false"
+  # In production the app only ever sees a proxy's address, so per-IP rate limiting would
+  # put every player in one bucket and let one flood lock out the whole party. Each proxy
+  # appends the peer it saw to X-Forwarded-For, and TRUST_PROXY says how many of those
+  # entries are ours (FazouraWeb.ClientIp): only those are believed, so a client cannot
+  # spoof its way into a fresh bucket. deploy/deploy.yml sets 2 — Caddy, then
+  # kamal-proxy. `true` means one proxy, `false` (or 0) none: a deployment that exposes
+  # Phoenix directly, where the header would be entirely client-written.
+  proxy_hops =
+    case System.get_env("TRUST_PROXY", "true") do
+      "true" -> 1
+      "false" -> 0
+      hops -> String.to_integer(hops)
+    end
+
+  config :fazoura, proxy_hops: proxy_hops
 
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you

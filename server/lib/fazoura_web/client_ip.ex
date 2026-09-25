@@ -2,11 +2,13 @@ defmodule FazouraWeb.ClientIp do
   @moduledoc """
   Which address a request or a socket came from.
 
-  Behind the host's Caddy the peer is always the proxy, so the address is the last
-  `X-Forwarded-For` entry — the one our own proxy appended; anything before it is
-  whatever the client chose to send. That is only believable because the app listens
-  on loopback alone (AGENTS.md §6), which is what `TRUST_PROXY` asserts; with it off,
-  the peer is the answer.
+  Behind our proxies the peer is always the nearest of them, so the address comes from
+  `X-Forwarded-For`, where each proxy appends the peer it saw. In production there are
+  two — the host's Caddy appends the visitor, then kamal-proxy appends Caddy
+  (deploy/deploy.yml) — so the visitor is the second entry from the right, and anything
+  before it is whatever the client chose to send. `:proxy_hops` (`TRUST_PROXY`) is how
+  many of those entries are ours. That is only believable because nothing but our
+  proxies can reach the app (AGENTS.md §6); with no hops trusted, the peer is the answer.
 
   Used by the rate limiter and by the room socket, so the two can never disagree about
   who somebody is.
@@ -19,8 +21,8 @@ defmodule FazouraWeb.ClientIp do
 
   @spec from_conn(Plug.Conn.t()) :: String.t()
   def from_conn(conn) do
-    forwarded = conn |> Plug.Conn.get_req_header("x-forwarded-for") |> last_forwarded()
-    normalize((trust_forwarded?() && forwarded) || conn.remote_ip)
+    forwarded = conn |> Plug.Conn.get_req_header("x-forwarded-for") |> forwarded_client()
+    normalize(forwarded || conn.remote_ip)
   end
 
   @doc "From a socket's `connect_info` (`:peer_data` and `:x_headers`), or nil without it."
@@ -28,7 +30,7 @@ defmodule FazouraWeb.ClientIp do
   def from_connect_info(connect_info) do
     forwarded =
       for({"x-forwarded-for", value} <- Map.get(connect_info, :x_headers, []), do: value)
-      |> last_forwarded()
+      |> forwarded_client()
 
     peer =
       case connect_info do
@@ -36,18 +38,28 @@ defmodule FazouraWeb.ClientIp do
         _ -> nil
       end
 
-    normalize((trust_forwarded?() && forwarded) || peer)
+    normalize(forwarded || peer)
   end
 
-  defp last_forwarded(values) do
-    values
-    |> Enum.flat_map(&String.split(&1, ","))
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
-    |> List.last()
-  end
+  # The entry the outermost of our proxies appended: `hops` from the right. Fewer
+  # entries than that means the request skipped the outer ones (it was sent from the
+  # server itself), and every entry is still one of ours: the first is the furthest
+  # peer any of them saw.
+  defp forwarded_client(values) do
+    case Application.get_env(:fazoura, :proxy_hops) || 0 do
+      0 ->
+        nil
 
-  defp trust_forwarded?, do: Application.get_env(:fazoura, :trust_forwarded_for, false)
+      hops ->
+        entries =
+          values
+          |> Enum.flat_map(&String.split(&1, ","))
+          |> Enum.map(&String.trim/1)
+          |> Enum.reject(&(&1 == ""))
+
+        Enum.at(entries, -hops) || List.first(entries)
+    end
+  end
 
   defp normalize(nil), do: nil
 

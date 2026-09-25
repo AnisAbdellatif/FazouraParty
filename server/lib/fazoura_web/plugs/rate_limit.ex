@@ -9,10 +9,10 @@ defmodule FazouraWeb.Plugs.RateLimit do
   are set well above a real party — a host creates a handful of rooms an evening — so
   hitting one means something is wrong.
 
-  Callers are identified by IP. Behind Caddy that means the last hop in
-  `X-Forwarded-For`, which the proxy sets itself (deploy/Caddyfile); `:trust_forwarded`
-  is false unless configured, so a direct-to-Phoenix deployment can't be spoofed by a
-  header the client wrote.
+  Callers are identified by IP, as `FazouraWeb.ClientIp` reads it: behind our proxies,
+  the `X-Forwarded-For` entry the outermost of them appended (`:proxy_hops`, set in
+  deploy/deploy.yml). With no hops configured the socket peer is used, so a
+  direct-to-Phoenix deployment can't be spoofed by a header the client wrote.
   """
 
   @behaviour Plug

@@ -390,9 +390,9 @@ defmodule FazouraWeb.SecurityTest do
 
     test "behind a proxy, players are told apart by X-Forwarded-For", %{conn: conn} do
       # Without this every request arrives from the proxy's address, so one flood would
-      # lock out the whole party. Production sets :trust_forwarded_for for exactly this.
-      Application.put_env(:fazoura, :trust_forwarded_for, true)
-      on_exit(fn -> Application.delete_env(:fazoura, :trust_forwarded_for) end)
+      # lock out the whole party. Production sets :proxy_hops for exactly this.
+      Application.put_env(:fazoura, :proxy_hops, 1)
+      on_exit(fn -> Application.delete_env(:fazoura, :proxy_hops) end)
 
       flood = fn ip ->
         for _ <- 1..21 do
@@ -409,8 +409,8 @@ defmodule FazouraWeb.SecurityTest do
     end
 
     test "only the proxy's own entry of X-Forwarded-For is trusted", %{conn: conn} do
-      Application.put_env(:fazoura, :trust_forwarded_for, true)
-      on_exit(fn -> Application.delete_env(:fazoura, :trust_forwarded_for) end)
+      Application.put_env(:fazoura, :proxy_hops, 1)
+      on_exit(fn -> Application.delete_env(:fazoura, :proxy_hops) end)
 
       # A client prepending its own values must not be able to pick a fresh bucket:
       # the proxy appends the real address last, so that is the one that counts.
