@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:fazoura_party/core/models/models.dart';
@@ -188,6 +189,81 @@ void main() {
     ]);
 
     expect(QuizArchive.encode(quiz), QuizArchive.encode(quiz));
+  });
+
+  test('refuses an archive with far too many entries', () {
+    // A quiz is at most 1024 questions with one photo each, so the reader caps a
+    // package at 2048 members. A flood past that is refused before any entry is
+    // read back — merely walking a huge member list would be the attack.
+    final flood = Archive();
+    for (var index = 0; index <= 2048; index++) {
+      flood.addFile(ArchiveFile.string('f$index.txt', '$index'));
+    }
+
+    expect(
+      () => QuizArchive.decode(ZipEncoder().encodeBytes(flood)),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
+  test('refuses an archive that expands past the ceiling', () {
+    // A member whose uncompressed size blows past the 48 MB ceiling is a
+    // decompression bomb: zeros deflate to almost nothing, so the package on disk
+    // is tiny while it claims to expand into gigabytes.
+    final bomb = Archive()
+      ..addFile(
+        ArchiveFile.string(
+          'manifest.json',
+          jsonEncode({
+            'quiz': {'title': 'Bomb', 'questions': const []},
+          }),
+        ),
+      )
+      ..addFile(
+        ArchiveFile.bytes('media/big.jpg', Uint8List(49 * 1024 * 1024)),
+      );
+
+    expect(
+      () => QuizArchive.decode(ZipEncoder().encodeBytes(bomb)),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
+  test('drops a media entry whose name climbs out of the package', () {
+    // `media/../evil.jpg` still starts with the `media/` prefix, so a prefix
+    // check alone would follow it. The reader skips it, so the photo the
+    // question points at is never found and decoding fails cleanly rather than
+    // reading a file from outside `media/`.
+    final climbing = Archive()
+      ..addFile(
+        ArchiveFile.string(
+          'manifest.json',
+          jsonEncode({
+            'quiz': {
+              'title': 'Climb',
+              'questions': [
+                {
+                  'type': QuizQuestion.typePhoto,
+                  'prompt': 'One',
+                  'accepted_answers': const ['a'],
+                  'image': {'path': 'media/../evil.jpg'},
+                },
+              ],
+            },
+          }),
+        ),
+      )
+      ..addFile(
+        ArchiveFile.bytes(
+          'media/../evil.jpg',
+          Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3]),
+        ),
+      );
+
+    expect(
+      () => QuizArchive.decode(ZipEncoder().encodeBytes(climbing)),
+      throwsA(isA<FormatException>()),
+    );
   });
 
   test('stamps every entry with one fixed time, not the clock', () {

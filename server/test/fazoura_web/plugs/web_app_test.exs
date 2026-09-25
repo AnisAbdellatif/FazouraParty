@@ -107,6 +107,21 @@ defmodule FazouraWeb.Plugs.WebAppTest do
     assert conn.method == "GET"
   end
 
+  test "serves the app unframeable, with sniffing off", %{conn: conn} do
+    # The live host screen must never be embeddable, or a page could overlay it and
+    # steal a tap (clickjacking). Both the shell and a static asset carry the headers.
+    for path <- ["/", "/main.dart.js"] do
+      conn = get(build_conn(), path)
+      assert conn.status == 200
+      assert get_resp_header(conn, "x-frame-options") == ["DENY"]
+      assert get_resp_header(conn, "content-security-policy") == ["frame-ancestors 'none'"]
+      assert get_resp_header(conn, "x-content-type-options") == ["nosniff"]
+      assert get_resp_header(conn, "referrer-policy") == ["strict-origin-when-cross-origin"]
+    end
+
+    assert conn.method == "GET"
+  end
+
   test "leaves the API, uploads and unknown paths alone", %{conn: conn} do
     Fazoura.QuizFixtures.builtin!("general-knowledge")
 

@@ -169,7 +169,7 @@ defmodule Fazoura.Quizzes.Review do
   def withdraw(id, owner_key) do
     with {:ok, hash} <- hash_key(owner_key),
          {:ok, submission} <- fetch(id),
-         true <- submission.owner_key_hash == hash do
+         true <- Plug.Crypto.secure_compare(submission.owner_key_hash, hash) do
       Repo.delete(submission)
       :ok
     else

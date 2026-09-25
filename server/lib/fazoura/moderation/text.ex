@@ -18,12 +18,16 @@ defmodule Fazoura.Moderation.Text do
     "$" => "s"
   }
 
-  @doc "Marks off, Arabic tatweel out, lower case, repeated letters collapsed."
+  @doc "Marks off, Arabic tatweel out, invisibles out, lower case, repeated letters collapsed."
   @spec normalize(String.t()) :: String.t()
   def normalize(text) do
     text
+    # `\p{Cf}` are the format characters — zero-width space/joiner/non-joiner, the BOM,
+    # the bidi controls: invisible, so a name reads the same with them spliced into a
+    # slur to break it across the token boundary. Stripped with the combining marks and
+    # the tatweel so what is compared is what is seen.
     |> :unicode.characters_to_nfd_binary()
-    |> String.replace(~r/[\p{Mn}\x{0640}]/u, "")
+    |> String.replace(~r/[\p{Mn}\p{Cf}\x{0640}]/u, "")
     |> String.downcase()
     |> collapse()
   end

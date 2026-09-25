@@ -6,7 +6,7 @@ defmodule FazouraWeb.RoomChannel do
 
   use FazouraWeb, :channel
 
-  alias Fazoura.{Game, Moderation, Rooms, RoomSizeCodes}
+  alias Fazoura.{Game, Moderation, RateLimit, Rooms, RoomSizeCodes}
 
   @error_messages %{
     unsupported_protocol_version: "This app version is not compatible with the server.",
@@ -41,12 +41,21 @@ defmodule FazouraWeb.RoomChannel do
     invalid_room_size: "Choose a room size from the players already here up to the room's limit.",
     invalid_code: "That code doesn't work. Check it with whoever gave it to you.",
     code_expired: "That code has expired.",
-    code_used_up: "That code has unlocked as many rooms as it can."
+    code_used_up: "That code has unlocked as many rooms as it can.",
+    rate_limited: "Too many attempts from this connection. Wait a moment and try again."
   }
+
+  # A join is unauthenticated and each one runs a ban-check query (`moderation/1`), so
+  # the socket path — which the HTTP rate limiter never sees — is metered here too. Keyed
+  # on the connection's address hash, well above a real player reconnecting on a flaky
+  # network, so a flood of joins to guessed codes is stopped before it reaches the DB.
+  @join_limit 120
+  @join_window_ms 60_000
 
   @impl true
   def join("room:" <> code, params, socket) do
-    with :ok <- check_protocol_version(params),
+    with :ok <- throttle_join(socket),
+         :ok <- check_protocol_version(params),
          {:ok, reply, room_pid} <- Rooms.join(code, self(), params, moderation(socket)) do
       Process.monitor(room_pid)
       {:ok, reply, assign(socket, room_code: code, room_pid: room_pid)}
@@ -54,6 +63,18 @@ defmodule FazouraWeb.RoomChannel do
       {:error, code} -> {:error, error(code)}
     end
   end
+
+  # A test socket never went through `UserSocket.connect/3`, so it has no address hash
+  # and no key to meter; it is let through, as it is for the ban check.
+  defp throttle_join(%{assigns: %{ip_hash: hash}}) when is_binary(hash) do
+    if Application.get_env(:fazoura, :rate_limit_enabled, true) do
+      RateLimit.check(:joins, hash, @join_limit, @join_window_ms)
+    else
+      :ok
+    end
+  end
+
+  defp throttle_join(_socket), do: :ok
 
   # The code is looked up and counted here, in the channel process, because the room
   # never reads the database during play (AGENTS.md §4). The room is asked first,

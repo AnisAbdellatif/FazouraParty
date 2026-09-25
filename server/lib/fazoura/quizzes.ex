@@ -141,7 +141,15 @@ defmodule Fazoura.Quizzes do
   @doc "Whether `key` is the publisher key the quiz was published with."
   @spec owner?(Quiz.t(), owner_key()) :: boolean()
   def owner?(%Quiz{owner_key_hash: nil}, _key), do: false
-  def owner?(%Quiz{owner_key_hash: hash}, key), do: OwnerKey.hash(key) == {:ok, hash}
+
+  def owner?(%Quiz{owner_key_hash: hash}, key) do
+    # Constant-time: both are hex SHA-256 digests, so a byte-by-byte `==` would leak,
+    # through timing, how much of the stored hash a guess matched.
+    case OwnerKey.hash(key) do
+      {:ok, computed} -> Plug.Crypto.secure_compare(computed, hash)
+      _ -> false
+    end
+  end
 
   defp fetch_owned(id, owner_key) do
     with {:ok, quiz} <- fetch(id),
