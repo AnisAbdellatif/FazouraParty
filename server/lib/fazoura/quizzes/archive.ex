@@ -138,31 +138,35 @@ defmodule Fazoura.Quizzes.Archive do
     window
     |> :binary.matches(@end_of_central_directory)
     |> Enum.reverse()
-    |> Enum.find_value(:error, fn {pos, _len} ->
-      offset = base + pos
+    |> Enum.find_value(:error, fn {pos, _len} -> end_of_central(binary, base + pos) end)
+  end
 
-      case binary do
-        <<_::binary-size(offset), _sig::binary-size(4), _disk::little-16, _cd_disk::little-16,
-          _here::little-16, _total::little-16, _cd_size::little-32, cd_offset::little-32,
-          comment_len::little-16, comment::binary>> ->
-          if byte_size(comment) == comment_len, do: {:ok, cd_offset}, else: false
+  # The candidate at `offset` is the real end-of-central-directory record only when its
+  # declared comment length accounts for exactly the bytes trailing it; a stray signature
+  # inside the data fails that and the scan moves on.
+  defp end_of_central(binary, offset) do
+    case binary do
+      <<_::binary-size(^offset), _sig::binary-size(4), _disk::little-16, _cd_disk::little-16,
+        _here::little-16, _total::little-16, _cd_size::little-32, cd_offset::little-32,
+        comment_len::little-16, comment::binary>> ->
+        if byte_size(comment) == comment_len, do: {:ok, cd_offset}, else: false
 
-        _other ->
-          false
-      end
-    end)
+      _other ->
+        false
+    end
   end
 
   defp collect_central(binary, offset, acc, count) do
     case binary do
-      <<_::binary-size(offset), 0x50, 0x4B, 0x01, 0x02, _vmade::16, _vneed::16, _flags::little-16,
-        method::little-16, _mtime::16, _mdate::16, _crc::little-32, comp_size::little-32,
-        _uncomp::little-32, name_len::little-16, extra_len::little-16, comment_len::little-16,
-        _disk::16, _iattr::16, _eattr::32, local_offset::little-32, tail::binary>> ->
+      <<_::binary-size(^offset), 0x50, 0x4B, 0x01, 0x02, _vmade::16, _vneed::16,
+        _flags::little-16, method::little-16, _mtime::16, _mdate::16, _crc::little-32,
+        comp_size::little-32, _uncomp::little-32, name_len::little-16, extra_len::little-16,
+        comment_len::little-16, _disk::16, _iattr::16, _eattr::32, local_offset::little-32,
+        tail::binary>> ->
         if count >= @max_entries do
           {:error, :archive_too_large}
         else
-          <<name::binary-size(name_len), _::binary>> = tail
+          <<name::binary-size(^name_len), _::binary>> = tail
 
           entry = %{
             name: name,
@@ -198,22 +202,23 @@ defmodule Fazoura.Quizzes.Archive do
 
   defp do_inflate(binary, z, entries) do
     entries
-    |> Enum.reduce_while({:ok, %{}, 0}, fn entry, {:ok, contents, total} ->
-      if keep?(entry.name) do
-        case member(binary, z, entry, total) do
-          {:ok, data, new_total} ->
-            {:cont, {:ok, Map.put(contents, entry.name, data), new_total}}
-
-          {:error, _reason} = error ->
-            {:halt, error}
-        end
-      else
-        {:cont, {:ok, contents, total}}
-      end
-    end)
+    |> Enum.reduce_while({:ok, %{}, 0}, fn entry, acc -> inflate_entry(binary, z, entry, acc) end)
     |> case do
       {:ok, contents, _total} -> {:ok, contents}
       {:error, _reason} = error -> error
+    end
+  end
+
+  # One member: inflated and added to the running total when we keep it, skipped otherwise.
+  # A member over the ceiling halts the whole reduction with its error.
+  defp inflate_entry(binary, z, entry, {:ok, contents, total}) do
+    if keep?(entry.name) do
+      case member(binary, z, entry, total) do
+        {:ok, data, new_total} -> {:cont, {:ok, Map.put(contents, entry.name, data), new_total}}
+        {:error, _reason} = error -> {:halt, error}
+      end
+    else
+      {:cont, {:ok, contents, total}}
     end
   end
 
@@ -234,7 +239,7 @@ defmodule Fazoura.Quizzes.Archive do
   # the data offset), then inflate under the ceiling. The compressed length comes from the
   # central directory; nothing here trusts the declared *uncompressed* size.
   defp member(binary, z, %{local_offset: offset, comp_size: comp_size, method: method}, total) do
-    <<_::binary-size(offset), 0x50, 0x4B, 0x03, 0x04, _::binary-size(22), name_len::little-16,
+    <<_::binary-size(^offset), 0x50, 0x4B, 0x03, 0x04, _::binary-size(22), name_len::little-16,
       extra_len::little-16, _::binary>> = binary
 
     data = binary_part(binary, offset + 30 + name_len + extra_len, comp_size)
