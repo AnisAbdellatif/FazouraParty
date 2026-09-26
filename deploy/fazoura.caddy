@@ -15,9 +15,20 @@
 # It proxies to kamal-proxy on loopback (proxy.run in deploy/deploy.yml), which routes
 # on the Host header Caddy keeps and swaps the app's containers with no downtime. The
 # domain given here must be FAZOURA_PUBLIC_HOST, or kamal-proxy answers 404.
-# Loopback is the whole security boundary: TRUST_PROXY=2 tells the app to believe the
-# entry Caddy puts in X-Forwarded-For, which is only honest because kamal-proxy, and
-# through it the app, can be reached from this machine alone.
+#
+# Who the visitor is. The app believes the X-Forwarded-For entry Caddy writes
+# (TRUST_PROXY=2 in deploy/deploy.yml: this one, then kamal-proxy's), and counts rate
+# limits, room quotas and bans by it — so Caddy writes the visitor, never a proxy:
+#
+#   * from Cloudflare, which sits in front of the domain, the address Cloudflare saw,
+#     `CF-Connecting-IP`. Otherwise every player behind one Cloudflare edge would be one
+#     caller: a busy party hits the limits together, and a ban lands on Cloudflare.
+#   * from anywhere else, the address that connected. Only a connection from
+#     Cloudflare's own ranges is believed about someone else, so a request sent straight
+#     to this server cannot name its own address in `CF-Connecting-IP`.
+#
+# That is only honest because kamal-proxy, and through it the app, can be reached from
+# this machine alone.
 
 {args[0]} {
 	encode zstd gzip
@@ -28,14 +39,30 @@
 		max_size 33MB
 	}
 
+	# Cloudflare's addresses, from https://www.cloudflare.com/ips-v4 and /ips-v6
+	# (2026-09-25). They change rarely and are announced in advance; refresh them with:
+	#   curl -s https://www.cloudflare.com/ips-v4 https://www.cloudflare.com/ips-v6
+	@cloudflare remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+
 	# The service worker owns caching (AGENTS.md §5): the app answers with
 	# `max-age=0, must-revalidate` and ETags, and nothing here may extend that.
-	reverse_proxy 127.0.0.1:8080 {
-		# Phoenix reads these to know it is behind HTTPS (`force_ssl` in prod.exs), and
-		# who the visitor is. kamal-proxy keeps both and appends its own entry to
-		# X-Forwarded-For; what a client sent in that header is replaced here.
-		header_up X-Forwarded-Proto {scheme}
-		header_up X-Forwarded-For {remote_host}
-		header_up Host {host}
+	#
+	# Phoenix reads X-Forwarded-Proto to know it is behind HTTPS (`force_ssl` in
+	# prod.exs). kamal-proxy keeps both headers and appends its own X-Forwarded-For
+	# entry; whatever a client sent in that header is replaced here.
+	handle @cloudflare {
+		reverse_proxy 127.0.0.1:8080 {
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+			header_up Host {host}
+		}
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:8080 {
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-For {remote_host}
+			header_up Host {host}
+		}
 	}
 }

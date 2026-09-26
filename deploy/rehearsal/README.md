@@ -20,6 +20,7 @@ What it checks, each as a `PASS`/`FAIL` line:
 | compression | the web build's brotli copies reach the browser through both proxies |
 | the seed | the built-in quizzes are there after the first deploy |
 | addresses | behind two proxies a flooder is rate-limited and the next visitor is not, and made-up `X-Forwarded-For` entries change nothing (`TRUST_PROXY: 2`) |
+| Cloudflare | through the site as Cloudflare sees it (`../fazoura.caddy` with loopback as Cloudflare's ranges), each visitor Cloudflare names is counted apart and one visitor is still limited; through the real site, a made-up `CF-Connecting-IP` is ignored |
 | privacy | kamal-proxy keeps no request log |
 | stopping | the app container gets 30 s to drain |
 | a game | a whole game over WebSockets through both proxies (the `fazoura` CLI), the room held open 40 s first, past kamal-proxy's response timeout |
@@ -47,5 +48,11 @@ summary, `.work/log/ops.log` has the kit's and Kamal's own output for every oper
 and `.work/game.*` what the CLI saw. After a failure the stack is left up to look at.
 
 It needs Docker and Flutter (for `tools/fazoura-cli`), and the ports 2223, 5557, 8080,
-8088, 8443 and 9443 free on loopback. The containers that use the host's network run
+8088, 8443, 9443 and 9445 free on loopback.
+
+The kit lets `.kamal/kit.local.env` override every setting but its own `KIT_*` ones, so
+with a real one — the production server's — present, the rehearsal would be aimed at
+production. The deployer is given the rehearsal's own file in its place, and nothing
+runs until the kit, loading its configuration as a deploy does, resolves the stand-in
+server. The containers that use the host's network run
 with `--userns=host`, which Docker requires when user namespaces are on.

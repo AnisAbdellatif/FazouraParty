@@ -4,7 +4,8 @@ defmodule FazouraWeb.ClientIp do
 
   Behind our proxies the peer is always the nearest of them, so the address comes from
   `X-Forwarded-For`, where each proxy appends the peer it saw. In production there are
-  two — the host's Caddy appends the visitor, then kamal-proxy appends Caddy
+  two — the host's Caddy writes the visitor (the address Cloudflare names, when the
+  connection is Cloudflare's: deploy/fazoura.caddy), then kamal-proxy appends Caddy
   (deploy/deploy.yml) — so the visitor is the second entry from the right, and anything
   before it is whatever the client chose to send. `:proxy_hops` (`TRUST_PROXY`) is how
   many of those entries are ours. That is only believable because nothing but our

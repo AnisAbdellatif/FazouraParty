@@ -140,6 +140,14 @@ reads. kamal-proxy keeps them and appends its own `X-Forwarded-For` entry, so th
 believes exactly two (`TRUST_PROXY: 2` in `deploy.yml`) — honest only because
 kamal-proxy is bound to loopback and the app publishes nothing.
 
+The domain is behind **Cloudflare**, so the address that reaches Caddy is Cloudflare's,
+not the player's. The site takes the player from `CF-Connecting-IP`, but only on a
+connection from Cloudflare's published ranges (the `@cloudflare` matcher); anything else
+is counted by the address that connected, so nobody can name their own address by
+skipping Cloudflare. Without this every player behind one Cloudflare edge shares one rate
+limit, one room quota and one ban. The ranges are in the file with the command that
+refreshes them; Cloudflare announces changes in advance.
+
 **One kamal-proxy serves every Kamal app on the server**, and its `run` block in
 `deploy.yml` (ports, loopback, no request log) is the server's, not the app's: any
 other project deployed there with Kamal must use the same one.

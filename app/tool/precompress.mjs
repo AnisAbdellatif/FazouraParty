@@ -41,12 +41,16 @@ let compressed = 0;
 let before = 0;
 let after = 0;
 
-for (const path of files(root)) {
-  if (path.endsWith('.br')) {
-    // A leftover from an earlier build: the file beside it may have changed.
-    unlinkSync(path);
-    continue;
-  }
+// Leftovers from an earlier build go first, all of them: the file beside one may
+// have changed. Deleting them while compressing, from the same listing, deleted
+// the copy just written whenever the old `.br` was listed after its source.
+const paths = [...files(root)];
+for (const path of paths) {
+  if (path.endsWith('.br')) unlinkSync(path);
+}
+
+for (const path of paths) {
+  if (path.endsWith('.br')) continue;
   if (!COMPRESSIBLE.has(extname(path))) continue;
   if (statSync(path).size < MIN_BYTES) continue;
 
