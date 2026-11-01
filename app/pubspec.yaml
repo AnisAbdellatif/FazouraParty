@@ -10,36 +10,36 @@ dependencies:
   archive: ^4.3.0
   # Names a photo inside a .fazoura package by a digest of its own bytes, the
   # same shape the server's upload keys take (core/quizzes/quiz_archive.dart).
-  crypto: ^3.0.6
+  crypto: ^3.0.8
   flutter:
     sdk: flutter
   flutter_riverpod: ^3.4.3
   freezed_annotation: ^3.1.0
   http: ^1.6.0
-  image: ^4.10.1
-  image_picker: ^1.2.3
+  image: ^4.12.0
+  image_picker: ^1.2.4
   json_annotation: ^4.12.0
   path_provider: ^2.1.6
   phoenix_socket: ^0.8.0
   riverpod_annotation: ^4.0.7
-  sembast: ^3.8.10
+  sembast: ^3.9.0
   sembast_web: ^2.4.6
-  shared_preferences: ^2.5.5
+  shared_preferences: ^2.5.6
   # Android-only in practice: handing the APK download off to the browser is the
   # whole of the update install step (core/update/). The web build never calls it
   # — a PWA updates itself through the service worker.
-  url_launcher: ^6.3.2
+  url_launcher: ^6.3.3
   # Web-only: the origin the PWA was served from (core/providers/served_origin_web.dart).
-  web: ^1.1.1
+  web: ^1.1.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-  build_runner: ^2.16.1
+  build_runner: ^2.16.2
   riverpod_generator: ^4.0.9
-  freezed: ^4.0.1
-  json_serializable: ^6.14.1
+  freezed: ^4.0.3
+  json_serializable: ^6.15.2
 
 flutter:
   uses-material-design: true
